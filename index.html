@@ -288,7 +288,7 @@ const EMPRESAS = {
     sheets_id: "1ycJeFB-eEzIldls4DM2XL3mtWtBQvQ7V0rRkntghzTQ",
     hoja_registros: "REGISTROS 2",
     hoja_empleados: "REGISTROS",
-    api_key: "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0"
+    api_key: "TU_API_KEY_AQUI"
   },
   shower: {
     nombre: "Shower Walls",
@@ -586,51 +586,106 @@ function renderRegistros() {
 }
 
 // ─── ÁREAS ───────────────────────────────────────────────────
+let areaExpandida = null;
+
 function renderAreas() {
+  const fechaFiltro = document.getElementById("filt-fecha-area")?.value || fechaHoy;
+
+  const datos = datosCache.filter(r => {
+    const f = r["Fecha"] || r["fecha"] || "";
+    return f === fechaFiltro;
+  });
+
   const porArea = {};
-  datosCache.forEach(r => {
+  datos.forEach(r => {
     const area = r["Departamento"] || r["area"] || "Sin área";
-    if (!porArea[area]) porArea[area] = { total:0, normal:0, retardo:0, extra:0, incompleto:0 };
+    if (!porArea[area]) porArea[area] = { total:0, normal:0, retardo:0, extra:0, incompleto:0, empleados:[] };
     const est = r["estado"] || r["EstadoAsistencia"] || "";
     porArea[area].total++;
     if (est === "NORMAL") porArea[area].normal++;
     else if (est.includes("RETARDO")) porArea[area].retardo++;
     else if (est === "EXTRA") porArea[area].extra++;
     else porArea[area].incompleto++;
+    porArea[area].empleados.push(r);
   });
 
   const areas = Object.entries(porArea).sort((a,b) => b[1].total - a[1].total);
 
   document.getElementById("content").innerHTML = `
+    <div style="display:flex; gap:10px; margin-bottom:16px;">
+      <input id="filt-fecha-area" type="date" value="${fechaFiltro}" onchange="renderAreas()"
+        style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+      <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;">${datos.length} registros · ${areas.length} áreas · Clic en un área para ver el personal</div>
+    </div>
     <div class="table-wrap">
       <div class="table-header">
-        <div class="table-header-title">Asistencia por área</div>
+        <div class="table-header-title">Asistencia por área — ${fechaFiltro}</div>
         <div style="font-size:12px;color:var(--muted)">${areas.length} áreas</div>
       </div>
       <table>
         <thead><tr>
-          <th>Área</th><th>Total</th><th>Normal</th><th>Retardo</th><th>Extra</th><th>Incompleto</th><th>% Asistencia</th>
+          <th></th><th>Área</th><th>Total</th><th>Normal</th><th>Retardo</th><th>Extra</th><th>Incompleto</th><th>% Asistencia</th>
         </tr></thead>
-        <tbody>
-          ${areas.map(([area, v]) => `<tr>
-            <td style="font-weight:500">${area}</td>
-            <td class="mono">${v.total}</td>
-            <td class="mono" style="color:var(--accent)">${v.normal}</td>
-            <td class="mono" style="color:var(--warn)">${v.retardo}</td>
-            <td class="mono" style="color:var(--accent2)">${v.extra}</td>
-            <td class="mono" style="color:var(--danger)">${v.incompleto}</td>
-            <td>
-              <div style="display:flex;align-items:center;gap:8px">
-                <div class="bar-track" style="width:80px">
-                  <div class="bar-fill" style="width:${Math.round(v.normal/v.total*100)}%;background:${v.normal/v.total>0.8?'var(--accent)':v.normal/v.total>0.5?'var(--warn)':'var(--danger)'}"></div>
+        <tbody id="areas-tbody">
+          ${areas.map(([area, v]) => `
+            <tr style="cursor:pointer;" onclick="toggleArea('${area.replace(/'/g,"\'")}', this)"
+              id="row-${area.replace(/[^a-zA-Z0-9]/g,'_')}">
+              <td style="color:var(--muted);width:24px;font-size:12px" id="icon-${area.replace(/[^a-zA-Z0-9]/g,'_')}">▶</td>
+              <td style="font-weight:500">${area}</td>
+              <td class="mono">${v.total}</td>
+              <td class="mono" style="color:var(--accent)">${v.normal}</td>
+              <td class="mono" style="color:var(--warn)">${v.retardo}</td>
+              <td class="mono" style="color:var(--accent2)">${v.extra}</td>
+              <td class="mono" style="color:var(--danger)">${v.incompleto}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="bar-track" style="width:80px">
+                    <div class="bar-fill" style="width:${Math.round(v.normal/v.total*100)}%;background:${v.normal/v.total>0.8?'var(--accent)':v.normal/v.total>0.5?'var(--warn)':'var(--danger)'}"></div>
+                  </div>
+                  <span class="mono" style="font-size:11px">${Math.round(v.normal/v.total*100)}%</span>
                 </div>
-                <span class="mono" style="font-size:11px">${Math.round(v.normal/v.total*100)}%</span>
-              </div>
-            </td>
-          </tr>`).join("")}
+              </td>
+            </tr>
+            <tr id="detail-${area.replace(/[^a-zA-Z0-9]/g,'_')}" style="display:none;">
+              <td colspan="8" style="padding:0;background:var(--bg);">
+                <table style="width:100%;border-collapse:collapse;">
+                  <thead><tr style="background:var(--bg3);">
+                    <th style="padding:8px 16px 8px 40px;font-size:11px;color:var(--muted);text-align:left;">Nómina</th>
+                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Empleado</th>
+                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Entrada</th>
+                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Salida</th>
+                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Horas</th>
+                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Retardo</th>
+                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Estado</th>
+                  </tr></thead>
+                  <tbody>
+                    ${v.empleados.map(r => `<tr style="border-top:1px solid var(--border);">
+                      <td class="mono" style="padding:8px 16px 8px 40px;color:var(--muted);font-size:12px;">${r["NOMINA"]||r["nomina"]||""}</td>
+                      <td style="padding:8px 16px;font-size:13px;">${r["Nombre"]||r["nombre"]||""} ${r["Apellido"]||r["apellido"]||""}</td>
+                      <td class="mono" style="padding:8px 16px;">${r["entrada_real"]||r["EntradaReal"]||"—"}</td>
+                      <td class="mono" style="padding:8px 16px;">${r["salida_real"]||r["SalidaFinalReal"]||"—"}</td>
+                      <td class="mono" style="padding:8px 16px;">${r["horas_trabajadas"]||r["HorasTrabajadas"]||"—"}</td>
+                      <td class="mono" style="padding:8px 16px;color:${(r["minutos_retardo"]||r["MinutosRetardo"]||0)>0?'var(--warn)':'var(--muted)'}">${r["minutos_retardo"]||r["MinutosRetardo"]||0} min</td>
+                      <td style="padding:8px 16px;">${estadoBadge(r["estado"]||r["EstadoAsistencia"]||"")}</td>
+                    </tr>`).join("")}
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          `).join("")}
         </tbody>
       </table>
     </div>`;
+}
+
+function toggleArea(area, row) {
+  const id = area.replace(/[^a-zA-Z0-9]/g,'_');
+  const detail = document.getElementById(`detail-${id}`);
+  const icon   = document.getElementById(`icon-${id}`);
+  if (!detail) return;
+  const visible = detail.style.display !== "none";
+  detail.style.display = visible ? "none" : "table-row";
+  icon.textContent = visible ? "▶" : "▼";
 }
 
 // ─── INIT ────────────────────────────────────────────────────
