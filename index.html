@@ -7,547 +7,338 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0f1117;
-  --bg2: #161b27;
-  --bg3: #1e2535;
-  --border: rgba(255,255,255,0.07);
-  --text: #e8eaf0;
-  --muted: #6b7280;
-  --accent: #22c55e;
-  --accent2: #3b82f6;
-  --warn: #f59e0b;
-  --danger: #ef4444;
-  --info: #8b5cf6;
+  --bg: #0f1117; --bg2: #161b27; --bg3: #1e2535;
+  --border: rgba(255,255,255,0.07); --text: #e8eaf0; --muted: #6b7280;
+  --accent: #22c55e; --accent2: #3b82f6; --warn: #f59e0b; --danger: #ef4444; --info: #8b5cf6;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
-
-/* SIDEBAR */
 .sidebar {
   position: fixed; left: 0; top: 0; bottom: 0; width: 220px;
   background: var(--bg2); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; z-index: 100;
 }
-.logo {
-  padding: 24px 20px 16px;
-  font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
-  color: var(--accent); display: flex; align-items: center; gap: 8px;
-}
-.logo svg { width: 20px; height: 20px; }
-.logo-sub { font-size: 11px; color: var(--muted); font-weight: 400; letter-spacing: 0; margin-top: 2px; }
-.empresa-selector {
-  margin: 0 12px 16px;
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 8px; padding: 8px 10px;
-  font-size: 12px; color: var(--text);
-  cursor: pointer; display: flex; align-items: center; justify-content: space-between;
-}
-.empresa-selector select {
-  background: none; border: none; color: var(--text);
-  font-family: 'DM Sans', sans-serif; font-size: 12px;
-  cursor: pointer; width: 100%; outline: none;
-}
-.nav-group { padding: 0 8px; margin-bottom: 8px; }
-.nav-label { font-size: 10px; color: var(--muted); padding: 6px 12px; letter-spacing: 0.8px; text-transform: uppercase; }
-.nav-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 12px; border-radius: 6px;
-  font-size: 13px; color: var(--muted);
-  cursor: pointer; transition: all 0.15s;
-  border: 1px solid transparent;
-}
+.logo { padding: 20px 20px 12px; font-size: 13px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+.logo svg { width: 18px; height: 18px; }
+.logo-sub { font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 1px; }
+.nav-group { padding: 0 8px; margin-bottom: 4px; }
+.nav-label { font-size: 10px; color: var(--muted); padding: 8px 12px 4px; letter-spacing: 0.8px; text-transform: uppercase; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; font-size: 13px; color: var(--muted); cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
 .nav-item:hover { background: var(--bg3); color: var(--text); }
 .nav-item.active { background: rgba(34,197,94,0.1); color: var(--accent); border-color: rgba(34,197,94,0.2); }
-.nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-.sidebar-bottom {
-  margin-top: auto; padding: 16px 12px;
-  border-top: 1px solid var(--border);
-}
-.user-badge {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; border-radius: 6px;
-  background: var(--bg3);
-}
-.user-avatar {
-  width: 28px; height: 28px; border-radius: 50%;
-  background: var(--accent); display: flex; align-items: center;
-  justify-content: center; font-size: 11px; font-weight: 600; color: #000;
-}
-.user-info { flex: 1; min-width: 0; }
-.user-name { font-size: 12px; font-weight: 500; truncate: ellipsis; }
+.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+.emp-selector { margin: 0 12px 12px; }
+.emp-selector label { font-size: 10px; color: var(--muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.emp-selector select { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-family: 'DM Sans',sans-serif; font-size: 12px; outline: none; cursor: pointer; }
+.sidebar-bottom { margin-top: auto; padding: 12px; border-top: 1px solid var(--border); }
+.user-badge { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; background: var(--bg3); }
+.user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #000; flex-shrink: 0; }
+.user-name { font-size: 12px; font-weight: 500; }
 .user-role { font-size: 10px; color: var(--muted); }
-
-/* MAIN */
 .main { margin-left: 220px; min-height: 100vh; }
-.topbar {
-  padding: 16px 28px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  background: var(--bg2); position: sticky; top: 0; z-index: 50;
-}
-.topbar-title { font-size: 16px; font-weight: 600; }
-.topbar-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
-.topbar-right { display: flex; align-items: center; gap: 10px; }
-.pill {
-  font-size: 11px; padding: 4px 10px; border-radius: 20px;
-  font-weight: 500; display: flex; align-items: center; gap: 4px;
-}
+.topbar { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); position: sticky; top: 0; z-index: 50; }
+.topbar-title { font-size: 15px; font-weight: 600; }
+.topbar-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.pill { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 500; display: flex; align-items: center; gap: 4px; }
 .pill-green { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
 .pill-red { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
 .pill-gray { background: var(--bg3); color: var(--muted); border: 1px solid var(--border); }
-.btn {
-  font-size: 12px; padding: 7px 14px; border-radius: 6px;
-  border: 1px solid var(--border); background: var(--bg3);
-  color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 6px;
-  font-family: 'DM Sans', sans-serif; transition: all 0.15s;
-}
+.btn { font-size: 12px; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: 'DM Sans',sans-serif; transition: all 0.15s; }
 .btn:hover { background: var(--bg); border-color: rgba(255,255,255,0.15); }
 .btn-accent { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
 .btn-accent:hover { background: #16a34a; }
-
-.content { padding: 24px 28px; }
-
-/* METRICS */
-.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
-.metric {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 10px; padding: 16px 18px;
-  transition: border-color 0.2s;
-}
-.metric:hover { border-color: rgba(255,255,255,0.15); }
-.metric-label { font-size: 11px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-.metric-val { font-size: 28px; font-weight: 600; line-height: 1; }
-.metric-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
-.metric-val.green { color: var(--accent); }
-.metric-val.amber { color: var(--warn); }
-.metric-val.red { color: var(--danger); }
-.metric-val.blue { color: var(--accent2); }
-
-/* GRID */
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-.card {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 10px; padding: 18px 20px;
-}
-.card-title { font-size: 13px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+.content { padding: 20px 24px; }
+.metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
+.metric { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.metric-label { font-size: 10px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.metric-val { font-size: 26px; font-weight: 600; line-height: 1; }
+.metric-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.green { color: var(--accent); } .amber { color: var(--warn); } .red { color: var(--danger); } .blue { color: var(--accent2); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+.card-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
 .card-title span { color: var(--muted); font-size: 11px; font-weight: 400; }
-
-/* TABLE */
-.table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
-.table-header { padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+.table-header { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
 .table-header-title { font-size: 13px; font-weight: 600; }
 table { width: 100%; border-collapse: collapse; }
-th { padding: 10px 16px; text-align: left; font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
-td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--border); }
+th { padding: 8px 12px; text-align: left; font-size: 10px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--border); }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: rgba(255,255,255,0.02); }
-.mono { font-family: 'DM Mono', monospace; font-size: 12px; }
-
-/* BADGES */
-.badge { font-size: 10px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
+.mono { font-family: 'DM Mono',monospace; font-size: 11px; }
+.badge { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
 .b-normal { background: rgba(34,197,94,0.15); color: #4ade80; }
 .b-retardo { background: rgba(245,158,11,0.15); color: #fbbf24; }
 .b-extra { background: rgba(59,130,246,0.15); color: #60a5fa; }
 .b-retardo-extra { background: rgba(139,92,246,0.15); color: #a78bfa; }
 .b-incompleto { background: rgba(239,68,68,0.15); color: #f87171; }
 .b-ausente { background: rgba(239,68,68,0.2); color: #ef4444; }
-
-/* ALERTS */
-.alerts { display: flex; flex-direction: column; gap: 8px; }
-.alert {
-  padding: 10px 12px; border-radius: 8px;
-  display: flex; align-items: flex-start; gap: 10px;
-  font-size: 12px;
-}
-.alert-warn { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.2); }
-.alert-danger { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); }
-.alert-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
-.alert-body { flex: 1; }
-.alert-title { font-weight: 600; margin-bottom: 2px; }
-.alert-desc { color: var(--muted); font-size: 11px; }
-
-/* BAR CHART */
 .bar-chart { display: flex; flex-direction: column; gap: 8px; }
-.bar-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
-.bar-label { width: 120px; color: var(--muted); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; flex-shrink: 0; }
-.bar-track { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.bar-label { width: 110px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex-shrink: 0; font-size: 11px; }
+.bar-track { flex: 1; height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
-.bar-val { width: 36px; text-align: right; color: var(--text); font-family: 'DM Mono', monospace; font-size: 11px; }
-
-/* LOADING */
+.bar-val { width: 30px; text-align: right; font-family: 'DM Mono',monospace; font-size: 11px; }
 .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; gap: 12px; color: var(--muted); }
-.spinner { width: 28px; height: 28px; border: 2px solid var(--bg3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+.spinner { width: 24px; height: 24px; border: 2px solid var(--bg3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* DOT */
-.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
-.dot-green { background: var(--accent); }
-.dot-red { background: var(--danger); }
-.dot-amber { background: var(--warn); }
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.dot-green { background: var(--accent); } .dot-red { background: var(--danger); } .dot-amber { background: var(--warn); }
+input[type=date], input[type=text], select.filter {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 10px; color: var(--text); font-family: 'DM Sans',sans-serif;
+  font-size: 12px; outline: none;
+}
+input[type=text] { flex: 1; min-width: 160px; }
+.filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+.resumen-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 4px 0; }
+.resumen-dot { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 </style>
 </head>
 <body>
 
-<!-- SIDEBAR -->
 <div class="sidebar">
   <div class="logo">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-    <div>
-      <div>Asistencia</div>
-      <div class="logo-sub">Control de personal</div>
-    </div>
+    <div><div>Asistencia</div><div class="logo-sub">Control de personal</div></div>
   </div>
 
-  <div style="padding: 0 12px; margin-bottom: 12px;">
-    <div style="font-size: 10px; color: var(--muted); margin-bottom: 6px; padding-left: 4px; text-transform: uppercase; letter-spacing: 0.8px;">Empresa</div>
-    <div style="background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;">
-      <select id="empresa-select" onchange="cambiarEmpresa(this.value)" style="background: none; border: none; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer; width: 100%; outline: none;">
-        <option value="woods">Woods</option>
-        <option value="shower">Shower Walls</option>
-      </select>
-    </div>
+  <div class="emp-selector">
+    <label>Empresa</label>
+    <select id="emp-select" onchange="cambiarEmpresa(this.value)">
+      <option value="woods">Modul Woods</option>
+      <option value="shower">Shower Walls</option>
+    </select>
   </div>
 
   <div class="nav-group">
     <div class="nav-label">Principal</div>
-    <div class="nav-item active" onclick="showPage('dashboard')">
+    <div class="nav-item active" id="nav-dashboard" onclick="navegar('dashboard',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       Dashboard
     </div>
-    <div class="nav-item" onclick="showPage('registros')">
+    <div class="nav-item" id="nav-registros" onclick="navegar('registros',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
       Registros
     </div>
-    <div class="nav-item" onclick="showPage('empleados')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-      Empleados
-    </div>
   </div>
-
   <div class="nav-group">
     <div class="nav-label">Reportes</div>
-    <div class="nav-item" onclick="showPage('areas')">
+    <div class="nav-item" id="nav-areas" onclick="navegar('areas',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Por área
     </div>
-    <div class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-      Correos
-    </div>
-    <div class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Exportar
+    <div class="nav-item" id="nav-empleados" onclick="navegar('empleados',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      Empleados
     </div>
   </div>
 
   <div class="sidebar-bottom">
     <div class="user-badge">
       <div class="user-avatar">RH</div>
-      <div class="user-info">
-        <div class="user-name">RH / Nóminas</div>
-        <div class="user-role">Acceso completo</div>
-      </div>
+      <div><div class="user-name">RH / Nóminas</div><div class="user-role">Acceso completo</div></div>
     </div>
   </div>
 </div>
 
-<!-- MAIN -->
 <div class="main">
   <div class="topbar">
     <div>
       <div class="topbar-title" id="page-title">Dashboard</div>
-      <div class="topbar-sub" id="page-sub">Cargando datos...</div>
+      <div class="topbar-sub" id="page-sub">Cargando...</div>
     </div>
     <div class="topbar-right">
-      <div class="pill pill-gray" id="status-pill">
-        <span class="dot dot-amber"></span> Cargando...
-      </div>
+      <div class="pill pill-gray" id="status-pill"><span class="dot dot-amber"></span> Cargando...</div>
       <button class="btn" onclick="cargarDatos()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
         Actualizar
-      </button>
-      <button class="btn btn-accent">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Exportar
       </button>
     </div>
   </div>
-
   <div class="content" id="content">
-    <div class="loading">
-      <div class="spinner"></div>
-      <div>Conectando con Google Sheets...</div>
-    </div>
+    <div class="loading"><div class="spinner"></div><div>Conectando...</div></div>
   </div>
 </div>
 
 <script>
-// ─── CONFIGURACIÓN ───────────────────────────────────────────
+const API_KEY = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
+
 const EMPRESAS = {
   woods: {
-    nombre: "Woods",
-    sheets_id: "1ycJeFB-eEzIldls4DM2XL3mtWtBQvQ7V0rRkntghzTQ",
-    hoja_registros: "REGISTROS 2",
-    hoja_empleados: "REGISTROS",
-    api_key: "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0"
+    nombre: "Modul Woods",
+    sheets_id: "1vTk8M_rI3k9pXo18rsY9mF4QSj1SuBdR9eTsrPCL8xw",
+    hoja: "REGISTROS"
   },
   shower: {
     nombre: "Shower Walls",
     sheets_id: "1H-WerDj1GFafoaqsEk7Xmjt_KAi-fwG4tMkiV1B_XUo",
-    hoja_registros: "REGISTROS",
-    hoja_empleados: "EMPLEADOS",
-    api_key: "TU_API_KEY_AQUI"
+    hoja: "REGISTROS"
   }
 };
 
 let empresaActual = "woods";
 let paginaActual  = "dashboard";
-let datosCache    = null;
+let datos         = null;
 let fechaHoy      = new Date().toISOString().split("T")[0];
 
-// ─── NAVEGACIÓN ──────────────────────────────────────────────
-function showPage(page) {
+function navegar(page, el) {
   paginaActual = page;
   document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
-  event.currentTarget.classList.add("active");
+  el.classList.add("active");
+  const titulos = { dashboard:"Dashboard", registros:"Registros", areas:"Reporte por área", empleados:"Empleados" };
+  document.getElementById("page-title").textContent = titulos[page];
   renderPagina();
 }
 
 function cambiarEmpresa(val) {
   empresaActual = val;
-  datosCache    = null;
+  datos = null;
   cargarDatos();
 }
 
-// ─── CARGA DE DATOS ──────────────────────────────────────────
 async function cargarDatos() {
   const emp = EMPRESAS[empresaActual];
-  document.getElementById("content").innerHTML = `<div class="loading"><div class="spinner"></div><div>Cargando datos de ${emp.nombre}...</div></div>`;
+  document.getElementById("content").innerHTML = `<div class="loading"><div class="spinner"></div><div>Cargando ${emp.nombre}...</div></div>`;
   document.getElementById("status-pill").innerHTML = `<span class="dot dot-amber"></span> Cargando...`;
   document.getElementById("status-pill").className = "pill pill-gray";
 
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/${encodeURIComponent(emp.hoja_registros)}?key=${emp.api_key}`;
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    const filas = data.values || [];
-
-    if (filas.length < 2) {
-      throw new Error("Sin datos");
-    }
-
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/${encodeURIComponent(emp.hoja)}?key=${API_KEY}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    const filas = d.values || [];
+    if (filas.length < 2) throw new Error("Sin datos");
     const headers = filas[0];
-    const registros = filas.slice(1).map(f => {
-      const obj = {};
-      headers.forEach((h, i) => obj[h] = f[i] || "");
-      return obj;
+    datos = filas.slice(1).map(f => {
+      const o = {};
+      headers.forEach((h,i) => o[h.trim()] = (f[i]||"").trim());
+      return o;
     });
-
-    datosCache = registros;
-
-    document.getElementById("status-pill").innerHTML = `<span class="dot dot-green"></span> ${registros.length} registros`;
+    document.getElementById("status-pill").innerHTML = `<span class="dot dot-green"></span> ${datos.length} registros`;
     document.getElementById("status-pill").className = "pill pill-green";
-
     const ahora = new Date();
-    document.getElementById("page-sub").textContent = `${emp.nombre} · Actualizado ${ahora.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'})}`;
-
+    document.getElementById("page-sub").textContent = `${emp.nombre} · ${ahora.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}`;
     renderPagina();
-
   } catch(e) {
     document.getElementById("status-pill").innerHTML = `<span class="dot dot-red"></span> Error`;
     document.getElementById("status-pill").className = "pill pill-red";
-    document.getElementById("content").innerHTML = `
-      <div class="loading">
-        <div style="color: var(--danger); font-size: 24px;">⚠</div>
-        <div style="color: var(--text);">Error cargando datos</div>
-        <div style="color: var(--muted); font-size: 12px;">${e.message}</div>
-        <div style="color: var(--muted); font-size: 11px; margin-top: 8px;">Verifica que la API Key esté configurada en config.js</div>
-      </div>`;
+    document.getElementById("content").innerHTML = `<div class="loading"><div style="color:var(--danger);font-size:28px">⚠</div><div>${e.message}</div></div>`;
   }
 }
 
-// ─── RENDER PÁGINAS ──────────────────────────────────────────
 function renderPagina() {
-  if (!datosCache) { cargarDatos(); return; }
-
-  const titulos = { dashboard: "Dashboard", registros: "Registros", empleados: "Empleados", areas: "Reporte por área" };
-  document.getElementById("page-title").textContent = titulos[paginaActual] || "Dashboard";
-
+  if (!datos) { cargarDatos(); return; }
   if (paginaActual === "dashboard")  renderDashboard();
   else if (paginaActual === "registros") renderRegistros();
   else if (paginaActual === "areas") renderAreas();
-  else renderDashboard();
+  else if (paginaActual === "empleados") renderEmpleados();
 }
 
-function getHoy() {
-  return datosCache.filter(r => {
-    const f = r["Fecha"] || r["fecha"] || "";
-    return f === fechaHoy;
-  });
+// Helpers
+function g(r, ...keys) { for (const k of keys) if (r[k]) return r[k]; return ""; }
+function estadoBadge(e) {
+  const m = {"NORMAL":"b-normal","RETARDO":"b-retardo","EXTRA":"b-extra","RETARDO CON EXTRA":"b-retardo-extra","INCOMPLETO":"b-incompleto","AUSENTE":"b-ausente"};
+  return `<span class="badge ${m[e]||'b-incompleto'}">${e||'—'}</span>`;
 }
-
-function estadoBadge(estado) {
-  const map = {
-    "NORMAL": "b-normal",
-    "RETARDO": "b-retardo",
-    "EXTRA": "b-extra",
-    "RETARDO CON EXTRA": "b-retardo-extra",
-    "INCOMPLETO": "b-incompleto",
-    "AUSENTE": "b-ausente"
-  };
-  return `<span class="badge ${map[estado] || 'b-incompleto'}">${estado || 'SIN ESTADO'}</span>`;
+function filtrarFecha(f) {
+  return datos.filter(r => g(r,"fecha","Fecha") === f);
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 function renderDashboard() {
-  const hoy    = getHoy();
-  const total  = hoy.length;
-  const norm   = hoy.filter(r => (r["estado"] || r["EstadoAsistencia"]) === "NORMAL").length;
-  const ret    = hoy.filter(r => (r["estado"] || r["EstadoAsistencia"] || "").includes("RETARDO")).length;
-  const inc    = hoy.filter(r => ["INCOMPLETO","AUSENTE"].includes(r["estado"] || r["EstadoAsistencia"])).length;
-  const extra  = hoy.filter(r => (r["estado"] || r["EstadoAsistencia"]) === "EXTRA").length;
+  const hoy   = filtrarFecha(fechaHoy);
+  const total = hoy.length;
+  const norm  = hoy.filter(r => g(r,"estado","EstadoAsistencia") === "NORMAL").length;
+  const ret   = hoy.filter(r => g(r,"estado","EstadoAsistencia").includes("RETARDO")).length;
+  const inc   = hoy.filter(r => ["INCOMPLETO","AUSENTE"].includes(g(r,"estado","EstadoAsistencia"))).length;
+  const ext   = hoy.filter(r => g(r,"estado","EstadoAsistencia") === "EXTRA").length;
+  const retExt= hoy.filter(r => g(r,"estado","EstadoAsistencia") === "RETARDO CON EXTRA").length;
 
-  // Últimos 10 registros de hoy
-  const ultimos = hoy.slice(-10).reverse();
+  // promedio horas trabajadas
+  const conHoras = hoy.filter(r => parseFloat(g(r,"horas_trabajadas","HorasTrabajadas")) > 0);
+  const promHoras = conHoras.length ? (conHoras.reduce((s,r) => s + parseFloat(g(r,"horas_trabajadas","HorasTrabajadas")||0), 0) / conHoras.length).toFixed(2) : "0.00";
 
-  // Áreas con más ausentes/retardos
+  // por área
   const porArea = {};
   hoy.forEach(r => {
-    const area = r["Departamento"] || r["area"] || "Sin área";
-    if (!porArea[area]) porArea[area] = { total: 0, ok: 0 };
-    porArea[area].total++;
-    if ((r["estado"] || r["EstadoAsistencia"]) === "NORMAL") porArea[area].ok++;
+    const a = g(r,"area","Departamento") || "Sin área";
+    if (!porArea[a]) porArea[a] = {total:0,ok:0};
+    porArea[a].total++;
+    if (g(r,"estado","EstadoAsistencia") === "NORMAL") porArea[a].ok++;
   });
+  const areasTop = Object.entries(porArea).sort((a,b)=>b[1].total-a[1].total).slice(0,7);
+  const maxA = areasTop.reduce((m,[,v])=>Math.max(m,v.total),1);
 
-  const areasTop = Object.entries(porArea)
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, 6);
-
-  const maxArea = areasTop.reduce((m, [_, v]) => Math.max(m, v.total), 1);
+  const ultimos = [...hoy].reverse().slice(0,8);
 
   document.getElementById("content").innerHTML = `
     <div class="metrics">
-      <div class="metric">
-        <div class="metric-label">Presentes hoy</div>
-        <div class="metric-val green">${total}</div>
-        <div class="metric-sub">registros del día</div>
-      </div>
-      <div class="metric">
-        <div class="metric-label">Normales</div>
-        <div class="metric-val blue">${norm}</div>
-        <div class="metric-sub">${total ? Math.round(norm/total*100) : 0}% del total</div>
-      </div>
-      <div class="metric">
-        <div class="metric-label">Retardos</div>
-        <div class="metric-val amber">${ret}</div>
-        <div class="metric-sub">con llegada tarde</div>
-      </div>
-      <div class="metric">
-        <div class="metric-label">Incompletos</div>
-        <div class="metric-val red">${inc}</div>
-        <div class="metric-sub">sin salida o ausentes</div>
-      </div>
+      <div class="metric"><div class="metric-label">Presentes hoy</div><div class="metric-val green">${total}</div><div class="metric-sub">registros del día</div></div>
+      <div class="metric"><div class="metric-label">Normales</div><div class="metric-val blue">${norm}</div><div class="metric-sub">${total?Math.round(norm/total*100):0}% del total</div></div>
+      <div class="metric"><div class="metric-label">Retardos</div><div class="metric-val amber">${ret + retExt}</div><div class="metric-sub">llegadas tarde</div></div>
+      <div class="metric"><div class="metric-label">Prom. horas</div><div class="metric-val">${promHoras}</div><div class="metric-sub">hrs trabajadas</div></div>
     </div>
 
     <div class="grid2">
       <div class="card">
-        <div class="card-title">Asistencia por área <span>hoy</span></div>
+        <div class="card-title">Asistencia por área <span>hoy ${fechaHoy}</span></div>
         <div class="bar-chart">
-          ${areasTop.map(([area, v]) => `
+          ${areasTop.map(([a,v])=>`
             <div class="bar-row">
-              <div class="bar-label" title="${area}">${area}</div>
-              <div class="bar-track">
-                <div class="bar-fill" style="width:${Math.round(v.total/maxArea*100)}%; background: ${v.ok/v.total > 0.8 ? 'var(--accent)' : v.ok/v.total > 0.5 ? 'var(--warn)' : 'var(--danger)'}"></div>
-              </div>
+              <div class="bar-label" title="${a}">${a}</div>
+              <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v.total/maxA*100)}%;background:${v.ok/v.total>0.8?'var(--accent)':v.ok/v.total>0.5?'var(--warn)':'var(--danger)'}"></div></div>
               <div class="bar-val">${v.total}</div>
-            </div>
-          `).join("")}
+            </div>`).join("")}
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Resumen del día <span>${fechaHoy}</span></div>
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-          ${[
-            ["Normal", norm, "var(--accent)"],
-            ["Retardo", hoy.filter(r=>(r.estado||r.EstadoAsistencia)==="RETARDO").length, "var(--warn)"],
-            ["Extra", extra, "var(--accent2)"],
-            ["Retardo con extra", hoy.filter(r=>(r.estado||r.EstadoAsistencia)==="RETARDO CON EXTRA").length, "#a78bfa"],
-            ["Incompleto", hoy.filter(r=>(r.estado||r.EstadoAsistencia)==="INCOMPLETO").length, "var(--danger)"],
-            ["Ausente", hoy.filter(r=>(r.estado||r.EstadoAsistencia)==="AUSENTE").length, "#ef4444"],
-          ].map(([label, val, color]) => `
-            <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <div class="dot" style="background:${color}"></div>
-                <span style="color:var(--muted)">${label}</span>
-              </div>
-              <span style="font-family:'DM Mono',monospace; font-size:12px; color:${color}">${val}</span>
-            </div>
-          `).join("")}
-        </div>
+        <div class="card-title">Resumen del día</div>
+        ${[["Normal",norm,"var(--accent)"],["Extra",ext,"var(--accent2)"],["Retardo",ret,"var(--warn)"],["Retardo con extra",retExt,"#a78bfa"],["Incompleto",inc,"var(--danger)"]].map(([l,v,c])=>`
+          <div class="resumen-row">
+            <div class="resumen-dot"><div class="dot" style="background:${c}"></div><span style="color:var(--muted)">${l}</span></div>
+            <span class="mono" style="color:${c}">${v}</span>
+          </div>`).join("")}
       </div>
     </div>
 
     <div class="table-wrap">
-      <div class="table-header">
-        <div class="table-header-title">Registros de hoy</div>
-        <div style="font-size:12px; color:var(--muted)">${total} empleados</div>
-      </div>
-      <table>
-        <thead><tr>
-          <th>Empleado</th>
-          <th>Área</th>
-          <th>Entrada</th>
-          <th>Salida</th>
-          <th>Horas</th>
-          <th>Retardo</th>
-          <th>Estado</th>
-        </tr></thead>
-        <tbody>
-          ${ultimos.map(r => `<tr>
-            <td style="font-weight:500">${r["Nombre"]||r["nombre"]||""} ${r["Apellido"]||r["apellido"]||""}</td>
-            <td style="color:var(--muted);font-size:12px">${r["Departamento"]||r["area"]||""}</td>
-            <td class="mono">${r["entrada_real"]||r["EntradaReal"]||"—"}</td>
-            <td class="mono">${r["salida_real"]||r["SalidaFinalReal"]||"—"}</td>
-            <td class="mono">${r["horas_trabajadas"]||r["HorasTrabajadas"]||"—"}</td>
-            <td class="mono" style="color:${(r["minutos_retardo"]||r["MinutosRetardo"]||0)>0?'var(--warn)':'var(--muted)'}">${r["minutos_retardo"]||r["MinutosRetardo"]||0} min</td>
-            <td>${estadoBadge(r["estado"]||r["EstadoAsistencia"]||"")}</td>
-          </tr>`).join("")}
-        </tbody>
-      </table>
+      <div class="table-header"><div class="table-header-title">Últimos registros de hoy</div><div style="font-size:11px;color:var(--muted)">${total} empleados</div></div>
+      <table><thead><tr>
+        <th>Nómina</th><th>Empleado</th><th>Área</th><th>Entrada</th><th>Salida</th><th>Hrs</th><th>Retardo</th><th>Estado</th>
+      </tr></thead><tbody>
+        ${ultimos.map(r=>`<tr>
+          <td class="mono" style="color:var(--muted)">${g(r,"nomina","NOMINA")}</td>
+          <td style="font-weight:500">${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}</td>
+          <td style="color:var(--muted);font-size:11px">${g(r,"area","Departamento")}</td>
+          <td class="mono">${g(r,"entrada_real","EntradaReal")||"—"}</td>
+          <td class="mono">${g(r,"salida_real","SalidaFinalReal")||"—"}</td>
+          <td class="mono">${parseFloat(g(r,"horas_trabajadas","HorasTrabajadas")||0).toFixed(2)}</td>
+          <td class="mono" style="color:${parseInt(g(r,"minutos_retardo","MinutosRetardo")||0)>0?'var(--warn)':'var(--muted)'}">${g(r,"minutos_retardo","MinutosRetardo")||0} min</td>
+          <td>${estadoBadge(g(r,"estado","EstadoAsistencia"))}</td>
+        </tr>`).join("")}
+      </tbody></table>
     </div>`;
 }
 
 // ─── REGISTROS ───────────────────────────────────────────────
 function renderRegistros() {
-  const busq    = document.getElementById("busq-val")?.value || "";
-  const filtEst = document.getElementById("filt-estado")?.value || "";
-  const filt    = document.getElementById("filt-fecha")?.value || fechaHoy;
+  const fecha  = document.getElementById("r-fecha")?.value || fechaHoy;
+  const busq   = (document.getElementById("r-busq")?.value || "").toLowerCase();
+  const fest   = document.getElementById("r-est")?.value || "";
 
-  let datos = datosCache.filter(r => {
-    const f = r["Fecha"] || r["fecha"] || "";
-    return f === filt;
-  });
-
-  if (busq) {
-    const q = busq.toLowerCase();
-    datos = datos.filter(r => {
-      const nom = `${r["Nombre"]||r["nombre"]||""} ${r["Apellido"]||r["apellido"]||""}`.toLowerCase();
-      const area = (r["Departamento"]||r["area"]||"").toLowerCase();
-      return nom.includes(q) || area.includes(q);
-    });
-  }
-
-  if (filtEst) datos = datos.filter(r => (r["estado"]||r["EstadoAsistencia"]||"") === filtEst);
+  let dd = filtrarFecha(fecha);
+  if (busq) dd = dd.filter(r => `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")} ${g(r,"area","Departamento")}`.toLowerCase().includes(busq));
+  if (fest) dd = dd.filter(r => g(r,"estado","EstadoAsistencia") === fest);
 
   document.getElementById("content").innerHTML = `
-    <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
-      <input id="filt-fecha" type="date" value="${filt}" onchange="renderRegistros()"
-        style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
-      <input id="busq-val" type="text" placeholder="Buscar empleado o área..." value="${busq}"
-        oninput="renderRegistros()"
-        style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;flex:1;min-width:200px;">
-      <select id="filt-estado" onchange="renderRegistros()"
-        style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+    <div class="filters">
+      <input type="date" id="r-fecha" value="${fecha}" onchange="renderRegistros()">
+      <input type="text" id="r-busq" placeholder="Buscar empleado o área..." value="${busq}" oninput="renderRegistros()">
+      <select class="filter" id="r-est" onchange="renderRegistros()">
         <option value="">Todos los estados</option>
         <option value="NORMAL">Normal</option>
         <option value="RETARDO">Retardo</option>
@@ -557,138 +348,154 @@ function renderRegistros() {
         <option value="AUSENTE">Ausente</option>
       </select>
     </div>
-
     <div class="table-wrap">
-      <div class="table-header">
-        <div class="table-header-title">Registros — ${filt}</div>
-        <div style="font-size:12px;color:var(--muted)">${datos.length} registros</div>
-      </div>
-      <table>
-        <thead><tr>
-          <th>Nómina</th><th>Empleado</th><th>Área</th>
-          <th>Entrada</th><th>Salida</th><th>Horas</th><th>Retardo</th><th>Estado</th>
-        </tr></thead>
-        <tbody>
-          ${datos.length === 0 ? `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Sin registros para esta fecha</td></tr>` :
-          datos.map(r => `<tr>
-            <td class="mono" style="color:var(--muted)">${r["NOMINA"]||r["nomina"]||""}</td>
-            <td style="font-weight:500">${r["Nombre"]||r["nombre"]||""} ${r["Apellido"]||r["apellido"]||""}</td>
-            <td style="color:var(--muted);font-size:12px">${r["Departamento"]||r["area"]||""}</td>
-            <td class="mono">${r["entrada_real"]||r["EntradaReal"]||"—"}</td>
-            <td class="mono">${r["salida_real"]||r["SalidaFinalReal"]||"—"}</td>
-            <td class="mono">${r["horas_trabajadas"]||r["HorasTrabajadas"]||"—"}</td>
-            <td class="mono" style="color:${(r["minutos_retardo"]||r["MinutosRetardo"]||0)>0?'var(--warn)':'var(--muted)'}">${r["minutos_retardo"]||r["MinutosRetardo"]||0} min</td>
-            <td>${estadoBadge(r["estado"]||r["EstadoAsistencia"]||"")}</td>
-          </tr>`).join("")}
-        </tbody>
-      </table>
+      <div class="table-header"><div class="table-header-title">Registros — ${fecha}</div><div style="font-size:11px;color:var(--muted)">${dd.length} registros</div></div>
+      <table><thead><tr>
+        <th>Nómina</th><th>Empleado</th><th>Área</th><th>Turno</th><th>Entrada</th><th>Salida</th><th>Hrs</th><th>Retardo</th><th>Estado</th>
+      </tr></thead><tbody>
+        ${dd.length===0?`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>`:
+        dd.map(r=>`<tr>
+          <td class="mono" style="color:var(--muted)">${g(r,"nomina","NOMINA")}</td>
+          <td style="font-weight:500">${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}</td>
+          <td style="color:var(--muted);font-size:11px">${g(r,"area","Departamento")}</td>
+          <td style="color:var(--muted);font-size:11px">${g(r,"turno","Turno")}</td>
+          <td class="mono">${g(r,"entrada_real","EntradaReal")||"—"}</td>
+          <td class="mono">${g(r,"salida_real","SalidaFinalReal")||"—"}</td>
+          <td class="mono">${parseFloat(g(r,"horas_trabajadas","HorasTrabajadas")||0).toFixed(2)}</td>
+          <td class="mono" style="color:${parseInt(g(r,"minutos_retardo","MinutosRetardo")||0)>0?'var(--warn)':'var(--muted)'}">${g(r,"minutos_retardo","MinutosRetardo")||0}</td>
+          <td>${estadoBadge(g(r,"estado","EstadoAsistencia"))}</td>
+        </tr>`).join("")}
+      </tbody></table>
     </div>`;
 }
 
-// ─── ÁREAS ───────────────────────────────────────────────────
-let areaExpandida = null;
-
+// ─── AREAS ───────────────────────────────────────────────────
+let areaOpen = null;
 function renderAreas() {
-  const fechaFiltro = document.getElementById("filt-fecha-area")?.value || fechaHoy;
-
-  const datos = datosCache.filter(r => {
-    const f = r["Fecha"] || r["fecha"] || "";
-    return f === fechaFiltro;
-  });
+  const fecha = document.getElementById("a-fecha")?.value || fechaHoy;
+  const dd    = filtrarFecha(fecha);
 
   const porArea = {};
-  datos.forEach(r => {
-    const area = r["Departamento"] || r["area"] || "Sin área";
-    if (!porArea[area]) porArea[area] = { total:0, normal:0, retardo:0, extra:0, incompleto:0, empleados:[] };
-    const est = r["estado"] || r["EstadoAsistencia"] || "";
-    porArea[area].total++;
-    if (est === "NORMAL") porArea[area].normal++;
-    else if (est.includes("RETARDO")) porArea[area].retardo++;
-    else if (est === "EXTRA") porArea[area].extra++;
-    else porArea[area].incompleto++;
-    porArea[area].empleados.push(r);
+  dd.forEach(r => {
+    const a = g(r,"area","Departamento") || "Sin área";
+    if (!porArea[a]) porArea[a] = {total:0,normal:0,retardo:0,extra:0,incompleto:0,lista:[]};
+    const est = g(r,"estado","EstadoAsistencia");
+    porArea[a].total++;
+    if (est==="NORMAL") porArea[a].normal++;
+    else if (est.includes("RETARDO")) porArea[a].retardo++;
+    else if (est==="EXTRA") porArea[a].extra++;
+    else porArea[a].incompleto++;
+    porArea[a].lista.push(r);
   });
-
-  const areas = Object.entries(porArea).sort((a,b) => b[1].total - a[1].total);
+  const areas = Object.entries(porArea).sort((a,b)=>b[1].total-a[1].total);
 
   document.getElementById("content").innerHTML = `
-    <div style="display:flex; gap:10px; margin-bottom:16px;">
-      <input id="filt-fecha-area" type="date" value="${fechaFiltro}" onchange="renderAreas()"
-        style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
-      <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;">${datos.length} registros · ${areas.length} áreas · Clic en un área para ver el personal</div>
+    <div class="filters">
+      <input type="date" id="a-fecha" value="${fecha}" onchange="renderAreas()">
+      <div style="font-size:11px;color:var(--muted);display:flex;align-items:center">${dd.length} registros · ${areas.length} áreas · Clic en área para ver personal</div>
     </div>
     <div class="table-wrap">
-      <div class="table-header">
-        <div class="table-header-title">Asistencia por área — ${fechaFiltro}</div>
-        <div style="font-size:12px;color:var(--muted)">${areas.length} áreas</div>
-      </div>
-      <table>
-        <thead><tr>
-          <th></th><th>Área</th><th>Total</th><th>Normal</th><th>Retardo</th><th>Extra</th><th>Incompleto</th><th>% Asistencia</th>
-        </tr></thead>
-        <tbody id="areas-tbody">
-          ${areas.map(([area, v]) => `
-            <tr style="cursor:pointer;" onclick="toggleArea('${area.replace(/'/g,"\'")}', this)"
-              id="row-${area.replace(/[^a-zA-Z0-9]/g,'_')}">
-              <td style="color:var(--muted);width:24px;font-size:12px" id="icon-${area.replace(/[^a-zA-Z0-9]/g,'_')}">▶</td>
-              <td style="font-weight:500">${area}</td>
-              <td class="mono">${v.total}</td>
-              <td class="mono" style="color:var(--accent)">${v.normal}</td>
-              <td class="mono" style="color:var(--warn)">${v.retardo}</td>
-              <td class="mono" style="color:var(--accent2)">${v.extra}</td>
-              <td class="mono" style="color:var(--danger)">${v.incompleto}</td>
-              <td>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <div class="bar-track" style="width:80px">
-                    <div class="bar-fill" style="width:${Math.round(v.normal/v.total*100)}%;background:${v.normal/v.total>0.8?'var(--accent)':v.normal/v.total>0.5?'var(--warn)':'var(--danger)'}"></div>
-                  </div>
-                  <span class="mono" style="font-size:11px">${Math.round(v.normal/v.total*100)}%</span>
-                </div>
-              </td>
-            </tr>
-            <tr id="detail-${area.replace(/[^a-zA-Z0-9]/g,'_')}" style="display:none;">
-              <td colspan="8" style="padding:0;background:var(--bg);">
-                <table style="width:100%;border-collapse:collapse;">
-                  <thead><tr style="background:var(--bg3);">
-                    <th style="padding:8px 16px 8px 40px;font-size:11px;color:var(--muted);text-align:left;">Nómina</th>
-                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Empleado</th>
-                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Entrada</th>
-                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Salida</th>
-                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Horas</th>
-                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Retardo</th>
-                    <th style="padding:8px 16px;font-size:11px;color:var(--muted);text-align:left;">Estado</th>
-                  </tr></thead>
-                  <tbody>
-                    ${v.empleados.map(r => `<tr style="border-top:1px solid var(--border);">
-                      <td class="mono" style="padding:8px 16px 8px 40px;color:var(--muted);font-size:12px;">${r["NOMINA"]||r["nomina"]||""}</td>
-                      <td style="padding:8px 16px;font-size:13px;">${r["Nombre"]||r["nombre"]||""} ${r["Apellido"]||r["apellido"]||""}</td>
-                      <td class="mono" style="padding:8px 16px;">${r["entrada_real"]||r["EntradaReal"]||"—"}</td>
-                      <td class="mono" style="padding:8px 16px;">${r["salida_real"]||r["SalidaFinalReal"]||"—"}</td>
-                      <td class="mono" style="padding:8px 16px;">${r["horas_trabajadas"]||r["HorasTrabajadas"]||"—"}</td>
-                      <td class="mono" style="padding:8px 16px;color:${(r["minutos_retardo"]||r["MinutosRetardo"]||0)>0?'var(--warn)':'var(--muted)'}">${r["minutos_retardo"]||r["MinutosRetardo"]||0} min</td>
-                      <td style="padding:8px 16px;">${estadoBadge(r["estado"]||r["EstadoAsistencia"]||"")}</td>
-                    </tr>`).join("")}
-                  </tbody>
-                </table>
-              </td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
+      <div class="table-header"><div class="table-header-title">Asistencia por área — ${fecha}</div></div>
+      <table><thead><tr>
+        <th style="width:24px"></th><th>Área</th><th>Total</th><th>Normal</th><th>Retardo</th><th>Extra</th><th>Incompleto</th><th>% Asist.</th>
+      </tr></thead><tbody id="areas-body">
+        ${areas.map(([a,v])=>{
+          const id = a.replace(/[^a-zA-Z0-9]/g,'_');
+          return `
+          <tr style="cursor:pointer" onclick="toggleArea('${a.replace(/'/g,"\\'")}')">
+            <td style="color:var(--muted)" id="ic-${id}">▶</td>
+            <td style="font-weight:500">${a}</td>
+            <td class="mono">${v.total}</td>
+            <td class="mono green">${v.normal}</td>
+            <td class="mono amber">${v.retardo}</td>
+            <td class="mono blue">${v.extra}</td>
+            <td class="mono red">${v.incompleto}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+                <div class="bar-track" style="width:70px"><div class="bar-fill" style="width:${Math.round(v.normal/v.total*100)}%;background:${v.normal/v.total>0.8?'var(--accent)':v.normal/v.total>0.5?'var(--warn)':'var(--danger)'}"></div></div>
+                <span class="mono">${Math.round(v.normal/v.total*100)}%</span>
+              </div>
+            </td>
+          </tr>
+          <tr id="det-${id}" style="display:none">
+            <td colspan="8" style="padding:0;background:var(--bg)">
+              <table style="width:100%">
+                <thead><tr style="background:var(--bg3)">
+                  <th style="padding:7px 12px 7px 28px">Nómina</th><th style="padding:7px 12px">Empleado</th><th style="padding:7px 12px">Turno</th><th style="padding:7px 12px">Entrada</th><th style="padding:7px 12px">Salida</th><th style="padding:7px 12px">Hrs</th><th style="padding:7px 12px">Retardo</th><th style="padding:7px 12px">Estado</th>
+                </tr></thead>
+                <tbody>
+                  ${v.lista.map(r=>`<tr style="border-top:1px solid var(--border)">
+                    <td class="mono" style="padding:8px 12px 8px 28px;color:var(--muted)">${g(r,"nomina","NOMINA")}</td>
+                    <td style="padding:8px 12px;font-weight:500">${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}</td>
+                    <td style="padding:8px 12px;color:var(--muted);font-size:11px">${g(r,"turno","Turno")}</td>
+                    <td class="mono" style="padding:8px 12px">${g(r,"entrada_real","EntradaReal")||"—"}</td>
+                    <td class="mono" style="padding:8px 12px">${g(r,"salida_real","SalidaFinalReal")||"—"}</td>
+                    <td class="mono" style="padding:8px 12px">${parseFloat(g(r,"horas_trabajadas","HorasTrabajadas")||0).toFixed(2)}</td>
+                    <td class="mono" style="padding:8px 12px;color:${parseInt(g(r,"minutos_retardo","MinutosRetardo")||0)>0?'var(--warn)':'var(--muted)'}">${g(r,"minutos_retardo","MinutosRetardo")||0} min</td>
+                    <td style="padding:8px 12px">${estadoBadge(g(r,"estado","EstadoAsistencia"))}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            </td>
+          </tr>`;
+        }).join("")}
+      </tbody></table>
     </div>`;
 }
 
-function toggleArea(area, row) {
-  const id = area.replace(/[^a-zA-Z0-9]/g,'_');
-  const detail = document.getElementById(`detail-${id}`);
-  const icon   = document.getElementById(`icon-${id}`);
-  if (!detail) return;
-  const visible = detail.style.display !== "none";
-  detail.style.display = visible ? "none" : "table-row";
-  icon.textContent = visible ? "▶" : "▼";
+function toggleArea(area) {
+  const id  = area.replace(/[^a-zA-Z0-9]/g,'_');
+  const det = document.getElementById(`det-${id}`);
+  const ic  = document.getElementById(`ic-${id}`);
+  if (!det) return;
+  const open = det.style.display !== "none";
+  det.style.display = open ? "none" : "table-row";
+  ic.textContent = open ? "▶" : "▼";
 }
 
-// ─── INIT ────────────────────────────────────────────────────
+// ─── EMPLEADOS ───────────────────────────────────────────────
+function renderEmpleados() {
+  const busq = (document.getElementById("e-busq")?.value || "").toLowerCase();
+  const fest = document.getElementById("e-area")?.value || "";
+
+  const todas_areas = [...new Set(datos.map(r => g(r,"area","Departamento")).filter(Boolean))].sort();
+
+  // Agrupar por empleado (última aparición = info más reciente)
+  const empMap = {};
+  datos.forEach(r => {
+    const nom = g(r,"nomina","NOMINA");
+    if (!empMap[nom]) empMap[nom] = r;
+  });
+  let emps = Object.values(empMap);
+  if (busq) emps = emps.filter(r => `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")} ${g(r,"nomina","NOMINA")}`.toLowerCase().includes(busq));
+  if (fest) emps = emps.filter(r => g(r,"area","Departamento") === fest);
+
+  document.getElementById("content").innerHTML = `
+    <div class="filters">
+      <input type="text" id="e-busq" placeholder="Buscar por nombre o nómina..." value="${busq}" oninput="renderEmpleados()">
+      <select class="filter" id="e-area" onchange="renderEmpleados()">
+        <option value="">Todas las áreas</option>
+        ${todas_areas.map(a=>`<option value="${a}" ${fest===a?'selected':''}>${a}</option>`).join("")}
+      </select>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-header-title">Empleados</div><div style="font-size:11px;color:var(--muted)">${emps.length} registros</div></div>
+      <table><thead><tr>
+        <th>Nómina</th><th>Nombre</th><th>Apellido</th><th>Área</th><th>Puesto</th><th>Turno</th>
+      </tr></thead><tbody>
+        ${emps.length===0?`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Sin resultados</td></tr>`:
+        emps.map(r=>`<tr>
+          <td class="mono" style="color:var(--muted)">${g(r,"nomina","NOMINA")}</td>
+          <td style="font-weight:500">${g(r,"nombre","Nombre")}</td>
+          <td>${g(r,"apellido","Apellido")}</td>
+          <td style="font-size:11px;color:var(--muted)">${g(r,"area","Departamento")}</td>
+          <td style="font-size:11px;color:var(--muted)">${g(r,"puesto","Puesto")}</td>
+          <td style="font-size:11px;color:var(--muted)">${g(r,"turno","Turno")}</td>
+        </tr>`).join("")}
+      </tbody></table>
+    </div>`;
+}
+
 cargarDatos();
 </script>
 </body>
