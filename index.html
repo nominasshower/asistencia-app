@@ -292,8 +292,19 @@ function renderPagina() {
   else if (paginaActual === "alta")       renderAltaEmpleado();
 }
 
-// Helpers
-function g(r, ...keys) { for (const k of keys) { const v = r[k]; if (v && v !== "—" && v !== "-") return v; } return ""; }
+// Helpers — búsqueda de columnas insensible a mayúsculas
+function g(r, ...keys) {
+  for (const k of keys) {
+    // Buscar exacto primero
+    if (r[k] && r[k] !== "—" && r[k] !== "-") return r[k];
+    // Buscar insensible a mayúsculas
+    const kl = k.toLowerCase();
+    for (const rk of Object.keys(r)) {
+      if (rk.toLowerCase() === kl && r[rk] && r[rk] !== "—" && r[rk] !== "-") return r[rk];
+    }
+  }
+  return "";
+}
 function parseHoras(val) {
   if (!val || val === "—" || val === "-") return 0;
   const s = String(val);
@@ -851,9 +862,10 @@ function renderSemana() {
       "INCOMPLETO":        ["#dc2626", "#ffffff"],
       "AUSENTE":           ["#991b1b", "#fca5a5"]
     };
-    const [bg, col] = colores[est] || ["#374151","#9ca3af"];
+    const [bg, col] = colores[est] || ["","var(--muted)"];
     const label = ht > 0 ? `${ht.toFixed(1)}h` : (est === "INCOMPLETO" ? "INC" : est === "AUSENTE" ? "AUS" : "—");
-    return `<td title="${est}" style="text-align:center;border-left:1px solid rgba(0,0,0,0.3)"><div style="background:${bg};color:${col};font-family:'DM Mono',monospace;font-size:12px;font-weight:700;padding:6px 4px;border-radius:4px;margin:2px">${label}</div></td>`;
+    const bgStyle = bg ? `background-color:${bg} !important;` : "";
+    return `<td title="${est||'sin registro'}" style="${bgStyle}color:${col};text-align:center;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;border-left:1px solid rgba(0,0,0,0.2)">${label}</td>`;
   };
 
   document.getElementById("content").innerHTML = `
