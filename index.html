@@ -273,7 +273,19 @@ function renderPagina() {
 }
 
 // Helpers
-function g(r, ...keys) { for (const k of keys) if (r[k]) return r[k]; return ""; }
+function g(r, ...keys) { for (const k of keys) { const v = r[k]; if (v && v !== "—" && v !== "-") return v; } return ""; }
+function parseHoras(val) {
+  if (!val || val === "—" || val === "-") return 0;
+  const s = String(val);
+  if (s.includes(":")) { const [h,m] = s.split(":").map(Number); return h + (m||0)/60; }
+  return parseFloat(s) || 0;
+}
+function parseRetardo(val) {
+  if (!val || val === "—" || val === "-") return 0;
+  const s = String(val);
+  if (s.includes(":")) { const [h,m] = s.split(":").map(Number); return h*60 + (m||0); }
+  return parseInt(s) || 0;
+}
 function estadoBadge(e) {
   const m = {"NORMAL":"b-normal","RETARDO":"b-retardo","EXTRA":"b-extra","RETARDO CON EXTRA":"b-retardo-extra","INCOMPLETO":"b-incompleto","AUSENTE":"b-ausente"};
   return `<span class="badge ${m[e]||'b-incompleto'}">${e||'—'}</span>`;
@@ -299,8 +311,8 @@ function renderDashboard() {
   const retExt= hoy.filter(r => g(r,"estado","EstadoAsistencia") === "RETARDO CON EXTRA").length;
 
   // promedio horas trabajadas
-  const conHoras = hoy.filter(r => parseFloat(g(r,"horas_trabajadas","HorasTrabajadas")) > 0);
-  const promHoras = conHoras.length ? (conHoras.reduce((s,r) => s + parseFloat(g(r,"horas_trabajadas","HorasTrabajadas")||0), 0) / conHoras.length).toFixed(2) : "0.00";
+  const conHoras = hoy.filter(r => parseHoras(g(r,"horas_trabajadas","HorasTrabajadas")) > 0);
+  const promHoras = conHoras.length ? (conHoras.reduce((s,r) => s + parseHoras(g(r,"horas_trabajadas","HorasTrabajadas")), 0) / conHoras.length).toFixed(2) : "0.00";
 
   // por área
   const porArea = {};
@@ -363,8 +375,8 @@ function renderDashboard() {
           <td style="color:var(--muted);font-size:11px">${g(r,"area","Departamento")}</td>
           <td class="mono">${g(r,"entrada_real","EntradaReal")||"—"}</td>
           <td class="mono">${g(r,"salida_real","SalidaFinalReal")||"—"}</td>
-          <td class="mono">${parseFloat(g(r,"horas_trabajadas","HorasTrabajadas")||0).toFixed(2)}</td>
-          <td class="mono" style="color:${parseInt(g(r,"minutos_retardo","MinutosRetardo")||0)>0?'var(--warn)':'var(--muted)'}">${g(r,"minutos_retardo","MinutosRetardo")||0} min</td>
+          <td class="mono">${parseHoras(g(r,"horas_trabajadas","HorasTrabajadas")).toFixed(2)}</td>
+          <td class="mono" style="color:${parseRetardo(g(r,"minutos_retardo","MinutosRetardo"))>0?'var(--warn)':'var(--muted)'}">${parseRetardo(g(r,"minutos_retardo","MinutosRetardo"))} min</td>
           <td>${estadoBadge(g(r,"estado","EstadoAsistencia"))}</td>
         </tr>`).join("")}
       </tbody></table>
@@ -413,8 +425,8 @@ function renderRegistros() {
           <td style="color:var(--muted);font-size:11px">${g(r,"turno","Turno")}</td>
           <td class="mono">${g(r,"entrada_real","EntradaReal")||"—"}</td>
           <td class="mono">${g(r,"salida_real","SalidaFinalReal")||"—"}</td>
-          <td class="mono">${parseFloat(g(r,"horas_trabajadas","HorasTrabajadas")||0).toFixed(2)}</td>
-          <td class="mono" style="color:${parseInt(g(r,"minutos_retardo","MinutosRetardo")||0)>0?'var(--warn)':'var(--muted)'}">${g(r,"minutos_retardo","MinutosRetardo")||0}</td>
+          <td class="mono">${parseHoras(g(r,"horas_trabajadas","HorasTrabajadas")).toFixed(2)}</td>
+          <td class="mono" style="color:${parseRetardo(g(r,"minutos_retardo","MinutosRetardo"))>0?'var(--warn)':'var(--muted)'}">${parseRetardo(g(r,"minutos_retardo","MinutosRetardo"))}</td>
           <td>${estadoBadge(g(r,"estado","EstadoAsistencia"))}</td>
         </tr>`).join("")}
       </tbody></table>
@@ -487,8 +499,8 @@ function renderAreas() {
                     <td style="padding:8px 12px;color:var(--muted);font-size:11px">${g(r,"turno","Turno")}</td>
                     <td class="mono" style="padding:8px 12px">${g(r,"entrada_real","EntradaReal")||"—"}</td>
                     <td class="mono" style="padding:8px 12px">${g(r,"salida_real","SalidaFinalReal")||"—"}</td>
-                    <td class="mono" style="padding:8px 12px">${parseFloat(g(r,"horas_trabajadas","HorasTrabajadas")||0).toFixed(2)}</td>
-                    <td class="mono" style="padding:8px 12px;color:${parseInt(g(r,"minutos_retardo","MinutosRetardo")||0)>0?'var(--warn)':'var(--muted)'}">${g(r,"minutos_retardo","MinutosRetardo")||0} min</td>
+                    <td class="mono" style="padding:8px 12px">${parseHoras(g(r,"horas_trabajadas","HorasTrabajadas")).toFixed(2)}</td>
+                    <td class="mono" style="padding:8px 12px;color:${parseRetardo(g(r,"minutos_retardo","MinutosRetardo"))>0?'var(--warn)':'var(--muted)'}">${parseRetardo(g(r,"minutos_retardo","MinutosRetardo"))} min</td>
                     <td style="padding:8px 12px">${estadoBadge(g(r,"estado","EstadoAsistencia"))}</td>
                   </tr>`).join("")}
                 </tbody>
