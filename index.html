@@ -266,13 +266,19 @@ function estadoBadge(e) {
   const m = {"NORMAL":"b-normal","RETARDO":"b-retardo","EXTRA":"b-extra","RETARDO CON EXTRA":"b-retardo-extra","INCOMPLETO":"b-incompleto","AUSENTE":"b-ausente"};
   return `<span class="badge ${m[e]||'b-incompleto'}">${e||'—'}</span>`;
 }
+function filtrarRango(desde, hasta) {
+  return datos.filter(r => { const f = g(r,"fecha","Fecha"); return f >= desde && f <= hasta; });
+}
 function filtrarFecha(f) {
   return datos.filter(r => g(r,"fecha","Fecha") === f);
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 function renderDashboard() {
-  const hoy   = filtrarFecha(fechaHoy);
+  const dDesde = document.getElementById("d-desde")?.value || fechaHoy;
+  const dHasta = document.getElementById("d-hasta")?.value || fechaHoy;
+  const esRango = dDesde !== dHasta;
+  const hoy   = filtrarRango(dDesde, dHasta);
   const total = hoy.length;
   const norm  = hoy.filter(r => g(r,"estado","EstadoAsistencia") === "NORMAL").length;
   const ret   = hoy.filter(r => g(r,"estado","EstadoAsistencia").includes("RETARDO")).length;
@@ -298,8 +304,15 @@ function renderDashboard() {
   const ultimos = [...hoy].reverse().slice(0,8);
 
   document.getElementById("content").innerHTML = `
+    <div class="filters">
+      <label style="font-size:11px;color:var(--muted);align-self:center">Desde</label>
+      <input type="date" id="d-desde" value="${dDesde}" onchange="renderDashboard()">
+      <label style="font-size:11px;color:var(--muted);align-self:center">Hasta</label>
+      <input type="date" id="d-hasta" value="${dHasta}" onchange="renderDashboard()">
+      <button class="btn" onclick="document.getElementById('d-desde').value=fechaHoy;document.getElementById('d-hasta').value=fechaHoy;renderDashboard()">Hoy</button>
+    </div>
     <div class="metrics">
-      <div class="metric"><div class="metric-label">Presentes hoy</div><div class="metric-val green">${total}</div><div class="metric-sub">registros del día</div></div>
+      <div class="metric"><div class="metric-label">Presentes${esRango?' (rango)':' hoy'}</div><div class="metric-val green">${total}</div><div class="metric-sub">registros del día</div></div>
       <div class="metric"><div class="metric-label">Normales</div><div class="metric-val blue">${norm}</div><div class="metric-sub">${total?Math.round(norm/total*100):0}% del total</div></div>
       <div class="metric"><div class="metric-label">Retardos</div><div class="metric-val amber">${ret + retExt}</div><div class="metric-sub">llegadas tarde</div></div>
       <div class="metric"><div class="metric-label">Prom. horas</div><div class="metric-val">${promHoras}</div><div class="metric-sub">hrs trabajadas</div></div>
@@ -307,7 +320,7 @@ function renderDashboard() {
 
     <div class="grid2">
       <div class="card">
-        <div class="card-title">Asistencia por área <span>hoy ${fechaHoy}</span></div>
+        <div class="card-title">Asistencia por área <span>${dDesde === dHasta ? dDesde : dDesde+' → '+dHasta}</span></div>
         <div class="bar-chart">
           ${areasTop.map(([a,v])=>`
             <div class="bar-row">
@@ -328,7 +341,7 @@ function renderDashboard() {
     </div>
 
     <div class="table-wrap">
-      <div class="table-header"><div class="table-header-title">Últimos registros de hoy</div><div style="font-size:11px;color:var(--muted)">${total} empleados</div></div>
+      <div class="table-header"><div class="table-header-title">Últimos registros — ${dDesde === dHasta ? dDesde : dDesde+' → '+dHasta}</div><div style="font-size:11px;color:var(--muted)">${total} empleados</div></div>
       <table><thead><tr>
         <th>Nómina</th><th>Empleado</th><th>Área</th><th>Entrada</th><th>Salida</th><th>Hrs</th><th>Retardo</th><th>Estado</th>
       </tr></thead><tbody>
@@ -348,17 +361,22 @@ function renderDashboard() {
 
 // ─── REGISTROS ───────────────────────────────────────────────
 function renderRegistros() {
-  const fecha  = document.getElementById("r-fecha")?.value || fechaHoy;
+  const rDesde = document.getElementById("r-desde")?.value || fechaHoy;
+  const rHasta = document.getElementById("r-hasta")?.value || fechaHoy;
   const busq   = (document.getElementById("r-busq")?.value || "").toLowerCase();
   const fest   = document.getElementById("r-est")?.value || "";
 
-  let dd = filtrarFecha(fecha);
+  let dd = filtrarRango(rDesde, rHasta);
   if (busq) dd = dd.filter(r => `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")} ${g(r,"area","Departamento")}`.toLowerCase().includes(busq));
   if (fest) dd = dd.filter(r => g(r,"estado","EstadoAsistencia") === fest);
 
   document.getElementById("content").innerHTML = `
     <div class="filters">
-      <input type="date" id="r-fecha" value="${fecha}" onchange="renderRegistros()">
+      <label style="font-size:11px;color:var(--muted);align-self:center">Desde</label>
+      <input type="date" id="r-desde" value="${rDesde}" onchange="renderRegistros()">
+      <label style="font-size:11px;color:var(--muted);align-self:center">Hasta</label>
+      <input type="date" id="r-hasta" value="${rHasta}" onchange="renderRegistros()">
+      <button class="btn" onclick="document.getElementById('r-desde').value=fechaHoy;document.getElementById('r-hasta').value=fechaHoy;renderRegistros()">Hoy</button>
       <input type="text" id="r-busq" placeholder="Buscar empleado o área..." value="${busq}" oninput="renderRegistros()">
       <select class="filter" id="r-est" onchange="renderRegistros()">
         <option value="">Todos los estados</option>
@@ -371,7 +389,7 @@ function renderRegistros() {
       </select>
     </div>
     <div class="table-wrap">
-      <div class="table-header"><div class="table-header-title">Registros — ${fecha}</div><div style="font-size:11px;color:var(--muted)">${dd.length} registros</div></div>
+      <div class="table-header"><div class="table-header-title">Registros — ${rDesde === rHasta ? rDesde : rDesde+" → "+rHasta}</div><div style="font-size:11px;color:var(--muted)">${dd.length} registros</div></div>
       <table><thead><tr>
         <th>Nómina</th><th>Empleado</th><th>Área</th><th>Turno</th><th>Entrada</th><th>Salida</th><th>Hrs</th><th>Retardo</th><th>Estado</th>
       </tr></thead><tbody>
@@ -394,8 +412,9 @@ function renderRegistros() {
 // ─── AREAS ───────────────────────────────────────────────────
 let areaOpen = null;
 function renderAreas() {
-  const fecha = document.getElementById("a-fecha")?.value || fechaHoy;
-  const dd    = filtrarFecha(fecha);
+  const aDesde = document.getElementById("a-desde")?.value || fechaHoy;
+  const aHasta = document.getElementById("a-hasta")?.value || fechaHoy;
+  const dd    = filtrarRango(aDesde, aHasta);
 
   const porArea = {};
   dd.forEach(r => {
@@ -413,11 +432,15 @@ function renderAreas() {
 
   document.getElementById("content").innerHTML = `
     <div class="filters">
-      <input type="date" id="a-fecha" value="${fecha}" onchange="renderAreas()">
-      <div style="font-size:11px;color:var(--muted);display:flex;align-items:center">${dd.length} registros · ${areas.length} áreas · Clic en área para ver personal</div>
+      <label style="font-size:11px;color:var(--muted);align-self:center">Desde</label>
+      <input type="date" id="a-desde" value="${aDesde}" onchange="renderAreas()">
+      <label style="font-size:11px;color:var(--muted);align-self:center">Hasta</label>
+      <input type="date" id="a-hasta" value="${aHasta}" onchange="renderAreas()">
+      <button class="btn" onclick="document.getElementById('a-desde').value=fechaHoy;document.getElementById('a-hasta').value=fechaHoy;renderAreas()">Hoy</button>
+      <div style="font-size:11px;color:var(--muted);display:flex;align-items:center">${dd.length} registros · ${areas.length} áreas · ${aDesde===aHasta?aDesde:aDesde+" → "+aHasta} · Clic en área para ver personal</div>
     </div>
     <div class="table-wrap">
-      <div class="table-header"><div class="table-header-title">Asistencia por área — ${fecha}</div></div>
+      <div class="table-header"><div class="table-header-title">Asistencia por área — ${aDesde===aHasta?aDesde:aDesde+" → "+aHasta}</div></div>
       <table><thead><tr>
         <th style="width:24px"></th><th>Área</th><th>Total</th><th>Normal</th><th>Retardo</th><th>Extra</th><th>Incompleto</th><th>% Asist.</th>
       </tr></thead><tbody id="areas-body">
