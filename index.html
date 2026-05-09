@@ -308,8 +308,12 @@ function parseRetardo(val) {
 }
 function toMins(t) { if (!t || t==="—") return 0; const [h,m] = String(t).split(":").map(Number); return h*60+(m||0); }
 function calcHoras(r) {
-  const stored = parseHoras(g(r,"horas_trabajadas","HorasTrabajadas"));
-  if (stored > 0) return stored;
+  let stored = parseHoras(g(r,"horas_trabajadas","HorasTrabajadas"));
+  if (stored > 0) {
+    // Si el valor guardado es > 24 está en minutos, convertir a horas
+    if (stored > 24) stored = stored / 60;
+    return stored;
+  }
   const ent = g(r,"entrada_real","EntradaReal");
   const sal = g(r,"salida_real","SalidaFinalReal");
   if (!ent || !sal) return 0;
@@ -840,16 +844,16 @@ function renderSemana() {
     const est = g(r,"estado","EstadoAsistencia");
     const ht  = calcHoras(r);
     const colores = {
-      "NORMAL":            ["rgba(34,197,94,0.25)",   "#4ade80"],
-      "EXTRA":             ["rgba(59,130,246,0.25)",   "#60a5fa"],
-      "RETARDO":           ["rgba(245,158,11,0.25)",   "#fbbf24"],
-      "RETARDO CON EXTRA": ["rgba(139,92,246,0.25)",   "#a78bfa"],
-      "INCOMPLETO":        ["rgba(239,68,68,0.20)",    "#f87171"],
-      "AUSENTE":           ["rgba(239,68,68,0.25)",    "#ef4444"]
+      "NORMAL":            ["#14532d", "#4ade80"],
+      "EXTRA":             ["#1e3a5f", "#60a5fa"],
+      "RETARDO":           ["#78350f", "#fbbf24"],
+      "RETARDO CON EXTRA": ["#3b1f6e", "#c4b5fd"],
+      "INCOMPLETO":        ["#7f1d1d", "#fca5a5"],
+      "AUSENTE":           ["#7f1d1d", "#ef4444"]
     };
     const [bg, col] = colores[est] || ["var(--bg3)","var(--muted)"];
-    const label = ht > 0 ? `${ht.toFixed(1)}h` : (est === "INCOMPLETO" ? "INC" : est || "—");
-    return `<td title="${est}" style="text-align:center;background:${bg};color:${col};font-family:'DM Mono',monospace;font-size:12px;font-weight:600;white-space:nowrap;border-left:1px solid var(--border)">${label}</td>`;
+    const label = ht > 0 ? `${ht.toFixed(1)}h` : (est === "INCOMPLETO" ? "INC" : est === "AUSENTE" ? "AUS" : "—");
+    return `<td title="${est}" style="text-align:center;background:${bg};color:${col};font-family:'DM Mono',monospace;font-size:12px;font-weight:700;white-space:nowrap;border-left:1px solid var(--border)">${label}</td>`;
   };
 
   document.getElementById("content").innerHTML = `
