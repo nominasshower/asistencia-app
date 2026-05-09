@@ -136,6 +136,14 @@ input[type=text] { flex: 1; min-width: 160px; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
       Empleados
     </div>
+    <div class="nav-item" id="nav-semana" onclick="navegar('semana',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Semana
+    </div>
+    <div class="nav-item" id="nav-nomina" onclick="navegar('nomina',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Nómina
+    </div>
   </div>
 
   <div class="nav-group">
@@ -210,7 +218,7 @@ function navegar(page, el) {
   paginaActual = page;
   document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
   el.classList.add("active");
-  const titulos = { dashboard:"Dashboard", registros:"Registros", areas:"Reporte por área", empleados:"Empleados", alta:"Alta de Empleado" };
+  const titulos = { dashboard:"Dashboard", registros:"Registros", areas:"Reporte por área", empleados:"Empleados", semana:"Grid Semanal", nomina:"Reporte de Nómina", alta:"Alta de Empleado" };
   document.getElementById("page-title").textContent = titulos[page];
   renderPagina();
 }
@@ -279,6 +287,8 @@ function renderPagina() {
   else if (paginaActual === "registros")  renderRegistros();
   else if (paginaActual === "areas")      renderAreas();
   else if (paginaActual === "empleados")  renderEmpleados();
+  else if (paginaActual === "semana")     renderSemana();
+  else if (paginaActual === "nomina")     renderNomina();
   else if (paginaActual === "alta")       renderAltaEmpleado();
 }
 
@@ -775,6 +785,305 @@ async function guardarEmpleado(e) {
 
   btn.disabled = false;
   btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Guardar en Sheets`;
+}
+
+// ─── SEMANA DE NÓMINA: Jueves → Miércoles ────────────────────
+function getSemanaNomina(offset) {
+  const hoy = new Date();
+  const dow = hoy.getDay(); // 0=Dom,1=Lun,2=Mar,3=Mié,4=Jue,5=Vie,6=Sáb
+  // Días transcurridos desde el último jueves
+  // Jue=0, Vie=1, Sáb=2, Dom=3, Lun=4, Mar=5, Mié=6
+  const diasDesdeJueves = (dow + 3) % 7;
+  const jueves = new Date(hoy);
+  jueves.setDate(hoy.getDate() - diasDesdeJueves + (offset || 0) * 7);
+  jueves.setHours(0,0,0,0);
+  const miercoles = new Date(jueves);
+  miercoles.setDate(jueves.getDate() + 6);
+  const toISO = d => d.toISOString().split("T")[0];
+  return {
+    desde: toISO(jueves),
+    hasta: toISO(miercoles),
+    dias:  Array.from({length:7}, (_,i) => { const d = new Date(jueves); d.setDate(jueves.getDate()+i); return toISO(d); })
+  };
+}
+
+// ─── SEMANA (GRID) ────────────────────────────────────────────
+let semanaOffset = 0;
+function renderSemana() {
+  const sem = getSemanaNomina(semanaOffset);
+  const diasNombres = ["Jue","Vie","Sáb","Dom","Lun","Mar","Mié"];
+  const filtrarArea = document.getElementById("sg-area")?.value || "";
+
+  // Mapa: nomina_fecha -> registro
+  const lookup = {};
+  datos.forEach(r => {
+    const nom = g(r,"nomina","NOMINA");
+    const fecha = g(r,"fecha","Fecha");
+    if (nom && fecha) lookup[`${nom}_${fecha}`] = r;
+  });
+
+  // Lista de empleados de la semana
+  const empMap = {};
+  datos.filter(r => { const f = g(r,"fecha","Fecha"); return f >= sem.desde && f <= sem.hasta; })
+    .forEach(r => {
+      const nom = g(r,"nomina","NOMINA");
+      if (!nom || empMap[nom]) return;
+      empMap[nom] = { nomina: nom, nombre: `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}`.trim(), area: g(r,"area","Departamento") };
+    });
+  let emps = Object.values(empMap).sort((a,b) => a.nombre.localeCompare(b.nombre));
+
+  const areasSet = new Set(emps.map(e => e.area).filter(Boolean));
+  if (filtrarArea) emps = emps.filter(e => e.area === filtrarArea);
+
+  const colorCell = r => {
+    if (!r) return `<td style="text-align:center;color:var(--bg3);border-left:1px solid var(--border)">—</td>`;
+    const est = g(r,"estado","EstadoAsistencia");
+    const ent = g(r,"entrada_real","EntradaReal") || "·";
+    const colores = {
+      "NORMAL":           ["rgba(34,197,94,0.15)",  "#4ade80"],
+      "EXTRA":            ["rgba(59,130,246,0.15)",  "#60a5fa"],
+      "RETARDO":          ["rgba(245,158,11,0.15)",  "#fbbf24"],
+      "RETARDO CON EXTRA":["rgba(139,92,246,0.15)",  "#a78bfa"],
+      "INCOMPLETO":       ["rgba(239,68,68,0.1)",    "#f87171"],
+      "AUSENTE":          ["rgba(239,68,68,0.2)",    "#ef4444"]
+    };
+    const [bg, col] = colores[est] || ["var(--bg3)","var(--muted)"];
+    return `<td title="${est}" style="text-align:center;background:${bg};color:${col};font-family:'DM Mono',monospace;font-size:11px;white-space:nowrap;border-left:1px solid var(--border)">${ent}</td>`;
+  };
+
+  document.getElementById("content").innerHTML = `
+    <div class="filters" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn" onclick="semanaOffset--;renderSemana()">← Anterior</button>
+        <span style="font-size:13px;font-weight:500">${sem.desde} → ${sem.hasta}</span>
+        <button class="btn" onclick="semanaOffset++;renderSemana()" ${semanaOffset>=0?"disabled":""}>Siguiente →</button>
+        <button class="btn" onclick="semanaOffset=0;renderSemana()">Semana actual</button>
+      </div>
+      <select class="filter" id="sg-area" onchange="renderSemana()">
+        <option value="">Todas las áreas</option>
+        ${[...areasSet].sort().map(a=>`<option value="${a}" ${filtrarArea===a?"selected":""}>${a}</option>`).join("")}
+      </select>
+    </div>
+    <div class="table-wrap" style="overflow-x:auto">
+      <div class="table-header">
+        <div class="table-header-title">Semana Jue ${sem.desde} → Mié ${sem.hasta}</div>
+        <div style="font-size:11px;color:var(--muted)">${emps.length} empleados · hora de entrada real</div>
+      </div>
+      <table style="min-width:700px"><thead><tr>
+        <th>Nómina</th><th>Empleado</th><th>Área</th>
+        ${diasNombres.map((n,i)=>`<th style="text-align:center;border-left:1px solid var(--border)">${n}<br><span style="font-weight:400;font-size:9px;opacity:.7">${sem.dias[i].slice(5)}</span></th>`).join("")}
+        <th style="text-align:center;border-left:1px solid var(--border)">Días</th>
+      </tr></thead><tbody>
+        ${emps.length===0
+          ? `<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">Sin registros esta semana</td></tr>`
+          : emps.map(e => {
+              const regs = sem.dias.map(d => lookup[`${e.nomina}_${d}`] || null);
+              const dias = regs.filter(r => r && !["AUSENTE","INCOMPLETO"].includes(g(r,"estado","EstadoAsistencia"))).length;
+              return `<tr>
+                <td class="mono" style="color:var(--muted)">${e.nomina}</td>
+                <td style="font-weight:500;white-space:nowrap">${e.nombre}</td>
+                <td style="font-size:11px;color:var(--muted);white-space:nowrap">${e.area}</td>
+                ${regs.map(r => colorCell(r)).join("")}
+                <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:600;border-left:1px solid var(--border);color:${dias>=5?'var(--accent)':dias>=3?'var(--warn)':'var(--danger)'}">${dias}/7</td>
+              </tr>`;
+            }).join("")}
+      </tbody></table>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">
+      ${[["NORMAL","#4ade80"],["EXTRA","#60a5fa"],["RETARDO","#fbbf24"],["RETARDO CON EXTRA","#a78bfa"],["INCOMPLETO","#f87171"],["AUSENTE","#ef4444"]]
+        .map(([l,c])=>`<span style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:2px;background:${c};display:inline-block;opacity:.8"></span>${l}</span>`).join("")}
+    </div>`;
+}
+
+// ─── NÓMINA ───────────────────────────────────────────────────
+let nominaOffset = 0;
+let nominaExportData = [];
+
+function renderNomina() {
+  const sem = getSemanaNomina(nominaOffset);
+  const filtrarArea  = document.getElementById("n-area")?.value  || "";
+  const filtrarEmp   = (document.getElementById("n-busq")?.value || "").toLowerCase();
+  const diasNombres  = { 0:"Dom", 1:"Lun", 2:"Mar", 3:"Mié", 4:"Jue", 5:"Vie", 6:"Sáb" };
+
+  // Todos los registros de la semana
+  let dd = datos.filter(r => { const f = g(r,"fecha","Fecha"); return f >= sem.desde && f <= sem.hasta; });
+  if (filtrarArea) dd = dd.filter(r => g(r,"area","Departamento") === filtrarArea);
+  if (filtrarEmp)  dd = dd.filter(r => `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")} ${g(r,"nomina","NOMINA")}`.toLowerCase().includes(filtrarEmp));
+
+  // Ordenar: área → nombre → fecha
+  dd.sort((a,b) => {
+    const ka = `${g(a,"area","Departamento")}${g(a,"nombre","Nombre")}${g(a,"apellido","Apellido")}${g(a,"fecha","Fecha")}`;
+    const kb = `${g(b,"area","Departamento")}${g(b,"nombre","Nombre")}${g(b,"apellido","Apellido")}${g(b,"fecha","Fecha")}`;
+    return ka.localeCompare(kb);
+  });
+
+  // Totales
+  const areasSet    = new Set(datos.filter(r=>{ const f=g(r,"fecha","Fecha"); return f>=sem.desde&&f<=sem.hasta; }).map(r=>g(r,"area","Departamento")).filter(Boolean));
+  const totHoras    = dd.reduce((s,r)=>s+calcHoras(r),0);
+  const totExtra    = dd.reduce((s,r)=>s+parseHoras(g(r,"horas_extra","HorasExtra")),0);
+  const totRetardos = dd.filter(r=>g(r,"estado","EstadoAsistencia")?.includes("RETARDO")).length;
+
+  // Para agrupar visualmente: detectar cambio de empleado
+  let ultimoEmp = null;
+  const filasTotales = {}; // nomina -> acumulados para fila total
+  dd.forEach(r => {
+    const nom = g(r,"nomina","NOMINA");
+    if (!filasTotales[nom]) filasTotales[nom] = { dias:0, hrs:0, extra:0 };
+    const est = g(r,"estado","EstadoAsistencia");
+    if (est && est !== "AUSENTE" && est !== "INCOMPLETO") filasTotales[nom].dias++;
+    filasTotales[nom].hrs   += calcHoras(r);
+    filasTotales[nom].extra += parseHoras(g(r,"horas_extra","HorasExtra"));
+  });
+
+  // Guardar para CSV
+  nominaExportData = dd;
+
+  const filaHTML = (r, esPrimera, esUltima, tot) => {
+    const nom    = g(r,"nomina","NOMINA");
+    const nombre = `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}`.trim();
+    const fecha  = g(r,"fecha","Fecha");
+    const dow    = fecha ? diasNombres[new Date(fecha+"T12:00:00").getDay()] : "";
+    const est    = g(r,"estado","EstadoAsistencia");
+    const ent    = g(r,"entrada_real","EntradaReal")   || "—";
+    const sal    = g(r,"salida_real","SalidaFinalReal") || "—";
+    const ic     = g(r,"inicio_comer")                  || "—";
+    const rc     = g(r,"regreso_comer")                 || "—";
+    const ht     = calcHoras(r);
+    const he     = parseHoras(g(r,"horas_extra","HorasExtra"));
+    const ret    = parseRetardo(g(r,"minutos_retardo","MinutosRetardo"));
+
+    const colorEst = { "NORMAL":"var(--accent)","EXTRA":"var(--accent2)","RETARDO":"var(--warn)","RETARDO CON EXTRA":"#a78bfa","INCOMPLETO":"var(--danger)","AUSENTE":"var(--danger)" };
+    const bdr = esPrimera ? "border-top:2px solid rgba(255,255,255,0.1)" : "";
+
+    let html = `<tr style="${bdr}">`;
+    if (esPrimera) {
+      html += `<td class="mono" style="color:var(--muted);vertical-align:top" rowspan="${tot.filas}">${nom}</td>
+               <td style="font-weight:600;vertical-align:top;white-space:nowrap" rowspan="${tot.filas}">${nombre}</td>
+               <td style="font-size:11px;color:var(--muted);vertical-align:top;white-space:nowrap" rowspan="${tot.filas}">${g(r,"area","Departamento")}</td>
+               <td style="font-size:11px;color:var(--muted);vertical-align:top;white-space:nowrap" rowspan="${tot.filas}">${g(r,"turno","Turno")}</td>`;
+    }
+    html += `
+      <td class="mono" style="color:var(--muted);white-space:nowrap">${fecha}</td>
+      <td style="color:var(--muted);font-size:11px;white-space:nowrap">${dow}</td>
+      <td class="mono" style="color:${ent!=="—"?'var(--text)':'var(--muted)'}">${ent}</td>
+      <td class="mono" style="color:${sal!=="—"?'var(--text)':'var(--muted)'}">${sal}</td>
+      <td class="mono" style="color:${ic!=="—"?'var(--muted)':'var(--bg3)'}">${ic}</td>
+      <td class="mono" style="color:${rc!=="—"?'var(--muted)':'var(--bg3)'}">${rc}</td>
+      <td class="mono" style="text-align:right;font-weight:500;color:${ht>0?'var(--text)':'var(--muted)'}">${ht>0?ht.toFixed(2):"—"}</td>
+      <td class="mono" style="text-align:right;color:${he>0?'var(--accent2)':'var(--muted)'}">${he>0?he.toFixed(2):"—"}</td>
+      <td class="mono" style="color:${ret>0?'var(--warn)':'var(--muted)'}">${ret>0?ret+" min":"—"}</td>
+      <td><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${colorEst[est]||'var(--bg3)'}22;color:${colorEst[est]||'var(--muted)'}">${est||"—"}</span></td>`;
+    html += `</tr>`;
+
+    // Fila de total por empleado al final del grupo
+    if (esUltima) {
+      html += `<tr style="background:rgba(255,255,255,0.02)">
+        <td colspan="2" style="font-size:11px;color:var(--muted);text-align:right;padding:6px 12px;border-top:1px solid var(--border)">Total semana:</td>
+        <td colspan="2"></td>
+        <td class="mono" style="font-weight:600;text-align:right;border-top:1px solid var(--border)">${tot.hrs.toFixed(2)}</td>
+        <td class="mono" style="text-align:right;color:var(--accent2);border-top:1px solid var(--border)">${tot.extra>0?tot.extra.toFixed(2):"—"}</td>
+        <td colspan="2" style="border-top:1px solid var(--border)"></td>
+        <td style="border-top:1px solid var(--border)"></td>
+      </tr>`;
+    }
+    return html;
+  };
+
+  // Agrupar filas por empleado
+  let filasHTML = "";
+  let i = 0;
+  while (i < dd.length) {
+    const nom = g(dd[i],"nomina","NOMINA");
+    let j = i;
+    while (j < dd.length && g(dd[j],"nomina","NOMINA") === nom) j++;
+    const grupo = dd.slice(i, j);
+    const tot   = { filas: grupo.length + 1, ...filasTotales[nom] };
+    grupo.forEach((r, idx) => {
+      filasHTML += filaHTML(r, idx===0, idx===grupo.length-1, tot);
+    });
+    i = j;
+  }
+
+  document.getElementById("content").innerHTML = `
+    <div class="filters" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn" onclick="nominaOffset--;renderNomina()">← Anterior</button>
+        <span style="font-size:13px;font-weight:500">Semana: ${sem.desde} → ${sem.hasta}</span>
+        <button class="btn" onclick="nominaOffset++;renderNomina()" ${nominaOffset>=0?"disabled":""}>Siguiente →</button>
+        <button class="btn" onclick="nominaOffset=0;renderNomina()">Semana actual</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" id="n-busq" placeholder="Buscar empleado..." value="${filtrarEmp}" oninput="renderNomina()" style="min-width:160px">
+        <select class="filter" id="n-area" onchange="renderNomina()">
+          <option value="">Todas las áreas</option>
+          ${[...areasSet].sort().map(a=>`<option value="${a}" ${filtrarArea===a?"selected":""}>${a}</option>`).join("")}
+        </select>
+        <button class="btn" onclick="exportarNominaCSV()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar CSV
+        </button>
+      </div>
+    </div>
+    <div class="metrics" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">
+      <div class="metric"><div class="metric-label">Total horas trabajadas</div><div class="metric-val blue">${totHoras.toFixed(1)}</div><div class="metric-sub">${dd.length} registros · ${sem.desde} → ${sem.hasta}</div></div>
+      <div class="metric"><div class="metric-label">Total horas extra</div><div class="metric-val amber">${totExtra.toFixed(1)}</div><div class="metric-sub">en la semana</div></div>
+      <div class="metric"><div class="metric-label">Retardos</div><div class="metric-val red">${totRetardos}</div><div class="metric-sub">llegadas tarde</div></div>
+    </div>
+    <div class="table-wrap" style="overflow-x:auto">
+      <div class="table-header">
+        <div class="table-header-title">Detalle nómina — ${sem.desde} → ${sem.hasta}</div>
+        <div style="font-size:11px;color:var(--muted)">${Object.keys(filasTotales).length} empleados · ${dd.length} registros</div>
+      </div>
+      <table style="min-width:900px"><thead><tr>
+        <th>Nómina</th><th>Nombre</th><th>Área</th><th>Turno</th>
+        <th>Fecha</th><th>Día</th>
+        <th>Entrada</th><th>Salida</th>
+        <th>I. Comida</th><th>R. Comida</th>
+        <th style="text-align:right">Hrs. trab.</th>
+        <th style="text-align:right">Hrs. extra</th>
+        <th>Retardo</th><th>Estado</th>
+      </tr></thead><tbody>
+        ${dd.length===0
+          ? `<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:32px">Sin registros esta semana</td></tr>`
+          : filasHTML}
+      </tbody></table>
+    </div>`;
+}
+
+function exportarNominaCSV() {
+  const sem = getSemanaNomina(nominaOffset);
+  const diasNombres = { 0:"Dom",1:"Lun",2:"Mar",3:"Mié",4:"Jue",5:"Vie",6:"Sáb" };
+  const filas = [
+    ["Nomina","Nombre","Area","Turno","Fecha","Dia","Entrada","Salida","Inicio Comida","Regreso Comida","Hrs Trabajadas","Hrs Extra","Min Retardo","Estado"],
+    ...nominaExportData.map(r => {
+      const fecha = g(r,"fecha","Fecha");
+      const dow   = fecha ? diasNombres[new Date(fecha+"T12:00:00").getDay()] : "";
+      const ht    = calcHoras(r);
+      const he    = parseHoras(g(r,"horas_extra","HorasExtra"));
+      const ret   = parseRetardo(g(r,"minutos_retardo","MinutosRetardo"));
+      return [
+        g(r,"nomina","NOMINA"),
+        `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}`.trim(),
+        g(r,"area","Departamento"),
+        g(r,"turno","Turno"),
+        fecha, dow,
+        g(r,"entrada_real","EntradaReal"),
+        g(r,"salida_real","SalidaFinalReal"),
+        g(r,"inicio_comer") || "",
+        g(r,"regreso_comer") || "",
+        ht>0 ? ht.toFixed(2) : "",
+        he>0 ? he.toFixed(2) : "",
+        ret>0 ? ret : "",
+        g(r,"estado","EstadoAsistencia")
+      ];
+    })
+  ];
+  const csv  = filas.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8"});
+  const a    = document.createElement("a");
+  a.href     = URL.createObjectURL(blob);
+  a.download = `nomina_${sem.desde}_${sem.hasta}.csv`;
+  a.click();
 }
 
 cargarDatos();
