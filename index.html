@@ -179,10 +179,11 @@ const EMPRESAS = {
   }
 };
 
-let empresaActual = "woods";
-let paginaActual  = "dashboard";
-let datos         = null;
-let fechaHoy      = new Date().toISOString().split("T")[0];
+let empresaActual  = "woods";
+let paginaActual   = "dashboard";
+let datos          = null;
+let datosEmpleados = null;
+let fechaHoy       = new Date().toISOString().split("T")[0];
 
 function navegar(page, el) {
   paginaActual = page;
@@ -194,8 +195,9 @@ function navegar(page, el) {
 }
 
 function cambiarEmpresa(val) {
-  empresaActual = val;
-  datos = null;
+  empresaActual    = val;
+  datos            = null;
+  datosEmpleados   = null;
   cargarDatos();
 }
 
@@ -206,8 +208,9 @@ async function cargarDatos() {
   document.getElementById("status-pill").className = "pill pill-gray";
 
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/${encodeURIComponent(emp.hoja)}?key=${API_KEY}`;
-    const r = await fetch(url);
+    // Cargar REGISTROS
+    const urlReg = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/${encodeURIComponent("REGISTROS")}?key=${API_KEY}`;
+    const r = await fetch(urlReg);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const d = await r.json();
     const filas = d.values || [];
@@ -218,6 +221,25 @@ async function cargarDatos() {
       headers.forEach((h,i) => o[h.trim()] = (f[i]||"").trim());
       return o;
     });
+
+    // Cargar EMPLEADOS
+    try {
+      const urlEmp = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/${encodeURIComponent("EMPLEADOS")}?key=${API_KEY}`;
+      const re = await fetch(urlEmp);
+      if (re.ok) {
+        const de = await re.json();
+        const filasE = de.values || [];
+        if (filasE.length >= 2) {
+          const headersE = filasE[0];
+          datosEmpleados = filasE.slice(1).map(f => {
+            const o = {};
+            headersE.forEach((h,i) => o[h.trim()] = (f[i]||"").trim());
+            return o;
+          });
+        }
+      }
+    } catch(e2) { datosEmpleados = null; }
+
     document.getElementById("status-pill").innerHTML = `<span class="dot dot-green"></span> ${datos.length} registros`;
     document.getElementById("status-pill").className = "pill pill-green";
     const ahora = new Date();
@@ -458,17 +480,52 @@ function renderEmpleados() {
   const busq = (document.getElementById("e-busq")?.value || "").toLowerCase();
   const fest = document.getElementById("e-area")?.value || "";
 
-  const todas_areas = [...new Set(datos.map(r => g(r,"area","Departamento")).filter(Boolean))].sort();
+  let emps;
+  if (datosEmpleados && datosEmpleados.length > 0) {
+    // Leer directamente de la pestaña EMPLEADOS
+    const muestra = datosEmpleados[0];
+    const findKey = (...opts) => {
+      for (const o of opts) {
+        const found = Object.keys(muestra).find(k => k.toLowerCase() === o.toLowerCase());
+        if (found) return found;
+      }
+      return null;
+    };
+    const kNom    = findKey("nom","nomina","nómina") || Object.keys(muestra)[0];
+    const kNombre = findKey("nombre","name","nombe") || Object.keys(muestra)[1];
+    const kArea   = findKey("area","departamento","depto") || "";
+    const kPuesto = findKey("puesto","cargo","position") || "";
+    const kTurno  = findKey("turno","shift") || "";
 
-  // Agrupar por empleado (última aparición = info más reciente)
-  const empMap = {};
-  datos.forEach(r => {
-    const nom = g(r,"nomina","NOMINA");
-    if (!empMap[nom]) empMap[nom] = r;
-  });
-  let emps = Object.values(empMap);
-  if (busq) emps = emps.filter(r => `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")} ${g(r,"nomina","NOMINA")}`.toLowerCase().includes(busq));
-  if (fest) emps = emps.filter(r => g(r,"area","Departamento") === fest);
+    emps = datosEmpleados.filter(r => r[kNom]?.trim()).map(r => {
+      const nombreCompleto = (r[kNombre] || "").trim();
+      const partes = nombreCompleto.split(" ");
+      const apellido = partes.length > 1 ? partes.slice(1).join(" ") : "";
+      return {
+        nomina:  (r[kNom]   || "").trim(),
+        nombre:  partes[0]  || nombreCompleto,
+        apellido,
+        area:    kArea   ? (r[kArea]   || "").trim() : "",
+        puesto:  kPuesto ? (r[kPuesto] || "").trim() : "",
+        turno:   kTurno  ? (r[kTurno]  || "").trim() : "",
+      };
+    });
+  } else {
+    // Fallback: agrupar desde REGISTROS
+    const empMap = {};
+    datos.forEach(r => {
+      const nom = g(r,"nomina","NOMINA");
+      if (!empMap[nom]) empMap[nom] = {
+        nomina: nom, nombre: g(r,"nombre","Nombre"), apellido: g(r,"apellido","Apellido"),
+        area: g(r,"area","Departamento"), puesto: g(r,"puesto","Puesto"), turno: g(r,"turno","Turno"),
+      };
+    });
+    emps = Object.values(empMap);
+  }
+
+  const todas_areas = [...new Set(emps.map(r => r.area).filter(Boolean))].sort();
+  if (busq) emps = emps.filter(r => `${r.nombre} ${r.apellido} ${r.nomina}`.toLowerCase().includes(busq));
+  if (fest) emps = emps.filter(r => r.area === fest);
 
   document.getElementById("content").innerHTML = `
     <div class="filters">
@@ -479,18 +536,18 @@ function renderEmpleados() {
       </select>
     </div>
     <div class="table-wrap">
-      <div class="table-header"><div class="table-header-title">Empleados</div><div style="font-size:11px;color:var(--muted)">${emps.length} registros</div></div>
+      <div class="table-header"><div class="table-header-title">Empleados</div><div style="font-size:11px;color:var(--muted)">${emps.length} empleados</div></div>
       <table><thead><tr>
         <th>Nómina</th><th>Nombre</th><th>Apellido</th><th>Área</th><th>Puesto</th><th>Turno</th>
       </tr></thead><tbody>
         ${emps.length===0?`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Sin resultados</td></tr>`:
         emps.map(r=>`<tr>
-          <td class="mono" style="color:var(--muted)">${g(r,"nomina","NOMINA")}</td>
-          <td style="font-weight:500">${g(r,"nombre","Nombre")}</td>
-          <td>${g(r,"apellido","Apellido")}</td>
-          <td style="font-size:11px;color:var(--muted)">${g(r,"area","Departamento")}</td>
-          <td style="font-size:11px;color:var(--muted)">${g(r,"puesto","Puesto")}</td>
-          <td style="font-size:11px;color:var(--muted)">${g(r,"turno","Turno")}</td>
+          <td class="mono" style="color:var(--muted)">${r.nomina}</td>
+          <td style="font-weight:500">${r.nombre}</td>
+          <td>${r.apellido}</td>
+          <td style="font-size:11px;color:var(--muted)">${r.area}</td>
+          <td style="font-size:11px;color:var(--muted)">${r.puesto}</td>
+          <td style="font-size:11px;color:var(--muted)">${r.turno}</td>
         </tr>`).join("")}
       </tbody></table>
     </div>`;
