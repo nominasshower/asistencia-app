@@ -138,6 +138,14 @@ input[type=text] { flex: 1; min-width: 160px; }
     </div>
   </div>
 
+  <div class="nav-group">
+    <div class="nav-label">Gestión</div>
+    <div class="nav-item" id="nav-alta" onclick="navegar('alta',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+      Alta Empleado
+    </div>
+  </div>
+
   <div class="sidebar-bottom">
     <div class="user-badge">
       <div class="user-avatar">RH</div>
@@ -166,7 +174,8 @@ input[type=text] { flex: 1; min-width: 160px; }
 </div>
 
 <script>
-const API_KEY = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
+const API_KEY         = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyq-UhXFJzM-QVuP8iGEnJcn-M5pByZrGognQ1yvA6mhI9K8Z9XXtNyidQDGSLnBPtS/exec";
 
 const EMPRESAS = {
   woods: {
@@ -201,7 +210,7 @@ function navegar(page, el) {
   paginaActual = page;
   document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
   el.classList.add("active");
-  const titulos = { dashboard:"Dashboard", registros:"Registros", areas:"Reporte por área", empleados:"Empleados" };
+  const titulos = { dashboard:"Dashboard", registros:"Registros", areas:"Reporte por área", empleados:"Empleados", alta:"Alta de Empleado" };
   document.getElementById("page-title").textContent = titulos[page];
   renderPagina();
 }
@@ -266,10 +275,11 @@ async function cargarDatos() {
 
 function renderPagina() {
   if (!datos) { cargarDatos(); return; }
-  if (paginaActual === "dashboard")  renderDashboard();
-  else if (paginaActual === "registros") renderRegistros();
-  else if (paginaActual === "areas") renderAreas();
-  else if (paginaActual === "empleados") renderEmpleados();
+  if (paginaActual === "dashboard")       renderDashboard();
+  else if (paginaActual === "registros")  renderRegistros();
+  else if (paginaActual === "areas")      renderAreas();
+  else if (paginaActual === "empleados")  renderEmpleados();
+  else if (paginaActual === "alta")       renderAltaEmpleado();
 }
 
 // Helpers
@@ -610,6 +620,161 @@ function renderEmpleados() {
         </tr>`).join("")}
       </tbody></table>
     </div>`;
+}
+
+// ─── ALTA EMPLEADO ───────────────────────────────────────────
+let catalogosCache = {};
+
+async function renderAltaEmpleado() {
+  const emp = EMPRESAS[empresaActual];
+  const key = empresaActual;
+
+  if (!catalogosCache[key]) {
+    document.getElementById("content").innerHTML = `<div class="loading"><div class="spinner"></div><div>Cargando catálogos de ${emp.nombre}...</div></div>`;
+    const cats = { areas:[], turnos:[], manosObra:[] };
+    try {
+      const base = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/`;
+      const [rA,rT,rM] = await Promise.all([
+        fetch(`${base}AREA?key=${API_KEY}`),
+        fetch(`${base}TURNOS?key=${API_KEY}`),
+        fetch(`${base}${encodeURIComponent("MANO DE OBRA")}?key=${API_KEY}`)
+      ]);
+      if (rA.ok) { const d=await rA.json(); cats.areas=(d.values||[]).slice(1).map(r=>r[1]||"").filter(Boolean); }
+      if (rT.ok) { const d=await rT.json(); cats.turnos=(d.values||[]).slice(1).map(r=>r[1]||"").filter(Boolean); }
+      if (rM.ok) { const d=await rM.json(); cats.manosObra=(d.values||[]).slice(1).map(r=>r[1]||"").filter(Boolean); }
+    } catch(e) {}
+    if (!cats.manosObra.length) cats.manosObra = ["MOD","MOI","ADMIN","STAFF"];
+    catalogosCache[key] = cats;
+  }
+
+  const {areas,turnos,manosObra} = catalogosCache[key];
+  const inp = `background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;width:100%;`;
+  const lbl = `font-size:10px;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;`;
+  const syncNota = {
+    woods:   "Corre <b>subir_empleados.py</b> en la PC de Modul Woods para sincronizar al reloj.",
+    shower:  "Corre <b>subir_empleados.py</b> en la PC de Shower Walls para sincronizar al reloj.",
+    modular: "Cuando tengas el reloj, configura y corre su script de sincronización.",
+    kuartz:  "Cuando tengas el reloj, configura y corre su script de sincronización."
+  }[empresaActual] || "";
+
+  document.getElementById("content").innerHTML = `
+    <div style="max-width:640px;margin:0 auto">
+      <div class="card">
+        <div class="card-title">Alta de Empleado <span>${emp.nombre}</span></div>
+        <form id="alta-form" onsubmit="guardarEmpleado(event)" autocomplete="off">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+            <div>
+              <label style="${lbl}">Nómina *</label>
+              <input type="text" id="f-nomina" required style="${inp}" placeholder="1020">
+            </div>
+            <div>
+              <label style="${lbl}">Sexo</label>
+              <select id="f-sexo" style="${inp}">
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+              </select>
+            </div>
+            <div>
+              <label style="${lbl}">Nombre *</label>
+              <input type="text" id="f-nombre" required style="${inp}" placeholder="JUAN FRANCISCO">
+            </div>
+            <div>
+              <label style="${lbl}">Apellido *</label>
+              <input type="text" id="f-apellido" required style="${inp}" placeholder="MUÑIZ ALVARADO">
+            </div>
+            <div>
+              <label style="${lbl}">Área *</label>
+              <select id="f-area" required style="${inp}">
+                <option value="">— Selecciona —</option>
+                ${areas.map(a=>`<option>${a}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label style="${lbl}">Puesto</label>
+              <input type="text" id="f-puesto" style="${inp}" placeholder="AYUDANTE GENERAL">
+            </div>
+            <div>
+              <label style="${lbl}">Turno *</label>
+              <select id="f-turno" required style="${inp}">
+                <option value="">— Selecciona —</option>
+                ${turnos.map(t=>`<option>${t}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label style="${lbl}">Mano de Obra</label>
+              <select id="f-mano" style="${inp}">
+                ${manosObra.map(m=>`<option>${m}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label style="${lbl}">Tipo Nómina</label>
+              <select id="f-tipo" style="${inp}">
+                <option value="S">Semanal (S)</option>
+                <option value="Q">Quincenal (Q)</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="alta-msg" style="display:none;margin-bottom:12px"></div>
+
+          <div style="display:flex;gap:8px">
+            <button type="submit" id="alta-btn" class="btn btn-accent" style="flex:1;justify-content:center">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Guardar en Sheets
+            </button>
+            <button type="button" class="btn" onclick="delete catalogosCache[empresaActual];renderAltaEmpleado()">Limpiar</button>
+          </div>
+
+          <div style="margin-top:12px;padding:10px 12px;background:var(--bg3);border-radius:8px;font-size:11px;color:var(--muted);line-height:1.6">
+            💡 ${syncNota}
+          </div>
+        </form>
+      </div>
+    </div>`;
+}
+
+async function guardarEmpleado(e) {
+  e.preventDefault();
+  const emp = EMPRESAS[empresaActual];
+  const msg = document.getElementById("alta-msg");
+  const btn = document.getElementById("alta-btn");
+
+  btn.disabled = true;
+  btn.innerHTML = `<div class="spinner" style="width:13px;height:13px;margin-right:6px;flex-shrink:0"></div>Guardando...`;
+  msg.style.display = "none";
+
+  const payload = {
+    sheets_id:   emp.sheets_id,
+    empresa:     emp.nombre,
+    nomina:      document.getElementById("f-nomina").value.trim(),
+    nombre:      document.getElementById("f-nombre").value.trim(),
+    apellido:    document.getElementById("f-apellido").value.trim(),
+    area:        document.getElementById("f-area").value,
+    puesto:      document.getElementById("f-puesto").value.trim(),
+    turno:       document.getElementById("f-turno").value,
+    mano_obra:   document.getElementById("f-mano").value,
+    tipo_nomina: document.getElementById("f-tipo").value,
+    sexo:        document.getElementById("f-sexo").value
+  };
+
+  try {
+    const resp   = await fetch(APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload) });
+    const result = await resp.json();
+    msg.style.display = "block";
+    if (result.ok) {
+      msg.innerHTML = `<div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;color:#4ade80;font-size:13px">✓ ${result.msg}</div>`;
+      e.target.reset();
+      datosEmpleados = null;
+    } else {
+      msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ ${result.error}</div>`;
+    }
+  } catch(err) {
+    msg.style.display = "block";
+    msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ Error de conexión: ${err.message}</div>`;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Guardar en Sheets`;
 }
 
 cargarDatos();
