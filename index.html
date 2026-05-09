@@ -836,19 +836,20 @@ function renderSemana() {
   if (filtrarArea) emps = emps.filter(e => e.area === filtrarArea);
 
   const colorCell = r => {
-    if (!r) return `<td style="text-align:center;color:var(--bg3);border-left:1px solid var(--border)">—</td>`;
+    if (!r) return `<td style="text-align:center;color:rgba(255,255,255,0.1);border-left:1px solid var(--border)">—</td>`;
     const est = g(r,"estado","EstadoAsistencia");
-    const ent = g(r,"entrada_real","EntradaReal") || "·";
+    const ht  = calcHoras(r);
     const colores = {
-      "NORMAL":           ["rgba(34,197,94,0.15)",  "#4ade80"],
-      "EXTRA":            ["rgba(59,130,246,0.15)",  "#60a5fa"],
-      "RETARDO":          ["rgba(245,158,11,0.15)",  "#fbbf24"],
-      "RETARDO CON EXTRA":["rgba(139,92,246,0.15)",  "#a78bfa"],
-      "INCOMPLETO":       ["rgba(239,68,68,0.1)",    "#f87171"],
-      "AUSENTE":          ["rgba(239,68,68,0.2)",    "#ef4444"]
+      "NORMAL":            ["rgba(34,197,94,0.25)",   "#4ade80"],
+      "EXTRA":             ["rgba(59,130,246,0.25)",   "#60a5fa"],
+      "RETARDO":           ["rgba(245,158,11,0.25)",   "#fbbf24"],
+      "RETARDO CON EXTRA": ["rgba(139,92,246,0.25)",   "#a78bfa"],
+      "INCOMPLETO":        ["rgba(239,68,68,0.20)",    "#f87171"],
+      "AUSENTE":           ["rgba(239,68,68,0.25)",    "#ef4444"]
     };
     const [bg, col] = colores[est] || ["var(--bg3)","var(--muted)"];
-    return `<td title="${est}" style="text-align:center;background:${bg};color:${col};font-family:'DM Mono',monospace;font-size:11px;white-space:nowrap;border-left:1px solid var(--border)">${ent}</td>`;
+    const label = ht > 0 ? `${ht.toFixed(1)}h` : (est === "INCOMPLETO" ? "INC" : est || "—");
+    return `<td title="${est}" style="text-align:center;background:${bg};color:${col};font-family:'DM Mono',monospace;font-size:12px;font-weight:600;white-space:nowrap;border-left:1px solid var(--border)">${label}</td>`;
   };
 
   document.getElementById("content").innerHTML = `
