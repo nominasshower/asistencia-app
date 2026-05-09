@@ -853,7 +853,7 @@ function renderSemana() {
     };
     const [bg, col] = colores[est] || ["#374151","#9ca3af"];
     const label = ht > 0 ? `${ht.toFixed(1)}h` : (est === "INCOMPLETO" ? "INC" : est === "AUSENTE" ? "AUS" : "—");
-    return `<td title="${est}" style="text-align:center;background:${bg};color:${col};font-family:'DM Mono',monospace;font-size:12px;font-weight:700;white-space:nowrap;border-left:1px solid rgba(0,0,0,0.2);padding:8px 6px">${label}</td>`;
+    return `<td title="${est}" style="text-align:center;border-left:1px solid rgba(0,0,0,0.3)"><div style="background:${bg};color:${col};font-family:'DM Mono',monospace;font-size:12px;font-weight:700;padding:6px 4px;border-radius:4px;margin:2px">${label}</div></td>`;
   };
 
   document.getElementById("content").innerHTML = `
