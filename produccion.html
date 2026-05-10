@@ -7,163 +7,147 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0f1117; --bg2: #161b27; --bg3: #1e2535;
-  --border: rgba(255,255,255,0.07); --text: #e8eaf0; --muted: #6b7280;
-  --accent: #22c55e; --accent2: #3b82f6; --warn: #f59e0b; --danger: #ef4444; --info: #8b5cf6;
-  --grade-a: #22c55e; --grade-b: #f59e0b; --grade-c: #ef4444;
+  --bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;
+  --border:rgba(255,255,255,0.07);--text:#e8eaf0;--muted:#6b7280;
+  --accent:#22c55e;--accent2:#3b82f6;--warn:#f59e0b;--danger:#ef4444;
+  --ga:#22c55e;--gb:#f59e0b;--gc:#ef4444;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;}
+.logo{padding:20px 20px 12px;font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;}
+.logo svg{width:18px;height:18px;}
+.logo-sub{font-size:10px;color:var(--muted);font-weight:400;margin-top:1px;}
+.nav-group{padding:0 8px;margin-bottom:4px;}
+.nav-label{font-size:10px;color:var(--muted);padding:8px 12px 4px;letter-spacing:.8px;text-transform:uppercase;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:6px;font-size:13px;color:var(--muted);cursor:pointer;transition:all .15s;border:1px solid transparent;}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{background:rgba(34,197,94,.1);color:var(--accent);border-color:rgba(34,197,94,.2);}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;}
+.sidebar-bottom{margin-top:auto;padding:12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);text-align:center;}
+.main{margin-left:220px;min-height:100vh;}
+.topbar{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg2);position:sticky;top:0;z-index:50;}
+.topbar-title{font-size:15px;font-weight:600;}
+.topbar-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.content{padding:20px 24px;}
+input[type=date]{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;}
+input[type=date]:focus{border-color:var(--accent2);}
+.btn{font-size:12px;padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px;font-family:'DM Sans',sans-serif;transition:all .15s;}
+.btn:hover{background:var(--bg);border-color:rgba(255,255,255,.15);}
+.btn-green{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600;}
+.btn-green:hover{background:#16a34a;}
+.btn-wa{background:#25d366;color:#000;border-color:#25d366;font-weight:600;}
+.btn-wa:hover{background:#1da851;}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;}
+.metric{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.metric-label{font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+.metric-val{font-size:26px;font-weight:600;line-height:1;}
+.metric-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.green{color:var(--ga);}.amber{color:var(--gb);}.red{color:var(--gc);}.blue{color:var(--accent2);}.white{color:var(--text);}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;}
+.card-title{font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.card-title span{color:var(--muted);font-size:11px;font-weight:400;}
+.bar-chart{display:flex;flex-direction:column;gap:7px;}
+.bar-row{display:flex;align-items:center;gap:8px;}
+.bar-label{width:170px;color:var(--text);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;flex-shrink:0;font-size:11px;}
+.bar-track{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:3px;transition:width .6s ease;}
+.bar-val{width:36px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+.grade-bars{display:flex;flex-direction:column;gap:10px;}
+.grade-row{display:flex;align-items:center;gap:10px;}
+.grade-letter{font-size:13px;font-weight:700;width:18px;flex-shrink:0;}
+.grade-track{flex:1;height:10px;background:var(--bg3);border-radius:5px;overflow:hidden;}
+.grade-fill{height:100%;border-radius:5px;transition:width .6s ease;}
+.grade-count{font-family:'DM Mono',monospace;font-size:12px;width:50px;text-align:right;}
+.grade-pct{font-size:11px;color:var(--muted);width:36px;text-align:right;}
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px;}
+.table-header{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.table-header-title{font-size:13px;font-weight:600;}
+table{width:100%;border-collapse:collapse;}
+th{padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:9px 12px;font-size:12px;border-bottom:1px solid var(--border);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+.mono{font-family:'DM Mono',monospace;font-size:11px;}
+.badge{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;white-space:nowrap;}
+.b-a{background:rgba(34,197,94,.15);color:#4ade80;}
+.b-b{background:rgba(245,158,11,.15);color:#fbbf24;}
+.b-c{background:rgba(239,68,68,.15);color:#f87171;}
+.b-sin{background:var(--bg3);color:var(--muted);}
+.dtag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;margin:1px;border:1px solid;}
+.dtag-g{background:rgba(239,68,68,.12);color:#f87171;border-color:rgba(239,68,68,.2);}
+.dtag-m{background:rgba(245,158,11,.12);color:#fbbf24;border-color:rgba(245,158,11,.2);}
+.dtag-o{background:rgba(59,130,246,.1);color:#60a5fa;border-color:rgba(59,130,246,.2);}
+.alert-card{border-radius:10px;border:1px solid;padding:14px 16px;margin-bottom:8px;}
+.alert-card-crit{background:rgba(239,68,68,.07);border-color:rgba(239,68,68,.25);}
+.alert-card-warn{background:rgba(245,158,11,.07);border-color:rgba(245,158,11,.25);}
+.alert-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px;}
+.alert-card-tag{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;}
+.alert-card-meta{font-size:11px;color:var(--muted);margin-top:2px;}
+.alert-card-count{font-family:'DM Mono',monospace;font-size:22px;font-weight:700;flex-shrink:0;}
+.alert-card-defects{display:flex;flex-wrap:wrap;gap:4px;}
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;gap:12px;color:var(--muted);}
+.spinner{width:24px;height:24px;border:2px solid var(--bg3);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.empty{color:var(--muted);font-size:12px;text-align:center;padding:30px;}
+.threshold-note{font-size:11px;color:var(--muted);padding:6px 0 12px;}
 
-/* ── Sidebar ───────────────────────────────────────────── */
-.sidebar {
-  position: fixed; left: 0; top: 0; bottom: 0; width: 220px;
-  background: var(--bg2); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; z-index: 100;
-}
-.logo { padding: 20px 20px 12px; font-size: 13px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 8px; }
-.logo svg { width: 18px; height: 18px; }
-.logo-sub { font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 1px; }
-.nav-group { padding: 0 8px; margin-bottom: 4px; }
-.nav-label { font-size: 10px; color: var(--muted); padding: 8px 12px 4px; letter-spacing: 0.8px; text-transform: uppercase; }
-.nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; font-size: 13px; color: var(--muted); cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
-.nav-item:hover { background: var(--bg3); color: var(--text); }
-.nav-item.active { background: rgba(34,197,94,0.1); color: var(--accent); border-color: rgba(34,197,94,0.2); }
-.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
-.sidebar-bottom { margin-top: auto; padding: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); text-align: center; }
-
-/* ── Main ──────────────────────────────────────────────── */
-.main { margin-left: 220px; min-height: 100vh; }
-.topbar { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); position: sticky; top: 0; z-index: 50; }
-.topbar-title { font-size: 15px; font-weight: 600; }
-.topbar-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
-.topbar-right { display: flex; align-items: center; gap: 8px; }
-.content { padding: 20px 24px; }
-
-/* ── Controls ──────────────────────────────────────────── */
-.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
-.controls label { font-size: 11px; color: var(--muted); }
-input[type=date], select.filter {
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
-  padding: 7px 10px; color: var(--text); font-family: 'DM Sans',sans-serif;
-  font-size: 12px; outline: none; cursor: pointer;
-}
-input[type=date]:focus, select.filter:focus { border-color: var(--accent2); }
-.btn { font-size: 12px; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: 'DM Sans',sans-serif; transition: all 0.15s; }
-.btn:hover { background: var(--bg); border-color: rgba(255,255,255,0.15); }
-.btn-accent { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
-.btn-accent:hover { background: #16a34a; }
-.sep { width: 1px; height: 20px; background: var(--border); }
-
-/* ── Metrics ───────────────────────────────────────────── */
-.metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
-.metric { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
-.metric-label { font-size: 10px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-.metric-val { font-size: 26px; font-weight: 600; line-height: 1; }
-.metric-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
-.green { color: var(--grade-a); } .amber { color: var(--grade-b); } .red { color: var(--grade-c); } .blue { color: var(--accent2); } .white { color: var(--text); }
-
-/* ── Cards grid ────────────────────────────────────────── */
-.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
-.card-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.card-title span { color: var(--muted); font-size: 11px; font-weight: 400; }
-
-/* ── Bar chart ─────────────────────────────────────────── */
-.bar-chart { display: flex; flex-direction: column; gap: 7px; }
-.bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.bar-label { width: 170px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex-shrink: 0; font-size: 11px; }
-.bar-track { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
-.bar-val { width: 36px; text-align: right; font-family: 'DM Mono',monospace; font-size: 11px; color: var(--muted); }
-
-/* ── Grade donut ───────────────────────────────────────── */
-.grade-bars { display: flex; flex-direction: column; gap: 10px; }
-.grade-row { display: flex; align-items: center; gap: 10px; }
-.grade-letter { font-size: 13px; font-weight: 700; width: 18px; flex-shrink: 0; }
-.grade-track { flex: 1; height: 10px; background: var(--bg3); border-radius: 5px; overflow: hidden; }
-.grade-fill { height: 100%; border-radius: 5px; transition: width 0.6s ease; }
-.grade-count { font-family: 'DM Mono',monospace; font-size: 12px; width: 50px; text-align: right; }
-.grade-pct { font-size: 11px; color: var(--muted); width: 36px; text-align: right; }
-
-/* ── Alerts ────────────────────────────────────────────── */
-.alerts { display: flex; flex-direction: column; gap: 6px; }
-.alert-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 7px; font-size: 12px; border: 1px solid; }
-.alert-crit { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); }
-.alert-warn { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
-.alert-icon { font-size: 14px; flex-shrink: 0; }
-.alert-text { flex: 1; }
-.alert-count { font-family: 'DM Mono',monospace; font-size: 12px; font-weight: 600; flex-shrink: 0; }
-.alert-crit .alert-count { color: var(--danger); }
-.alert-warn .alert-count { color: var(--warn); }
-.no-alerts { color: var(--muted); font-size: 12px; text-align: center; padding: 20px; }
-
-/* ── Table ─────────────────────────────────────────────── */
-.table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
-.table-header { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
-.table-header-title { font-size: 13px; font-weight: 600; }
-table { width: 100%; border-collapse: collapse; }
-th { padding: 8px 12px; text-align: left; font-size: 10px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-td { padding: 9px 12px; font-size: 12px; border-bottom: 1px solid var(--border); }
-tr:last-child td { border-bottom: none; }
-tr:hover td { background: rgba(255,255,255,0.02); }
-.mono { font-family: 'DM Mono',monospace; font-size: 11px; }
-.badge { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 600; white-space: nowrap; }
-.b-a { background: rgba(34,197,94,0.15); color: #4ade80; }
-.b-b { background: rgba(245,158,11,0.15); color: #fbbf24; }
-.b-c { background: rgba(239,68,68,0.15); color: #f87171; }
-.b-sin { background: var(--bg3); color: var(--muted); }
-.defect-tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; background: rgba(239,68,68,0.12); color: #f87171; margin: 1px; border: 1px solid rgba(239,68,68,0.15); }
-.defect-tag.warn { background: rgba(245,158,11,0.12); color: #fbbf24; border-color: rgba(245,158,11,0.15); }
-
-/* ── Loading / empty ───────────────────────────────────── */
-.loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; gap: 12px; color: var(--muted); }
-.spinner { width: 24px; height: 24px; border: 2px solid var(--bg3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.empty { color: var(--muted); font-size: 12px; text-align: center; padding: 30px; }
+/* ── Modal filtros ──────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:center;justify-content:center;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:520px;max-height:80vh;display:flex;flex-direction:column;}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.modal-head h3{font-size:14px;font-weight:600;}
+.modal-body{padding:16px 20px;overflow-y:auto;flex:1;}
+.modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;}
+.defect-check{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);}
+.defect-check:last-child{border-bottom:none;}
+.defect-check input{width:16px;height:16px;accent-color:var(--danger);cursor:pointer;flex-shrink:0;}
+.defect-check label{font-size:12px;cursor:pointer;flex:1;}
+.defect-check .dcount{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+.section-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:12px 0 6px;}
 </style>
 </head>
 <body>
 
-<!-- ── Sidebar ─────────────────────────────────────────── -->
+<!-- ── Sidebar ──────────────────────────────────────────── -->
 <div class="sidebar">
   <div class="logo">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-    <div>
-      Shower Walls
-      <div class="logo-sub">Calidad Producción</div>
-    </div>
+    <div>Shower Walls<div class="logo-sub">Calidad Producción</div></div>
   </div>
-
   <div class="nav-group">
     <div class="nav-label">Producción</div>
-    <div class="nav-item active" id="nav-hoy" onclick="navegar('hoy',this)">
+    <div class="nav-item active" id="nav-dash" onclick="navegar('dash',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       Dashboard
-    </div>
-    <div class="nav-item" id="nav-tabla" onclick="navegar('tabla',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-      Registros
     </div>
     <div class="nav-item" id="nav-alertas" onclick="navegar('alertas',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       Alertas
     </div>
+    <div class="nav-item" id="nav-tabla" onclick="navegar('tabla',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Registros
+    </div>
   </div>
-
   <div class="nav-group">
-    <div class="nav-label">Acceso</div>
+    <div class="nav-label">Config</div>
+    <div class="nav-item" onclick="abrirFiltros()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M2 12h2M20 12h2M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41"/></svg>
+      Filtros / Exclusiones
+    </div>
     <div class="nav-item" onclick="window.open('index.html','_self')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
       Asistencia
     </div>
   </div>
-
   <div class="sidebar-bottom">Primera Inspección</div>
 </div>
 
-<!-- ── Main ───────────────────────────────────────────── -->
+<!-- ── Main ────────────────────────────────────────────── -->
 <div class="main">
   <div class="topbar">
     <div>
@@ -175,86 +159,160 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <input type="date" id="fDesde">
       <label style="font-size:11px;color:var(--muted)">Hasta</label>
       <input type="date" id="fHasta">
-      <button class="btn btn-accent" onclick="cargar()">
+      <button class="btn btn-green" onclick="cargar()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
         Actualizar
       </button>
+      <button class="btn btn-wa" id="btn-wa" onclick="enviarWA()" style="display:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
+        WhatsApp
+      </button>
     </div>
   </div>
-
   <div class="content" id="main-content">
     <div class="loading"><div class="spinner"></div><div>Cargando datos…</div></div>
   </div>
 </div>
 
+<!-- ── Modal filtros ────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-filtros" style="display:none" onclick="if(event.target===this)cerrarFiltros()">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Catálogo de exclusiones</h3>
+      <button class="btn" onclick="cerrarFiltros()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+        Los defectos marcados <strong style="color:var(--danger)">se excluyen</strong> de alertas y conteos. Se guardan en este navegador.
+      </div>
+      <div id="lista-defectos"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="cerrarFiltros()">Cancelar</button>
+      <button class="btn btn-green" onclick="guardarFiltros()">Guardar exclusiones</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Config ──────────────────────────────────────────────
-const API_KEY  = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
-const SHEET_ID = "1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c";
-const SHEET_INSP = "INSPECCION";
+const API_KEY   = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
+const SHEET_ID  = "1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c";
+const WA_NUM    = "528115014189";
+const LS_KEY    = "sw_excluir_defectos";
 
-// Defectos críticos → gelcoat
-const GELCOAT_KEYS  = ["rechazo de gelcoat","gelcoat delgado","gelcoat levantado","gelcoat estrellado","gelcoat"];
-// Defectos críticos → molde
-const MOLDE_KEYS    = ["molde vacio","marca de molde","pieza desmoldada","fallo de máquina","generación incorrecta"];
+// Umbrales de alerta
+const UMBRAL_MOLDE   = 2;   // mismo TAG, mismas defectos de molde en el día
+const UMBRAL_GELCOAT = 10;  // misma Línea, defectos de gelcoat en el día
 
-let TODOS = [];
-let VISTA = "hoy";
+// Defectos pre-excluidos por defecto (falsos positivos conocidos)
+const EXCLUIR_DEFAULT = [
+  "PIEZA DESMOLDADA",
+  "Molde Vacio",
+  "Generación Incorrecta",
+  "Pieza para Redimención",
+];
 
-// ── Helpers ─────────────────────────────────────────────
-function fmt(d) {
-  if (!d) return "—";
-  const dt = new Date(d);
-  return dt.toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit"})
-    + " " + dt.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+// Clasificación
+const GELCOAT_KEYS = ["rechazo de gelcoat","gelcoat delgado","gelcoat levantado","gelcoat estrellado","gelcoat reventado","gelcoat poroso","gelcoat tierno","gelcoat contaminado","gelcoat"];
+const MOLDE_KEYS   = ["marca de molde","fallo de máquina","despostillado en desmolde","quebrado en desmolde","rayas por manejo","grumos"];
+
+let INSP   = [];   // registros inspección filtrados por fecha
+let VACIADO = {};  // map TAG → última fecha de vaciado
+let VISTA  = "dash";
+let ALL_DEFECTS = {}; // defecto → conteo total (para el modal)
+
+// ── Exclusiones (localStorage) ──────────────────────────
+function getExcluidos() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+    return saved || [...EXCLUIR_DEFAULT];
+  } catch { return [...EXCLUIR_DEFAULT]; }
+}
+function setExcluidos(arr) {
+  localStorage.setItem(LS_KEY, JSON.stringify(arr));
+}
+let EXCLUIDOS = getExcluidos();
+
+function estaExcluido(defecto) {
+  const d = defecto.trim().toLowerCase();
+  return EXCLUIDOS.some(e => e.toLowerCase() === d);
 }
 
-function categDefecto(det) {
-  const s = (det || "").toLowerCase();
-  if (GELCOAT_KEYS.some(k => s.includes(k))) return "gelcoat";
-  if (MOLDE_KEYS.some(k => s.includes(k))) return "molde";
-  return "otro";
+function defectosActivos(detalle) {
+  if (!detalle || detalle === "null") return [];
+  return detalle.split(",").map(d => d.trim()).filter(d => d && !estaExcluido(d));
 }
 
-// ── Data fetch ───────────────────────────────────────────
+// ── Clasificación ────────────────────────────────────────
+function clasif(d) {
+  const s = d.toLowerCase();
+  if (GELCOAT_KEYS.some(k => s.includes(k))) return "g";
+  if (MOLDE_KEYS.some(k => s.includes(k))) return "m";
+  return "o";
+}
+
+// ── Fetch sheet ──────────────────────────────────────────
+async function fetchSheet(name) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(name)}?key=${API_KEY}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status} (${name})`);
+  const j = await r.json();
+  const [hdrs, ...rows] = j.values || [];
+  if (!hdrs) return [];
+  return rows.map(r => { const o={}; hdrs.forEach((h,i)=>o[h]=r[i]??""); return o; });
+}
+
+// ── Cargar datos ─────────────────────────────────────────
 async function cargar() {
   const desde = document.getElementById("fDesde").value;
   const hasta = document.getElementById("fHasta").value;
   document.getElementById("main-content").innerHTML =
     `<div class="loading"><div class="spinner"></div><div>Cargando datos…</div></div>`;
+  document.getElementById("btn-wa").style.display = "none";
 
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_INSP)}?key=${API_KEY}`;
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const json = await resp.json();
-    const [hdrs, ...rows] = json.values || [];
-    if (!hdrs) throw new Error("Hoja vacía");
+    const [inspRaw, vacRaw] = await Promise.all([
+      fetchSheet("INSPECCION"),
+      fetchSheet("VACIADO")
+    ]);
 
-    const all = rows.map(r => {
-      const o = {};
-      hdrs.forEach((h, i) => o[h] = r[i] ?? "");
-      return o;
+    // Vaciado: último vaciado por TAG
+    VACIADO = {};
+    vacRaw.forEach(r => {
+      const tag = r["TAG"] || r["Tag"] || "";
+      const fecha = r["Fecha"] || "";
+      if (!tag) return;
+      if (!VACIADO[tag] || fecha > VACIADO[tag]) VACIADO[tag] = fecha;
     });
 
-    // Filtrar por rango de fechas seleccionado
+    // Inspección: filtrar por fecha
     const d0 = desde ? new Date(desde + "T00:00:00") : null;
     const d1 = hasta ? new Date(hasta + "T23:59:59") : null;
-    TODOS = all.filter(r => {
+    INSP = inspRaw.filter(r => {
       const dt = new Date(r["Fecha"]);
       if (d0 && dt < d0) return false;
       if (d1 && dt > d1) return false;
       return true;
     });
 
-    document.getElementById("topbar-sub").textContent =
-      `${TODOS.length} piezas — ${desde || "inicio"} → ${hasta || "hoy"}`;
+    // Conteo global de defectos para el modal
+    ALL_DEFECTS = {};
+    inspRaw.forEach(r => {
+      (r["Detalle Defecto"]||"").split(",").forEach(d => {
+        d = d.trim();
+        if (d && d !== "null") ALL_DEFECTS[d] = (ALL_DEFECTS[d]||0) + 1;
+      });
+    });
 
-    renderVista(TODOS);
+    document.getElementById("topbar-sub").textContent =
+      `${INSP.length} piezas — ${desde} → ${hasta}`;
+
+    document.getElementById("btn-wa").style.display = "flex";
+    renderVista(INSP);
   } catch(e) {
     document.getElementById("main-content").innerHTML =
       `<div class="loading" style="color:var(--danger)">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         Error al cargar datos.<br>
         <span style="font-size:10px;color:var(--muted);margin-top:4px;display:block">${e.message}</span>
       </div>`;
@@ -266,236 +324,240 @@ function navegar(id, el) {
   VISTA = id;
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
   el.classList.add("active");
-  const desde = document.getElementById("fDesde").value;
-  const hasta = document.getElementById("fHasta").value;
-  const d0 = desde ? new Date(desde + "T00:00:00") : null;
-  const d1 = hasta ? new Date(hasta + "T23:59:59") : null;
-  const filtrados = TODOS.filter(r => {
-    const dt = new Date(r["Fecha"]);
-    if (d0 && dt < d0) return false;
-    if (d1 && dt > d1) return false;
-    return true;
-  });
-  renderVista(filtrados);
+  renderVista(INSP);
 }
 
 function renderVista(data) {
-  if (VISTA === "hoy")    renderDashboard(data);
-  else if (VISTA === "tabla")   renderTabla(data);
+  if (VISTA === "dash")    renderDash(data);
   else if (VISTA === "alertas") renderAlertas(data);
+  else if (VISTA === "tabla")   renderTabla(data);
 }
 
-// ── Dashboard ────────────────────────────────────────────
-function renderDashboard(data) {
-  const total = data.length;
-  const cA = data.filter(r => r["Grado"] === "A").length;
-  const cB = data.filter(r => r["Grado"] === "B").length;
-  const cC = data.filter(r => r["Grado"] === "C").length;
-  const pct = n => total ? Math.round(n * 100 / total) : 0;
+// ── Helpers visuales ─────────────────────────────────────
+function fmt(d) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  return dt.toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit"})
+    + " " + dt.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+}
 
-  // Defectos
+function fmtHora(d) {
+  if (!d) return "—";
+  return new Date(d).toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+}
+
+function tagCorto(tag) {
+  return (tag||"").slice(-8).toUpperCase();
+}
+
+function renderDtags(lista) {
+  return lista.map(d => {
+    const c = clasif(d);
+    const cls = c==="g"?"dtag dtag-g":c==="m"?"dtag dtag-m":"dtag dtag-o";
+    return `<span class="${cls}">${d}</span>`;
+  }).join("");
+}
+
+// ── Calcular alertas ─────────────────────────────────────
+function calcAlertas(data) {
+  // ── Alertas molde: por TAG, ≥ UMBRAL_MOLDE defectos de molde hoy ──
+  const porTag = {};
+  data.forEach(r => {
+    const tag = r["TAG"] || "";
+    if (!tag) return;
+    const activos = defectosActivos(r["Detalle Defecto"]);
+    const dMolde  = activos.filter(d => clasif(d) === "m");
+    if (dMolde.length === 0) return;
+    if (!porTag[tag]) porTag[tag] = { tag, patron: r["Patron"]||"", defectos: {}, linea: r["Linea"]||"" };
+    dMolde.forEach(d => porTag[tag].defectos[d] = (porTag[tag].defectos[d]||0)+1);
+  });
+  const alertasMolde = Object.values(porTag)
+    .map(g => ({ ...g, total: Object.values(g.defectos).reduce((a,b)=>a+b,0) }))
+    .filter(g => g.total >= UMBRAL_MOLDE)
+    .sort((a,b) => b.total - a.total);
+
+  // ── Alertas gelcoat: por Línea, ≥ UMBRAL_GELCOAT defectos gelcoat hoy ──
+  const porLinea = {};
+  data.forEach(r => {
+    const linea = r["Linea"] || "—";
+    const activos = defectosActivos(r["Detalle Defecto"]);
+    const dGel = activos.filter(d => clasif(d) === "g");
+    if (dGel.length === 0) return;
+    if (!porLinea[linea]) porLinea[linea] = { linea, defectos: {}, tags: new Set() };
+    dGel.forEach(d => porLinea[linea].defectos[d] = (porLinea[linea].defectos[d]||0)+1);
+    if (r["TAG"]) porLinea[linea].tags.add(r["TAG"]);
+  });
+  const alertasGelcoat = Object.values(porLinea)
+    .map(g => ({ ...g, total: Object.values(g.defectos).reduce((a,b)=>a+b,0), tags: [...g.tags] }))
+    .filter(g => g.total >= UMBRAL_GELCOAT)
+    .sort((a,b) => b.total - a.total);
+
+  return { alertasMolde, alertasGelcoat };
+}
+
+// ── Dashboard ─────────────────────────────────────────────
+function renderDash(data) {
+  document.getElementById("topbar-title").textContent = "Dashboard Calidad";
+  const total = data.length;
+  const cA = data.filter(r=>r["Grado"]==="A").length;
+  const cB = data.filter(r=>r["Grado"]==="B").length;
+  const cC = data.filter(r=>r["Grado"]==="C").length;
+  const pct = n => total ? Math.round(n*100/total) : 0;
+
+  // Top defectos activos
   const defCounts = {};
   data.forEach(r => {
-    const det = r["Detalle Defecto"] || "";
-    if (!det || det === "null") return;
-    det.split(",").forEach(d => {
-      const k = d.trim();
-      if (k) defCounts[k] = (defCounts[k] || 0) + 1;
+    defectosActivos(r["Detalle Defecto"]).forEach(d => {
+      defCounts[d] = (defCounts[d]||0)+1;
     });
   });
   const topDef = Object.entries(defCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const maxDef = topDef[0]?.[1] || 1;
+  const maxDef = topDef[0]?.[1]||1;
 
   // Por linea
   const lineas = {};
-  data.forEach(r => {
-    const l = r["Linea"] || "—";
-    lineas[l] = (lineas[l] || 0) + 1;
-  });
+  data.forEach(r => { const l=r["Linea"]||"—"; lineas[l]=(lineas[l]||0)+1; });
   const linArr = Object.entries(lineas).sort((a,b)=>b[1]-a[1]);
-  const maxLin = linArr[0]?.[1] || 1;
+  const maxLin = linArr[0]?.[1]||1;
 
-  // Alertas resumidas
-  const gelcoat = data.filter(r => {
-    const det = (r["Detalle Defecto"] || "").toLowerCase();
-    return GELCOAT_KEYS.some(k => det.includes(k));
-  }).length;
-  const molde = data.filter(r => {
-    const det = (r["Detalle Defecto"] || "").toLowerCase();
-    return MOLDE_KEYS.some(k => det.includes(k));
-  }).length;
-  const desmolde = data.filter(r => {
-    const det = (r["Detalle Defecto"] || "").toLowerCase();
-    return det.includes("despostillado") || det.includes("quebrado");
-  }).length;
+  const { alertasMolde, alertasGelcoat } = calcAlertas(data);
 
-  document.getElementById("topbar-title").textContent = "Dashboard Calidad";
   document.getElementById("main-content").innerHTML = `
-  <!-- Métricas -->
   <div class="metrics">
-    <div class="metric">
-      <div class="metric-label">Total inspeccionado</div>
-      <div class="metric-val white">${total.toLocaleString()}</div>
-      <div class="metric-sub">piezas en período</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Grado A</div>
-      <div class="metric-val green">${cA.toLocaleString()}</div>
-      <div class="metric-sub">${pct(cA)}% del total</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Grado B</div>
-      <div class="metric-val amber">${cB.toLocaleString()}</div>
-      <div class="metric-sub">${pct(cB)}% del total</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Grado C</div>
-      <div class="metric-val red">${cC.toLocaleString()}</div>
-      <div class="metric-sub">${pct(cC)}% rechazos</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Piezas buenas (A+B)</div>
-      <div class="metric-val blue">${(cA+cB).toLocaleString()}</div>
-      <div class="metric-sub">${pct(cA+cB)}% aceptación</div>
-    </div>
+    <div class="metric"><div class="metric-label">Total inspeccionado</div><div class="metric-val white">${total.toLocaleString()}</div><div class="metric-sub">piezas en período</div></div>
+    <div class="metric"><div class="metric-label">Grado A</div><div class="metric-val green">${cA.toLocaleString()}</div><div class="metric-sub">${pct(cA)}% del total</div></div>
+    <div class="metric"><div class="metric-label">Grado B</div><div class="metric-val amber">${cB.toLocaleString()}</div><div class="metric-sub">${pct(cB)}% del total</div></div>
+    <div class="metric"><div class="metric-label">Grado C</div><div class="metric-val red">${cC.toLocaleString()}</div><div class="metric-sub">${pct(cC)}% rechazos</div></div>
+    <div class="metric"><div class="metric-label">Piezas buenas A+B</div><div class="metric-val blue">${(cA+cB).toLocaleString()}</div><div class="metric-sub">${pct(cA+cB)}% aceptación</div></div>
   </div>
 
   <div class="grid3">
-    <!-- Distribución grados -->
     <div class="card">
       <div class="card-title">Distribución de grados</div>
       <div class="grade-bars">
-        <div class="grade-row">
-          <div class="grade-letter green">A</div>
-          <div class="grade-track"><div class="grade-fill" style="width:${pct(cA)}%;background:var(--grade-a)"></div></div>
-          <div class="grade-count green">${cA.toLocaleString()}</div>
-          <div class="grade-pct">${pct(cA)}%</div>
-        </div>
-        <div class="grade-row">
-          <div class="grade-letter amber">B</div>
-          <div class="grade-track"><div class="grade-fill" style="width:${pct(cB)}%;background:var(--grade-b)"></div></div>
-          <div class="grade-count amber">${cB.toLocaleString()}</div>
-          <div class="grade-pct">${pct(cB)}%</div>
-        </div>
-        <div class="grade-row">
-          <div class="grade-letter red">C</div>
-          <div class="grade-track"><div class="grade-fill" style="width:${pct(cC)}%;background:var(--grade-c)"></div></div>
-          <div class="grade-count red">${cC.toLocaleString()}</div>
-          <div class="grade-pct">${pct(cC)}%</div>
-        </div>
+        <div class="grade-row"><div class="grade-letter green">A</div><div class="grade-track"><div class="grade-fill" style="width:${pct(cA)}%;background:var(--ga)"></div></div><div class="grade-count green">${cA.toLocaleString()}</div><div class="grade-pct">${pct(cA)}%</div></div>
+        <div class="grade-row"><div class="grade-letter amber">B</div><div class="grade-track"><div class="grade-fill" style="width:${pct(cB)}%;background:var(--gb)"></div></div><div class="grade-count amber">${cB.toLocaleString()}</div><div class="grade-pct">${pct(cB)}%</div></div>
+        <div class="grade-row"><div class="grade-letter red">C</div><div class="grade-track"><div class="grade-fill" style="width:${pct(cC)}%;background:var(--gc)"></div></div><div class="grade-count red">${cC.toLocaleString()}</div><div class="grade-pct">${pct(cC)}%</div></div>
       </div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;justify-content:space-between">
-        <span>Aceptación (A+B)</span>
-        <span style="color:var(--accent);font-weight:600">${pct(cA+cB)}%</span>
+        <span>Aceptación A+B</span><span style="color:var(--accent);font-weight:600">${pct(cA+cB)}%</span>
       </div>
     </div>
-
-    <!-- Por línea -->
     <div class="card">
       <div class="card-title">Por línea de producción</div>
       <div class="bar-chart">
-        ${linArr.map(([l,c]) => `
-        <div class="bar-row">
-          <div class="bar-label">Línea ${l}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(c*100/maxLin)}%;background:var(--accent2)"></div></div>
-          <div class="bar-val">${c.toLocaleString()}</div>
-        </div>`).join("")}
+        ${linArr.map(([l,c])=>`
+        <div class="bar-row"><div class="bar-label">Línea ${l}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c*100/maxLin)}%;background:var(--accent2)"></div></div><div class="bar-val">${c}</div></div>`).join("")}
       </div>
     </div>
-
-    <!-- Alertas resumen -->
     <div class="card">
-      <div class="card-title">
-        <span style="color:var(--text);font-size:13px;font-weight:600">Alertas</span>
-        <span>${data.filter(r=>r["Grado"]==="C").length} grado C</span>
-      </div>
-      <div class="alerts">
-        ${gelcoat > 0 ? `
-        <div class="alert-item alert-crit">
-          <div class="alert-icon">🔴</div>
-          <div class="alert-text">Defectos de gelcoat</div>
-          <div class="alert-count">${gelcoat}</div>
-        </div>` : ""}
-        ${molde > 0 ? `
-        <div class="alert-item alert-warn">
-          <div class="alert-icon">🟡</div>
-          <div class="alert-text">Problemas de molde</div>
-          <div class="alert-count">${molde}</div>
-        </div>` : ""}
-        ${desmolde > 0 ? `
-        <div class="alert-item alert-warn">
-          <div class="alert-icon">🟡</div>
-          <div class="alert-text">Despostillado / quebrado</div>
-          <div class="alert-count">${desmolde}</div>
-        </div>` : ""}
-        ${gelcoat === 0 && molde === 0 && desmolde === 0
-          ? `<div class="no-alerts">Sin alertas críticas</div>` : ""}
-      </div>
-      <div style="margin-top:12px">
-        <button class="btn" style="width:100%;justify-content:center" onclick="navegar('alertas',document.getElementById('nav-alertas'))">
-          Ver detalle de alertas →
-        </button>
+      <div class="card-title">Alertas activas<span>${alertasMolde.length} moldes · ${alertasGelcoat.length} líneas</span></div>
+      ${alertasMolde.length===0 && alertasGelcoat.length===0
+        ? `<div class="empty">Sin alertas en el período</div>`
+        : `<div style="display:flex;flex-direction:column;gap:6px">
+          ${alertasMolde.slice(0,3).map(a=>`
+          <div style="padding:8px 10px;border-radius:7px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);font-size:12px">
+            <div style="display:flex;justify-content:space-between"><span class="mono" style="color:#f87171">${tagCorto(a.tag)}</span><span style="color:#f87171;font-weight:600">${a.total} def.</span></div>
+            <div style="color:var(--muted);font-size:11px;margin-top:2px">${a.patron}</div>
+          </div>`).join("")}
+          ${alertasGelcoat.slice(0,2).map(a=>`
+          <div style="padding:8px 10px;border-radius:7px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);font-size:12px">
+            <div style="display:flex;justify-content:space-between"><span style="color:#fbbf24">Línea ${a.linea}</span><span style="color:#fbbf24;font-weight:600">${a.total} gelcoat</span></div>
+          </div>`).join("")}
+        </div>`}
+      <div style="margin-top:10px">
+        <button class="btn" style="width:100%;justify-content:center" onclick="navegar('alertas',document.getElementById('nav-alertas'))">Ver detalle de alertas →</button>
       </div>
     </div>
   </div>
 
-  <!-- Top defectos -->
   <div class="card" style="margin-bottom:12px">
-    <div class="card-title">
-      Top defectos
-      <span>${Object.keys(defCounts).length} tipos distintos</span>
+    <div class="card-title">Top defectos activos<span>${Object.keys(defCounts).length} tipos</span></div>
+    ${topDef.length===0 ? `<div class="empty">Sin defectos</div>` : `
+    <div class="bar-chart">
+      ${topDef.map(([d,c])=>{
+        const cl=clasif(d);
+        const color=cl==="g"?"var(--danger)":cl==="m"?"var(--warn)":"var(--accent2)";
+        return `<div class="bar-row"><div class="bar-label" title="${d}">${d}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c*100/maxDef)}%;background:${color}"></div></div><div class="bar-val">${c}</div></div>`;
+      }).join("")}
     </div>
-    ${topDef.length === 0
-      ? `<div class="empty">Sin defectos registrados</div>`
-      : `<div class="bar-chart">
-        ${topDef.map(([d,c]) => {
-          const cat = categDefecto(d);
-          const color = cat==="gelcoat" ? "var(--danger)" : cat==="molde" ? "var(--warn)" : "var(--accent2)";
+    <div style="margin-top:8px;font-size:10px;color:var(--muted);display:flex;gap:12px">
+      <span><span style="color:var(--danger)">■</span> Gelcoat</span>
+      <span><span style="color:var(--warn)">■</span> Molde</span>
+      <span><span style="color:var(--accent2)">■</span> Otros</span>
+    </div>`}
+  </div>`;
+}
+
+// ── Alertas ──────────────────────────────────────────────
+function renderAlertas(data) {
+  document.getElementById("topbar-title").textContent = "Alertas de calidad";
+  const { alertasMolde, alertasGelcoat } = calcAlertas(data);
+  const desde = document.getElementById("fDesde").value;
+  const hasta = document.getElementById("fHasta").value;
+
+  document.getElementById("main-content").innerHTML = `
+  <div class="threshold-note">
+    Molde: alerta cuando el mismo TAG acumula <strong>≥ ${UMBRAL_MOLDE} defectos de molde</strong> en el período. &nbsp;|&nbsp;
+    Gelcoat: alerta cuando una línea acumula <strong>≥ ${UMBRAL_GELCOAT} defectos de gelcoat</strong> en el período.
+    &nbsp;<span style="color:var(--muted)">Período: ${desde} → ${hasta}</span>
+  </div>
+
+  <div style="margin-bottom:16px">
+    <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:8px">
+      ⚙️ Moldes con fallas — ${alertasMolde.length} TAG${alertasMolde.length!==1?"s":""}
+    </div>
+    ${alertasMolde.length===0
+      ? `<div class="empty" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px">Sin moldes con fallas en el período (umbral: ${UMBRAL_MOLDE} defectos)</div>`
+      : alertasMolde.map(a => {
+          const ultimo = VACIADO[a.tag] ? fmt(VACIADO[a.tag]) : "—";
+          const defList = Object.entries(a.defectos).sort((x,y)=>y[1]-x[1]);
           return `
-          <div class="bar-row">
-            <div class="bar-label" title="${d}">${d}</div>
-            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(c*100/maxDef)}%;background:${color}"></div></div>
-            <div class="bar-val">${c.toLocaleString()}</div>
+          <div class="alert-card alert-card-warn">
+            <div class="alert-card-head">
+              <div>
+                <div class="alert-card-tag" style="color:var(--warn)">${tagCorto(a.tag)}</div>
+                <div class="alert-card-meta">${a.patron || "—"} · Línea ${a.linea||"—"} · Último vaciado: ${ultimo}</div>
+                <div class="alert-card-meta mono" style="font-size:10px;margin-top:2px;color:var(--bg3)">${a.tag}</div>
+              </div>
+              <div class="alert-card-count" style="color:var(--warn)">${a.total}</div>
+            </div>
+            <div class="alert-card-defects">
+              ${defList.map(([d,c])=>`<span class="dtag dtag-m">${d} (${c})</span>`).join("")}
+            </div>
           </div>`;
         }).join("")}
-        </div>
-        <div style="margin-top:10px;font-size:10px;color:var(--muted);display:flex;gap:12px">
-          <span><span style="color:var(--danger)">■</span> Gelcoat</span>
-          <span><span style="color:var(--warn)">■</span> Molde/Desmolde</span>
-          <span><span style="color:var(--accent2)">■</span> Otros</span>
-        </div>`}
   </div>
 
-  <!-- Últimos C -->
-  <div class="table-wrap">
-    <div class="table-header">
-      <div class="table-header-title">Últimas piezas Grado C</div>
-      <div style="font-size:11px;color:var(--muted)">${cC} piezas rechazadas</div>
+  <div>
+    <div style="font-size:13px;font-weight:600;color:var(--danger);margin-bottom:8px">
+      🎨 Gelcoat por línea — ${alertasGelcoat.length} línea${alertasGelcoat.length!==1?"s":""}
     </div>
-    <table>
-      <thead><tr>
-        <th>Fecha</th><th>SKU</th><th>Patrón</th><th>Medida</th><th>Color</th><th>Línea</th><th>Defectos</th>
-      </tr></thead>
-      <tbody>
-        ${data.filter(r=>r["Grado"]==="C").slice(0,20).map(r => `
-        <tr>
-          <td class="mono">${fmt(r["Fecha"])}</td>
-          <td class="mono">${(r["SKU"]||"").slice(0,8).toUpperCase()}</td>
-          <td>${r["Patron"]||"—"}</td>
-          <td class="mono">${r["Medida"]||"—"}</td>
-          <td>${r["Color"]||"—"}</td>
-          <td style="text-align:center">${r["Linea"]||"—"}</td>
-          <td>${renderDefectos(r["Detalle Defecto"])}</td>
-        </tr>`).join("")}
-        ${cC === 0 ? `<tr><td colspan="7" class="empty">Sin piezas grado C</td></tr>` : ""}
-      </tbody>
-    </table>
+    ${alertasGelcoat.length===0
+      ? `<div class="empty" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px">Sin alertas de gelcoat (umbral: ${UMBRAL_GELCOAT} defectos por línea)</div>`
+      : alertasGelcoat.map(a => {
+          const defList = Object.entries(a.defectos).sort((x,y)=>y[1]-x[1]);
+          return `
+          <div class="alert-card alert-card-crit">
+            <div class="alert-card-head">
+              <div>
+                <div class="alert-card-tag" style="color:var(--danger)">Línea ${a.linea}</div>
+                <div class="alert-card-meta">${a.tags.length} molde${a.tags.length!==1?"s":""}  afectado${a.tags.length!==1?"s":""}</div>
+              </div>
+              <div class="alert-card-count" style="color:var(--danger)">${a.total}</div>
+            </div>
+            <div class="alert-card-defects">
+              ${defList.map(([d,c])=>`<span class="dtag dtag-g">${d} (${c})</span>`).join("")}
+            </div>
+            <div style="margin-top:8px;font-size:10px;color:var(--muted)">TAGs: ${a.tags.map(t=>tagCorto(t)).join(" · ")}</div>
+          </div>`;
+        }).join("")}
   </div>`;
 }
 
 // ── Registros ────────────────────────────────────────────
 function renderTabla(data) {
-  document.getElementById("topbar-title").textContent = "Registros de inspección";
+  document.getElementById("topbar-title").textContent = "Registros";
   document.getElementById("main-content").innerHTML = `
   <div class="table-wrap" style="overflow-x:auto">
     <div class="table-header">
@@ -504,162 +566,113 @@ function renderTabla(data) {
     </div>
     <table>
       <thead><tr>
-        <th>Fecha</th><th>SKU</th><th>Tipo</th><th>Patrón</th>
-        <th>Medida</th><th>Color</th><th>Acabado</th><th>Línea</th>
-        <th>Grado</th><th>Defectos</th>
+        <th>Fecha</th><th>TAG</th><th>Patrón</th><th>Medida</th><th>Línea</th><th>Grado</th><th>Defectos</th>
       </tr></thead>
       <tbody>
-        ${data.slice(0,200).map(r => `
-        <tr>
-          <td class="mono">${fmt(r["Fecha"])}</td>
-          <td class="mono">${(r["SKU"]||"").slice(0,8).toUpperCase()}</td>
-          <td>${r["Tipo"]||"—"}</td>
-          <td style="max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
-          <td class="mono">${r["Medida"]||"—"}</td>
-          <td>${r["Color"]||"—"}</td>
-          <td>${r["Acabado"]||"—"}</td>
-          <td style="text-align:center">${r["Linea"]||"—"}</td>
-          <td><span class="badge b-${(r["Grado"]||"sin").toLowerCase()}">${r["Grado"]||"—"}</span></td>
-          <td>${renderDefectos(r["Detalle Defecto"])}</td>
-        </tr>`).join("")}
-        ${data.length === 0 ? `<tr><td colspan="10" class="empty">Sin registros</td></tr>` : ""}
+        ${data.slice(0,300).map(r=>{
+          const activos = defectosActivos(r["Detalle Defecto"]);
+          return `<tr>
+            <td class="mono">${fmt(r["Fecha"])}</td>
+            <td class="mono" title="${r["TAG"]||""}">${tagCorto(r["TAG"])}</td>
+            <td style="max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
+            <td class="mono">${r["Medida"]||"—"}</td>
+            <td style="text-align:center">${r["Linea"]||"—"}</td>
+            <td><span class="badge b-${(r["Grado"]||"sin").toLowerCase()}">${r["Grado"]||"—"}</span></td>
+            <td>${activos.length ? renderDtags(activos) : `<span style="color:var(--muted)">—</span>`}</td>
+          </tr>`;
+        }).join("")}
+        ${data.length===0?`<tr><td colspan="7" class="empty">Sin registros</td></tr>`:""}
       </tbody>
     </table>
   </div>
-  ${data.length > 200 ? `<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 200 de ${data.length} registros</div>` : ""}`;
+  ${data.length>300?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 300 de ${data.length} registros</div>`:""}`;
 }
 
-// ── Alertas ──────────────────────────────────────────────
-function renderAlertas(data) {
-  document.getElementById("topbar-title").textContent = "Alertas de calidad";
+// ── WhatsApp ─────────────────────────────────────────────
+function enviarWA() {
+  const { alertasMolde, alertasGelcoat } = calcAlertas(INSP);
+  const desde = document.getElementById("fDesde").value;
+  const hasta  = document.getElementById("fHasta").value;
+  const fecha  = desde === hasta ? desde : `${desde} → ${hasta}`;
 
-  const gelcoatPiezas = data.filter(r => {
-    const det = (r["Detalle Defecto"] || "").toLowerCase();
-    return GELCOAT_KEYS.some(k => det.includes(k));
-  });
-  const moldePiezas = data.filter(r => {
-    const det = (r["Detalle Defecto"] || "").toLowerCase();
-    return MOLDE_KEYS.some(k => det.includes(k));
-  });
-  const otrosPiezas = data.filter(r => {
-    const det = (r["Detalle Defecto"] || "").toLowerCase();
-    const esG = GELCOAT_KEYS.some(k => det.includes(k));
-    const esM = MOLDE_KEYS.some(k => det.includes(k));
-    return !esG && !esM && det && det !== "null" && r["Grado"] === "C";
-  });
+  let msg = `🔴 *Alertas Calidad Shower Walls*\n📅 ${fecha}\n`;
 
-  // Conteo por tipo de defecto para gelcoat
-  const gelcoatCat = {};
-  gelcoatPiezas.forEach(r => {
-    (r["Detalle Defecto"]||"").split(",").forEach(d => {
-      const k = d.trim().toLowerCase();
-      if (GELCOAT_KEYS.some(gk => k.includes(gk))) {
-        const label = d.trim();
-        gelcoatCat[label] = (gelcoatCat[label]||0)+1;
-      }
+  if (alertasMolde.length === 0 && alertasGelcoat.length === 0) {
+    msg += `\n✅ Sin alertas en el período.`;
+  }
+
+  if (alertasMolde.length > 0) {
+    msg += `\n⚙️ *Moldes con fallas (≥${UMBRAL_MOLDE} defectos)*\n`;
+    alertasMolde.forEach(a => {
+      const ultimo = VACIADO[a.tag] ? fmtHora(VACIADO[a.tag]) : "—";
+      const defs   = Object.entries(a.defectos).sort((x,y)=>y[1]-x[1])
+                       .map(([d,c])=>`${d}(${c})`).join(", ");
+      msg += `• TAG: ${tagCorto(a.tag)} | ${a.patron||"—"} | Últ. vaciado: ${ultimo}\n  Defectos: ${defs}\n`;
     });
-  });
-  const moldeCat = {};
-  moldePiezas.forEach(r => {
-    (r["Detalle Defecto"]||"").split(",").forEach(d => {
-      const k = d.trim().toLowerCase();
-      if (MOLDE_KEYS.some(mk => k.includes(mk))) {
-        const label = d.trim();
-        moldeCat[label] = (moldeCat[label]||0)+1;
-      }
+  }
+
+  if (alertasGelcoat.length > 0) {
+    msg += `\n🎨 *Gelcoat por línea (≥${UMBRAL_GELCOAT} defectos)*\n`;
+    alertasGelcoat.forEach(a => {
+      const defs = Object.entries(a.defectos).sort((x,y)=>y[1]-x[1])
+                     .map(([d,c])=>`${d}(${c})`).join(", ");
+      msg += `• Línea ${a.linea}: ${a.total} defectos | ${defs}\n`;
     });
+  }
+
+  window.open(`https://wa.me/${WA_NUM}?text=${encodeURIComponent(msg)}`, "_blank");
+}
+
+// ── Modal filtros ─────────────────────────────────────────
+function abrirFiltros() {
+  const lista = document.getElementById("lista-defectos");
+
+  // Separar en categorías
+  const gelcoatDef = [], moldeDef = [], otrosDef = [];
+  Object.entries(ALL_DEFECTS).sort((a,b)=>b[1]-a[1]).forEach(([d,c]) => {
+    const cl = clasif(d);
+    if (cl==="g") gelcoatDef.push([d,c]);
+    else if (cl==="m") moldeDef.push([d,c]);
+    else otrosDef.push([d,c]);
   });
 
-  const tablaAlertas = (piezas, titulo, color) => {
-    if (piezas.length === 0) return `<div class="empty">Sin alertas de ${titulo.toLowerCase()}</div>`;
-    return `
-    <div class="table-wrap" style="overflow-x:auto;margin-bottom:0">
-      <div class="table-header">
-        <div class="table-header-title" style="color:${color}">${titulo}</div>
-        <div style="font-size:11px;color:var(--muted)">${piezas.length} piezas</div>
-      </div>
-      <table>
-        <thead><tr>
-          <th>Fecha</th><th>SKU</th><th>Patrón</th><th>Medida</th><th>Color</th><th>Línea</th><th>Grado</th><th>Defecto</th>
-        </tr></thead>
-        <tbody>
-          ${piezas.slice(0,50).map(r=>`
-          <tr>
-            <td class="mono">${fmt(r["Fecha"])}</td>
-            <td class="mono">${(r["SKU"]||"").slice(0,8).toUpperCase()}</td>
-            <td style="max-width:150px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
-            <td class="mono">${r["Medida"]||"—"}</td>
-            <td>${r["Color"]||"—"}</td>
-            <td style="text-align:center">${r["Linea"]||"—"}</td>
-            <td><span class="badge b-${(r["Grado"]||"sin").toLowerCase()}">${r["Grado"]||"—"}</span></td>
-            <td>${renderDefectos(r["Detalle Defecto"])}</td>
-          </tr>`).join("")}
-        </tbody>
-      </table>
-    </div>`;
+  const seccion = (titulo, items) => {
+    if (items.length===0) return "";
+    return `<div class="section-label">${titulo}</div>` +
+      items.map(([d,c]) => {
+        const chk = estaExcluido(d) ? "checked" : "";
+        const id  = "chk_" + btoa(encodeURIComponent(d)).slice(0,12);
+        return `<div class="defect-check">
+          <input type="checkbox" id="${id}" value="${d}" ${chk}>
+          <label for="${id}">${d}</label>
+          <span class="dcount">${c}</span>
+        </div>`;
+      }).join("");
   };
 
-  document.getElementById("main-content").innerHTML = `
-  <div class="grid2" style="margin-bottom:12px">
-    <div class="card">
-      <div class="card-title" style="color:var(--danger)">
-        🔴 Defectos Gelcoat
-        <span>${gelcoatPiezas.length} piezas</span>
-      </div>
-      <div class="bar-chart">
-        ${Object.entries(gelcoatCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
-        <div class="bar-row">
-          <div class="bar-label">${k}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v*100/Math.max(...Object.values(gelcoatCat)))}%;background:var(--danger)"></div></div>
-          <div class="bar-val">${v}</div>
-        </div>`).join("") || `<div class="empty">Sin datos</div>`}
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title" style="color:var(--warn)">
-        🟡 Problemas de Molde
-        <span>${moldePiezas.length} piezas</span>
-      </div>
-      <div class="bar-chart">
-        ${Object.entries(moldeCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
-        <div class="bar-row">
-          <div class="bar-label">${k}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v*100/Math.max(...Object.values(moldeCat)))}%;background:var(--warn)"></div></div>
-          <div class="bar-val">${v}</div>
-        </div>`).join("") || `<div class="empty">Sin datos</div>`}
-      </div>
-    </div>
-  </div>
+  lista.innerHTML = seccion("Gelcoat", gelcoatDef)
+    + seccion("Molde / Desmolde", moldeDef)
+    + seccion("Otros", otrosDef);
 
-  <div style="display:flex;flex-direction:column;gap:12px">
-    <div>
-      <div style="font-size:13px;font-weight:600;color:var(--danger);margin-bottom:8px">Piezas con alertas de gelcoat</div>
-      ${tablaAlertas(gelcoatPiezas,"Alertas Gelcoat","var(--danger)")}
-    </div>
-    <div>
-      <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:8px">Piezas con problemas de molde</div>
-      ${tablaAlertas(moldePiezas,"Problemas de Molde","var(--warn)")}
-    </div>
-  </div>`;
+  document.getElementById("modal-filtros").style.display = "flex";
 }
 
-// ── Render defecto tags ───────────────────────────────────
-function renderDefectos(det) {
-  if (!det || det === "null" || det === "0") return `<span style="color:var(--muted);font-size:11px">—</span>`;
-  return det.split(",").map(d => {
-    d = d.trim();
-    if (!d) return "";
-    const cat = categDefecto(d);
-    const cls = cat === "gelcoat" ? "defect-tag" : cat === "molde" ? "defect-tag warn" : "defect-tag warn";
-    return `<span class="${cls}">${d}</span>`;
-  }).join("");
+function cerrarFiltros() {
+  document.getElementById("modal-filtros").style.display = "none";
+}
+
+function guardarFiltros() {
+  const checks = document.querySelectorAll("#lista-defectos input[type=checkbox]");
+  EXCLUIDOS = [...checks].filter(c=>c.checked).map(c=>c.value);
+  setExcluidos(EXCLUIDOS);
+  cerrarFiltros();
+  renderVista(INSP);
 }
 
 // ── Init ─────────────────────────────────────────────────
 (function init() {
-  const h = hoy();
-  const a = (() => { const d = new Date(); d.setDate(d.getDate()-7); return d.toISOString().slice(0,10); })();
-  document.getElementById("fDesde").value = a;
+  const h = new Date().toISOString().slice(0,10);
+  document.getElementById("fDesde").value = h;
   document.getElementById("fHasta").value = h;
   cargar();
 })();
