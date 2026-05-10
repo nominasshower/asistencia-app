@@ -249,9 +249,10 @@ const GELCOAT_KEYS = ["rechazo de gelcoat","gelcoat delgado","gelcoat levantado"
 const MOLDE_KEYS   = ["marca de molde","fallo de máquina","despostillado en desmolde","quebrado en desmolde","rayas por manejo","grumos"];
 
 let INSP      = [];
-let VAC_RAW   = [];   // vaciado completo sin filtrar (para Plan vs Real)
+let VAC_RAW   = [];   // vaciado completo sin filtrar
 let VACIADO   = {};   // map TAG → última fecha vaciado
-let PLAN      = [];   // PLAN_DIARIO completo
+let PLAN      = [];
+let SKU_INSP  = {};   // map SKU → {grade, fechaInsp} — todo el año
 let VISTA     = "dash";
 let ALL_DEFECTS = {};
 
@@ -310,8 +311,16 @@ async function cargar() {
       fetchSheet("VACIADO"),
       fetchSheet("PLAN_DIARIO")
     ]);
-    PLAN = planRaw;
+    PLAN    = planRaw;
     VAC_RAW = vacRaw;
+
+    // SKU → {grade, fechaInsp} de todo el año (inspRaw sin filtrar)
+    SKU_INSP = {};
+    inspRaw.forEach(r => {
+      const sku = (r["SKU"]||"").trim().toUpperCase();
+      if (!sku) return;
+      SKU_INSP[sku] = { grade: r["Grado"]||"", fechaInsp: (r["Fecha"]||"").slice(0,10) };
+    });
 
     // Vaciado: último vaciado por TAG (normalizado)
     VACIADO = {};
@@ -687,107 +696,154 @@ function parsePlanFecha(s) {
   return new Date(new Date().getFullYear(), mes, day).toISOString().slice(0,10);
 }
 
+// Normaliza patrón para cruce PLAN↔VACIADO
+function normPatron(s) {
+  return (s||"")
+    .replace(/^WALL\s+/i, '')
+    .replace(/LEFT\/IZQ/gi, 'LEFT').replace(/RIGHT\/DER/gi, 'RIGHT')
+    .replace(/\bSIDE\s+LEFT\b/gi, 'LEFT').replace(/\bSIDE\s+RIGHT\b/gi, 'RIGHT')
+    .replace(/\bUNI\b/gi, '').replace(/\bSIDE\b/gi, '')
+    .replace(/\bCENTRO\b/gi, 'CENTER')
+    .replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+// Normaliza medida: quita comillas, unifica separador
+function normMedida(s) {
+  return (s||"").replace(/"/g,'').replace(/X/gi,'X').trim().toUpperCase();
+}
+
 function renderPlan() {
   document.getElementById("topbar-title").textContent = "Plan vs Real";
   const desde = document.getElementById("fDesde").value;
   const hasta  = document.getElementById("fHasta").value;
 
-  // Agrupar PLAN por fecha+modelo
+  // ── Vaciado del período con clasificación de grado ──
+  // Para cada pieza vaciada: busco su inspección (puede ser otro día)
+  const vacPeriodo = VAC_RAW.filter(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    return f >= desde && f <= hasta;
+  });
+
+  // Grupos de vaciado: fecha+patron+medida (normalizados)
+  const vacGrupos = {};
+  vacPeriodo.forEach(r => {
+    const fechaVac = (r["Fecha"]||"").slice(0,10);
+    const key = `${fechaVac}||${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
+    if (!vacGrupos[key]) vacGrupos[key] = { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
+    vacGrupos[key].vaciado++;
+
+    const sku = (r["SKU"]||"").trim().toUpperCase();
+    const insp = SKU_INSP[sku];
+    if (!insp || !insp.grade) {
+      vacGrupos[key].sinInsp++;
+    } else if (insp.grade === "C") {
+      if (insp.fechaInsp === fechaVac) vacGrupos[key].cMismo++;
+      else                             vacGrupos[key].cOtro++;
+    } else {
+      vacGrupos[key].ab++;
+    }
+  });
+
+  // ── Plan agrupado por fecha+patron+medida (normalizados) ──
   const planGrupos = {};
   PLAN.forEach(r => {
     const fecha = parsePlanFecha(r["Fecha"]);
     if (!fecha || fecha < desde || fecha > hasta) return;
-    const key = `${fecha}||${(r["PATRON"]||r["Modelo"]||"").trim()}||${(r["Medida"]||"").trim()}`;
+    const patronNorm = normPatron(r["PATRON"] || r["Modelo"] || "");
+    const medidaNorm = normMedida(r["Medida"] || "");
+    const key = `${fecha}||${patronNorm}||${medidaNorm}`;
     if (!planGrupos[key]) planGrupos[key] = {
-      fecha, modelo: r["Modelo"]||"", patron: r["PATRON"]||r["Modelo"]||"",
-      medida: r["Medida"]||"", color: r["Color"]||"", acabado: r["Acabado"]||"",
-      cliente: r["Cliente"]||"", odoo: r["Odoo"]||"",
-      planTotal: 0, moldes: 0
+      fecha,
+      patron:  r["PATRON"] || r["Modelo"] || "",
+      medida:  r["Medida"] || "",
+      cliente: r["Cliente"] || "",
+      odoo:    r["Odoo"] || "",
+      total:   0,   // total de la orden completa
+      aProducir: 0, // lo que toca producir este día
+      moldes:  0,
     };
-    planGrupos[key].planTotal += parseInt(r["A PRODUCIR"]||0) || 0;
+    planGrupos[key].total     += parseInt(r["Total"]||0) || 0;
+    planGrupos[key].aProducir += parseInt(r["A PRODUCIR"]||0) || 0;
     planGrupos[key].moldes    += parseInt(r["MOLDES"]||0) || 0;
   });
 
-  // Vaciado agrupado por fecha+patron (normalizado)
-  const vacGrupos = {};
-  VAC_RAW.forEach(r => {
-    const fecha = (r["Fecha"]||"").slice(0,10);
-    if (!fecha || fecha < desde || fecha > hasta) return;
-    const patron = (r["Patron"]||"").trim();
-    const medida = (r["Medida"]||"").trim();
-    const key = `${fecha}||${patron}||${medida}`;
-    vacGrupos[key] = (vacGrupos[key]||0) + 1;
-  });
-
-  // Unir plan + real
+  // ── Unir plan + real ──
   const filas = Object.entries(planGrupos).map(([key, p]) => {
-    const real = vacGrupos[key] || 0;
-    const delta = real - p.planTotal;
-    const pct   = p.planTotal > 0 ? Math.round(real * 100 / p.planTotal) : 0;
-    return { ...p, real, delta, pct };
-  }).sort((a,b) => a.fecha.localeCompare(b.fecha) || b.planTotal - a.planTotal);
+    const v = vacGrupos[key] || { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
+    const buenos = v.ab;
+    const delta  = buenos - p.aProducir;
+    const pct    = p.aProducir > 0 ? Math.round(buenos * 100 / p.aProducir) : 0;
+    return { ...p, ...v, buenos, delta, pct, key };
+  }).sort((a,b) => a.fecha.localeCompare(b.fecha) || b.aProducir - a.aProducir);
 
-  // También mostrar vaciados sin plan en el período
+  // ── Vaciado sin plan ──
   const keysConPlan = new Set(Object.keys(planGrupos));
   const sinPlan = [];
-  const vacFechas = new Set();
-  VAC_RAW.forEach(r => {
-    const fecha = (r["Fecha"]||"").slice(0,10);
-    if (!fecha || fecha < desde || fecha > hasta) return;
-    vacFechas.add(fecha);
-    const key = `${fecha}||${(r["Patron"]||"").trim()}||${(r["Medida"]||"").trim()}`;
-    if (!keysConPlan.has(key)) {
-      const ex = sinPlan.find(x=>x.key===key);
-      if (ex) ex.real++;
-      else sinPlan.push({ key, fecha, patron: r["Patron"]||"", medida: r["Medida"]||"", real: 1 });
-    }
+  Object.entries(vacGrupos).forEach(([key, v]) => {
+    if (keysConPlan.has(key)) return;
+    const [fecha, patron, medida] = key.split("||");
+    sinPlan.push({ fecha, patron, medida, ...v });
   });
+  sinPlan.sort((a,b)=>a.fecha.localeCompare(b.fecha));
 
-  const totalPlan = filas.reduce((s,f)=>s+f.planTotal,0);
-  const totalReal = filas.reduce((s,f)=>s+f.real,0) + sinPlan.reduce((s,f)=>s+f.real,0);
-  const totalRealConPlan = filas.reduce((s,f)=>s+f.real,0);
+  const totalPlan  = filas.reduce((s,f)=>s+f.aProducir, 0);
+  const totalBueno = filas.reduce((s,f)=>s+f.buenos, 0);
+  const totalVac   = filas.reduce((s,f)=>s+f.vaciado, 0)
+                   + sinPlan.reduce((s,f)=>s+f.vaciado, 0);
+  const totalCM    = filas.reduce((s,f)=>s+f.cMismo, 0);
+  const totalCO    = filas.reduce((s,f)=>s+f.cOtro, 0);
+  const cumpl      = totalPlan > 0 ? Math.round(totalBueno*100/totalPlan) : 0;
 
-  const colorDelta = d => d >= 0 ? "color:var(--accent)" : "color:var(--danger)";
-  const colorPct   = p => p >= 100 ? "color:var(--accent)" : p >= 70 ? "color:var(--warn)" : "color:var(--danger)";
+  const cDelta = d => d >= 0 ? "color:var(--accent)" : "color:var(--danger)";
+  const cPct   = p => p >= 100 ? "var(--accent)" : p >= 70 ? "var(--warn)" : "var(--danger)";
 
   document.getElementById("main-content").innerHTML = `
-  <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-    <div class="metric"><div class="metric-label">Planificado total</div><div class="metric-val white">${totalPlan.toLocaleString()}</div><div class="metric-sub">piezas programadas</div></div>
-    <div class="metric"><div class="metric-label">Producido total</div><div class="metric-val blue">${totalReal.toLocaleString()}</div><div class="metric-sub">piezas vaciadas</div></div>
-    <div class="metric"><div class="metric-label">Cumplimiento plan</div>
-      <div class="metric-val" style="${colorPct(totalPlan>0?Math.round(totalRealConPlan*100/totalPlan):0)}">${totalPlan>0?Math.round(totalRealConPlan*100/totalPlan):0}%</div>
-      <div class="metric-sub">vs lo programado</div>
-    </div>
-    <div class="metric"><div class="metric-label">Sin plan registrado</div><div class="metric-val amber">${sinPlan.reduce((s,f)=>s+f.real,0).toLocaleString()}</div><div class="metric-sub">piezas extra</div></div>
+  <div class="metrics" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
+    <div class="metric"><div class="metric-label">A producir (plan)</div><div class="metric-val white">${totalPlan.toLocaleString()}</div><div class="metric-sub">piezas programadas</div></div>
+    <div class="metric"><div class="metric-label">Vaciado total</div><div class="metric-val blue">${totalVac.toLocaleString()}</div><div class="metric-sub">piezas vaciadas</div></div>
+    <div class="metric"><div class="metric-label">Buenos A+B</div><div class="metric-val green">${totalBueno.toLocaleString()}</div><div class="metric-sub">${cumpl}% del plan</div></div>
+    <div class="metric"><div class="metric-label">C mismo día</div><div class="metric-val red">${totalCM.toLocaleString()}</div><div class="metric-sub">vaciado e insp. mismo día</div></div>
+    <div class="metric"><div class="metric-label">C otro día</div><div class="metric-val amber">${totalCO.toLocaleString()}</div><div class="metric-sub">inspeccionado después</div></div>
   </div>
 
   <div class="table-wrap" style="overflow-x:auto;margin-bottom:12px">
     <div class="table-header">
       <div class="table-header-title">Plan vs Producción — por modelo</div>
-      <div style="font-size:11px;color:var(--muted)">${filas.length} líneas de plan · ${desde} → ${hasta}</div>
+      <div style="font-size:11px;color:var(--muted)">${filas.length} líneas · ${desde} → ${hasta}</div>
     </div>
     <table>
       <thead><tr>
-        <th>Fecha</th><th>Modelo / Patrón</th><th>Medida</th><th>Cliente</th>
-        <th style="text-align:center">Planificado</th>
-        <th style="text-align:center">Producido</th>
-        <th style="text-align:center">Delta</th>
+        <th>Fecha</th>
+        <th>Modelo / Patrón</th>
+        <th>Medida</th>
+        <th>Cliente</th>
+        <th style="text-align:center">Total orden</th>
+        <th style="text-align:center">A producir</th>
+        <th style="text-align:center">Vaciado</th>
+        <th style="text-align:center">A+B</th>
+        <th style="text-align:center">C mismo día</th>
+        <th style="text-align:center">C otro día</th>
+        <th style="text-align:center">Sin insp.</th>
         <th style="text-align:center">%</th>
       </tr></thead>
       <tbody>
         ${filas.map(f=>`<tr>
           <td class="mono">${f.fecha}</td>
-          <td style="max-width:200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${f.patron}">${f.patron||f.modelo||"—"}</td>
-          <td class="mono">${f.medida||"—"}</td>
-          <td style="font-size:11px;color:var(--muted);max-width:140px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${f.cliente}">${f.cliente||"—"}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace">${f.planTotal}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:600">${f.real}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:600;${colorDelta(f.delta)}">${f.delta>=0?"+":""}${f.delta}</td>
+          <td style="max-width:190px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${f.patron}">${f.patron||"—"}</td>
+          <td class="mono">${normMedida(f.medida)||"—"}</td>
+          <td style="font-size:11px;color:var(--muted);max-width:130px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${f.cliente}">${f.cliente||"—"}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${f.total||"—"}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace">${f.aProducir}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace">${f.vaciado}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:600;color:var(--accent)">${f.buenos}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cMismo>0?"var(--danger)":"var(--muted)"}">${f.cMismo||"—"}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cOtro>0?"var(--warn)":"var(--muted)"}">${f.cOtro||"—"}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${f.sinInsp||"—"}</td>
           <td style="text-align:center">
-            <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;${colorPct(f.pct)}">${f.pct}%</span>
+            <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:${cPct(f.pct)}">${f.pct}%</span>
           </td>
         </tr>`).join("")}
-        ${filas.length===0?`<tr><td colspan="8" class="empty">Sin datos de plan en el período</td></tr>`:""}
+        ${filas.length===0?`<tr><td colspan="12" class="empty">Sin datos de plan en el período</td></tr>`:""}
       </tbody>
     </table>
   </div>
@@ -795,17 +851,26 @@ function renderPlan() {
   ${sinPlan.length > 0 ? `
   <div class="table-wrap" style="overflow-x:auto">
     <div class="table-header">
-      <div class="table-header-title" style="color:var(--warn)">Producción sin plan registrado</div>
-      <div style="font-size:11px;color:var(--muted)">${sinPlan.length} modelos · ${sinPlan.reduce((s,f)=>s+f.real,0)} piezas</div>
+      <div class="table-header-title" style="color:var(--warn)">Vaciado sin plan registrado</div>
+      <div style="font-size:11px;color:var(--muted)">${sinPlan.length} modelos · ${sinPlan.reduce((s,f)=>s+f.vaciado,0)} piezas</div>
     </div>
     <table>
-      <thead><tr><th>Fecha</th><th>Patrón</th><th>Medida</th><th style="text-align:center">Producido</th></tr></thead>
+      <thead><tr>
+        <th>Fecha</th><th>Patrón</th><th>Medida</th>
+        <th style="text-align:center">Vaciado</th>
+        <th style="text-align:center">A+B</th>
+        <th style="text-align:center">C mismo día</th>
+        <th style="text-align:center">C otro día</th>
+      </tr></thead>
       <tbody>
-        ${sinPlan.sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(f=>`<tr>
+        ${sinPlan.map(f=>`<tr>
           <td class="mono">${f.fecha}</td>
           <td>${f.patron||"—"}</td>
           <td class="mono">${f.medida||"—"}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace">${f.real}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace">${f.vaciado}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--accent)">${f.ab||"—"}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cMismo>0?"var(--danger)":"var(--muted)"}">${f.cMismo||"—"}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cOtro>0?"var(--warn)":"var(--muted)"}">${f.cOtro||"—"}</td>
         </tr>`).join("")}
       </tbody>
     </table>
