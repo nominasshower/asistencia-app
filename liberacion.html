@@ -127,11 +127,14 @@ function renderScan() {
     '</div>' +
 
     // Área de escaneo
-    '<div class="flex-1 flex flex-col items-center justify-center p-6 gap-6">' +
+    '<div class="flex-1 flex flex-col items-center justify-center p-4 gap-4">' +
+
+      // Zona de scan con animación
       '<div id="scan-area" class="w-full max-w-sm border-4 border-blue-500 rounded-2xl ' +
-        'bg-white flex flex-col items-center justify-center p-8 gap-4 cursor-pointer scanning" ' +
-        'onclick="focusScan()" style="min-height:220px;">' +
-        '<div class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">' +
+        'bg-white flex flex-col items-center justify-center p-6 gap-3 cursor-pointer ' +
+        (state.scanning ? '' : 'scanning') + '" ' +
+        'onclick="focusScan()" style="min-height:180px;">' +
+        '<div class="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">' +
           scanIcon +
         '</div>' +
         '<div class="text-center">' +
@@ -144,12 +147,33 @@ function renderScan() {
         '</div>' +
       '</div>' +
 
-      // Input invisible que captura el scan
+      // Input invisible que captura el scan físico
       '<input id="scan-input" class="scan-input w-1 h-1 opacity-0 absolute" ' +
         'type="text" autocomplete="off" autocorrect="off" autocapitalize="off" ' +
-        'spellcheck="false" readonly="false">' +
+        'spellcheck="false">' +
 
-      '<p class="text-gray-400 text-sm text-center">El campo se activa automáticamente<br>al presionar el botón del escáner</p>' +
+      // Separador
+      '<div class="flex items-center w-full max-w-sm gap-3">' +
+        '<div class="flex-1 h-px bg-gray-300"></div>' +
+        '<span class="text-gray-400 text-xs">o escribe el código</span>' +
+        '<div class="flex-1 h-px bg-gray-300"></div>' +
+      '</div>' +
+
+      // Input manual visible
+      '<div class="w-full max-w-sm flex gap-2">' +
+        '<input id="manual-input" type="text" ' +
+          'placeholder="Ej: 5262E3FF8319" ' +
+          'autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" ' +
+          'class="flex-1 border-2 border-gray-300 focus:border-blue-500 rounded-xl px-4 py-3 ' +
+          'text-gray-800 font-mono text-sm outline-none transition-colors" ' +
+          'onkeydown="if(event.key===\'Enter\'){buscarManual();}">' +
+        '<button onclick="buscarManual()" ' +
+          'class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white ' +
+          'font-bold px-4 py-3 rounded-xl transition-all flex-shrink-0">' +
+          'Buscar' +
+        '</button>' +
+      '</div>' +
+
     '</div>' +
   '</div>';
 }
@@ -302,6 +326,15 @@ function selectInspector(name) {
   state.inspector = name;
   state.screen = 'scan';
   render();
+}
+
+function buscarManual() {
+  var input = document.getElementById('manual-input');
+  if (!input) return;
+  var code = input.value.trim();
+  if (!code) return;
+  input.value = '';
+  buscarPieza(code);
 }
 
 function goBack() {
