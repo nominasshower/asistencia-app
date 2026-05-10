@@ -40,7 +40,8 @@ input[type=date]:focus{border-color:var(--accent2);}
 .btn-wa{background:#25d366;color:#000;border-color:#25d366;font-weight:600;}
 .btn-wa:hover{background:#1da851;}
 .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;}
-.metric{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.metric{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;transition:border-color .15s;}
+.metric:hover{border-color:rgba(255,255,255,.18);}
 .metric-label{font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
 .metric-val{font-size:26px;font-weight:600;line-height:1;}
 .metric-sub{font-size:11px;color:var(--muted);margin-top:4px;}
@@ -135,6 +136,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
       Registros
     </div>
+    <div class="nav-item" id="nav-plan" onclick="navegar('plan',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Plan vs Real
+    </div>
   </div>
   <div class="nav-group">
     <div class="nav-label">Config</div>
@@ -177,6 +182,17 @@ tr:hover td{background:rgba(255,255,255,.02);}
   </div>
 </div>
 
+<!-- ── Modal detalle métrica ────────────────────────────── -->
+<div class="modal-overlay" id="modal-metrica" style="display:none" onclick="if(event.target===this)document.getElementById('modal-metrica').style.display='none'">
+  <div class="modal" style="width:720px">
+    <div class="modal-head">
+      <h3 id="modal-metrica-title">Detalle</h3>
+      <button class="btn" onclick="document.getElementById('modal-metrica').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body" id="modal-metrica-body" style="padding:0"></div>
+  </div>
+</div>
+
 <!-- ── Modal detalle TAG ────────────────────────────────── -->
 <div class="modal-overlay" id="modal-tag" style="display:none" onclick="if(event.target===this)document.getElementById('modal-tag').style.display='none'">
   <div class="modal modal-tag">
@@ -213,6 +229,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 const API_KEY   = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
 const SHEET_ID  = "1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c";
 const WA_NUM    = "528115014189";
+const MESES_ES  = {ene:0,feb:1,mar:2,abr:3,may:4,jun:5,jul:6,ago:7,sep:8,oct:9,nov:10,dic:11};
 const LS_KEY    = "sw_excluir_defectos";
 
 // Umbrales de alerta
@@ -231,10 +248,12 @@ const EXCLUIR_DEFAULT = [
 const GELCOAT_KEYS = ["rechazo de gelcoat","gelcoat delgado","gelcoat levantado","gelcoat estrellado","gelcoat reventado","gelcoat poroso","gelcoat tierno","gelcoat contaminado","gelcoat"];
 const MOLDE_KEYS   = ["marca de molde","fallo de máquina","despostillado en desmolde","quebrado en desmolde","rayas por manejo","grumos"];
 
-let INSP   = [];   // registros inspección filtrados por fecha
-let VACIADO = {};  // map TAG → última fecha de vaciado
-let VISTA  = "dash";
-let ALL_DEFECTS = {}; // defecto → conteo total (para el modal)
+let INSP      = [];
+let VAC_RAW   = [];   // vaciado completo sin filtrar (para Plan vs Real)
+let VACIADO   = {};   // map TAG → última fecha vaciado
+let PLAN      = [];   // PLAN_DIARIO completo
+let VISTA     = "dash";
+let ALL_DEFECTS = {};
 
 // ── Exclusiones (localStorage) ──────────────────────────
 function getExcluidos() {
@@ -286,10 +305,13 @@ async function cargar() {
   document.getElementById("btn-wa").style.display = "none";
 
   try {
-    const [inspRaw, vacRaw] = await Promise.all([
+    const [inspRaw, vacRaw, planRaw] = await Promise.all([
       fetchSheet("INSPECCION"),
-      fetchSheet("VACIADO")
+      fetchSheet("VACIADO"),
+      fetchSheet("PLAN_DIARIO")
     ]);
+    PLAN = planRaw;
+    VAC_RAW = vacRaw;
 
     // Vaciado: último vaciado por TAG (normalizado)
     VACIADO = {};
@@ -344,9 +366,49 @@ function navegar(id, el) {
 }
 
 function renderVista(data) {
-  if (VISTA === "dash")    renderDash(data);
+  if      (VISTA === "dash")    renderDash(data);
   else if (VISTA === "alertas") renderAlertas(data);
   else if (VISTA === "tabla")   renderTabla(data);
+  else if (VISTA === "plan")    renderPlan();
+}
+
+// ── Detalle métrica ───────────────────────────────────────
+function verDetalle(filtro, titulo) {
+  let piezas;
+  if      (filtro === "all") piezas = INSP;
+  else if (filtro === "A")   piezas = INSP.filter(r => r["Grado"] === "A");
+  else if (filtro === "B")   piezas = INSP.filter(r => r["Grado"] === "B");
+  else if (filtro === "AB")  piezas = INSP.filter(r => r["Grado"] === "A" || r["Grado"] === "B");
+  else if (filtro === "C")   piezas = INSP.filter(r => r["Grado"] === "C" && defectosActivos(r["Detalle Defecto"]).length > 0);
+
+  document.getElementById("modal-metrica-title").textContent = `${titulo} — ${piezas.length} piezas`;
+  document.getElementById("modal-metrica-body").innerHTML = `
+  <table style="width:100%;border-collapse:collapse">
+    <thead><tr style="position:sticky;top:0;background:var(--bg2)">
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Fecha</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">TAG</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Patrón</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Medida</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Línea</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Grado</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Defectos</th>
+    </tr></thead>
+    <tbody>
+      ${piezas.map(r => {
+        const act = defectosActivos(r["Detalle Defecto"]);
+        return `<tr>
+          <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${fmt(r["Fecha"])}</td>
+          <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)" title="${r["TAG"]}">${tagCorto(r["TAG"])}</td>
+          <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
+          <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["Medida"]||"—"}</td>
+          <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${r["Linea"]||"—"}</td>
+          <td style="padding:7px 12px;border-bottom:1px solid var(--border)"><span class="badge b-${(r["Grado"]||"sin").toLowerCase()}">${r["Grado"]||"—"}</span></td>
+          <td style="padding:7px 12px;border-bottom:1px solid var(--border)">${act.length ? renderDtags(act) : '<span style="color:var(--muted);font-size:11px">—</span>'}</td>
+        </tr>`;
+      }).join("")}
+    </tbody>
+  </table>`;
+  document.getElementById("modal-metrica").style.display = "flex";
 }
 
 // ── Helpers visuales ─────────────────────────────────────
@@ -445,11 +507,11 @@ function renderDash(data) {
 
   document.getElementById("main-content").innerHTML = `
   <div class="metrics">
-    <div class="metric"><div class="metric-label">Total inspeccionado</div><div class="metric-val white">${total.toLocaleString()}</div><div class="metric-sub">piezas en período</div></div>
-    <div class="metric"><div class="metric-label">Grado A</div><div class="metric-val green">${cA.toLocaleString()}</div><div class="metric-sub">${pct(cA)}% del total</div></div>
-    <div class="metric"><div class="metric-label">Grado B</div><div class="metric-val amber">${cB.toLocaleString()}</div><div class="metric-sub">${pct(cB)}% del total</div></div>
-    <div class="metric"><div class="metric-label">Grado C real</div><div class="metric-val red">${cC.toLocaleString()}</div><div class="metric-sub">${pct(cC)}% rechazos${cC_excluido>0?` <span style="color:var(--muted)">(+${cC_excluido} err.op.)</span>`:""}</div></div>
-    <div class="metric"><div class="metric-label">Piezas buenas A+B</div><div class="metric-val blue">${(cA+cB).toLocaleString()}</div><div class="metric-sub">${pct(cA+cB)}% aceptación</div></div>
+    <div class="metric" onclick="verDetalle('all','Total inspeccionado')"><div class="metric-label">Total inspeccionado</div><div class="metric-val white">${total.toLocaleString()}</div><div class="metric-sub">piezas en período</div></div>
+    <div class="metric" onclick="verDetalle('A','Grado A')"><div class="metric-label">Grado A</div><div class="metric-val green">${cA.toLocaleString()}</div><div class="metric-sub">${pct(cA)}% del total</div></div>
+    <div class="metric" onclick="verDetalle('B','Grado B')"><div class="metric-label">Grado B</div><div class="metric-val amber">${cB.toLocaleString()}</div><div class="metric-sub">${pct(cB)}% del total</div></div>
+    <div class="metric" onclick="verDetalle('C','Grado C real')"><div class="metric-label">Grado C real</div><div class="metric-val red">${cC.toLocaleString()}</div><div class="metric-sub">${pct(cC)}% rechazos${cC_excluido>0?` <span style="color:var(--muted)">(+${cC_excluido} err.op.)</span>`:""}</div></div>
+    <div class="metric" onclick="verDetalle('AB','Piezas buenas A+B')"><div class="metric-label">Piezas buenas A+B</div><div class="metric-val blue">${(cA+cB).toLocaleString()}</div><div class="metric-sub">${pct(cA+cB)}% aceptación</div></div>
   </div>
 
   <div class="grid3">
@@ -613,6 +675,141 @@ function renderTabla(data) {
     </table>
   </div>
   ${data.length>300?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 300 de ${data.length} registros</div>`:""}`;
+}
+
+// ── Plan vs Real ─────────────────────────────────────────
+function parsePlanFecha(s) {
+  const parts = (s||"").toLowerCase().trim().split("-");
+  if (parts.length !== 2) return null;
+  const day = parseInt(parts[0]);
+  const mes = MESES_ES[parts[1]];
+  if (isNaN(day) || mes === undefined) return null;
+  return new Date(new Date().getFullYear(), mes, day).toISOString().slice(0,10);
+}
+
+function renderPlan() {
+  document.getElementById("topbar-title").textContent = "Plan vs Real";
+  const desde = document.getElementById("fDesde").value;
+  const hasta  = document.getElementById("fHasta").value;
+
+  // Agrupar PLAN por fecha+modelo
+  const planGrupos = {};
+  PLAN.forEach(r => {
+    const fecha = parsePlanFecha(r["Fecha"]);
+    if (!fecha || fecha < desde || fecha > hasta) return;
+    const key = `${fecha}||${(r["PATRON"]||r["Modelo"]||"").trim()}||${(r["Medida"]||"").trim()}`;
+    if (!planGrupos[key]) planGrupos[key] = {
+      fecha, modelo: r["Modelo"]||"", patron: r["PATRON"]||r["Modelo"]||"",
+      medida: r["Medida"]||"", color: r["Color"]||"", acabado: r["Acabado"]||"",
+      cliente: r["Cliente"]||"", odoo: r["Odoo"]||"",
+      planTotal: 0, moldes: 0
+    };
+    planGrupos[key].planTotal += parseInt(r["A PRODUCIR"]||0) || 0;
+    planGrupos[key].moldes    += parseInt(r["MOLDES"]||0) || 0;
+  });
+
+  // Vaciado agrupado por fecha+patron (normalizado)
+  const vacGrupos = {};
+  VAC_RAW.forEach(r => {
+    const fecha = (r["Fecha"]||"").slice(0,10);
+    if (!fecha || fecha < desde || fecha > hasta) return;
+    const patron = (r["Patron"]||"").trim();
+    const medida = (r["Medida"]||"").trim();
+    const key = `${fecha}||${patron}||${medida}`;
+    vacGrupos[key] = (vacGrupos[key]||0) + 1;
+  });
+
+  // Unir plan + real
+  const filas = Object.entries(planGrupos).map(([key, p]) => {
+    const real = vacGrupos[key] || 0;
+    const delta = real - p.planTotal;
+    const pct   = p.planTotal > 0 ? Math.round(real * 100 / p.planTotal) : 0;
+    return { ...p, real, delta, pct };
+  }).sort((a,b) => a.fecha.localeCompare(b.fecha) || b.planTotal - a.planTotal);
+
+  // También mostrar vaciados sin plan en el período
+  const keysConPlan = new Set(Object.keys(planGrupos));
+  const sinPlan = [];
+  const vacFechas = new Set();
+  VAC_RAW.forEach(r => {
+    const fecha = (r["Fecha"]||"").slice(0,10);
+    if (!fecha || fecha < desde || fecha > hasta) return;
+    vacFechas.add(fecha);
+    const key = `${fecha}||${(r["Patron"]||"").trim()}||${(r["Medida"]||"").trim()}`;
+    if (!keysConPlan.has(key)) {
+      const ex = sinPlan.find(x=>x.key===key);
+      if (ex) ex.real++;
+      else sinPlan.push({ key, fecha, patron: r["Patron"]||"", medida: r["Medida"]||"", real: 1 });
+    }
+  });
+
+  const totalPlan = filas.reduce((s,f)=>s+f.planTotal,0);
+  const totalReal = filas.reduce((s,f)=>s+f.real,0) + sinPlan.reduce((s,f)=>s+f.real,0);
+  const totalRealConPlan = filas.reduce((s,f)=>s+f.real,0);
+
+  const colorDelta = d => d >= 0 ? "color:var(--accent)" : "color:var(--danger)";
+  const colorPct   = p => p >= 100 ? "color:var(--accent)" : p >= 70 ? "color:var(--warn)" : "color:var(--danger)";
+
+  document.getElementById("main-content").innerHTML = `
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+    <div class="metric"><div class="metric-label">Planificado total</div><div class="metric-val white">${totalPlan.toLocaleString()}</div><div class="metric-sub">piezas programadas</div></div>
+    <div class="metric"><div class="metric-label">Producido total</div><div class="metric-val blue">${totalReal.toLocaleString()}</div><div class="metric-sub">piezas vaciadas</div></div>
+    <div class="metric"><div class="metric-label">Cumplimiento plan</div>
+      <div class="metric-val" style="${colorPct(totalPlan>0?Math.round(totalRealConPlan*100/totalPlan):0)}">${totalPlan>0?Math.round(totalRealConPlan*100/totalPlan):0}%</div>
+      <div class="metric-sub">vs lo programado</div>
+    </div>
+    <div class="metric"><div class="metric-label">Sin plan registrado</div><div class="metric-val amber">${sinPlan.reduce((s,f)=>s+f.real,0).toLocaleString()}</div><div class="metric-sub">piezas extra</div></div>
+  </div>
+
+  <div class="table-wrap" style="overflow-x:auto;margin-bottom:12px">
+    <div class="table-header">
+      <div class="table-header-title">Plan vs Producción — por modelo</div>
+      <div style="font-size:11px;color:var(--muted)">${filas.length} líneas de plan · ${desde} → ${hasta}</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Fecha</th><th>Modelo / Patrón</th><th>Medida</th><th>Cliente</th>
+        <th style="text-align:center">Planificado</th>
+        <th style="text-align:center">Producido</th>
+        <th style="text-align:center">Delta</th>
+        <th style="text-align:center">%</th>
+      </tr></thead>
+      <tbody>
+        ${filas.map(f=>`<tr>
+          <td class="mono">${f.fecha}</td>
+          <td style="max-width:200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${f.patron}">${f.patron||f.modelo||"—"}</td>
+          <td class="mono">${f.medida||"—"}</td>
+          <td style="font-size:11px;color:var(--muted);max-width:140px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${f.cliente}">${f.cliente||"—"}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace">${f.planTotal}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:600">${f.real}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:600;${colorDelta(f.delta)}">${f.delta>=0?"+":""}${f.delta}</td>
+          <td style="text-align:center">
+            <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;${colorPct(f.pct)}">${f.pct}%</span>
+          </td>
+        </tr>`).join("")}
+        ${filas.length===0?`<tr><td colspan="8" class="empty">Sin datos de plan en el período</td></tr>`:""}
+      </tbody>
+    </table>
+  </div>
+
+  ${sinPlan.length > 0 ? `
+  <div class="table-wrap" style="overflow-x:auto">
+    <div class="table-header">
+      <div class="table-header-title" style="color:var(--warn)">Producción sin plan registrado</div>
+      <div style="font-size:11px;color:var(--muted)">${sinPlan.length} modelos · ${sinPlan.reduce((s,f)=>s+f.real,0)} piezas</div>
+    </div>
+    <table>
+      <thead><tr><th>Fecha</th><th>Patrón</th><th>Medida</th><th style="text-align:center">Producido</th></tr></thead>
+      <tbody>
+        ${sinPlan.sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(f=>`<tr>
+          <td class="mono">${f.fecha}</td>
+          <td>${f.patron||"—"}</td>
+          <td class="mono">${f.medida||"—"}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace">${f.real}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>` : ""}`;
 }
 
 // ── WhatsApp ─────────────────────────────────────────────
