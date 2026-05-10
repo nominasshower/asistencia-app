@@ -776,8 +776,11 @@ function renderPlan() {
   vacPeriodo.forEach(r => {
     const fechaVac = (r["Fecha"]||"").slice(0,10);
     const key = `${fechaVac}||${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
-    if (!vacGrupos[key]) vacGrupos[key] = { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
+    if (!vacGrupos[key]) vacGrupos[key] = { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0, tags: new Set() };
     vacGrupos[key].vaciado++;
+
+    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
+    if (tag) vacGrupos[key].tags.add(tag);
 
     const sku = (r["SKU"]||"").trim().toUpperCase();
     const insp = SKU_INSP[sku];
@@ -790,6 +793,8 @@ function renderPlan() {
       vacGrupos[key].ab++;
     }
   });
+  // Convertir Set de tags a conteo
+  Object.values(vacGrupos).forEach(g => { g.moldesLinea = g.tags.size; delete g.tags; });
 
   // ── Plan agrupado por fecha+patron+medida (normalizados) ──
   const planGrupos = {};
@@ -866,6 +871,7 @@ function renderPlan() {
         <th>Cliente</th>
         <th style="text-align:center">Total orden</th>
         <th style="text-align:center">A producir</th>
+        <th style="text-align:center">Moldes</th>
         <th style="text-align:center">Vaciado</th>
         <th style="text-align:center">A+B</th>
         <th style="text-align:center">C mismo día</th>
@@ -881,6 +887,7 @@ function renderPlan() {
           <td style="font-size:11px;color:var(--muted);max-width:130px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${f.cliente}">${f.cliente||"—"}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${f.total||"—"}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace">${f.aProducir}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--info)">${f.moldesLinea||"—"}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace">${f.vaciado}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:600;color:var(--accent)">${f.buenos}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cMismo>0?"var(--danger)":"var(--muted)"}">${f.cMismo||"—"}</td>
@@ -890,7 +897,7 @@ function renderPlan() {
             <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:${cPct(f.pct)}">${f.pct}%</span>
           </td>
         </tr>`).join("")}
-        ${filas.length===0?`<tr><td colspan="12" class="empty">Sin datos de plan en el período</td></tr>`:""}
+        ${filas.length===0?`<tr><td colspan="13" class="empty">Sin datos de plan en el período</td></tr>`:""}
       </tbody>
     </table>
   </div>
@@ -904,6 +911,7 @@ function renderPlan() {
     <table>
       <thead><tr>
         <th>Fecha</th><th>Patrón</th><th>Medida</th>
+        <th style="text-align:center">Moldes</th>
         <th style="text-align:center">Vaciado</th>
         <th style="text-align:center">A+B</th>
         <th style="text-align:center">C mismo día</th>
@@ -914,6 +922,7 @@ function renderPlan() {
           <td class="mono">${f.fecha}</td>
           <td>${f.patron||"—"}</td>
           <td class="mono">${f.medida||"—"}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--info)">${f.moldesLinea||"—"}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace">${f.vaciado}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--accent)">${f.ab||"—"}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cMismo>0?"var(--danger)":"var(--muted)"}">${f.cMismo||"—"}</td>
