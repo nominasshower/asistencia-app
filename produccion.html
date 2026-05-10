@@ -845,12 +845,16 @@ function renderPlan() {
   const totalCM    = filas.reduce((s,f)=>s+f.cMismo, 0);
   const totalCO    = filas.reduce((s,f)=>s+f.cOtro, 0);
   const cumpl      = totalPlan > 0 ? Math.round(totalBueno*100/totalPlan) : 0;
+  const totalMoldes = new Set(
+    vacPeriodo.map(r => (r["TAG"]||r["Tag"]||"").trim().toUpperCase()).filter(Boolean)
+  ).size;
 
   const cDelta = d => d >= 0 ? "color:var(--accent)" : "color:var(--danger)";
   const cPct   = p => p >= 100 ? "var(--accent)" : p >= 70 ? "var(--warn)" : "var(--danger)";
 
   document.getElementById("main-content").innerHTML = `
-  <div class="metrics" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
+  <div class="metrics" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px">
+    <div class="metric"><div class="metric-label">Moldes en línea</div><div class="metric-val" style="color:var(--info)">${totalMoldes}</div><div class="metric-sub">TAGs distintos en el período</div></div>
     <div class="metric"><div class="metric-label">A producir (plan)</div><div class="metric-val white">${totalPlan.toLocaleString()}</div><div class="metric-sub">piezas programadas</div></div>
     <div class="metric"><div class="metric-label">Vaciado total</div><div class="metric-val blue">${totalVac.toLocaleString()}</div><div class="metric-sub">piezas vaciadas</div></div>
     <div class="metric"><div class="metric-label">Buenos A+B</div><div class="metric-val green">${totalBueno.toLocaleString()}</div><div class="metric-sub">${cumpl}% del plan</div></div>
