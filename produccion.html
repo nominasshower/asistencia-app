@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calidad Producción — Shower Walls</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1117; --bg2: #161b27; --bg3: #1e2535;
+  --border: rgba(255,255,255,0.07); --text: #e8eaf0; --muted: #6b7280;
+  --accent: #22c55e; --accent2: #3b82f6; --warn: #f59e0b; --danger: #ef4444; --info: #8b5cf6;
+  --grade-a: #22c55e; --grade-b: #f59e0b; --grade-c: #ef4444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* ── Sidebar ───────────────────────────────────────────── */
+.sidebar {
+  position: fixed; left: 0; top: 0; bottom: 0; width: 220px;
+  background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; z-index: 100;
+}
+.logo { padding: 20px 20px 12px; font-size: 13px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+.logo svg { width: 18px; height: 18px; }
+.logo-sub { font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 1px; }
+.nav-group { padding: 0 8px; margin-bottom: 4px; }
+.nav-label { font-size: 10px; color: var(--muted); padding: 8px 12px 4px; letter-spacing: 0.8px; text-transform: uppercase; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; font-size: 13px; color: var(--muted); cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active { background: rgba(34,197,94,0.1); color: var(--accent); border-color: rgba(34,197,94,0.2); }
+.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+.sidebar-bottom { margin-top: auto; padding: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); text-align: center; }
+
+/* ── Main ──────────────────────────────────────────────── */
+.main { margin-left: 220px; min-height: 100vh; }
+.topbar { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); position: sticky; top: 0; z-index: 50; }
+.topbar-title { font-size: 15px; font-weight: 600; }
+.topbar-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.content { padding: 20px 24px; }
+
+/* ── Controls ──────────────────────────────────────────── */
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.controls label { font-size: 11px; color: var(--muted); }
+input[type=date], select.filter {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 10px; color: var(--text); font-family: 'DM Sans',sans-serif;
+  font-size: 12px; outline: none; cursor: pointer;
+}
+input[type=date]:focus, select.filter:focus { border-color: var(--accent2); }
+.btn { font-size: 12px; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: 'DM Sans',sans-serif; transition: all 0.15s; }
+.btn:hover { background: var(--bg); border-color: rgba(255,255,255,0.15); }
+.btn-accent { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+.btn-accent:hover { background: #16a34a; }
+.sep { width: 1px; height: 20px; background: var(--border); }
+
+/* ── Metrics ───────────────────────────────────────────── */
+.metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+.metric { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.metric-label { font-size: 10px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.metric-val { font-size: 26px; font-weight: 600; line-height: 1; }
+.metric-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.green { color: var(--grade-a); } .amber { color: var(--grade-b); } .red { color: var(--grade-c); } .blue { color: var(--accent2); } .white { color: var(--text); }
+
+/* ── Cards grid ────────────────────────────────────────── */
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+.card-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.card-title span { color: var(--muted); font-size: 11px; font-weight: 400; }
+
+/* ── Bar chart ─────────────────────────────────────────── */
+.bar-chart { display: flex; flex-direction: column; gap: 7px; }
+.bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.bar-label { width: 170px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex-shrink: 0; font-size: 11px; }
+.bar-track { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+.bar-val { width: 36px; text-align: right; font-family: 'DM Mono',monospace; font-size: 11px; color: var(--muted); }
+
+/* ── Grade donut ───────────────────────────────────────── */
+.grade-bars { display: flex; flex-direction: column; gap: 10px; }
+.grade-row { display: flex; align-items: center; gap: 10px; }
+.grade-letter { font-size: 13px; font-weight: 700; width: 18px; flex-shrink: 0; }
+.grade-track { flex: 1; height: 10px; background: var(--bg3); border-radius: 5px; overflow: hidden; }
+.grade-fill { height: 100%; border-radius: 5px; transition: width 0.6s ease; }
+.grade-count { font-family: 'DM Mono',monospace; font-size: 12px; width: 50px; text-align: right; }
+.grade-pct { font-size: 11px; color: var(--muted); width: 36px; text-align: right; }
+
+/* ── Alerts ────────────────────────────────────────────── */
+.alerts { display: flex; flex-direction: column; gap: 6px; }
+.alert-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 7px; font-size: 12px; border: 1px solid; }
+.alert-crit { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); }
+.alert-warn { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
+.alert-icon { font-size: 14px; flex-shrink: 0; }
+.alert-text { flex: 1; }
+.alert-count { font-family: 'DM Mono',monospace; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.alert-crit .alert-count { color: var(--danger); }
+.alert-warn .alert-count { color: var(--warn); }
+.no-alerts { color: var(--muted); font-size: 12px; text-align: center; padding: 20px; }
+
+/* ── Table ─────────────────────────────────────────────── */
+.table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+.table-header { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.table-header-title { font-size: 13px; font-weight: 600; }
+table { width: 100%; border-collapse: collapse; }
+th { padding: 8px 12px; text-align: left; font-size: 10px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 9px 12px; font-size: 12px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.mono { font-family: 'DM Mono',monospace; font-size: 11px; }
+.badge { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 600; white-space: nowrap; }
+.b-a { background: rgba(34,197,94,0.15); color: #4ade80; }
+.b-b { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.b-c { background: rgba(239,68,68,0.15); color: #f87171; }
+.b-sin { background: var(--bg3); color: var(--muted); }
+.defect-tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; background: rgba(239,68,68,0.12); color: #f87171; margin: 1px; border: 1px solid rgba(239,68,68,0.15); }
+.defect-tag.warn { background: rgba(245,158,11,0.12); color: #fbbf24; border-color: rgba(245,158,11,0.15); }
+
+/* ── Loading / empty ───────────────────────────────────── */
+.loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; gap: 12px; color: var(--muted); }
+.spinner { width: 24px; height: 24px; border: 2px solid var(--bg3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty { color: var(--muted); font-size: 12px; text-align: center; padding: 30px; }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ─────────────────────────────────────────── -->
+<div class="sidebar">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <div>
+      Shower Walls
+      <div class="logo-sub">Calidad Producción</div>
+    </div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">Producción</div>
+    <div class="nav-item active" id="nav-hoy" onclick="navegar('hoy',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-item" id="nav-tabla" onclick="navegar('tabla',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Registros
+    </div>
+    <div class="nav-item" id="nav-alertas" onclick="navegar('alertas',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Alertas
+    </div>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-label">Acceso</div>
+    <div class="nav-item" onclick="window.open('index.html','_self')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      Asistencia
+    </div>
+  </div>
+
+  <div class="sidebar-bottom">Primera Inspección</div>
+</div>
+
+<!-- ── Main ───────────────────────────────────────────── -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topbar-title">Dashboard Calidad</div>
+      <div class="topbar-sub" id="topbar-sub">Cargando…</div>
+    </div>
+    <div class="topbar-right">
+      <label style="font-size:11px;color:var(--muted)">Desde</label>
+      <input type="date" id="fDesde">
+      <label style="font-size:11px;color:var(--muted)">Hasta</label>
+      <input type="date" id="fHasta">
+      <button class="btn btn-accent" onclick="cargar()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        Actualizar
+      </button>
+    </div>
+  </div>
+
+  <div class="content" id="main-content">
+    <div class="loading"><div class="spinner"></div><div>Cargando datos…</div></div>
+  </div>
+</div>
+
+<script>
+// ── Config ──────────────────────────────────────────────
+const API_KEY  = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
+const SHEET_ID = "1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c";
+const SHEET_INSP = "INSPECCION";
+
+// Defectos críticos → gelcoat
+const GELCOAT_KEYS  = ["rechazo de gelcoat","gelcoat delgado","gelcoat levantado","gelcoat estrellado","gelcoat"];
+// Defectos críticos → molde
+const MOLDE_KEYS    = ["molde vacio","marca de molde","pieza desmoldada","fallo de máquina","generación incorrecta"];
+
+let TODOS = [];
+let VISTA = "hoy";
+
+// ── Helpers ─────────────────────────────────────────────
+function fmt(d) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  return dt.toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit"})
+    + " " + dt.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+}
+
+function categDefecto(det) {
+  const s = (det || "").toLowerCase();
+  if (GELCOAT_KEYS.some(k => s.includes(k))) return "gelcoat";
+  if (MOLDE_KEYS.some(k => s.includes(k))) return "molde";
+  return "otro";
+}
+
+// ── Data fetch ───────────────────────────────────────────
+async function cargar() {
+  const desde = document.getElementById("fDesde").value;
+  const hasta = document.getElementById("fHasta").value;
+  document.getElementById("main-content").innerHTML =
+    `<div class="loading"><div class="spinner"></div><div>Cargando datos…</div></div>`;
+
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_INSP)}?key=${API_KEY}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json = await resp.json();
+    const [hdrs, ...rows] = json.values || [];
+    if (!hdrs) throw new Error("Hoja vacía");
+
+    const all = rows.map(r => {
+      const o = {};
+      hdrs.forEach((h, i) => o[h] = r[i] ?? "");
+      return o;
+    });
+
+    // Filtrar por rango de fechas seleccionado
+    const d0 = desde ? new Date(desde + "T00:00:00") : null;
+    const d1 = hasta ? new Date(hasta + "T23:59:59") : null;
+    TODOS = all.filter(r => {
+      const dt = new Date(r["Fecha"]);
+      if (d0 && dt < d0) return false;
+      if (d1 && dt > d1) return false;
+      return true;
+    });
+
+    document.getElementById("topbar-sub").textContent =
+      `${TODOS.length} piezas — ${desde || "inicio"} → ${hasta || "hoy"}`;
+
+    renderVista(TODOS);
+  } catch(e) {
+    document.getElementById("main-content").innerHTML =
+      `<div class="loading" style="color:var(--danger)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Error al cargar datos.<br>
+        <span style="font-size:10px;color:var(--muted);margin-top:4px;display:block">${e.message}</span>
+      </div>`;
+  }
+}
+
+// ── Nav ──────────────────────────────────────────────────
+function navegar(id, el) {
+  VISTA = id;
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  el.classList.add("active");
+  const desde = document.getElementById("fDesde").value;
+  const hasta = document.getElementById("fHasta").value;
+  const d0 = desde ? new Date(desde + "T00:00:00") : null;
+  const d1 = hasta ? new Date(hasta + "T23:59:59") : null;
+  const filtrados = TODOS.filter(r => {
+    const dt = new Date(r["Fecha"]);
+    if (d0 && dt < d0) return false;
+    if (d1 && dt > d1) return false;
+    return true;
+  });
+  renderVista(filtrados);
+}
+
+function renderVista(data) {
+  if (VISTA === "hoy")    renderDashboard(data);
+  else if (VISTA === "tabla")   renderTabla(data);
+  else if (VISTA === "alertas") renderAlertas(data);
+}
+
+// ── Dashboard ────────────────────────────────────────────
+function renderDashboard(data) {
+  const total = data.length;
+  const cA = data.filter(r => r["Grado"] === "A").length;
+  const cB = data.filter(r => r["Grado"] === "B").length;
+  const cC = data.filter(r => r["Grado"] === "C").length;
+  const pct = n => total ? Math.round(n * 100 / total) : 0;
+
+  // Defectos
+  const defCounts = {};
+  data.forEach(r => {
+    const det = r["Detalle Defecto"] || "";
+    if (!det || det === "null") return;
+    det.split(",").forEach(d => {
+      const k = d.trim();
+      if (k) defCounts[k] = (defCounts[k] || 0) + 1;
+    });
+  });
+  const topDef = Object.entries(defCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxDef = topDef[0]?.[1] || 1;
+
+  // Por linea
+  const lineas = {};
+  data.forEach(r => {
+    const l = r["Linea"] || "—";
+    lineas[l] = (lineas[l] || 0) + 1;
+  });
+  const linArr = Object.entries(lineas).sort((a,b)=>b[1]-a[1]);
+  const maxLin = linArr[0]?.[1] || 1;
+
+  // Alertas resumidas
+  const gelcoat = data.filter(r => {
+    const det = (r["Detalle Defecto"] || "").toLowerCase();
+    return GELCOAT_KEYS.some(k => det.includes(k));
+  }).length;
+  const molde = data.filter(r => {
+    const det = (r["Detalle Defecto"] || "").toLowerCase();
+    return MOLDE_KEYS.some(k => det.includes(k));
+  }).length;
+  const desmolde = data.filter(r => {
+    const det = (r["Detalle Defecto"] || "").toLowerCase();
+    return det.includes("despostillado") || det.includes("quebrado");
+  }).length;
+
+  document.getElementById("topbar-title").textContent = "Dashboard Calidad";
+  document.getElementById("main-content").innerHTML = `
+  <!-- Métricas -->
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Total inspeccionado</div>
+      <div class="metric-val white">${total.toLocaleString()}</div>
+      <div class="metric-sub">piezas en período</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Grado A</div>
+      <div class="metric-val green">${cA.toLocaleString()}</div>
+      <div class="metric-sub">${pct(cA)}% del total</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Grado B</div>
+      <div class="metric-val amber">${cB.toLocaleString()}</div>
+      <div class="metric-sub">${pct(cB)}% del total</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Grado C</div>
+      <div class="metric-val red">${cC.toLocaleString()}</div>
+      <div class="metric-sub">${pct(cC)}% rechazos</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Piezas buenas (A+B)</div>
+      <div class="metric-val blue">${(cA+cB).toLocaleString()}</div>
+      <div class="metric-sub">${pct(cA+cB)}% aceptación</div>
+    </div>
+  </div>
+
+  <div class="grid3">
+    <!-- Distribución grados -->
+    <div class="card">
+      <div class="card-title">Distribución de grados</div>
+      <div class="grade-bars">
+        <div class="grade-row">
+          <div class="grade-letter green">A</div>
+          <div class="grade-track"><div class="grade-fill" style="width:${pct(cA)}%;background:var(--grade-a)"></div></div>
+          <div class="grade-count green">${cA.toLocaleString()}</div>
+          <div class="grade-pct">${pct(cA)}%</div>
+        </div>
+        <div class="grade-row">
+          <div class="grade-letter amber">B</div>
+          <div class="grade-track"><div class="grade-fill" style="width:${pct(cB)}%;background:var(--grade-b)"></div></div>
+          <div class="grade-count amber">${cB.toLocaleString()}</div>
+          <div class="grade-pct">${pct(cB)}%</div>
+        </div>
+        <div class="grade-row">
+          <div class="grade-letter red">C</div>
+          <div class="grade-track"><div class="grade-fill" style="width:${pct(cC)}%;background:var(--grade-c)"></div></div>
+          <div class="grade-count red">${cC.toLocaleString()}</div>
+          <div class="grade-pct">${pct(cC)}%</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;justify-content:space-between">
+        <span>Aceptación (A+B)</span>
+        <span style="color:var(--accent);font-weight:600">${pct(cA+cB)}%</span>
+      </div>
+    </div>
+
+    <!-- Por línea -->
+    <div class="card">
+      <div class="card-title">Por línea de producción</div>
+      <div class="bar-chart">
+        ${linArr.map(([l,c]) => `
+        <div class="bar-row">
+          <div class="bar-label">Línea ${l}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(c*100/maxLin)}%;background:var(--accent2)"></div></div>
+          <div class="bar-val">${c.toLocaleString()}</div>
+        </div>`).join("")}
+      </div>
+    </div>
+
+    <!-- Alertas resumen -->
+    <div class="card">
+      <div class="card-title">
+        <span style="color:var(--text);font-size:13px;font-weight:600">Alertas</span>
+        <span>${data.filter(r=>r["Grado"]==="C").length} grado C</span>
+      </div>
+      <div class="alerts">
+        ${gelcoat > 0 ? `
+        <div class="alert-item alert-crit">
+          <div class="alert-icon">🔴</div>
+          <div class="alert-text">Defectos de gelcoat</div>
+          <div class="alert-count">${gelcoat}</div>
+        </div>` : ""}
+        ${molde > 0 ? `
+        <div class="alert-item alert-warn">
+          <div class="alert-icon">🟡</div>
+          <div class="alert-text">Problemas de molde</div>
+          <div class="alert-count">${molde}</div>
+        </div>` : ""}
+        ${desmolde > 0 ? `
+        <div class="alert-item alert-warn">
+          <div class="alert-icon">🟡</div>
+          <div class="alert-text">Despostillado / quebrado</div>
+          <div class="alert-count">${desmolde}</div>
+        </div>` : ""}
+        ${gelcoat === 0 && molde === 0 && desmolde === 0
+          ? `<div class="no-alerts">Sin alertas críticas</div>` : ""}
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn" style="width:100%;justify-content:center" onclick="navegar('alertas',document.getElementById('nav-alertas'))">
+          Ver detalle de alertas →
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top defectos -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-title">
+      Top defectos
+      <span>${Object.keys(defCounts).length} tipos distintos</span>
+    </div>
+    ${topDef.length === 0
+      ? `<div class="empty">Sin defectos registrados</div>`
+      : `<div class="bar-chart">
+        ${topDef.map(([d,c]) => {
+          const cat = categDefecto(d);
+          const color = cat==="gelcoat" ? "var(--danger)" : cat==="molde" ? "var(--warn)" : "var(--accent2)";
+          return `
+          <div class="bar-row">
+            <div class="bar-label" title="${d}">${d}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(c*100/maxDef)}%;background:${color}"></div></div>
+            <div class="bar-val">${c.toLocaleString()}</div>
+          </div>`;
+        }).join("")}
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:var(--muted);display:flex;gap:12px">
+          <span><span style="color:var(--danger)">■</span> Gelcoat</span>
+          <span><span style="color:var(--warn)">■</span> Molde/Desmolde</span>
+          <span><span style="color:var(--accent2)">■</span> Otros</span>
+        </div>`}
+  </div>
+
+  <!-- Últimos C -->
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="table-header-title">Últimas piezas Grado C</div>
+      <div style="font-size:11px;color:var(--muted)">${cC} piezas rechazadas</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Fecha</th><th>SKU</th><th>Patrón</th><th>Medida</th><th>Color</th><th>Línea</th><th>Defectos</th>
+      </tr></thead>
+      <tbody>
+        ${data.filter(r=>r["Grado"]==="C").slice(0,20).map(r => `
+        <tr>
+          <td class="mono">${fmt(r["Fecha"])}</td>
+          <td class="mono">${(r["SKU"]||"").slice(0,8).toUpperCase()}</td>
+          <td>${r["Patron"]||"—"}</td>
+          <td class="mono">${r["Medida"]||"—"}</td>
+          <td>${r["Color"]||"—"}</td>
+          <td style="text-align:center">${r["Linea"]||"—"}</td>
+          <td>${renderDefectos(r["Detalle Defecto"])}</td>
+        </tr>`).join("")}
+        ${cC === 0 ? `<tr><td colspan="7" class="empty">Sin piezas grado C</td></tr>` : ""}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+// ── Registros ────────────────────────────────────────────
+function renderTabla(data) {
+  document.getElementById("topbar-title").textContent = "Registros de inspección";
+  document.getElementById("main-content").innerHTML = `
+  <div class="table-wrap" style="overflow-x:auto">
+    <div class="table-header">
+      <div class="table-header-title">Primera Inspección</div>
+      <div style="font-size:11px;color:var(--muted)">${data.length} registros</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Fecha</th><th>SKU</th><th>Tipo</th><th>Patrón</th>
+        <th>Medida</th><th>Color</th><th>Acabado</th><th>Línea</th>
+        <th>Grado</th><th>Defectos</th>
+      </tr></thead>
+      <tbody>
+        ${data.slice(0,200).map(r => `
+        <tr>
+          <td class="mono">${fmt(r["Fecha"])}</td>
+          <td class="mono">${(r["SKU"]||"").slice(0,8).toUpperCase()}</td>
+          <td>${r["Tipo"]||"—"}</td>
+          <td style="max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
+          <td class="mono">${r["Medida"]||"—"}</td>
+          <td>${r["Color"]||"—"}</td>
+          <td>${r["Acabado"]||"—"}</td>
+          <td style="text-align:center">${r["Linea"]||"—"}</td>
+          <td><span class="badge b-${(r["Grado"]||"sin").toLowerCase()}">${r["Grado"]||"—"}</span></td>
+          <td>${renderDefectos(r["Detalle Defecto"])}</td>
+        </tr>`).join("")}
+        ${data.length === 0 ? `<tr><td colspan="10" class="empty">Sin registros</td></tr>` : ""}
+      </tbody>
+    </table>
+  </div>
+  ${data.length > 200 ? `<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 200 de ${data.length} registros</div>` : ""}`;
+}
+
+// ── Alertas ──────────────────────────────────────────────
+function renderAlertas(data) {
+  document.getElementById("topbar-title").textContent = "Alertas de calidad";
+
+  const gelcoatPiezas = data.filter(r => {
+    const det = (r["Detalle Defecto"] || "").toLowerCase();
+    return GELCOAT_KEYS.some(k => det.includes(k));
+  });
+  const moldePiezas = data.filter(r => {
+    const det = (r["Detalle Defecto"] || "").toLowerCase();
+    return MOLDE_KEYS.some(k => det.includes(k));
+  });
+  const otrosPiezas = data.filter(r => {
+    const det = (r["Detalle Defecto"] || "").toLowerCase();
+    const esG = GELCOAT_KEYS.some(k => det.includes(k));
+    const esM = MOLDE_KEYS.some(k => det.includes(k));
+    return !esG && !esM && det && det !== "null" && r["Grado"] === "C";
+  });
+
+  // Conteo por tipo de defecto para gelcoat
+  const gelcoatCat = {};
+  gelcoatPiezas.forEach(r => {
+    (r["Detalle Defecto"]||"").split(",").forEach(d => {
+      const k = d.trim().toLowerCase();
+      if (GELCOAT_KEYS.some(gk => k.includes(gk))) {
+        const label = d.trim();
+        gelcoatCat[label] = (gelcoatCat[label]||0)+1;
+      }
+    });
+  });
+  const moldeCat = {};
+  moldePiezas.forEach(r => {
+    (r["Detalle Defecto"]||"").split(",").forEach(d => {
+      const k = d.trim().toLowerCase();
+      if (MOLDE_KEYS.some(mk => k.includes(mk))) {
+        const label = d.trim();
+        moldeCat[label] = (moldeCat[label]||0)+1;
+      }
+    });
+  });
+
+  const tablaAlertas = (piezas, titulo, color) => {
+    if (piezas.length === 0) return `<div class="empty">Sin alertas de ${titulo.toLowerCase()}</div>`;
+    return `
+    <div class="table-wrap" style="overflow-x:auto;margin-bottom:0">
+      <div class="table-header">
+        <div class="table-header-title" style="color:${color}">${titulo}</div>
+        <div style="font-size:11px;color:var(--muted)">${piezas.length} piezas</div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Fecha</th><th>SKU</th><th>Patrón</th><th>Medida</th><th>Color</th><th>Línea</th><th>Grado</th><th>Defecto</th>
+        </tr></thead>
+        <tbody>
+          ${piezas.slice(0,50).map(r=>`
+          <tr>
+            <td class="mono">${fmt(r["Fecha"])}</td>
+            <td class="mono">${(r["SKU"]||"").slice(0,8).toUpperCase()}</td>
+            <td style="max-width:150px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
+            <td class="mono">${r["Medida"]||"—"}</td>
+            <td>${r["Color"]||"—"}</td>
+            <td style="text-align:center">${r["Linea"]||"—"}</td>
+            <td><span class="badge b-${(r["Grado"]||"sin").toLowerCase()}">${r["Grado"]||"—"}</span></td>
+            <td>${renderDefectos(r["Detalle Defecto"])}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  };
+
+  document.getElementById("main-content").innerHTML = `
+  <div class="grid2" style="margin-bottom:12px">
+    <div class="card">
+      <div class="card-title" style="color:var(--danger)">
+        🔴 Defectos Gelcoat
+        <span>${gelcoatPiezas.length} piezas</span>
+      </div>
+      <div class="bar-chart">
+        ${Object.entries(gelcoatCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
+        <div class="bar-row">
+          <div class="bar-label">${k}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v*100/Math.max(...Object.values(gelcoatCat)))}%;background:var(--danger)"></div></div>
+          <div class="bar-val">${v}</div>
+        </div>`).join("") || `<div class="empty">Sin datos</div>`}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color:var(--warn)">
+        🟡 Problemas de Molde
+        <span>${moldePiezas.length} piezas</span>
+      </div>
+      <div class="bar-chart">
+        ${Object.entries(moldeCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
+        <div class="bar-row">
+          <div class="bar-label">${k}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v*100/Math.max(...Object.values(moldeCat)))}%;background:var(--warn)"></div></div>
+          <div class="bar-val">${v}</div>
+        </div>`).join("") || `<div class="empty">Sin datos</div>`}
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--danger);margin-bottom:8px">Piezas con alertas de gelcoat</div>
+      ${tablaAlertas(gelcoatPiezas,"Alertas Gelcoat","var(--danger)")}
+    </div>
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:8px">Piezas con problemas de molde</div>
+      ${tablaAlertas(moldePiezas,"Problemas de Molde","var(--warn)")}
+    </div>
+  </div>`;
+}
+
+// ── Render defecto tags ───────────────────────────────────
+function renderDefectos(det) {
+  if (!det || det === "null" || det === "0") return `<span style="color:var(--muted);font-size:11px">—</span>`;
+  return det.split(",").map(d => {
+    d = d.trim();
+    if (!d) return "";
+    const cat = categDefecto(d);
+    const cls = cat === "gelcoat" ? "defect-tag" : cat === "molde" ? "defect-tag warn" : "defect-tag warn";
+    return `<span class="${cls}">${d}</span>`;
+  }).join("");
+}
+
+// ── Init ─────────────────────────────────────────────────
+(function init() {
+  const h = hoy();
+  const a = (() => { const d = new Date(); d.setDate(d.getDate()-7); return d.toISOString().slice(0,10); })();
+  document.getElementById("fDesde").value = a;
+  document.getElementById("fHasta").value = h;
+  cargar();
+})();
+</script>
+</body>
+</html>
