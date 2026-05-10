@@ -277,24 +277,26 @@ async function cargar() {
       fetchSheet("VACIADO")
     ]);
 
-    // Vaciado: último vaciado por TAG
+    // Vaciado: último vaciado por TAG (normalizado)
     VACIADO = {};
     vacRaw.forEach(r => {
-      const tag = r["TAG"] || r["Tag"] || "";
+      const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
       const fecha = r["Fecha"] || "";
       if (!tag) return;
       if (!VACIADO[tag] || fecha > VACIADO[tag]) VACIADO[tag] = fecha;
     });
 
-    // Inspección: filtrar por fecha
+    // Inspección: normalizar TAG y filtrar por fecha
     const d0 = desde ? new Date(desde + "T00:00:00") : null;
     const d1 = hasta ? new Date(hasta + "T23:59:59") : null;
-    INSP = inspRaw.filter(r => {
-      const dt = new Date(r["Fecha"]);
-      if (d0 && dt < d0) return false;
-      if (d1 && dt > d1) return false;
-      return true;
-    });
+    INSP = inspRaw
+      .map(r => ({ ...r, TAG: (r["TAG"]||"").trim().toUpperCase() }))
+      .filter(r => {
+        const dt = new Date(r["Fecha"]);
+        if (d0 && dt < d0) return false;
+        if (d1 && dt > d1) return false;
+        return true;
+      });
 
     // Conteo global de defectos para el modal
     ALL_DEFECTS = {};
@@ -673,7 +675,8 @@ function guardarFiltros() {
 
 // ── Init ─────────────────────────────────────────────────
 (function init() {
-  const h = new Date().toISOString().slice(0,10);
+  const n = new Date();
+  const h = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
   document.getElementById("fDesde").value = h;
   document.getElementById("fHasta").value = h;
   document.getElementById("fDesde").addEventListener("change", cargar);
