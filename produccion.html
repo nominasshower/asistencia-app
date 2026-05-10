@@ -312,7 +312,7 @@ async function cargar() {
       fetchSheet("PLAN_DIARIO")
     ]);
     PLAN    = planRaw;
-    VAC_RAW = vacRaw;
+    VAC_RAW = deduplicarVaciado(vacRaw);
 
     // SKU → {grade, fechaInsp} de todo el año (inspRaw sin filtrar)
     SKU_INSP = {};
@@ -694,6 +694,53 @@ function parsePlanFecha(s) {
   const mes = MESES_ES[parts[1]];
   if (isNaN(day) || mes === undefined) return null;
   return new Date(new Date().getFullYear(), mes, day).toISOString().slice(0,10);
+}
+
+// Elimina lecturas falsas de antena: si un TAG tiene entradas con distinto
+// patron+medida, conserva solo la más reciente (la corrección manual).
+function deduplicarVaciado(rows) {
+  // 1. Para cada TAG, recopilar los patron+medida distintos que tuvo
+  const tagInfo = {};
+  rows.forEach(r => {
+    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
+    if (!tag) return;
+    const pm = `${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
+    if (!tagInfo[tag]) tagInfo[tag] = { pms: new Set(), ultima: "" };
+    tagInfo[tag].pms.add(pm);
+    const f = r["Fecha"] || "";
+    if (f > tagInfo[tag].ultima) tagInfo[tag].ultima = f;
+  });
+
+  // 2. Identificar TAGs con conflicto (más de un patron+medida distinto)
+  const conflicto = new Set(
+    Object.entries(tagInfo)
+      .filter(([, v]) => v.pms.size > 1)
+      .map(([tag]) => tag)
+  );
+
+  if (conflicto.size === 0) return rows; // nada que filtrar
+
+  // 3. Para TAGs con conflicto: determinar el patron+medida de la entrada más reciente
+  const tagPMFinal = {};
+  rows.forEach(r => {
+    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
+    if (!conflicto.has(tag)) return;
+    const f = r["Fecha"] || "";
+    if (!tagPMFinal[tag] || f > tagPMFinal[tag].fecha) {
+      tagPMFinal[tag] = {
+        fecha: f,
+        pm: `${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`
+      };
+    }
+  });
+
+  // 4. Filtrar: para TAGs con conflicto, descartar entradas con patron+medida distinto al final
+  return rows.filter(r => {
+    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
+    if (!conflicto.has(tag)) return true;
+    const pm = `${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
+    return pm === tagPMFinal[tag].pm;
+  });
 }
 
 // Normaliza patrón para cruce PLAN↔VACIADO
