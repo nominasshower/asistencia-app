@@ -347,7 +347,9 @@ function fmtHora(d) {
 }
 
 function tagCorto(tag) {
-  return (tag||"").slice(-8).toUpperCase();
+  const t = (tag||"").toUpperCase();
+  // TAGs tienen formato AABB0000[6-único]0000... — mostrar la parte única (pos 8-14)
+  return t.length >= 14 ? t.slice(8, 14) : t.slice(0, 8);
 }
 
 function renderDtags(lista) {
@@ -674,6 +676,8 @@ function guardarFiltros() {
   const h = new Date().toISOString().slice(0,10);
   document.getElementById("fDesde").value = h;
   document.getElementById("fHasta").value = h;
+  document.getElementById("fDesde").addEventListener("change", cargar);
+  document.getElementById("fHasta").addEventListener("change", cargar);
   cargar();
 })();
 </script>
