@@ -140,6 +140,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       Plan vs Real
     </div>
+    <div class="nav-item" id="nav-moldes" onclick="navegar('moldes',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+      Inventario Moldes
+    </div>
   </div>
   <div class="nav-group">
     <div class="nav-label">Seguimiento</div>
@@ -408,6 +412,7 @@ function renderVista(data) {
   else if (VISTA === "liberado") renderLiberado();
   else if (VISTA === "pt")       renderPT();
   else if (VISTA === "empaque")  renderEmpaque();
+  else if (VISTA === "moldes")   renderMoldes();
 }
 
 // ── Detalle métrica ───────────────────────────────────────
@@ -1065,6 +1070,163 @@ function renderEmpaque() {
     </table>
   </div>
   ${data.length>500?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 500 de ${data.length} registros</div>`:""}`;
+}
+
+// ── Inventario Moldes ─────────────────────────────────────
+
+// Quita indicadores de lado y devuelve el patrón base
+function basePatronMolde(patron) {
+  return (patron || "")
+    .replace(/\bLEFT\/IZQ\b|\bRIGHT\/DER\b|\bSIDE\s+LEFT\b|\bSIDE\s+RIGHT\b/gi, "")
+    .replace(/\bLEFT\b|\bIZQ\b|\bRIGHT\b|\bDER\b/gi, "")
+    .replace(/\bCENTER\b|\bCENTRO\b/gi, "")
+    .replace(/\bUPPER\b|\bLOWER\b/gi, "")
+    .replace(/\bSIDE\b/gi, "")
+    .replace(/\s+/g, " ").trim().toUpperCase();
+}
+
+// Detecta el tipo de lado de un patrón
+function getSideTipo(patron) {
+  const p = (patron || "").toUpperCase();
+  if (/LEFT|IZQ|RIGHT|DER/.test(p)) return "SIDE";
+  if (/UPPER/.test(p))              return "UPPER";
+  if (/LOWER/.test(p))              return "LOWER";
+  return "CENTER";
+}
+
+function renderMoldes() {
+  document.getElementById("topbar-title").textContent = "Inventario de Moldes";
+
+  // Agrupar vaciado por TAG
+  const tagMap = {};
+  VAC_RAW.forEach(r => {
+    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
+    if (!tag) return;
+    const patron = r["Patron"] || "";
+    const base   = basePatronMolde(patron);
+    if (!base) return;
+    if (!tagMap[tag]) tagMap[tag] = {};
+    tagMap[tag][base] = (tagMap[tag][base] || 0) + 1;
+  });
+
+  // Construir inventario filtrando TAGs inestables
+  const UMBRAL_ESTABILIDAD = 0.80; // el patrón principal debe ser ≥80% de usos
+  const moldes = [];
+
+  Object.entries(tagMap).forEach(([tag, patrones]) => {
+    const entradas = Object.entries(patrones).sort((a,b) => b[1] - a[1]);
+    const totalUsos = entradas.reduce((s,[,c]) => s + c, 0);
+    const [basePrincipal, countPrincipal] = entradas[0];
+    const pct = countPrincipal / totalUsos;
+
+    if (pct < UMBRAL_ESTABILIDAD) return; // cambia de patrón constantemente → ignorar
+
+    // Determinar tipo de lado mirando los registros de este TAG con el patrón principal
+    const sidesUsados = new Set();
+    VAC_RAW.forEach(r => {
+      const t = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
+      if (t !== tag) return;
+      if (basePatronMolde(r["Patron"] || "") !== basePrincipal) return;
+      sidesUsados.add(getSideTipo(r["Patron"] || ""));
+    });
+
+    // Si tiene SIDE (izq o der), etiquetar SIDE aunque también haya CENTER (datos mixtos)
+    let lado;
+    if (sidesUsados.has("SIDE"))        lado = "SIDE";
+    else if (sidesUsados.has("UPPER"))  lado = "UPPER";
+    else if (sidesUsados.has("LOWER"))  lado = "LOWER";
+    else                                lado = "CENTER";
+
+    const nombreDisplay = `${basePrincipal} ${lado}`;
+
+    // Último vaciado
+    let ultimaFecha = "";
+    VAC_RAW.forEach(r => {
+      const t = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
+      if (t !== tag) return;
+      const f = r["Fecha"] || "";
+      if (f > ultimaFecha) ultimaFecha = f;
+    });
+
+    moldes.push({
+      tag,
+      patron: nombreDisplay,
+      base: basePrincipal,
+      lado,
+      usos: totalUsos,
+      inestabilidad: Math.round((1 - pct) * 100),
+      ultimaFecha,
+    });
+  });
+
+  // Ordenar por patrón base luego por lado
+  moldes.sort((a,b) => a.patron.localeCompare(b.patron));
+
+  // Agrupar por base para mostrar familia
+  const familias = {};
+  moldes.forEach(m => {
+    if (!familias[m.base]) familias[m.base] = [];
+    familias[m.base].push(m);
+  });
+
+  const totalMoldes = moldes.length;
+  const totalFamilias = Object.keys(familias).length;
+  const conSide   = moldes.filter(m => m.lado === "SIDE").length;
+  const conCenter = moldes.filter(m => m.lado === "CENTER").length;
+
+  document.getElementById("main-content").innerHTML = `
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+    <div class="metric"><div class="metric-label">Total moldes</div><div class="metric-val white">${totalMoldes.toLocaleString()}</div><div class="metric-sub">TAGs estables</div></div>
+    <div class="metric"><div class="metric-label">Familias / Patrones</div><div class="metric-val blue">${totalFamilias.toLocaleString()}</div><div class="metric-sub">diseños distintos</div></div>
+    <div class="metric"><div class="metric-label">SIDE (laterales)</div><div class="metric-val amber">${conSide.toLocaleString()}</div><div class="metric-sub">izq + der</div></div>
+    <div class="metric"><div class="metric-label">CENTER / otros</div><div class="metric-val green">${conCenter.toLocaleString()}</div><div class="metric-sub">sin lados</div></div>
+  </div>
+
+  <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <input id="molde-buscar" type="text" placeholder="Buscar patrón o TAG…"
+      style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;width:260px"
+      oninput="filtrarMoldes()">
+    <div style="font-size:11px;color:var(--muted)" id="molde-count">${totalMoldes} moldes · ${totalFamilias} familias</div>
+  </div>
+
+  <div class="table-wrap" style="overflow-x:auto">
+    <table id="tabla-moldes">
+      <thead><tr>
+        <th>#</th>
+        <th>TAG</th>
+        <th>Patrón</th>
+        <th style="text-align:center">Lado</th>
+        <th style="text-align:center">Usos</th>
+        <th>Último vaciado</th>
+      </tr></thead>
+      <tbody id="tbody-moldes">
+        ${moldes.map((m,i) => `<tr data-patron="${m.patron.toLowerCase()}" data-tag="${m.tag.toLowerCase()}">
+          <td class="mono" style="color:var(--muted);font-size:10px">${i+1}</td>
+          <td class="mono" style="font-size:10px">${tagCorto(m.tag)}</td>
+          <td style="max-width:260px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${m.patron}">${m.patron}</td>
+          <td style="text-align:center">
+            <span class="badge ${m.lado==='SIDE'?'b-b':m.lado==='CENTER'?'b-a':'b-sin'}">${m.lado}</span>
+          </td>
+          <td style="text-align:center;font-family:'DM Mono',monospace">${m.usos}</td>
+          <td class="mono" style="font-size:11px;color:var(--muted)">${m.ultimaFecha ? fmt(m.ultimaFecha) : "—"}</td>
+        </tr>`).join("")}
+        ${moldes.length===0?`<tr><td colspan="6" class="empty">Sin datos en VACIADO</td></tr>`:""}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function filtrarMoldes() {
+  const q = document.getElementById("molde-buscar").value.toLowerCase().trim();
+  const filas = document.querySelectorAll("#tbody-moldes tr[data-patron]");
+  let vis = 0;
+  filas.forEach(tr => {
+    const match = !q || tr.dataset.patron.includes(q) || tr.dataset.tag.includes(q);
+    tr.style.display = match ? "" : "none";
+    if (match) vis++;
+  });
+  const c = document.getElementById("molde-count");
+  if (c) c.textContent = vis + " moldes mostrados";
 }
 
 // ── WhatsApp ─────────────────────────────────────────────
