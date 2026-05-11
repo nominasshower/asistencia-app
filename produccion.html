@@ -1186,6 +1186,10 @@ function renderMoldes() {
     <input id="molde-buscar" type="text" placeholder="Buscar patrón o TAG…"
       style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;width:260px"
       oninput="filtrarMoldes()">
+    <button class="btn btn-green" onclick="descargarMoldes()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Descargar Excel
+    </button>
     <div style="font-size:11px;color:var(--muted)" id="molde-count">${totalMoldes} moldes · ${totalFamilias} familias</div>
   </div>
 
@@ -1227,6 +1231,42 @@ function filtrarMoldes() {
   });
   const c = document.getElementById("molde-count");
   if (c) c.textContent = vis + " moldes mostrados";
+}
+
+function descargarMoldes() {
+  // Reconstruir lista de moldes desde la tabla visible
+  const filas = document.querySelectorAll("#tbody-moldes tr[data-patron]");
+  const fecha = new Date().toISOString().slice(0,10);
+
+  // BOM para que Excel lo abra con tildes/ñ correctamente
+  let csv = "﻿";
+  csv += "#,TAG,TAG Completo,Patron,Lado,Usos,Ultimo Vaciado\n";
+
+  let i = 0;
+  filas.forEach(tr => {
+    if (tr.style.display === "none") return;
+    i++;
+    const celdas = tr.querySelectorAll("td");
+    const num      = celdas[0].textContent.trim();
+    const tagCorto = celdas[1].textContent.trim();
+    const tagFull  = tr.dataset.tag.toUpperCase();
+    const patron   = celdas[2].title || celdas[2].textContent.trim();
+    const lado     = celdas[3].textContent.trim();
+    const usos     = celdas[4].textContent.trim();
+    const ultimo   = celdas[5].textContent.trim();
+    const esc = v => `"${(v||"").replace(/"/g,'""')}"`;
+    csv += `${num},${esc(tagCorto)},${esc(tagFull)},${esc(patron)},${esc(lado)},${usos},${esc(ultimo)}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `inventario_moldes_${fecha}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── WhatsApp ─────────────────────────────────────────────
