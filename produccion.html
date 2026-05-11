@@ -142,6 +142,21 @@ tr:hover td{background:rgba(255,255,255,.02);}
     </div>
   </div>
   <div class="nav-group">
+    <div class="nav-label">Seguimiento</div>
+    <div class="nav-item" id="nav-liberado" onclick="navegar('liberado',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Liberado
+    </div>
+    <div class="nav-item" id="nav-pt" onclick="navegar('pt',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+      PT
+    </div>
+    <div class="nav-item" id="nav-empaque" onclick="navegar('empaque',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+      Empaque
+    </div>
+  </div>
+  <div class="nav-group">
     <div class="nav-label">Config</div>
     <div class="nav-item" onclick="abrirFiltros()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M2 12h2M20 12h2M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41"/></svg>
@@ -255,6 +270,9 @@ let PLAN      = [];
 let SKU_INSP  = {};   // map SKU → {grade, fechaInsp} — todo el año
 let VISTA     = "dash";
 let ALL_DEFECTS = {};
+let LIB_RAW   = [];   // hoja liberado
+let PT_RAW    = [];   // hoja PT
+let EMP_RAW   = [];   // hoja Empaque
 
 // ── Exclusiones (localStorage) ──────────────────────────
 function getExcluidos() {
@@ -312,7 +330,15 @@ async function cargar() {
       fetchSheet("PLAN_DIARIO")
     ]);
     PLAN    = planRaw;
-    VAC_RAW = deduplicarVaciado(vacRaw);
+    VAC_RAW = vacRaw;
+
+    // Hojas de seguimiento — no criticas, no rompen si falta la pestaña
+    const safe = name => fetchSheet(name).catch(() => []);
+    [LIB_RAW, PT_RAW, EMP_RAW] = await Promise.all([
+      safe("LIBERADO"),
+      safe("PT"),
+      safe("EMPAQUE")
+    ]);
 
     // SKU → {grade, fechaInsp} de todo el año (inspRaw sin filtrar)
     SKU_INSP = {};
@@ -375,10 +401,13 @@ function navegar(id, el) {
 }
 
 function renderVista(data) {
-  if      (VISTA === "dash")    renderDash(data);
-  else if (VISTA === "alertas") renderAlertas(data);
-  else if (VISTA === "tabla")   renderTabla(data);
-  else if (VISTA === "plan")    renderPlan();
+  if      (VISTA === "dash")     renderDash(data);
+  else if (VISTA === "alertas")  renderAlertas(data);
+  else if (VISTA === "tabla")    renderTabla(data);
+  else if (VISTA === "plan")     renderPlan();
+  else if (VISTA === "liberado") renderLiberado();
+  else if (VISTA === "pt")       renderPT();
+  else if (VISTA === "empaque")  renderEmpaque();
 }
 
 // ── Detalle métrica ───────────────────────────────────────
@@ -696,53 +725,6 @@ function parsePlanFecha(s) {
   return new Date(new Date().getFullYear(), mes, day).toISOString().slice(0,10);
 }
 
-// Elimina lecturas falsas de antena: si un TAG tiene entradas con distinto
-// patron+medida, conserva solo la más reciente (la corrección manual).
-function deduplicarVaciado(rows) {
-  // 1. Para cada TAG, recopilar los patron+medida distintos que tuvo
-  const tagInfo = {};
-  rows.forEach(r => {
-    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
-    if (!tag) return;
-    const pm = `${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
-    if (!tagInfo[tag]) tagInfo[tag] = { pms: new Set(), ultima: "" };
-    tagInfo[tag].pms.add(pm);
-    const f = r["Fecha"] || "";
-    if (f > tagInfo[tag].ultima) tagInfo[tag].ultima = f;
-  });
-
-  // 2. Identificar TAGs con conflicto (más de un patron+medida distinto)
-  const conflicto = new Set(
-    Object.entries(tagInfo)
-      .filter(([, v]) => v.pms.size > 1)
-      .map(([tag]) => tag)
-  );
-
-  if (conflicto.size === 0) return rows; // nada que filtrar
-
-  // 3. Para TAGs con conflicto: determinar el patron+medida de la entrada más reciente
-  const tagPMFinal = {};
-  rows.forEach(r => {
-    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
-    if (!conflicto.has(tag)) return;
-    const f = r["Fecha"] || "";
-    if (!tagPMFinal[tag] || f > tagPMFinal[tag].fecha) {
-      tagPMFinal[tag] = {
-        fecha: f,
-        pm: `${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`
-      };
-    }
-  });
-
-  // 4. Filtrar: para TAGs con conflicto, descartar entradas con patron+medida distinto al final
-  return rows.filter(r => {
-    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
-    if (!conflicto.has(tag)) return true;
-    const pm = `${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
-    return pm === tagPMFinal[tag].pm;
-  });
-}
-
 // Normaliza patrón para cruce PLAN↔VACIADO
 function normPatron(s) {
   return (s||"")
@@ -776,11 +758,8 @@ function renderPlan() {
   vacPeriodo.forEach(r => {
     const fechaVac = (r["Fecha"]||"").slice(0,10);
     const key = `${fechaVac}||${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
-    if (!vacGrupos[key]) vacGrupos[key] = { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0, tags: new Set() };
+    if (!vacGrupos[key]) vacGrupos[key] = { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
     vacGrupos[key].vaciado++;
-
-    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
-    if (tag) vacGrupos[key].tags.add(tag);
 
     const sku = (r["SKU"]||"").trim().toUpperCase();
     const insp = SKU_INSP[sku];
@@ -793,8 +772,6 @@ function renderPlan() {
       vacGrupos[key].ab++;
     }
   });
-  // Convertir Set de tags a conteo
-  Object.values(vacGrupos).forEach(g => { g.moldesLinea = g.tags.size; delete g.tags; });
 
   // ── Plan agrupado por fecha+patron+medida (normalizados) ──
   const planGrupos = {};
@@ -845,16 +822,12 @@ function renderPlan() {
   const totalCM    = filas.reduce((s,f)=>s+f.cMismo, 0);
   const totalCO    = filas.reduce((s,f)=>s+f.cOtro, 0);
   const cumpl      = totalPlan > 0 ? Math.round(totalBueno*100/totalPlan) : 0;
-  const totalMoldes = new Set(
-    vacPeriodo.map(r => (r["TAG"]||r["Tag"]||"").trim().toUpperCase()).filter(Boolean)
-  ).size;
 
   const cDelta = d => d >= 0 ? "color:var(--accent)" : "color:var(--danger)";
   const cPct   = p => p >= 100 ? "var(--accent)" : p >= 70 ? "var(--warn)" : "var(--danger)";
 
   document.getElementById("main-content").innerHTML = `
-  <div class="metrics" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px">
-    <div class="metric"><div class="metric-label">Moldes en línea</div><div class="metric-val" style="color:var(--info)">${totalMoldes}</div><div class="metric-sub">TAGs distintos en el período</div></div>
+  <div class="metrics" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
     <div class="metric"><div class="metric-label">A producir (plan)</div><div class="metric-val white">${totalPlan.toLocaleString()}</div><div class="metric-sub">piezas programadas</div></div>
     <div class="metric"><div class="metric-label">Vaciado total</div><div class="metric-val blue">${totalVac.toLocaleString()}</div><div class="metric-sub">piezas vaciadas</div></div>
     <div class="metric"><div class="metric-label">Buenos A+B</div><div class="metric-val green">${totalBueno.toLocaleString()}</div><div class="metric-sub">${cumpl}% del plan</div></div>
@@ -875,7 +848,6 @@ function renderPlan() {
         <th>Cliente</th>
         <th style="text-align:center">Total orden</th>
         <th style="text-align:center">A producir</th>
-        <th style="text-align:center">Moldes</th>
         <th style="text-align:center">Vaciado</th>
         <th style="text-align:center">A+B</th>
         <th style="text-align:center">C mismo día</th>
@@ -891,7 +863,6 @@ function renderPlan() {
           <td style="font-size:11px;color:var(--muted);max-width:130px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${f.cliente}">${f.cliente||"—"}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${f.total||"—"}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace">${f.aProducir}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--info)">${f.moldesLinea||"—"}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace">${f.vaciado}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:600;color:var(--accent)">${f.buenos}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cMismo>0?"var(--danger)":"var(--muted)"}">${f.cMismo||"—"}</td>
@@ -901,7 +872,7 @@ function renderPlan() {
             <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:${cPct(f.pct)}">${f.pct}%</span>
           </td>
         </tr>`).join("")}
-        ${filas.length===0?`<tr><td colspan="13" class="empty">Sin datos de plan en el período</td></tr>`:""}
+        ${filas.length===0?`<tr><td colspan="12" class="empty">Sin datos de plan en el período</td></tr>`:""}
       </tbody>
     </table>
   </div>
@@ -915,7 +886,6 @@ function renderPlan() {
     <table>
       <thead><tr>
         <th>Fecha</th><th>Patrón</th><th>Medida</th>
-        <th style="text-align:center">Moldes</th>
         <th style="text-align:center">Vaciado</th>
         <th style="text-align:center">A+B</th>
         <th style="text-align:center">C mismo día</th>
@@ -926,7 +896,6 @@ function renderPlan() {
           <td class="mono">${f.fecha}</td>
           <td>${f.patron||"—"}</td>
           <td class="mono">${f.medida||"—"}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--info)">${f.moldesLinea||"—"}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace">${f.vaciado}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--accent)">${f.ab||"—"}</td>
           <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cMismo>0?"var(--danger)":"var(--muted)"}">${f.cMismo||"—"}</td>
@@ -935,6 +904,167 @@ function renderPlan() {
       </tbody>
     </table>
   </div>` : ""}`;
+}
+
+// ── Liberado ──────────────────────────────────────────────
+function renderLiberado() {
+  document.getElementById("topbar-title").textContent = "Liberado (Calidad)";
+  const desde = document.getElementById("fDesde").value;
+  const hasta  = document.getElementById("fHasta").value;
+  const data = LIB_RAW.filter(r => {
+    const f = (r["Fecha Liberado"]||"").slice(0,10);
+    return f >= desde && f <= hasta;
+  });
+  const cA = data.filter(r => r["Grado Inspeccion"] === "A").length;
+  const cB = data.filter(r => r["Grado Inspeccion"] === "B").length;
+  const cC = data.filter(r => r["Grado Inspeccion"] === "C").length;
+
+  document.getElementById("main-content").innerHTML = `
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+    <div class="metric"><div class="metric-label">Total liberado</div><div class="metric-val white">${data.length.toLocaleString()}</div><div class="metric-sub">${desde} → ${hasta}</div></div>
+    <div class="metric"><div class="metric-label">Grado A</div><div class="metric-val green">${cA.toLocaleString()}</div><div class="metric-sub">${data.length?Math.round(cA*100/data.length):0}%</div></div>
+    <div class="metric"><div class="metric-label">Grado B</div><div class="metric-val amber">${cB.toLocaleString()}</div><div class="metric-sub">${data.length?Math.round(cB*100/data.length):0}%</div></div>
+    <div class="metric"><div class="metric-label">Grado C</div><div class="metric-val red">${cC.toLocaleString()}</div><div class="metric-sub">${data.length?Math.round(cC*100/data.length):0}%</div></div>
+  </div>
+  <div class="table-wrap" style="overflow-x:auto">
+    <div class="table-header">
+      <div class="table-header-title">Piezas liberadas</div>
+      <div style="font-size:11px;color:var(--muted)">${data.length} registros</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Fecha Liberado</th><th>SKU</th><th>TAG</th><th>Patrón</th>
+        <th>Medida</th><th>Color</th><th>Acabado</th><th style="text-align:center">Línea</th>
+        <th>PO Cliente</th><th>Orden Trabajo</th><th style="text-align:center">Grado</th>
+      </tr></thead>
+      <tbody>
+        ${data.slice(0,500).map(r=>`<tr>
+          <td class="mono">${fmt(r["Fecha Liberado"])}</td>
+          <td class="mono" style="font-size:10px">${(r["SKU"]||"—").slice(0,12)}</td>
+          <td class="mono" style="font-size:10px" title="${r["TAG"]||""}">${tagCorto(r["TAG"]||"")}</td>
+          <td style="max-width:170px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
+          <td class="mono">${r["Medida"]||"—"}</td>
+          <td>${r["Color"]||"—"}</td>
+          <td>${r["Acabado"]||"—"}</td>
+          <td style="text-align:center">${r["Linea"]||"—"}</td>
+          <td style="font-size:11px;color:var(--muted)">${r["PO Cliente"]||"—"}</td>
+          <td style="font-size:11px;color:var(--muted)">${r["Orden Trabajo"]||"—"}</td>
+          <td style="text-align:center"><span class="badge b-${(r["Grado Inspeccion"]||"sin").toLowerCase()}">${r["Grado Inspeccion"]||"—"}</span></td>
+        </tr>`).join("")}
+        ${data.length===0?`<tr><td colspan="11" class="empty">Sin registros en el período</td></tr>`:""}
+      </tbody>
+    </table>
+  </div>
+  ${data.length>500?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 500 de ${data.length} registros</div>`:""}`;
+}
+
+// ── PT (Producto Terminado) ───────────────────────────────
+function renderPT() {
+  document.getElementById("topbar-title").textContent = "PT — Producto Terminado";
+  const data = PT_RAW;
+
+  // Contar SKUs que ya tienen empaque
+  const skuEmpacados = new Set(EMP_RAW.map(r=>(r["SKU"]||"").trim().toUpperCase()));
+  const pendientes = data.filter(r => !skuEmpacados.has((r["SKU"]||"").trim().toUpperCase()));
+
+  document.getElementById("main-content").innerHTML = `
+  <div class="metrics" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+    <div class="metric"><div class="metric-label">Total en PT</div><div class="metric-val white">${data.length.toLocaleString()}</div><div class="metric-sub">piezas producto terminado</div></div>
+    <div class="metric"><div class="metric-label">Ya empacadas</div><div class="metric-val green">${(data.length-pendientes.length).toLocaleString()}</div><div class="metric-sub">pasaron a Empaque</div></div>
+    <div class="metric"><div class="metric-label">Pendientes empaque</div><div class="metric-val amber">${pendientes.length.toLocaleString()}</div><div class="metric-sub">en PT sin empacar</div></div>
+  </div>
+  <div class="table-wrap" style="overflow-x:auto">
+    <div class="table-header">
+      <div class="table-header-title">Producto Terminado</div>
+      <div style="font-size:11px;color:var(--muted)">${data.length} registros</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>SKU</th><th>Patrón</th><th>Medida</th><th>Color</th>
+        <th>Acabado</th><th style="text-align:center">Línea</th><th>PO Cliente</th><th style="text-align:center">Empaque</th>
+      </tr></thead>
+      <tbody>
+        ${data.slice(0,500).map(r=>{
+          const sku = (r["SKU"]||"").trim().toUpperCase();
+          const emp = skuEmpacados.has(sku);
+          return `<tr>
+            <td class="mono" style="font-size:10px">${(r["SKU"]||"—").slice(0,12)}</td>
+            <td style="max-width:190px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
+            <td class="mono">${r["Medida"]||"—"}</td>
+            <td>${r["Color"]||"—"}</td>
+            <td>${r["Acabado"]||"—"}</td>
+            <td style="text-align:center">${r["Fecha Liberacion"]||r["Linea"]||"—"}</td>
+            <td style="font-size:11px;color:var(--muted)">${r["PO Cliente"]||"—"}</td>
+            <td style="text-align:center"><span class="badge ${emp?"b-a":"b-sin"}">${emp?"✓ Sí":"Pend."}</span></td>
+          </tr>`;
+        }).join("")}
+        ${data.length===0?`<tr><td colspan="8" class="empty">Sin registros</td></tr>`:""}
+      </tbody>
+    </table>
+  </div>
+  ${data.length>500?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 500 de ${data.length} registros</div>`:""}`;
+}
+
+// ── Empaque ───────────────────────────────────────────────
+function renderEmpaque() {
+  document.getElementById("topbar-title").textContent = "Empaque";
+  const desde = document.getElementById("fDesde").value;
+  const hasta  = document.getElementById("fHasta").value;
+  const data = EMP_RAW.filter(r => {
+    const f = (r["Fecha Empaque"]||"").slice(0,10);
+    return f >= desde && f <= hasta;
+  });
+
+  // Por línea
+  const porLinea = {};
+  data.forEach(r => {
+    const l = r["Fecha Liberacion"] || r["Linea"] || "—";
+    porLinea[l] = (porLinea[l]||0) + 1;
+  });
+  const linArr = Object.entries(porLinea).sort((a,b)=>b[1]-a[1]);
+
+  // Con PO cliente
+  const conPO = data.filter(r => r["PO Cliente"] && r["PO Cliente"] !== "").length;
+
+  document.getElementById("main-content").innerHTML = `
+  <div class="metrics" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+    <div class="metric"><div class="metric-label">Empacadas</div><div class="metric-val white">${data.length.toLocaleString()}</div><div class="metric-sub">${desde} → ${hasta}</div></div>
+    <div class="metric"><div class="metric-label">Con PO Cliente</div><div class="metric-val green">${conPO.toLocaleString()}</div><div class="metric-sub">órdenes asignadas</div></div>
+    <div class="metric"><div class="metric-label">Sin PO</div><div class="metric-val amber">${(data.length-conPO).toLocaleString()}</div><div class="metric-sub">sin orden de cliente</div></div>
+  </div>
+  ${linArr.length ? `
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-title">Por línea de producción</div>
+    <div class="bar-chart">
+      ${linArr.map(([l,c])=>`<div class="bar-row"><div class="bar-label">Línea ${l}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c*100/(linArr[0][1]||1))}%;background:var(--accent2)"></div></div><div class="bar-val">${c}</div></div>`).join("")}
+    </div>
+  </div>` : ""}
+  <div class="table-wrap" style="overflow-x:auto">
+    <div class="table-header">
+      <div class="table-header-title">Registros de empaque</div>
+      <div style="font-size:11px;color:var(--muted)">${data.length} registros</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Fecha Empaque</th><th>SKU</th><th>Patrón</th><th>Medida</th>
+        <th>Color</th><th>Acabado</th><th style="text-align:center">Línea</th><th>PO Cliente</th>
+      </tr></thead>
+      <tbody>
+        ${data.slice(0,500).map(r=>`<tr>
+          <td class="mono">${fmt(r["Fecha Empaque"])}</td>
+          <td class="mono" style="font-size:10px">${(r["SKU"]||"—").slice(0,12)}</td>
+          <td style="max-width:190px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
+          <td class="mono">${r["Medida"]||"—"}</td>
+          <td>${r["Color"]||"—"}</td>
+          <td>${r["Acabado"]||"—"}</td>
+          <td style="text-align:center">${r["Fecha Liberacion"]||r["Linea"]||"—"}</td>
+          <td style="font-size:11px;color:var(--muted)">${r["PO Cliente"]||"—"}</td>
+        </tr>`).join("")}
+        ${data.length===0?`<tr><td colspan="8" class="empty">Sin registros en el período</td></tr>`:""}
+      </tbody>
+    </table>
+  </div>
+  ${data.length>500?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 500 de ${data.length} registros</div>`:""}`;
 }
 
 // ── WhatsApp ─────────────────────────────────────────────
