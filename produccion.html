@@ -261,10 +261,25 @@ const UMBRAL_GELCOAT = 10;  // misma Línea, defectos de gelcoat en el día
 
 // Defectos pre-excluidos por defecto (falsos positivos conocidos)
 const EXCLUIR_DEFAULT = [
+  // Estados operativos — no son defectos de pieza
   "PIEZA DESMOLDADA",
   "Molde Vacio",
   "Generación Incorrecta",
-  "Pieza para Redimención",
+  // Errores de etiquetado — no afectan la pieza
+  "Etiqueta Incorrecto Lado",
+  "Etiqueta Incorrecto Modelo",
+  "Etiqueta Incorrecta Medida",
+  "Etiqueta Incorrecto Color",
+  "Etiqueta Incorrecto Acabado",
+  // Errores de sistema / asignación
+  "MOLDE MAL ASIGNADO",
+  // Tags de inventario / seguimiento
+  "Pieza de Inventario",
+  "Pieza Inventario 2023",
+  "Sobrante 2026/inventario",
+  "ACUMULADO",
+  "Recuperada",
+  "Piezas de Muestra de Laboratorio",
 ];
 
 // Clasificación
