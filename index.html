@@ -525,14 +525,16 @@ function renderAreas() {
 
   const porArea = {};
   dd.forEach(r => {
-    const a = g(r,"area","Departamento") || "Sin área";
-    if (!porArea[a]) porArea[a] = {vinieron:0,normal:0,retardo:0,extra:0,incompleto:0,lista:[]};
+    const a   = g(r,"area","Departamento") || "Sin área";
     const est = g(r,"estado","EstadoAsistencia");
+    const ret = parseRetardo(g(r,"minutos_retardo","MinutosRetardo"));
+    if (!porArea[a]) porArea[a] = {vinieron:0,normal:0,conRetardo:0,extra:0,incompleto:0,minsRetardo:0,lista:[]};
     porArea[a].vinieron++;
-    if (est==="NORMAL") porArea[a].normal++;
-    else if (est.includes("RETARDO")) porArea[a].retardo++;
-    else if (est==="EXTRA") porArea[a].extra++;
-    else porArea[a].incompleto++;
+    if      (est==="NORMAL")            porArea[a].normal++;
+    else if (est==="EXTRA")             porArea[a].extra++;
+    else if (est.includes("RETARDO"))   porArea[a].normal++;   // RETARDO = vino aunque tarde
+    else                                porArea[a].incompleto++;
+    if (ret > 0) { porArea[a].conRetardo++; porArea[a].minsRetardo += ret; }
     porArea[a].lista.push(r);
   });
   const areas = Object.entries(porArea).sort((a,b)=>b[1].vinieron-a[1].vinieron);
@@ -550,7 +552,7 @@ function renderAreas() {
     <div class="table-wrap">
       <div class="table-header"><div class="table-header-title">Asistencia por área — ${aDesde===aHasta?aDesde:aDesde+" → "+aHasta}</div></div>
       <table><thead><tr>
-        <th style="width:24px"></th><th>Área</th><th>Asistencia</th><th>Normal</th><th>Retardo</th><th>Extra</th><th>Incompleto</th><th>% Asist.</th>
+        <th style="width:24px"></th><th>Área</th><th>Asistencia</th><th>Normal</th><th>Con Retardo</th><th>Min. Tarde</th><th>Extra</th><th>Incompleto</th><th>% Asist.</th>
       </tr></thead><tbody id="areas-body">
         ${areas.map(([a,v])=>{
           const id       = a.replace(/[^a-zA-Z0-9]/g,'_');
@@ -563,7 +565,8 @@ function renderAreas() {
             <td style="font-weight:500">${a}</td>
             <td class="mono" style="font-weight:700;color:${color}">${v.vinieron}/${totalEmp}</td>
             <td class="mono green">${v.normal}</td>
-            <td class="mono amber">${v.retardo}</td>
+            <td class="mono amber">${v.conRetardo > 0 ? v.conRetardo : '—'}</td>
+            <td class="mono" style="color:${v.minsRetardo>0?'var(--warn)':'var(--muted)'}">${v.minsRetardo > 0 ? v.minsRetardo+' min' : '—'}</td>
             <td class="mono blue">${v.extra}</td>
             <td class="mono red">${v.incompleto}</td>
             <td>
@@ -574,7 +577,7 @@ function renderAreas() {
             </td>
           </tr>
           <tr id="det-${id}" style="display:none">
-            <td colspan="8" style="padding:0;background:var(--bg)">
+            <td colspan="9" style="padding:0;background:var(--bg)">
               <table style="width:100%">
                 <thead><tr style="background:var(--bg3)">
                   <th style="padding:7px 12px 7px 28px">Nómina</th><th style="padding:7px 12px">Empleado</th><th style="padding:7px 12px">Turno</th><th style="padding:7px 12px">Entrada</th><th style="padding:7px 12px">Salida</th><th style="padding:7px 12px">Hrs</th><th style="padding:7px 12px">Retardo</th><th style="padding:7px 12px">Estado</th>
@@ -988,11 +991,12 @@ function renderNomina() {
   const filasTotales = {}; // nomina -> acumulados para fila total
   dd.forEach(r => {
     const nom = g(r,"nomina","NOMINA");
-    if (!filasTotales[nom]) filasTotales[nom] = { dias:0, hrs:0, extra:0 };
+    if (!filasTotales[nom]) filasTotales[nom] = { dias:0, hrs:0, extra:0, retardo:0 };
     const est = g(r,"estado","EstadoAsistencia");
     if (est && est !== "AUSENTE" && est !== "INCOMPLETO") filasTotales[nom].dias++;
-    filasTotales[nom].hrs   += calcHoras(r);
-    filasTotales[nom].extra += parseHoras(g(r,"horas_extra","HorasExtra"));
+    filasTotales[nom].hrs     += calcHoras(r);
+    filasTotales[nom].extra   += parseHoras(g(r,"horas_extra","HorasExtra"));
+    filasTotales[nom].retardo += parseRetardo(g(r,"minutos_retardo","MinutosRetardo"));
   });
 
   // Guardar para CSV
@@ -1037,12 +1041,15 @@ function renderNomina() {
 
     // Fila de total por empleado al final del grupo
     if (esUltima) {
+      const retSem     = tot.retardo;                        // suma bruta
+      const retDescon  = Math.max(0, retSem - 10);          // tolerancia 10 min/semana
+      const retColor   = retDescon > 0 ? 'var(--warn)' : 'var(--accent)';
       html += `<tr style="background:rgba(255,255,255,0.02)">
         <td colspan="2" style="font-size:11px;color:var(--muted);text-align:right;padding:6px 12px;border-top:1px solid var(--border)">Total semana:</td>
         <td colspan="2"></td>
         <td class="mono" style="font-weight:600;text-align:right;border-top:1px solid var(--border)">${tot.hrs.toFixed(2)}</td>
         <td class="mono" style="text-align:right;color:var(--accent2);border-top:1px solid var(--border)">${tot.extra>0?tot.extra.toFixed(2):"—"}</td>
-        <td colspan="2" style="border-top:1px solid var(--border)"></td>
+        <td class="mono" style="border-top:1px solid var(--border);color:${retColor}" title="Suma bruta: ${retSem} min — tolerancia 10 min/semana">${retSem>0?retSem+' min brutos<br><span style="font-size:10px">-10 tol = '+retDescon+' min</span>':"—"}</td>
         <td style="border-top:1px solid var(--border)"></td>
       </tr>`;
     }
