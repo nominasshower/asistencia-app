@@ -124,6 +124,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
   </div>
   <div class="nav-group">
     <div class="nav-label">Producción</div>
+    <div class="nav-item" id="nav-gerencia" onclick="navegar('gerencia',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+      Resumen Gerencial
+    </div>
     <div class="nav-item active" id="nav-dash" onclick="navegar('dash',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       Dashboard
@@ -413,6 +417,7 @@ function renderVista(data) {
   else if (VISTA === "pt")       renderPT();
   else if (VISTA === "empaque")  renderEmpaque();
   else if (VISTA === "moldes")   renderMoldes();
+  else if (VISTA === "gerencia") renderGerencia();
 }
 
 // ── Detalle métrica ───────────────────────────────────────
@@ -1070,6 +1075,305 @@ function renderEmpaque() {
     </table>
   </div>
   ${data.length>500?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 500 de ${data.length} registros</div>`:""}`;
+}
+
+// ── Resumen Gerencial ─────────────────────────────────────
+function renderGerencia() {
+  document.getElementById("topbar-title").textContent = "Resumen Gerencial";
+  const desde = document.getElementById("fDesde").value;
+  const hasta  = document.getElementById("fHasta").value;
+
+  // ── PRODUCCIÓN ───────────────────────────────────────────
+  const vacPeriodo = VAC_RAW.filter(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    return f >= desde && f <= hasta;
+  });
+  const totalVac = vacPeriodo.length;
+
+  // Moldes activos (TAGs distintos en el período)
+  const tagsActivos = new Set(vacPeriodo.map(r=>(r["TAG"]||r["Tag"]||"").trim().toUpperCase()).filter(Boolean));
+  const moldesActivos = tagsActivos.size;
+
+  // Por línea — vaciado
+  const vacPorLinea = {};
+  vacPeriodo.forEach(r => {
+    const l = r["Linea"] || r["linea"] || "—";
+    vacPorLinea[l] = (vacPorLinea[l]||0) + 1;
+  });
+
+  // Plan del período
+  const planGrupos = {};
+  PLAN.forEach(r => {
+    const fecha = parsePlanFecha(r["Fecha"]);
+    if (!fecha || fecha < desde || fecha > hasta) return;
+    planGrupos[fecha] = (planGrupos[fecha]||0) + (parseInt(r["A PRODUCIR"]||0)||0);
+  });
+  const totalPlan = Object.values(planGrupos).reduce((s,v)=>s+v,0);
+
+  // Buenos A+B del período (cruzando vaciado con inspección)
+  let buenosVac = 0;
+  vacPeriodo.forEach(r => {
+    const sku = (r["SKU"]||"").trim().toUpperCase();
+    const insp = SKU_INSP[sku];
+    if (insp && (insp.grade === "A" || insp.grade === "B")) buenosVac++;
+  });
+
+  const cumplPlan = totalPlan > 0 ? Math.round(totalVac * 100 / totalPlan) : null;
+  const cumplBuen = totalPlan > 0 ? Math.round(buenosVac * 100 / totalPlan) : null;
+
+  // Vaciado por día (últimos 7 días del rango)
+  const vacPorDia = {};
+  vacPeriodo.forEach(r => {
+    const d = (r["Fecha"]||"").slice(0,10);
+    if (d) vacPorDia[d] = (vacPorDia[d]||0) + 1;
+  });
+  const diasOrden = Object.keys(vacPorDia).sort();
+  const maxDia = Math.max(...Object.values(vacPorDia), 1);
+
+  // Piezas por molde (eficiencia)
+  const eficiencia = moldesActivos > 0 ? (totalVac / moldesActivos).toFixed(1) : "—";
+
+  // ── CALIDAD ───────────────────────────────────────────────
+  const cA = INSP.filter(r=>r["Grado"]==="A").length;
+  const cB = INSP.filter(r=>r["Grado"]==="B").length;
+  const cC = INSP.filter(r=>r["Grado"]==="C" && defectosActivos(r["Detalle Defecto"]).length>0).length;
+  const totalInsp = INSP.length;
+  const pctAB = totalInsp ? Math.round((cA+cB)*100/totalInsp) : 0;
+  const pctC  = totalInsp ? Math.round(cC*100/totalInsp) : 0;
+
+  // Top 3 defectos
+  const defCounts = {};
+  INSP.forEach(r => defectosActivos(r["Detalle Defecto"]).forEach(d => defCounts[d]=(defCounts[d]||0)+1));
+  const top3 = Object.entries(defCounts).sort((a,b)=>b[1]-a[1]).slice(0,3);
+
+  // Calidad por línea
+  const calLinea = {};
+  INSP.forEach(r => {
+    const l = r["Linea"]||"—";
+    if (!calLinea[l]) calLinea[l] = {a:0,b:0,c:0};
+    if (r["Grado"]==="A") calLinea[l].a++;
+    else if (r["Grado"]==="B") calLinea[l].b++;
+    else if (r["Grado"]==="C" && defectosActivos(r["Detalle Defecto"]).length>0) calLinea[l].c++;
+  });
+
+  // Alertas
+  const { alertasMolde, alertasGelcoat } = calcAlertas(INSP);
+
+  // ── COLORES KPI ──────────────────────────────────────────
+  const colCumpl = v => v === null ? "var(--muted)" : v>=90?"var(--accent)":v>=70?"var(--warn)":"var(--danger)";
+  const colCal   = v => v>=90?"var(--accent)":v>=75?"var(--warn)":"var(--danger)";
+  const colRech  = v => v<=5?"var(--accent)":v<=15?"var(--warn)":"var(--danger)";
+
+  // Texto de alertas
+  const alertTxt = (alertasMolde.length + alertasGelcoat.length) === 0
+    ? `<span style="color:var(--accent)">✓ Sin alertas activas</span>`
+    : `<span style="color:var(--danger)">⚠ ${alertasMolde.length} molde${alertasMolde.length!==1?"s":""} · ${alertasGelcoat.length} línea${alertasGelcoat.length!==1?"s":""} gelcoat</span>`;
+
+  document.getElementById("main-content").innerHTML = `
+
+  <!-- ── Fila 1: KPIs grandes ── -->
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px">
+
+    <div class="metric" style="grid-column:span 2;position:relative;overflow:hidden">
+      <div class="metric-label">% Cumplimiento producción</div>
+      <div style="font-size:48px;font-weight:700;line-height:1;color:${colCumpl(cumplPlan)}">${cumplPlan!==null?cumplPlan+"%":"—"}</div>
+      <div class="metric-sub">${totalVac.toLocaleString()} vaciadas de ${totalPlan.toLocaleString()} planeadas</div>
+      <div style="margin-top:10px;height:5px;background:var(--bg3);border-radius:3px">
+        <div style="width:${Math.min(cumplPlan||0,100)}%;height:100%;background:${colCumpl(cumplPlan)};border-radius:3px;transition:width .6s"></div>
+      </div>
+    </div>
+
+    <div class="metric" style="grid-column:span 2;position:relative;overflow:hidden">
+      <div class="metric-label">% Calidad A+B (aceptación)</div>
+      <div style="font-size:48px;font-weight:700;line-height:1;color:${colCal(pctAB)}">${pctAB}%</div>
+      <div class="metric-sub">${(cA+cB).toLocaleString()} buenas · ${cC} rechazos · ${totalInsp} insp.</div>
+      <div style="margin-top:10px;height:5px;background:var(--bg3);border-radius:3px">
+        <div style="width:${pctAB}%;height:100%;background:${colCal(pctAB)};border-radius:3px;transition:width .6s"></div>
+      </div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label">Vaciado total</div>
+      <div class="metric-val blue">${totalVac.toLocaleString()}</div>
+      <div class="metric-sub">piezas fabricadas</div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-label">Moldes activos</div>
+      <div class="metric-val white">${moldesActivos.toLocaleString()}</div>
+      <div class="metric-sub">${eficiencia} piezas/molde</div>
+    </div>
+
+  </div>
+
+  <!-- ── Fila 2: Producción por línea · Tendencia · Alertas ── -->
+  <div style="display:grid;grid-template-columns:1fr 1.6fr 1fr;gap:12px;margin-bottom:12px">
+
+    <div class="card">
+      <div class="card-title">Producción por línea</div>
+      <div class="bar-chart">
+        ${Object.entries(vacPorLinea).sort((a,b)=>b[1]-a[1]).map(([l,c])=>{
+          const calL = calLinea[l] || {a:0,b:0,c:0};
+          const totL = calL.a+calL.b+calL.c;
+          const pctL = totL ? Math.round((calL.a+calL.b)*100/totL) : null;
+          return `<div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:12px">Línea ${l}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--accent2)">${c} pzas</span>
+            </div>
+            <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+              <div style="width:${Math.round(c*100/Math.max(...Object.values(vacPorLinea),1))}%;height:100%;background:var(--accent2);border-radius:3px"></div>
+            </div>
+            ${pctL!==null?`<div style="font-size:10px;color:${colCal(pctL)};margin-top:3px">${pctL}% calidad A+B · ${calL.c} rechazos</div>`:""}
+          </div>`;
+        }).join("")}
+        ${Object.keys(vacPorLinea).length===0?`<div class="empty">Sin datos</div>`:""}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Producción diaria vs plan</div>
+      ${diasOrden.length===0?`<div class="empty">Sin datos</div>`:`
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${diasOrden.map(d=>{
+          const vac = vacPorDia[d]||0;
+          const plan = planGrupos[d]||0;
+          const pctD = plan>0?Math.round(vac*100/plan):null;
+          const color = pctD===null?"var(--accent2)":colCumpl(pctD);
+          return `<div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+              <span style="font-size:11px;color:var(--muted)">${d}</span>
+              <span style="font-size:11px;font-family:'DM Mono',monospace">
+                <span style="color:${color}">${vac}</span>
+                ${plan>0?`<span style="color:var(--muted)"> / ${plan} plan ${pctD!==null?"("+pctD+"%)":""}</span>`:""}
+              </span>
+            </div>
+            <div style="display:flex;gap:2px;height:10px">
+              <div style="flex:${vac};background:${color};border-radius:2px;min-width:${vac>0?2:0}px"></div>
+              ${plan>vac?`<div style="flex:${plan-vac};background:var(--bg3);border-radius:2px"></div>`:""}
+            </div>
+          </div>`;
+        }).join("")}
+      </div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Estado calidad</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+        <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:28px;font-weight:700;color:var(--ga)">${cA}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">GRADO A</div>
+        </div>
+        <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:28px;font-weight:700;color:var(--gb)">${cB}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">GRADO B</div>
+        </div>
+        <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:28px;font-weight:700;color:var(--gc)">${cC}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">RECHAZOS REALES</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Fila 3: Top defectos · Alertas · Eficiencia ── -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+
+    <div class="card">
+      <div class="card-title">Top defectos del período <span>${Object.keys(defCounts).length} tipos</span></div>
+      ${top3.length===0?`<div class="empty">Sin defectos registrados</div>`:`
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${top3.map(([d,c],i)=>{
+          const cl=clasif(d);
+          const color=cl==="g"?"var(--danger)":cl==="m"?"var(--warn)":"var(--accent2)";
+          return `<div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:160px" title="${d}">${d}</span>
+              <span style="font-family:'DM Mono',monospace;font-size:12px;color:${color};font-weight:600">${c}</span>
+            </div>
+            <div style="height:6px;background:var(--bg3);border-radius:3px">
+              <div style="width:${Math.round(c*100/(top3[0][1]||1))}%;height:100%;background:${color};border-radius:3px"></div>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>`}
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;gap:10px">
+        <span><span style="color:var(--danger)">■</span> Gelcoat</span>
+        <span><span style="color:var(--warn)">■</span> Molde</span>
+        <span><span style="color:var(--accent2)">■</span> Otros</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Alertas activas</div>
+      <div style="margin-bottom:10px;font-size:12px">${alertTxt}</div>
+      ${alertasMolde.length>0?`
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Moldes con fallas</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${alertasMolde.slice(0,4).map(a=>`
+        <div style="display:flex;justify-content:space-between;padding:6px 10px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:6px;cursor:pointer" onclick="navegar('alertas',document.getElementById('nav-alertas'))">
+          <span class="mono" style="font-size:11px;color:var(--warn)">${tagCorto(a.tag)}</span>
+          <span style="font-size:11px;color:var(--warn)">${a.total} def.</span>
+        </div>`).join("")}
+      </div>`:``}
+      ${alertasGelcoat.length>0?`
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px">Gelcoat por línea</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${alertasGelcoat.map(a=>`
+        <div style="display:flex;justify-content:space-between;padding:6px 10px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:6px">
+          <span style="font-size:11px;color:var(--danger)">Línea ${a.linea}</span>
+          <span style="font-size:11px;color:var(--danger)">${a.total} gelcoat</span>
+        </div>`).join("")}
+      </div>`:``}
+      <div style="margin-top:12px">
+        <button class="btn" style="width:100%;justify-content:center;font-size:11px" onclick="navegar('alertas',document.getElementById('nav-alertas'))">Ver detalle completo →</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Resumen del período</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:12px">
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Período</span>
+          <span>${desde === hasta ? desde : desde + " → " + hasta}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Plan total</span>
+          <span class="mono">${totalPlan.toLocaleString()} pzas</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Vaciado total</span>
+          <span class="mono" style="color:var(--accent2)">${totalVac.toLocaleString()} pzas</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Buenas A+B</span>
+          <span class="mono" style="color:var(--accent)">${buenosVac.toLocaleString()} pzas</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">% Cumplimiento</span>
+          <span class="mono" style="color:${colCumpl(cumplPlan)};font-weight:700">${cumplPlan!==null?cumplPlan+"%":"—"}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">% Calidad A+B</span>
+          <span class="mono" style="color:${colCal(pctAB)};font-weight:700">${pctAB}%</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">% Rechazo real</span>
+          <span class="mono" style="color:${colRech(pctC)};font-weight:700">${pctC}%</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Moldes activos</span>
+          <span class="mono">${moldesActivos}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:7px 0">
+          <span style="color:var(--muted)">Eficiencia</span>
+          <span class="mono">${eficiencia} pzas/molde</span>
+        </div>
+      </div>
+    </div>
+
+  </div>`;
 }
 
 // ── Inventario Moldes ─────────────────────────────────────
