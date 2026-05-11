@@ -319,6 +319,16 @@ function defectosActivos(detalle) {
   return detalle.split(",").map(d => d.trim()).filter(d => d && !estaExcluido(d));
 }
 
+// Pieza contable: tiene al menos un defecto real, o no tiene defectos (inspección limpia)
+// Se excluye si TODOS sus defectos son operativos/excluidos
+function esPiezaContable(r) {
+  const detalle = r["Detalle Defecto"] || "";
+  if (!detalle || detalle === "null" || detalle.trim() === "") return true;
+  const todos = detalle.split(",").map(d => d.trim()).filter(d => d && d !== "null");
+  if (todos.length === 0) return true;
+  return todos.some(d => !estaExcluido(d));
+}
+
 // ── Clasificación ────────────────────────────────────────
 function clasif(d) {
   const s = d.toLowerCase();
@@ -401,8 +411,9 @@ async function cargar() {
       });
     });
 
+    const inspContables = INSP.filter(esPiezaContable);
     document.getElementById("topbar-sub").textContent =
-      `${INSP.length} piezas — ${desde} → ${hasta}`;
+      `${inspContables.length} piezas — ${desde} → ${hasta}`;
 
     document.getElementById("btn-wa").style.display = "flex";
     renderVista(INSP);
@@ -424,25 +435,28 @@ function navegar(id, el) {
 }
 
 function renderVista(data) {
-  if      (VISTA === "dash")     renderDash(data);
-  else if (VISTA === "alertas")  renderAlertas(data);
-  else if (VISTA === "tabla")    renderTabla(data);
+  // Filtrar piezas cuyo único registro son defectos operativos/excluidos
+  const dataLimpia = data.filter(esPiezaContable);
+  if      (VISTA === "dash")     renderDash(dataLimpia);
+  else if (VISTA === "alertas")  renderAlertas(dataLimpia);
+  else if (VISTA === "tabla")    renderTabla(dataLimpia);
   else if (VISTA === "plan")     renderPlan();
   else if (VISTA === "liberado") renderLiberado();
   else if (VISTA === "pt")       renderPT();
   else if (VISTA === "empaque")  renderEmpaque();
   else if (VISTA === "moldes")   renderMoldes();
-  else if (VISTA === "gerencia") renderGerencia();
+  else if (VISTA === "gerencia") renderGerencia(dataLimpia);
 }
 
 // ── Detalle métrica ───────────────────────────────────────
 function verDetalle(filtro, titulo) {
+  const inspL = INSP.filter(esPiezaContable);
   let piezas;
-  if      (filtro === "all") piezas = INSP;
-  else if (filtro === "A")   piezas = INSP.filter(r => r["Grado"] === "A");
-  else if (filtro === "B")   piezas = INSP.filter(r => r["Grado"] === "B");
-  else if (filtro === "AB")  piezas = INSP.filter(r => r["Grado"] === "A" || r["Grado"] === "B");
-  else if (filtro === "C")   piezas = INSP.filter(r => r["Grado"] === "C" && defectosActivos(r["Detalle Defecto"]).length > 0);
+  if      (filtro === "all") piezas = inspL;
+  else if (filtro === "A")   piezas = inspL.filter(r => r["Grado"] === "A");
+  else if (filtro === "B")   piezas = inspL.filter(r => r["Grado"] === "B");
+  else if (filtro === "AB")  piezas = inspL.filter(r => r["Grado"] === "A" || r["Grado"] === "B");
+  else if (filtro === "C")   piezas = inspL.filter(r => r["Grado"] === "C" && defectosActivos(r["Detalle Defecto"]).length > 0);
 
   document.getElementById("modal-metrica-title").textContent = `${titulo} — ${piezas.length} piezas`;
   document.getElementById("modal-metrica-body").innerHTML = `
@@ -1093,7 +1107,7 @@ function renderEmpaque() {
 }
 
 // ── Resumen Gerencial ─────────────────────────────────────
-function renderGerencia() {
+function renderGerencia(data) {
   document.getElementById("topbar-title").textContent = "Resumen Gerencial";
   const desde = document.getElementById("fDesde").value;
   const hasta  = document.getElementById("fHasta").value;
@@ -1149,21 +1163,21 @@ function renderGerencia() {
   const eficiencia = moldesActivos > 0 ? (totalVac / moldesActivos).toFixed(1) : "—";
 
   // ── CALIDAD ───────────────────────────────────────────────
-  const cA = INSP.filter(r=>r["Grado"]==="A").length;
-  const cB = INSP.filter(r=>r["Grado"]==="B").length;
-  const cC = INSP.filter(r=>r["Grado"]==="C" && defectosActivos(r["Detalle Defecto"]).length>0).length;
-  const totalInsp = INSP.length;
+  const cA = data.filter(r=>r["Grado"]==="A").length;
+  const cB = data.filter(r=>r["Grado"]==="B").length;
+  const cC = data.filter(r=>r["Grado"]==="C" && defectosActivos(r["Detalle Defecto"]).length>0).length;
+  const totalInsp = data.length;
   const pctAB = totalInsp ? Math.round((cA+cB)*100/totalInsp) : 0;
   const pctC  = totalInsp ? Math.round(cC*100/totalInsp) : 0;
 
   // Top 3 defectos
   const defCounts = {};
-  INSP.forEach(r => defectosActivos(r["Detalle Defecto"]).forEach(d => defCounts[d]=(defCounts[d]||0)+1));
+  data.forEach(r => defectosActivos(r["Detalle Defecto"]).forEach(d => defCounts[d]=(defCounts[d]||0)+1));
   const top3 = Object.entries(defCounts).sort((a,b)=>b[1]-a[1]).slice(0,3);
 
   // Calidad por línea
   const calLinea = {};
-  INSP.forEach(r => {
+  data.forEach(r => {
     const l = r["Linea"]||"—";
     if (!calLinea[l]) calLinea[l] = {a:0,b:0,c:0};
     if (r["Grado"]==="A") calLinea[l].a++;
@@ -1172,7 +1186,7 @@ function renderGerencia() {
   });
 
   // Alertas
-  const { alertasMolde, alertasGelcoat } = calcAlertas(INSP);
+  const { alertasMolde, alertasGelcoat } = calcAlertas(data);
 
   // ── COLORES KPI ──────────────────────────────────────────
   const colCumpl = v => v === null ? "var(--muted)" : v>=90?"var(--accent)":v>=70?"var(--warn)":"var(--danger)";
