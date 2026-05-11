@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistema de Asistencia</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root {
   --bg: #0f1117; --bg2: #161b27; --bg3: #1e2535;
@@ -152,7 +153,7 @@ input[type=text] { flex: 1; min-width: 160px; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
       Alta Empleado
     </div>
-    <div class="nav-item" id="nav-importador" onclick="abrirImportador(this)" title="Requiere iniciar_servidor.bat">
+    <div class="nav-item" id="nav-importador" onclick="navegar('importador',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Importador
     </div>
@@ -223,19 +224,11 @@ function navegar(page, el) {
   paginaActual = page;
   document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
   el.classList.add("active");
-  const titulos = { dashboard:"Dashboard", registros:"Registros", areas:"Reporte por área", empleados:"Empleados", semana:"Grid Semanal", nomina:"Reporte de Nómina", alta:"Alta de Empleado" };
+  const titulos = { dashboard:"Dashboard", registros:"Registros", areas:"Reporte por área", empleados:"Empleados", semana:"Grid Semanal", nomina:"Reporte de Nómina", alta:"Alta de Empleado", importador:"Importador de Nómina" };
   document.getElementById("page-title").textContent = titulos[page];
   renderPagina();
 }
 
-function abrirImportador(el) {
-  // Intenta abrir el servidor local; si no corre muestra mensaje
-  const url = "http://localhost:5050";
-  const w = window.open(url, "_blank");
-  // Mostrar tooltip brevemente
-  el.style.color = "var(--accent)";
-  setTimeout(() => el.style.color = "", 1500);
-}
 
 function cambiarEmpresa(val) {
   empresaActual    = val;
@@ -304,6 +297,7 @@ function renderPagina() {
   else if (paginaActual === "semana")     renderSemana();
   else if (paginaActual === "nomina")     renderNomina();
   else if (paginaActual === "alta")       renderAltaEmpleado();
+  else if (paginaActual === "importador") renderImportador();
 }
 
 // Helpers — búsqueda de columnas insensible a mayúsculas
@@ -1168,6 +1162,438 @@ function exportarNominaCSV() {
 }
 
 cargarDatos();
+
+// ═══════════════════════════════════════════════════════════════
+// IMPORTADOR DE NÓMINA — MODUL WOODS / PROMOVISION
+// Lee Google Sheets, genera LAYOUT.xlsx y procesa el corregido
+// ═══════════════════════════════════════════════════════════════
+
+const MW_ID      = "1vTk8M_rI3k9pXo18rsY9mF4QSj1SuBdR9eTsrPCL8xw";
+const ORDEN_CONC = [4, 16, 19, 6, 38, 10, 40, 44, 9];
+const DIA_OFF    = [0, 1, 2, 4, 5, 6];   // offsets desde jueves
+const DIA_KEYS   = ['JUE','VIE','SAB','LUN','MAR','MIE'];
+
+let impOffset  = -1;
+let mwPremios  = null;
+let mwVales    = null;
+let mwEmps     = null;
+let _layoutFile= null;
+
+// ── helpers de semana ──────────────────────────────────────────
+function getSemImp(offset) {
+  const hoy = new Date();
+  const dsd = (hoy.getDay() - 4 + 7) % 7;   // dias desde jueves (JS:0=Dom)
+  const jue = new Date(hoy); jue.setHours(0,0,0,0);
+  jue.setDate(hoy.getDate() - dsd + offset * 7);
+  const mie = new Date(jue); mie.setDate(jue.getDate() + 6);
+  return { jue, mie };
+}
+function getNumSemImp(jue) {
+  const anio = jue.getFullYear();
+  const ene1 = new Date(anio, 0, 1);
+  const pJue = new Date(anio, 0, 1 + (4 - ene1.getDay() + 7) % 7);
+  return { anio, num: Math.floor((jue - pJue) / 604800000) + 1 };
+}
+function addD(d, n) { const r = new Date(d); r.setDate(d.getDate() + n); return r; }
+function toISO(d)   { return d.toISOString().slice(0,10); }
+const MESES_C = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function fmtC(d) { return `${d.getDate()} ${MESES_C[d.getMonth()]}`; }
+
+// ── cargar catálogos PREMIOS / VALES / EMPLEADOS ──────────────
+async function cargarMW() {
+  if (mwPremios && mwVales && mwEmps) return;
+  const base = `https://sheets.googleapis.com/v4/spreadsheets/${MW_ID}/values/`;
+  const [rP, rV, rE] = await Promise.all([
+    fetch(`${base}PREMIOS?key=${API_KEY}`).then(r => r.json()),
+    fetch(`${base}VALES?key=${API_KEY}`).then(r  => r.json()),
+    fetch(`${base}EMPLEADOS?key=${API_KEY}`).then(r => r.json()),
+  ]);
+  const idx = (h, ...names) => { for (const n of names) { const i = h.indexOf(n); if (i >= 0) return i; } return -1; };
+
+  mwPremios = {};
+  if (rP.values?.length > 1) {
+    const h = rP.values[0].map(x => x.trim().toLowerCase());
+    const [iN,iE,iP,iA] = [idx(h,'nomina'), idx(h,'empresa'), idx(h,'puntualidad_5'), idx(h,'asistencia_10')];
+    rP.values.slice(1).forEach(r => {
+      const n = (r[iN]||'').trim(); if (!n) return;
+      mwPremios[n] = { punt: +r[iP]||0, asi: +r[iA]||0 };
+    });
+  }
+  mwVales = {};
+  if (rV.values?.length > 1) {
+    const h = rV.values[0].map(x => x.trim().toLowerCase());
+    const [iN,iI] = [idx(h,'nomina'), idx(h,'importe')];
+    rV.values.slice(1).forEach(r => {
+      const n = (r[iN]||'').trim(); if (!n) return;
+      mwVales[n] = +r[iI]||0;
+    });
+  }
+  mwEmps = {};
+  if (rE.values?.length > 1) {
+    const h = rE.values[0].map(x => x.trim().toLowerCase());
+    const iN=idx(h,'nomina'), iNm=idx(h,'nombe','nombre'), iEm=idx(h,'empresa');
+    const iA=idx(h,'area'), iB=idx(h,'fecha_baja'), iR=idx(h,'fecha_reingreso');
+    rE.values.slice(1).forEach(r => {
+      const n = (r[iN]||'').trim(); if (!n) return;
+      const baja = (r[iB]||'').trim(); const rein = (r[iR]||'').trim();
+      if (baja && !rein) return;
+      mwEmps[n] = { nombre:(r[iNm]||'').trim(), empresa:(r[iEm]||'').toUpperCase(),
+                    area:(r[iA]||'').trim() };
+    });
+  }
+}
+function bPremio(n) {
+  return mwPremios?.[n] || mwPremios?.[n.replace(/^0+/,'')||'0'] || mwPremios?.[n.padStart(4,'0')] || {punt:0,asi:0};
+}
+function bVale(n) {
+  return mwVales?.[n] ?? mwVales?.[n.replace(/^0+/,'')||'0'] ?? mwVales?.[n.padStart(4,'0')] ?? 0;
+}
+
+// ── parseo de tiempos ─────────────────────────────────────────
+function s2m(t) {
+  if (!t) return null;
+  const p = String(t).trim().split(':');
+  if (p.length >= 2) { const h=+p[0], m=+p[1]; if (!isNaN(h)&&!isNaN(m)) return h*60+m; }
+  return null;
+}
+function parseMin(v) {
+  if (!v || v==='0' || v==='0:00') return 0;
+  const s = String(v).trim();
+  if (s.includes(':')) return s2m(s)||0;
+  return Math.floor(parseFloat(s))||0;
+}
+function horasReg(r) {
+  const e=s2m(String(r.entrada_real||r.EntradaReal||'').trim());
+  const s=s2m(String(r.salida_real||r.SalidaReal||'').trim());
+  if (e!==null && s!==null && s>e) return Math.round((s-e)/60*100)/100;
+  return 0;
+}
+
+// ── status helper ─────────────────────────────────────────────
+function stImp(id, tipo, msg) {
+  const el = document.getElementById(id); if (!el) return;
+  const C = { ok:'rgba(34,197,94,.1);color:#4ade80;border:1px solid rgba(34,197,94,.2)',
+               err:'rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2)',
+               loading:'rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.2)' };
+  el.style.cssText = `display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 14px;border-radius:7px;font-size:12px;background:${C[tipo]}`;
+  el.innerHTML = tipo==='loading'
+    ? `<div class="spinner" style="width:13px;height:13px;border-width:2px;flex-shrink:0"></div><span>${msg}</span>`
+    : msg;
+}
+
+// ── generar LAYOUT xlsx ───────────────────────────────────────
+async function generarLayoutJS(empresa) {
+  const { jue, mie } = getSemImp(impOffset);
+  const { anio, num } = getNumSemImp(jue);
+  const desde = toISO(jue), hasta = toISO(mie);
+
+  await cargarMW();
+
+  // Fetch REGISTROS de la semana
+  const base  = `https://sheets.googleapis.com/v4/spreadsheets/${MW_ID}/values/`;
+  const rReg  = await fetch(`${base}REGISTROS?key=${API_KEY}`).then(r => r.json());
+  const rh    = (rReg.values?.[0]||[]).map(x => x.trim().toLowerCase());
+  const [riN,riFe,riEn,riSa,riRet] = ['nomina','fecha','entrada_real','salida_real','minutos_retardo'].map(k=>rh.indexOf(k));
+  const regSem = {};
+  (rReg.values||[]).slice(1).forEach(row => {
+    const n=(row[riN]||'').trim(), f=(row[riFe]||'').trim();
+    if (!n || f<desde || f>hasta) return;
+    (regSem[n]||(regSem[n]={}))[f] = { entrada_real:row[riEn]||'', salida_real:row[riSa]||'', minutos_retardo:row[riRet]||'0' };
+  });
+
+  // Empleados de esta empresa
+  const filtro = empresa.split(' ')[0];  // MODUL o PROMOVISION
+  const empFil = Object.fromEntries(Object.entries(mwEmps).filter(([,e]) => e.empresa.includes(filtro)));
+  const todos  = [...new Set([...Object.keys(empFil), ...Object.keys(regSem).filter(n => empFil[n])])];
+  todos.sort((a,b) => {
+    const ea=empFil[a]||{}, eb=empFil[b]||{};
+    return `${ea.area||'ZZZ'}${ea.nombre||a}`.localeCompare(`${eb.area||'ZZZ'}${eb.nombre||b}`);
+  });
+
+  // Fechas de cada columna día
+  const fDias = DIA_OFF.map(d => toISO(addD(jue, d)));
+  const NC    = 33;
+  const aoa   = [];
+
+  // Encabezados
+  const r1=Array(NC).fill(null); r1[0]=empresa; aoa.push(r1);
+  const r2=Array(NC).fill(null); r2[0]=`SEMANA ${num} / ${anio}`; aoa.push(r2);
+  const r3=Array(NC).fill(null);
+  DIA_KEYS.forEach((dk,i)=>{ r3[25+i]=`${dk} ${fDias[i].slice(8)}/${fDias[i].slice(5,7)}`; });
+  aoa.push(r3);
+  aoa.push(['AREA','NOMBRE','NOM.','OBS.',
+    'C','HORAS','C','VALE P.','C','VALE D.','C','HRS RET','C','# RET',
+    'C','DIAS VAC','C','BAN.VAC','C','PUNTUAL.','C','ASIST.',
+    'T.EXC','INCID.',null,'JUE','VIE','SAB','LUN','MAR','MIE','TOTAL','RETARDOS','NOTA']);
+
+  let areaAct=null, tH=0, tV=0, tP=0, tA=0, tR=0;
+  for (const nom of todos) {
+    const emp = empFil[nom]||{};
+    const area = emp.area||'SIN AREA', nombre = emp.nombre||nom;
+    if (area !== areaAct) {
+      areaAct = area;
+      const sep=Array(NC).fill(null); sep[0]=`  ${area.toUpperCase()}`; aoa.push(sep);
+    }
+    let horasT=0, retardos=0;
+    const hDia = DIA_OFF.map((_, i) => {
+      const reg = regSem[nom]?.[fDias[i]];
+      if (!reg) return 0;
+      const ht = horasReg(reg); horasT += ht;
+      if (parseMin(reg.minutos_retardo) > 10) retardos++;
+      return ht;
+    });
+    horasT = Math.round(horasT*100)/100;
+    const pr=bPremio(nom), va=bVale(nom);
+    const conVals=[[4,horasT],[16,va],[19,va],[6,retardos*3],[38,retardos],[10,0],[40,0],[44,pr.punt],[9,pr.asi]];
+    const row=Array(NC).fill(null);
+    row[0]=area; row[1]=nombre; row[2]=nom;
+    conVals.forEach(([c,v],i)=>{ row[4+i*2]=c; row[5+i*2]=v; });
+    hDia.forEach((h,i)=>{ row[25+i]=h||0; });
+    row[31]=horasT; row[32]=retardos;
+    aoa.push(row);
+    tH+=horasT; tV+=va; tP+=pr.punt; tA+=pr.asi; tR+=retardos;
+  }
+  // Total
+  const tot=Array(NC).fill(null);
+  tot[0]='TOTAL GENERAL'; tot[5]=Math.round(tH*100)/100;
+  tot[7]=tV; tot[9]=tV; tot[19]=tP; tot[21]=tA; tot[31]=Math.round(tH*100)/100; tot[32]=tR;
+  aoa.push(tot);
+  // Instrucciones
+  aoa.push(Array(NC).fill(null));
+  ['INSTRUCCIONES PARA CORRECCION:',
+   '  - Columnas JUE/VIE/SAB/LUN/MAR/MIE: escribe las horas si alguien no checo (ej: 8)',
+   '  - Usa V para vacacion, F para falta justificada',
+   '  - Ajusta la columna RETARDOS si es necesario',
+   '  - Guarda y sube este archivo en el Paso 2 (Generar Importador)']
+  .forEach(t => { const r=Array(NC).fill(null); r[0]=t; aoa.push(r); });
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:14},{wch:28},{wch:8},{wch:10},
+    ...Array(9).fill(null).flatMap(()=>[{wch:4},{wch:9}]),
+    {wch:6},{wch:6},{wch:4},
+    {wch:7},{wch:7},{wch:7},{wch:7},{wch:7},{wch:7},{wch:8},{wch:10},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `SEM${String(num).padStart(2,'0')}`);
+  const tag = `SEM${String(num).padStart(2,'0')}_${anio}`;
+  XLSX.writeFile(wb, `LAYOUT_${empresa.replace(' ','_')}_${tag}.xlsx`);
+}
+
+// ── procesar LAYOUT corregido → IMPORTADOR ────────────────────
+function procesarLayoutJS(file) {
+  const rd = new FileReader();
+  rd.onload = e => {
+    try {
+      const wb  = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+      const sn  = wb.SheetNames[0];   // SEM18
+
+      // Empresa del titulo
+      const tit = String(aoa[0]?.[0]||'').toUpperCase();
+      let empresa = 'EMPRESA';
+      if (tit.includes('PROMOV'))  empresa = 'PROMOVISION';
+      else if (tit.includes('MODUL')||tit.includes('WOODS')) empresa = 'MODUL WOODS';
+
+      // Semana / año
+      let anio = new Date().getFullYear(), numSem = 0;
+      const mSem  = sn.match(/SEM(\d+)/i)    || file.name.match(/SEM(\d+)/i);
+      const mAnio = String(aoa[1]?.[0]||'').match(/(\d{4})/) || file.name.match(/_(\d{4})/);
+      if (mSem)  numSem = +mSem[1];
+      if (mAnio) anio   = +mAnio[1];
+
+      // Fila inicio: col[2]=nomina, col[4]=4
+      let fi = 4;
+      for (let i=0; i<Math.min(20,aoa.length); i++) {
+        const r=aoa[i]; if (!r) continue;
+        if (String(r[2]||'').trim() && r[2]!=='NOM.' && r[4]===4) { fi=i; break; }
+      }
+
+      // Leer empleados
+      const emps = [];
+      for (let i=fi; i<aoa.length; i++) {
+        const r=aoa[i]; if (!r) continue;
+        const nom=String(r[2]||'').trim(); if (!nom || r[4]!==4) continue;
+        let hT=0, dV=0;
+        for (let d=0; d<6; d++) {
+          const v=r[25+d];
+          if (v===null||v===undefined||String(v).trim()==='') continue;
+          const su=String(v).trim().toUpperCase();
+          if (su==='V') { dV++; }
+          else if (su==='F') { /* falta */ }
+          else { hT += parseFloat(String(v).replace(',','.'))||0; }
+        }
+        hT = Math.round(hT*100)/100;
+        emps.push({ nom, nombre:String(r[1]||'').trim(),
+          horas:hT, retardos:+r[32]||0, diasVac:dV,
+          vale:+r[7]||0, punt:+r[19]||0, asi:+r[21]||0 });
+      }
+
+      if (!emps.length) { stImp('st-imp','err','No se encontraron empleados en el layout'); return; }
+
+      // Generar importador
+      const filas = [];
+      for (const con of ORDEN_CONC) {
+        for (const emp of [...emps].sort((a,b)=>a.nom.localeCompare(b.nom))) {
+          const v = con===4?emp.horas:con===16||con===19?emp.vale:con===6?emp.retardos*3
+            :con===38?emp.retardos:con===10?emp.diasVac:con===40?(emp.diasVac>0?1:0)
+            :con===44?emp.punt:con===9?emp.asi:0;
+          filas.push([anio,'0',emp.nom,con,v]);
+        }
+      }
+      const snOut = `SEM${String(numSem).padStart(2,'0')}`;
+      const aoa2  = [[`${empresa}  -  SEMANA ${numSem} / ${anio}  (layout corregido)`],
+                     ['ANO','EMPRESA','NOMINA','CONCEPTO','CANTIDAD'],
+                     ...filas, ['TOTAL EMPLEADOS','','','',emps.length]];
+      const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+      ws2['!cols'] = [{wch:8},{wch:10},{wch:12},{wch:10},{wch:12}];
+      const wb2 = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb2, ws2, snOut);
+      const fname = `IMPORTADOR_${empresa.replace(' ','_')}_${snOut}_${anio}_CORREGIDO.xlsx`;
+      XLSX.writeFile(wb2, fname);
+      stImp('st-imp','ok',`✓ ${fname} — ${emps.length} empleados, ${filas.length} filas — listo para nóminas`);
+    } catch(err) {
+      console.error(err);
+      stImp('st-imp','err','✗ Error: '+err.message);
+    }
+    document.getElementById('imp-btn-gen').disabled = false;
+  };
+  rd.readAsArrayBuffer(file);
+}
+
+// ── renderImportador ──────────────────────────────────────────
+function renderImportador() {
+  const { jue, mie } = getSemImp(impOffset);
+  const { anio, num } = getNumSemImp(jue);
+  const card = (n,icon,bg,titulo,sub,body) => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden">
+      <div style="padding:15px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+        <div style="width:26px;height:26px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;color:${icon}">${n}</div>
+        <div><div style="font-size:13px;font-weight:600">${titulo}</div><div style="font-size:11px;color:var(--muted)">${sub}</div></div>
+      </div>
+      <div style="padding:18px 20px">${body}</div>
+    </div>`;
+
+  const semWid = `
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn" onclick="cambImpOff(-1)">&#8592;</button>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Semana</div>
+        <div style="font-size:14px;font-weight:600;color:var(--accent)" id="imp-sn">SEM ${num} / ${anio}</div>
+        <div style="font-size:11px;color:var(--muted)" id="imp-sd">${fmtC(jue)} → ${fmtC(mie)}</div>
+      </div>
+      <button class="btn" id="imp-sig" onclick="cambImpOff(1)" ${impOffset>=0?'disabled':''}>&#8594;</button>
+      <button class="btn" onclick="setImpOff(-1)">Anterior</button>
+      <button class="btn" onclick="setImpOff(0)">Actual</button>
+    </div>`;
+
+  const paso1body = semWid + `
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" id="imp-mw" style="background:rgba(34,197,94,.12);color:#4ade80;border-color:rgba(34,197,94,.25)" onclick="dlLayout('MODUL WOODS')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Layout MODUL WOODS
+      </button>
+      <button class="btn" id="imp-pv" style="background:rgba(59,130,246,.12);color:#60a5fa;border-color:rgba(59,130,246,.25)" onclick="dlLayout('PROMOVISION')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Layout PROMOVISION
+      </button>
+    </div>
+    <div id="st-layout"></div>
+    <div style="margin-top:14px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:11px 14px;font-size:11px;color:var(--muted);line-height:1.8">
+      <b style="color:var(--text)">¿Qué hacer?</b> · Abre en Excel · En las celdas con <b>0</b> escribe las horas del día (ej: <b>8</b>) ·
+      Usa <b>V</b> vacación · <b>F</b> falta · Ajusta <b>RETARDOS</b> · Guarda y sube en el Paso 2
+    </div>`;
+
+  const paso2body = `
+    <div id="imp-drop" onclick="document.getElementById('imp-fi').click()"
+      style="border:2px dashed var(--border);border-radius:9px;padding:26px 20px;text-align:center;cursor:pointer;transition:border-color .2s"
+      ondragover="event.preventDefault();this.style.borderColor='var(--accent2)'"
+      ondragleave="this.style.borderColor=''"
+      ondrop="impDrop(event)">
+      <input type="file" id="imp-fi" accept=".xlsx" style="display:none" onchange="impSel(this)">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="margin:0 auto 10px;display:block">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+      <div style="font-size:13px;font-weight:500" id="imp-dt">Arrastra el Layout corregido aquí</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px">o haz clic · LAYOUT_*.xlsx</div>
+      <div id="imp-fn" style="font-size:12px;color:var(--accent);font-weight:500;margin-top:6px;font-family:'DM Mono',monospace"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;align-items:center">
+      <button class="btn" id="imp-btn-gen" disabled
+        style="background:rgba(59,130,246,.12);color:#60a5fa;border-color:rgba(59,130,246,.25)"
+        onclick="genImp()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+          <path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>
+        </svg>
+        Generar Importador
+      </button>
+      <button class="btn" id="imp-btn-cl" style="display:none" onclick="impClr()">Cambiar archivo</button>
+    </div>
+    <div id="st-imp"></div>`;
+
+  document.getElementById('content').innerHTML =
+    `<div style="max-width:800px">` +
+    card('1','#4ade80','rgba(34,197,94,.2)','Descargar Layout','Genera el Excel que RH revisa y corrige', paso1body) +
+    card('2','#60a5fa','rgba(59,130,246,.2)','Generar Importador','Sube el Layout corregido → descarga listo para nóminas', paso2body) +
+    `</div>`;
+}
+
+// ── controles de semana / botones ────────────────────────────
+function cambImpOff(d) {
+  if (impOffset + d > 0) return;
+  impOffset += d;
+  const { jue, mie } = getSemImp(impOffset);
+  const { anio, num } = getNumSemImp(jue);
+  const e1=document.getElementById('imp-sn'), e2=document.getElementById('imp-sd');
+  if (e1) e1.textContent = `SEM ${num} / ${anio}`;
+  if (e2) e2.textContent = `${fmtC(jue)} → ${fmtC(mie)}`;
+  const sig=document.getElementById('imp-sig'); if (sig) sig.disabled = impOffset >= 0;
+}
+function setImpOff(v) { impOffset=v; cambImpOff(0); }
+
+async function dlLayout(empresa) {
+  const btn = document.getElementById(empresa.includes('PROM')?'imp-pv':'imp-mw');
+  if (btn) btn.disabled = true;
+  stImp('st-layout','loading','Cargando datos desde Google Sheets...');
+  try {
+    await generarLayoutJS(empresa);
+    stImp('st-layout','ok',`✓ Layout ${empresa} generado y descargado`);
+  } catch(e) { stImp('st-layout','err','✗ '+e.message); console.error(e); }
+  finally { if (btn) btn.disabled=false; }
+}
+
+function impSel(inp) {
+  if (!inp.files.length) return;
+  _layoutFile = inp.files[0]; _impMostrar(_layoutFile.name);
+}
+function impDrop(e) {
+  e.preventDefault(); e.currentTarget.style.borderColor='';
+  const f=e.dataTransfer.files[0];
+  if (f?.name.endsWith('.xlsx')) { _layoutFile=f; _impMostrar(f.name); }
+}
+function _impMostrar(nombre) {
+  document.getElementById('imp-dt').textContent = 'Archivo cargado';
+  document.getElementById('imp-fn').textContent = nombre;
+  document.getElementById('imp-drop').style.borderColor = 'var(--accent)';
+  document.getElementById('imp-btn-gen').disabled = false;
+  document.getElementById('imp-btn-cl').style.display = 'flex';
+}
+function impClr() {
+  _layoutFile=null; document.getElementById('imp-fi').value='';
+  document.getElementById('imp-dt').textContent='Arrastra el Layout corregido aquí';
+  document.getElementById('imp-fn').textContent='';
+  document.getElementById('imp-drop').style.borderColor='';
+  document.getElementById('imp-btn-gen').disabled=true;
+  document.getElementById('imp-btn-cl').style.display='none';
+  const el=document.getElementById('st-imp'); if(el) el.innerHTML='';
+}
+function genImp() {
+  if (!_layoutFile) return;
+  document.getElementById('imp-btn-gen').disabled=true;
+  stImp('st-imp','loading','Procesando layout...');
+  procesarLayoutJS(_layoutFile);
+}
 </script>
 </body>
 </html>
