@@ -493,20 +493,28 @@ function renderRegistros() {
     <div class="table-wrap">
       <div class="table-header"><div class="table-header-title">Registros — ${rDesde === rHasta ? rDesde : rDesde+" → "+rHasta}</div><div style="font-size:11px;color:var(--muted)">${dd.length} registros</div></div>
       <table><thead><tr>
-        <th>Nómina</th><th>Empleado</th><th>Área</th><th>Turno</th><th>Entrada</th><th>Salida</th><th>Hrs</th><th>Retardo</th><th>Estado</th>
+        <th>Nómina</th><th>Empleado</th><th>Área</th><th>Turno</th>
+        <th>Entrada</th><th>↗ Comida</th><th>↙ Regreso</th><th>Salida</th>
+        <th>Hrs</th><th>Retardo</th><th>Estado</th>
       </tr></thead><tbody>
-        ${dd.length===0?`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>`:
-        dd.map(r=>`<tr>
+        ${dd.length===0?`<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>`:
+        dd.map(r=>{
+          const iniCom = g(r,"inicio_comer","InicioComer")||"";
+          const regCom = g(r,"regreso_comer","RegresoComer")||"";
+          const retMin = parseRetardo(g(r,"minutos_retardo","MinutosRetardo"));
+          return `<tr>
           <td class="mono" style="color:var(--muted)">${g(r,"nomina","NOMINA")}</td>
           <td style="font-weight:500">${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}</td>
           <td style="color:var(--muted);font-size:11px">${g(r,"area","Departamento")}</td>
           <td style="color:var(--muted);font-size:11px">${g(r,"turno","Turno")}</td>
           <td class="mono">${g(r,"entrada_real","EntradaReal")||"—"}</td>
+          <td class="mono" style="color:${iniCom?'var(--muted)':'var(--border)'}">${iniCom||"—"}</td>
+          <td class="mono" style="color:${regCom?'var(--muted)':'var(--border)'}">${regCom||"—"}</td>
           <td class="mono">${g(r,"salida_real","SalidaFinalReal")||"—"}</td>
           <td class="mono">${calcHoras(r).toFixed(2)}</td>
-          <td class="mono" style="color:${parseRetardo(g(r,"minutos_retardo","MinutosRetardo"))>0?'var(--warn)':'var(--muted)'}">${parseRetardo(g(r,"minutos_retardo","MinutosRetardo"))}</td>
+          <td class="mono" style="color:${retMin>0?'var(--warn)':'var(--muted)'}">${retMin>0?retMin+' min':'—'}</td>
           <td>${estadoBadge(g(r,"estado","EstadoAsistencia"))}</td>
-        </tr>`).join("")}
+        </tr>`;}).join("")}
       </tbody></table>
     </div>`;
 }
