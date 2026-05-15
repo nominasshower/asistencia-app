@@ -175,7 +175,7 @@ const SHEET_ID      = "1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c";
 const KPIS_SHEET_ID = "1tr8iCcA9SL2U4i-a1U7LC_Fd5EnQe1krAyPMA599D-o";
 
 let VISTA="resumen", LINEA="";
-let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[];
+let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[];
 let KPIS_L1=[], KPIS_L2=[];
 
 const MATERIALES = [
@@ -578,11 +578,12 @@ function setVista(v,el){
 async function cargar(){
   document.getElementById("main-content").innerHTML=`<div class="loading"><div class="spinner"></div><div>Conectando con Google Sheets…</div></div>`;
   try{
-    [TEORICO_RAW, FAB_RAW, ALM_RAW,
+    [TEORICO_RAW, FAB_RAW, ALM_RAW, INVENTARIOS_RAW,
      KPIS_L1, KPIS_L2] = await Promise.all([
       fetchSheet(SHEET_ID,"CONSUMOS_DIARIOS"),
       fetchSheet(SHEET_ID,"SALIDAS_FABRICACION"),
       fetchSheet(SHEET_ID,"LLEGADAS_ALMACEN"),
+      fetchSheet(SHEET_ID,"INVENTARIOS"),
       fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L1"),
       fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L2"),
     ]);
@@ -618,20 +619,20 @@ function renderCorte() {
 
   const semList = Object.values(semanas).sort((a,b)=>a.label.localeCompare(b.label));
 
-  // Poblar selector de semanas
-  const sel = document.getElementById("sel-semana");
-  if(sel){
-    sel.innerHTML = semList.map(s=>`<option value="${s.label}" ${s.label===semActual?"selected":""}>${s.label} (${s.inicio} → ${s.fin})</option>`).join("");
-  }
-
   if (semList.length === 0) {
     document.getElementById("main-content").innerHTML =
       '<div class="loading"><div class="empty">Sin datos en hoja INVENTARIOS.<br>Corre sync_inventarios.py primero.</div></div>';
     return;
   }
 
-  // Semana seleccionada (última por defecto)
+  // Semana seleccionada (última por defecto) — debe definirse ANTES del selector
   const semActual = window._corteSemana || semList[semList.length-1].label;
+
+  // Poblar selector de semanas
+  const sel = document.getElementById("sel-semana");
+  if(sel){
+    sel.innerHTML = semList.map(s=>`<option value="${s.label}" ${s.label===semActual?"selected":""}>${s.label} (${s.inicio} → ${s.fin})</option>`).join("");
+  }
   const ultima = semanas[semActual] || semList[semList.length-1];
 
   const MATS = ['Gelcoat','Butanox','Resina','Norox','Marmolina'];
@@ -664,12 +665,12 @@ function renderCorte() {
     </div>
     <div class="metric">
       <div class="metric-label">Consumo Real Total</div>
-      <div class="metric-val" style="color:${pendientes>0?"var(--muted)":colorPct(totalPct)};font-size:18px">${pendientes>0?"⏳ Pendiente":fmtNum(totalReal)+" kg"}</div>
-      <div class="metric-sub">${pendientes>0?pendientes+" materiales sin inventario":fmtPct(totalPct)+" vs teórico"}</div>
+      <div class="metric-val" style="color:${pendientes>0?"var(--muted)":clrP(totalPct)};font-size:18px">${pendientes>0?"⏳ Pendiente":fmtN(totalReal)+" kg"}</div>
+      <div class="metric-sub">${pendientes>0?pendientes+" materiales sin inventario":fmtP(totalPct)+" vs teórico"}</div>
     </div>
     <div class="metric">
       <div class="metric-label">Teórico semana</div>
-      <div class="metric-val" style="color:#3b82f6;font-size:18px">${fmtNum(totalTeo)} kg</div>
+      <div class="metric-val" style="color:#3b82f6;font-size:18px">${fmtN(totalTeo)} kg</div>
       <div class="metric-sub">calculado desde producción</div>
     </div>
     <div class="metric">
@@ -707,7 +708,7 @@ function renderCorte() {
             else totReal+=cr;
             totTeo+=t;
             const p=cr!==null&&t?((cr-t)/t*100):null;
-            return `<td class="mono" style="text-align:right;color:${cr===null?"var(--muted)":colorPct(p||0)}">${cr===null?"—":fmtNum(cr)}</td>`;
+            return `<td class="mono" style="text-align:right;color:${cr===null?"var(--muted)":clrP(p||0)}">${cr===null?"—":fmtN(cr)}</td>`;
           }).join("");
           const p=totTeo?((totReal-totTeo)/totTeo*100):0;
           const est=algunoPendiente?'<span style="color:var(--muted);font-size:11px">⏳ Pendiente</span>':estadoBadge(p);
@@ -715,9 +716,9 @@ function renderCorte() {
             <td style="font-weight:600">${sem.label}</td>
             <td style="color:var(--muted);font-size:11px">${sem.inicio} → ${sem.fin}</td>
             ${celdas}
-            <td class="mono" style="text-align:right;color:${colorPct(p)}">${algunoPendiente?"—":fmtNum(totReal)}</td>
-            <td class="mono" style="text-align:right;color:#3b82f6">${fmtNum(totTeo)}</td>
-            <td class="mono" style="text-align:right;color:${colorPct(p)}">${algunoPendiente?"—":fmtPct(p)}</td>
+            <td class="mono" style="text-align:right;color:${clrP(p)}">${algunoPendiente?"—":fmtN(totReal)}</td>
+            <td class="mono" style="text-align:right;color:#3b82f6">${fmtN(totTeo)}</td>
+            <td class="mono" style="text-align:right;color:${clrP(p)}">${algunoPendiente?"—":fmtP(p)}</td>
             <td>${est}</td>
           </tr>`;
         }).join("")}
@@ -746,11 +747,11 @@ function renderCorte() {
       return`<div style="display:grid;grid-template-columns:120px 100px 110px 100px 110px 90px 90px 90px;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <div style="font-size:12px;font-weight:500;color:${MAT_COLOR[m]}">${m}</div>
         <div class="mono" style="color:${invIni?"var(--text)":"var(--muted)"}">${invIni||"📝 Capturar"}</div>
-        <div class="mono" style="color:#6b7280">${fmtNum(entOdo)}</div>
+        <div class="mono" style="color:#6b7280">${fmtN(entOdo)}</div>
         <div class="mono" style="color:${invFin?"var(--text)":"var(--muted)"}">${invFin||"📝 Capturar"}</div>
-        <div class="mono" style="color:${crNum!==null?colorPct(pct||0):"var(--muted)"}">${crNum!==null?fmtNum(crNum):"—"}</div>
-        <div class="mono" style="color:#3b82f6">${fmtNum(teo)}</div>
-        <div class="mono" style="color:${diff?colorPct(pct||0):"var(--muted)"}">${diff?fmtNum(parseFloat(diff)):"—"}</div>
+        <div class="mono" style="color:${crNum!==null?clrP(pct||0):"var(--muted)"}">${crNum!==null?fmtN(crNum):"—"}</div>
+        <div class="mono" style="color:#3b82f6">${fmtN(teo)}</div>
+        <div class="mono" style="color:${diff?clrP(pct||0):"var(--muted)"}">${diff?fmtN(parseFloat(diff)):"—"}</div>
         <div>${est.includes("Pendiente")?'<span style="color:var(--muted);font-size:11px">⏳</span>':estadoBadge(pct||0)}</div>
       </div>`;
     }).join("")}
