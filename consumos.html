@@ -782,85 +782,122 @@ function renderCorte() {
 
   // ── Producción día a día ────────────────────────────────
   const diasMap = {};
-  const COL = {Gelcoat:"Gelcoat","Butanox M-50":"Butanox M-50",Resina:"Resina",Norox:"Norox",Marmolina:"Marmolina"};
 
+  // Teórico por día desde CONSUMOS_DIARIOS
   TEORICO_RAW.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (!f || f < sem.inicio || f > sem.fin) return;
     if (LINEA && String(r["Linea"]||"").trim() !== LINEA) return;
-    if (!diasMap[f]) diasMap[f] = { paredes:0, lineas:new Set(), Gelcoat:0, "Butanox M-50":0, Resina:0, Norox:0, Marmolina:0, totalKg:0 };
+    if (!diasMap[f]) diasMap[f] = { paredes:0, lineas:new Set(), teoGelcoat:0, teoButanox:0, teoResina:0, teoNorox:0, teoMarmolina:0, teoTotal:0 };
     const d = diasMap[f];
     d.paredes++;
     if (r["Linea"]) d.lineas.add(r["Linea"]);
     MATS.forEach(m => {
       const col = MAT_KEY[m];
-      const v = parseFloat((r[col]||"").toString().replace(",",".")) || 0;
-      d[col] = (d[col]||0) + v;
-      d.totalKg += v;
+      const v   = parseFloat((r[col]||"").toString().replace(",",".")) || 0;
+      d["teo"+m] = (d["teo"+m]||0) + v;
+      d.teoTotal += v;
     });
   });
 
+  // Real físico por día desde KPIS (mismo filtro de línea)
+  const kpisRows = LINEA==="1" ? KPIS_L1 : LINEA==="2" ? KPIS_L2 : [...KPIS_L1, ...KPIS_L2];
+  kpisRows.slice(1).forEach(fila => {
+    const fs = String(fila[KPIS_COLS.fecha]||"");
+    let fd;
+    if (fs.includes("/")) { const p=fs.split("/"); fd=new Date(+p[2],+p[1]-1,+p[0]); }
+    else { const m=fs.match(/(\d{4})-(\d{2})-(\d{2})/); if(!m) return; fd=new Date(+m[1],+m[2]-1,+m[3]); }
+    const f = fd.toISOString().slice(0,10);
+    if (f < sem.inicio || f > sem.fin) return;
+    if (!diasMap[f]) diasMap[f] = { paredes:0, lineas:new Set(), teoGelcoat:0, teoButanox:0, teoResina:0, teoNorox:0, teoMarmolina:0, teoTotal:0 };
+    const d = diasMap[f];
+    const gelcoat = parseFloat(String(fila[KPIS_COLS.gelcoat]   ||"0").replace(/,/g,""))||0;
+    const resina  = parseFloat(String(fila[KPIS_COLS.resina]    ||"0").replace(/,/g,""))||0;
+    const marmo   = parseFloat(String(fila[KPIS_COLS.marmolina] ||"0").replace(/,/g,""))||0;
+    const catal   = parseFloat(String(fila[KPIS_COLS.catalizador]||"0").replace(/,/g,""))||0;
+    d.realGelcoat   = (d.realGelcoat  ||0) + gelcoat;
+    d.realResina    = (d.realResina   ||0) + resina;
+    d.realMarmolina = (d.realMarmolina||0) + marmo;
+    d.realCatal     = (d.realCatal    ||0) + catal;
+    d.realTotal     = (d.realTotal    ||0) + gelcoat + resina + marmo + catal;
+  });
+
   const dias = Object.keys(diasMap).sort();
-  const totDia = { paredes:0, Gelcoat:0, "Butanox M-50":0, Resina:0, Norox:0, Marmolina:0, totalKg:0 };
+  const totDia = { paredes:0, teoTotal:0, realTotal:0 };
+  MATS.forEach(m => { totDia["teo"+m]=0; });
   dias.forEach(f => {
     const d = diasMap[f];
-    totDia.paredes += d.paredes;
-    MATS.forEach(m => { totDia[MAT_KEY[m]] += d[MAT_KEY[m]]; });
-    totDia.totalKg += d.totalKg;
+    totDia.paredes  += d.paredes;
+    totDia.teoTotal += d.teoTotal;
+    totDia.realTotal= (totDia.realTotal||0) + (d.realTotal||0);
+    MATS.forEach(m => { totDia["teo"+m] += d["teo"+m]||0; });
   });
+  const totDiff    = totDia.realTotal && totDia.teoTotal ? round2((totDia.realTotal - totDia.teoTotal)/totDia.teoTotal*100) : null;
 
   const diasSemana = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 
   html += `
   <div class="table-wrap">
     <div class="table-header">
-      <div class="table-header-title">Producción Día a Día — Teórico · ${linLbl}</div>
+      <div class="table-header-title">Producción Día a Día · ${linLbl}</div>
       <span style="font-size:11px;color:var(--muted)">${dias.length} días · ${totDia.paredes.toLocaleString()} paredes</span>
     </div>
     <table>
-      <thead><tr>
-        <th>Día</th>
-        <th>Fecha</th>
-        <th style="text-align:right">Paredes</th>
-        <th style="text-align:right;color:${MAT_COLOR.Gelcoat}">Gelcoat kg</th>
-        <th style="text-align:right;color:${MAT_COLOR.Butanox}">Butanox kg</th>
-        <th style="text-align:right;color:${MAT_COLOR.Resina}">Resina kg</th>
-        <th style="text-align:right;color:${MAT_COLOR.Norox}">Norox kg</th>
-        <th style="text-align:right;color:${MAT_COLOR.Marmolina}">Marmolina kg</th>
-        <th style="text-align:right">Total kg</th>
-        <th>Líneas</th>
-      </tr></thead>
+      <thead>
+        <tr>
+          <th rowspan="2">Día</th>
+          <th rowspan="2">Fecha</th>
+          <th rowspan="2" style="text-align:right">Paredes</th>
+          <th colspan="5" style="text-align:center;border-bottom:1px solid var(--border);color:var(--accent2)">Teórico (kg)</th>
+          <th rowspan="2" style="text-align:right;border-left:2px solid var(--border)">Teo Total</th>
+          <th rowspan="2" style="text-align:right;color:#22c55e">Real KPIS</th>
+          <th rowspan="2" style="text-align:right">Diff %</th>
+        </tr>
+        <tr>
+          <th style="text-align:right;color:${MAT_COLOR.Gelcoat}">Gelcoat</th>
+          <th style="text-align:right;color:${MAT_COLOR.Butanox}">Butanox</th>
+          <th style="text-align:right;color:${MAT_COLOR.Resina}">Resina</th>
+          <th style="text-align:right;color:${MAT_COLOR.Norox}">Norox</th>
+          <th style="text-align:right;color:${MAT_COLOR.Marmolina}">Marmolina</th>
+        </tr>
+      </thead>
       <tbody>
       ${dias.length===0
-        ? `<tr><td colspan="10" class="empty">Sin registros de producción en este período</td></tr>`
+        ? `<tr><td colspan="11" class="empty">Sin registros de producción en este período</td></tr>`
         : dias.map(f => {
-            const d = diasMap[f];
-            const dow = diasSemana[new Date(f+"T12:00:00").getDay()];
-            const fmtFecha = new Date(f+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"short"});
+            const d       = diasMap[f];
+            const dow     = diasSemana[new Date(f+"T12:00:00").getDay()];
+            const fmtFecha= new Date(f+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"short"});
+            const real    = d.realTotal || 0;
+            const teo     = d.teoTotal  || 0;
+            const hasReal = real > 0;
+            const pct     = hasReal && teo ? round2((real-teo)/teo*100) : null;
             return `<tr>
               <td style="color:var(--muted);font-weight:600">${dow}</td>
               <td class="mono">${fmtFecha}</td>
               <td class="mono" style="text-align:right">${d.paredes.toLocaleString()}</td>
-              <td class="mono" style="text-align:right;color:${MAT_COLOR.Gelcoat}">${fmtN(d["Gelcoat"])}</td>
-              <td class="mono" style="text-align:right;color:${MAT_COLOR.Butanox}">${fmtN(d["Butanox M-50"])}</td>
-              <td class="mono" style="text-align:right;color:${MAT_COLOR.Resina}">${fmtN(d["Resina"])}</td>
-              <td class="mono" style="text-align:right;color:${MAT_COLOR.Norox}">${fmtN(d["Norox"])}</td>
-              <td class="mono" style="text-align:right;color:${MAT_COLOR.Marmolina}">${fmtN(d["Marmolina"])}</td>
-              <td class="mono" style="text-align:right;font-weight:600">${fmtN(d.totalKg)}</td>
-              <td style="color:var(--muted);font-size:11px">${[...d.lineas].sort().map(l=>`L${l}`).join(", ")||"—"}</td>
+              <td class="mono" style="text-align:right;color:${MAT_COLOR.Gelcoat}">${fmtN(d.teoGelcoat||0)}</td>
+              <td class="mono" style="text-align:right;color:${MAT_COLOR.Butanox}">${fmtN(d.teoButanox||0)}</td>
+              <td class="mono" style="text-align:right;color:${MAT_COLOR.Resina}">${fmtN(d.teoResina||0)}</td>
+              <td class="mono" style="text-align:right;color:${MAT_COLOR.Norox}">${fmtN(d.teoNorox||0)}</td>
+              <td class="mono" style="text-align:right;color:${MAT_COLOR.Marmolina}">${fmtN(d.teoMarmolina||0)}</td>
+              <td class="mono" style="text-align:right;font-weight:600;border-left:2px solid var(--border)">${fmtN(teo)}</td>
+              <td class="mono" style="text-align:right;color:${hasReal?"#22c55e":"var(--muted)"}">${hasReal?fmtN(real):"—"}</td>
+              <td class="mono" style="text-align:right;color:${pct!==null?clrP(pct):"var(--muted)"};font-weight:${pct!==null?"600":"400"}">${pct!==null?fmtP(pct):"—"}</td>
             </tr>`;
           }).join("")
       }
       <tr style="font-weight:700;border-top:2px solid var(--border);background:rgba(255,255,255,.03)">
         <td colspan="2" style="color:var(--muted)">TOTAL SEMANA</td>
         <td class="mono" style="text-align:right">${totDia.paredes.toLocaleString()}</td>
-        <td class="mono" style="text-align:right;color:${MAT_COLOR.Gelcoat}">${fmtN(totDia["Gelcoat"])}</td>
-        <td class="mono" style="text-align:right;color:${MAT_COLOR.Butanox}">${fmtN(totDia["Butanox M-50"])}</td>
-        <td class="mono" style="text-align:right;color:${MAT_COLOR.Resina}">${fmtN(totDia["Resina"])}</td>
-        <td class="mono" style="text-align:right;color:${MAT_COLOR.Norox}">${fmtN(totDia["Norox"])}</td>
-        <td class="mono" style="text-align:right;color:${MAT_COLOR.Marmolina}">${fmtN(totDia["Marmolina"])}</td>
-        <td class="mono" style="text-align:right;font-weight:700">${fmtN(totDia.totalKg)}</td>
-        <td></td>
+        <td class="mono" style="text-align:right;color:${MAT_COLOR.Gelcoat}">${fmtN(totDia.teoGelcoat)}</td>
+        <td class="mono" style="text-align:right;color:${MAT_COLOR.Butanox}">${fmtN(totDia.teoButanox)}</td>
+        <td class="mono" style="text-align:right;color:${MAT_COLOR.Resina}">${fmtN(totDia.teoResina)}</td>
+        <td class="mono" style="text-align:right;color:${MAT_COLOR.Norox}">${fmtN(totDia.teoNorox)}</td>
+        <td class="mono" style="text-align:right;color:${MAT_COLOR.Marmolina}">${fmtN(totDia.teoMarmolina)}</td>
+        <td class="mono" style="text-align:right;border-left:2px solid var(--border)">${fmtN(totDia.teoTotal)}</td>
+        <td class="mono" style="text-align:right;color:${totDia.realTotal?"#22c55e":"var(--muted)"}">${totDia.realTotal?fmtN(totDia.realTotal):"—"}</td>
+        <td class="mono" style="text-align:right;color:${totDiff!==null?clrP(totDiff):"var(--muted)"}">${totDiff!==null?fmtP(totDiff):"—"}</td>
       </tr>
       </tbody>
     </table>
