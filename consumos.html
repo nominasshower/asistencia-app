@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consumos Materiales — Shower Walls</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--border:rgba(255,255,255,0.07);--text:#e8eaf0;--muted:#6b7280;--accent:#22c55e;--accent2:#3b82f6;--warn:#f59e0b;--danger:#ef4444;--ga:#22c55e;--gb:#f59e0b;--gc:#ef4444;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;}
+.logo{padding:20px 20px 12px;font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;}
+.logo svg{width:18px;height:18px;}
+.logo-sub{font-size:10px;color:var(--muted);font-weight:400;margin-top:1px;}
+.nav-group{padding:0 8px;margin-bottom:4px;}
+.nav-label{font-size:10px;color:var(--muted);padding:8px 12px 4px;letter-spacing:.8px;text-transform:uppercase;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:6px;font-size:13px;color:var(--muted);cursor:pointer;transition:all .15s;border:1px solid transparent;}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{background:rgba(34,197,94,.1);color:var(--accent);border-color:rgba(34,197,94,.2);}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;}
+.sidebar-bottom{margin-top:auto;padding:12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);text-align:center;}
+.main{margin-left:220px;min-height:100vh;}
+.topbar{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg2);position:sticky;top:0;z-index:50;gap:12px;flex-wrap:wrap;}
+.topbar-left{min-width:0;}
+.topbar-title{font-size:15px;font-weight:600;}
+.topbar-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.content{padding:20px 24px;}
+.btn{font-size:12px;padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px;font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap;}
+.btn:hover{background:var(--bg);border-color:rgba(255,255,255,.15);}
+.btn-green{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600;}
+.btn-green:hover{background:#16a34a;}
+.btn-group{display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+.btn-group button{background:none;border:none;color:var(--muted);font-size:11px;padding:6px 14px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;}
+.btn-group button.active{background:var(--accent);color:#000;font-weight:600;}
+input[type=date]{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;}
+input[type=date]:focus{border-color:var(--accent2);}
+label.lbl{font-size:11px;color:var(--muted);white-space:nowrap;}
+.metrics{display:grid;gap:10px;margin-bottom:16px;}
+.metric{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:border-color .15s;}
+.metric:hover{border-color:rgba(255,255,255,.18);}
+.metric-label{font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+.metric-val{font-size:20px;font-weight:600;line-height:1;font-family:'DM Mono',monospace;}
+.metric-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px;}
+.card-title{font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.card-title span{color:var(--muted);font-size:11px;font-weight:400;}
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px;}
+.table-header{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.table-header-title{font-size:13px;font-weight:600;}
+table{width:100%;border-collapse:collapse;}
+th{padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:9px 12px;font-size:12px;border-bottom:1px solid var(--border);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+.mono{font-family:'DM Mono',monospace;font-size:11px;}
+.badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
+.b-ok{background:rgba(34,197,94,.15);color:#4ade80;}
+.b-warn{background:rgba(245,158,11,.15);color:#fbbf24;}
+.b-danger{background:rgba(239,68,68,.15);color:#f87171;}
+.b-l1{background:rgba(59,130,246,.15);color:#60a5fa;}
+.b-l2{background:rgba(139,92,246,.15);color:#a78bfa;}
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:12px;color:var(--muted);}
+.spinner{width:24px;height:24px;border:2px solid var(--bg3);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.empty{color:var(--muted);font-size:12px;text-align:center;padding:30px;}
+.section-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 8px;display:flex;align-items:center;gap:8px;}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.fuente-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:center;justify-content:center;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:750px;max-height:88vh;display:flex;flex-direction:column;}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.modal-head h3{font-size:14px;font-weight:600;}
+.modal-body{padding:16px 20px;overflow-y:auto;flex:1;}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+    <div>Shower Walls<div class="logo-sub">Consumos Almacén</div></div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Vistas</div>
+    <div class="nav-item active" onclick="setVista('resumen',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+      Resumen
+    </div>
+    <div class="nav-item" onclick="setVista('fabricacion',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 20h20M6 20V10l6-6 6 6v10"/></svg>
+      Salidas Fabricación
+    </div>
+    <div class="nav-item" onclick="setVista('almacen',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+      Llegadas Almacén
+    </div>
+    <div class="nav-item" onclick="setVista('corte',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Corte Semanal
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Leyenda</div>
+    <div style="padding:4px 12px;font-size:11px;color:var(--muted)">
+      <div style="margin-bottom:6px"><span class="fuente-dot" style="background:#3b82f6"></span>Teórico</div>
+      <div style="margin-bottom:6px"><span class="fuente-dot" style="background:#22c55e"></span>Físico (KPIS)</div>
+      <div style="margin-bottom:6px"><span class="fuente-dot" style="background:#f59e0b"></span>Fab Odoo</div>
+      <div><span class="fuente-dot" style="background:#6b7280"></span>Almacén Odoo</div>
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Ir a</div>
+    <div class="nav-item" onclick="window.open('produccion.html','_self')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Calidad Producción
+    </div>
+  </div>
+  <div class="sidebar-bottom" id="sidebar-update">—</div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-title">Consumos de Materiales</div>
+      <div class="topbar-sub" id="topbar-sub">Cargando…</div>
+    </div>
+    <div class="topbar-right">
+      <div id="filtros-fecha" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label class="lbl">Línea</label>
+        <div class="btn-group" id="btn-linea">
+          <button class="active" onclick="setLinea('',this)">Todas</button>
+          <button onclick="setLinea('1',this)">Línea 1</button>
+          <button onclick="setLinea('2',this)">Línea 2</button>
+        </div>
+        <label class="lbl">Desde</label>
+        <input type="date" id="fDesde">
+        <label class="lbl">Hasta</label>
+        <input type="date" id="fHasta">
+        <button class="btn btn-green" onclick="render()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+          Aplicar
+        </button>
+      </div>
+      <div id="filtro-semana" style="display:none;align-items:center;gap:8px">
+        <label class="lbl">Semana</label>
+        <select id="sel-semana" onchange="window._corteSemana=this.value;render()" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;min-width:160px"></select>
+      </div>
+      <button class="btn" onclick="cargar()">↺ Recargar</button>
+    </div>
+  </div>
+
+  <div class="content" id="main-content">
+    <div class="loading"><div class="spinner"></div><div>Cargando datos…</div></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-mat" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-mat-title">Detalle</h3>
+      <button class="btn" onclick="document.getElementById('modal-mat').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body" id="modal-mat-body"></div>
+  </div>
+</div>
+
+<script>
+const API_KEY       = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
+const SHEET_ID      = "1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c";
+const KPIS_SHEET_ID = "1tr8iCcA9SL2U4i-a1U7LC_Fd5EnQe1krAyPMA599D-o";
+
+let VISTA="resumen", LINEA="";
+let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[];
+let KPIS_L1=[], KPIS_L2=[];
+
+const MATERIALES = [
+  {key:"gelcoat",   label:"Gel Coat",        col_teo:"Gelcoat",      color:"#3b82f6"},
+  {key:"butanox",   label:"Butanox M-50",     col_teo:"Butanox M-50", color:"#8b5cf6"},
+  {key:"resina",    label:"Resina PMS 7103",  col_teo:"Resina",       color:"#f59e0b"},
+  {key:"norox",     label:"Norox 900",         col_teo:"Norox",        color:"#06b6d4"},
+  {key:"marmolina", label:"Marmolina Estens", col_teo:"Marmolina",    color:"#22c55e"},
+];
+
+const LABEL_MAT = {
+  "Gel Coat (todos colores)":"gelcoat",
+  "Catalizador Butanox M-50":"butanox",
+  "Resina PMS 7103 Invierno":"resina",
+  "Catalizador Norox 900":   "norox",
+  "Marmolina Estens":        "marmolina",
+};
+
+// Columnas de KPIS (índice base 0 en el array de valores)
+// Col A=ID, B=FECHA, C=Resina, D=Marmolina, E=Catalizador, F=Gelcoat, L=Kilos merma
+const KPIS_COLS = {fecha:1, resina:2, marmolina:3, catalizador:4, gelcoat:5, merma:11};
+
+// ── Sheets ───────────────────────────────────────────────
+async function fetchSheet(sheetId, name) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(name)}?key=${API_KEY}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status} — ${name}`);
+  const j = await r.json();
+  const [hdrs,...rows] = j.values||[];
+  if (!hdrs) return [];
+  return rows.map(r=>{const o={};hdrs.forEach((h,i)=>o[h]=r[i]??"");return o;});
+}
+
+async function fetchSheetRaw(sheetId, name) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(name)}?key=${API_KEY}`;
+  const r = await fetch(url);
+  if (!r.ok) return [];
+  const j = await r.json();
+  return j.values || [];
+}
+
+// ── Fechas ───────────────────────────────────────────────
+function getFechas(){return{desde:document.getElementById("fDesde")?.value||"",hasta:document.getElementById("fHasta")?.value||""};}
+
+function parseDate(s){
+  if(!s) return null;
+  // Soporta YYYY-MM-DD y DD/MM/YYYY
+  const m1=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m1) return new Date(+m1[1],+m1[2]-1,+m1[3]);
+  const m2=String(s).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if(m2) return new Date(+m2[3],+m2[2]-1,+m2[1]);
+  return null;
+}
+
+function enPeriodo(s){
+  const d=parseDate(s); if(!d) return false;
+  const{desde,hasta}=getFechas();
+  if(desde){const[y,mo,dd]=desde.split("-").map(Number);if(d<new Date(y,mo-1,dd))return false;}
+  if(hasta){const[y,mo,dd]=hasta.split("-").map(Number);if(d>new Date(y,mo-1,dd,23,59,59))return false;}
+  return true;
+}
+
+function fmtN(n){return Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1});}
+function fmtP(n){const v=Number(n||0);return(v>=0?"+":"")+v.toFixed(1)+"%";}
+function clrP(pct){const v=Number(pct);if(Math.abs(v)<=5)return"var(--ga)";if(v>5)return"var(--gb)";return"var(--gc)";}
+function badge(pct){const v=Number(pct);if(Math.abs(v)<=5)return`<span class="badge b-ok">✓ OK</span>`;if(v>5)return`<span class="badge b-warn">⚠ Exceso</span>`;return`<span class="badge b-danger">⚡ Faltante</span>`;}
+
+// ── Calcular teórico ──────────────────────────────────────
+function calcTeorico(rows){
+  const tot={};MATERIALES.forEach(m=>tot[m.key]=0);let paredes=0;
+  rows.forEach(r=>{
+    if(!enPeriodo(r["Fecha"]))return;
+    if((r["Fecha"]||"").toUpperCase().includes("TOTAL"))return;
+    if(LINEA&&String(r["Linea"]||"").trim()!==LINEA)return;
+    paredes++;
+    MATERIALES.forEach(m=>{tot[m.key]+=parseFloat((r[m.col_teo]||"").replace(",","."))||0;});
+  });
+  return{tot,paredes};
+}
+
+// ── Calcular físico desde KPIS ────────────────────────────
+function calcFisico(rawRows){
+  const tot={gelcoat:0,resina:0,marmolina:0,catalizador:0,merma:0};
+  for(let i=1;i<rawRows.length;i++){
+    const fila=rawRows[i];
+    const fs=String(fila[KPIS_COLS.fecha]||"");
+    let fd;
+    if(fs.includes("/")){const p=fs.split("/");fd=new Date(+p[2],+p[1]-1,+p[0]);}
+    else{const m=fs.match(/(\d{4})-(\d{2})-(\d{2})/);if(!m)continue;fd=new Date(+m[1],+m[2]-1,+m[3]);}
+    const desde=document.getElementById("fDesde")?.value,hasta=document.getElementById("fHasta")?.value;
+    if(desde){const[y,mo,dd]=desde.split("-").map(Number);if(fd<new Date(y,mo-1,dd))continue;}
+    if(hasta){const[y,mo,dd]=hasta.split("-").map(Number);if(fd>new Date(y,mo-1,dd,23,59,59))continue;}
+    for(const[mat,col] of Object.entries(KPIS_COLS)){
+      if(mat==="fecha"||col>=fila.length)continue;
+      tot[mat]+=parseFloat(String(fila[col]||"0").replace(/,/g,""))||0;
+    }
+  }
+  const mezcla=tot.resina+tot.marmolina;
+  const pctRes=mezcla?tot.resina/mezcla:0.18, pctMar=mezcla?tot.marmolina/mezcla:0.82;
+  return{
+    gelcoat:tot.gelcoat, resina:tot.resina, marmolina:tot.marmolina,
+    butanox:tot.catalizador/2, norox:tot.catalizador/2, catalizador:tot.catalizador,
+    merma:tot.merma,
+    merma_resina:round2(tot.merma*pctRes), merma_marmolina:round2(tot.merma*pctMar),
+    pct_merma_resina:mezcla?round2(tot.merma*pctRes/tot.resina*100):0,
+    pct_merma_marmolina:mezcla?round2(tot.merma*pctMar/tot.marmolina*100):0,
+    pct_merma_total:(tot.resina+tot.marmolina+tot.catalizador)?round2(tot.merma/(tot.resina+tot.marmolina+tot.catalizador)*100):0,
+  };
+}
+
+function getFisicoLinea(){
+  if(LINEA==="1") return calcFisico(KPIS_L1);
+  if(LINEA==="2") return calcFisico(KPIS_L2);
+  const f1=calcFisico(KPIS_L1), f2=calcFisico(KPIS_L2);
+  const tot={};
+  MATERIALES.forEach(m=>tot[m.key]=round2((f1[m.key]||0)+(f2[m.key]||0)));
+  return{...tot, merma:round2(f1.merma+f2.merma),
+    merma_resina:round2(f1.merma_resina+f2.merma_resina),
+    merma_marmolina:round2(f1.merma_marmolina+f2.merma_marmolina),
+    pct_merma_resina:f1.pct_merma_resina, pct_merma_marmolina:f1.pct_merma_marmolina,
+    pct_merma_total:round2((f1.pct_merma_total+f2.pct_merma_total)/2)};
+}
+
+function round2(n){return Math.round(n*100)/100;}
+
+// ── Calcular movimientos Odoo ─────────────────────────────
+function calcMovimientos(rows, sinFiltroLinea=false){
+  const tot={};MATERIALES.forEach(m=>tot[m.key]=0);const movs=[];
+  rows.forEach(r=>{
+    if(!enPeriodo(r["Fecha"]))return;
+    if(!sinFiltroLinea&&LINEA&&String(r["Linea"]||"").trim()!==LINEA)return;
+    const mat=LABEL_MAT[r["Material"]]||r["Material"];
+    const qty=parseFloat((r["Cantidad (kg)"]||"").replace(",","."))||0;
+    if(tot[mat]!==undefined)tot[mat]+=qty;
+    movs.push({...r,_mat:mat,_qty:qty});
+  });
+  return{tot,movs};
+}
+
+// ── Render ───────────────────────────────────────────────
+function render(){
+  document.getElementById("main-content").innerHTML="";
+  const{tot:teo,paredes}=calcTeorico(TEORICO_RAW);
+  const{tot:fab,movs:movsFab}=calcMovimientos(FAB_RAW);
+  const{tot:alm,movs:movsAlm}=calcMovimientos(ALM_RAW,true); // almacén sin filtro línea
+  const fis=getFisicoLinea();
+
+  const{desde,hasta}=getFechas();
+  const linLbl=LINEA?` · Línea ${LINEA}`:"";
+  document.getElementById("topbar-sub").textContent=`${desde} → ${hasta}${linLbl} · ${paredes.toLocaleString()} paredes`;
+
+  if(VISTA==="resumen") renderResumen(teo,fab,alm,fis,paredes);
+  else if(VISTA==="fabricacion") renderMovimientos(movsFab,fab,teo,"Salidas hacia Fabricación");
+  else if(VISTA==="corte") renderCorte();
+  else renderMovimientos(movsAlm,alm,teo,"Llegadas al Almacén",true);
+}
+
+// ── Resumen ──────────────────────────────────────────────
+function renderResumen(teo,fab,alm,fis,paredes){
+  const sumTeo=MATERIALES.reduce((s,m)=>s+teo[m.key],0);
+  const sumFis=MATERIALES.reduce((s,m)=>s+fis[m.key],0);
+  const sumFab=MATERIALES.reduce((s,m)=>s+fab[m.key],0);
+  const sumAlm=MATERIALES.reduce((s,m)=>s+alm[m.key],0);
+  const linLbl=LINEA?`Línea ${LINEA}`:"Todas las líneas";
+
+  // KPIs top
+  let html=`<div class="metrics" style="grid-template-columns:repeat(6,1fr)">
+    <div class="metric"><div class="metric-label">Paredes</div><div class="metric-val white">${paredes.toLocaleString()}</div><div class="metric-sub">${linLbl}</div></div>
+    <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#3b82f6"></span>Teórico total</div><div class="metric-val" style="color:#3b82f6">${fmtN(sumTeo)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">calculado</div></div>
+    <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#22c55e"></span>Físico total</div><div class="metric-val" style="color:${clrP(sumTeo?(sumFis-sumTeo)/sumTeo*100:0)}">${fmtN(sumFis)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">${fmtP(sumTeo?(sumFis-sumTeo)/sumTeo*100:0)} vs teórico</div></div>
+    <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#ef4444"></span>Merma física</div><div class="metric-val" style="color:#ef4444">${fmtN(fis.merma||0)}<span style="font-size:12px"> kg</span></div><div class="metric-sub" style="color:#ef4444">${fmtN(sumFis>0?(fis.merma||0)/sumFis*100:0)}% de físico</div></div>
+    <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#f59e0b"></span>Fab Odoo</div><div class="metric-val" style="color:${clrP(sumTeo?(sumFab-sumTeo)/sumTeo*100:0)}">${fmtN(sumFab)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">${fmtP(sumTeo?(sumFab-sumTeo)/sumTeo*100:0)} vs teórico</div></div>
+    <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#6b7280"></span>Almacén Odoo</div><div class="metric-val" style="color:${clrP(sumTeo?(sumAlm-sumTeo)/sumTeo*100:0)}">${fmtN(sumAlm)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">${fmtP(sumTeo?(sumAlm-sumTeo)/sumTeo*100:0)} vs teórico</div></div>
+  </div>`;
+
+  // Tabla comparativa 4 fuentes
+  const maxVal=Math.max(...MATERIALES.map(m=>Math.max(teo[m.key],fis[m.key],fab[m.key],alm[m.key])));
+  html+=`<div class="card">
+    <div class="card-title">Comparativo por Material — 4 Fuentes <span>${linLbl}</span></div>
+    <div style="display:grid;grid-template-columns:155px 1fr 95px 95px 95px 95px 90px;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:2px">
+      ${["Material","Barras","Teórico","Físico","Fab Odoo","Alm Odoo","Estado"].map((h,i)=>`<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:${i<2?'left':'right'}">${h}</div>`).join("")}
+    </div>`;
+
+  MATERIALES.forEach(m=>{
+    const t=teo[m.key],f=fis[m.key],b=fab[m.key],a=alm[m.key];
+    const pFis=t?((f-t)/t*100):0;
+    const pFab=t?((b-t)/t*100):0;
+    const bars=[["Teórico","#3b82f6",t],["Físico","#22c55e",f],["Fab","#f59e0b",b],["Alm","#6b7280",a]];
+    html+=`<div style="display:grid;grid-template-columns:155px 1fr 95px 95px 95px 95px 90px;gap:6px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="abrirDetalle('${m.key}')">
+      <div style="font-size:12px;font-weight:500">${m.label}</div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        ${bars.map(([lbl,clr,v])=>`<div style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:10px;color:var(--muted);width:42px">${lbl}</span>
+          <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden"><div style="width:${maxVal?Math.round(v/maxVal*100):0}%;height:100%;background:${clr};border-radius:2px"></div></div>
+        </div>`).join("")}
+      </div>
+      <div class="mono" style="text-align:right;color:#3b82f6">${fmtN(t)}</div>
+      <div class="mono" style="text-align:right;color:${clrP(pFis)}">${fmtN(f)}</div>
+      <div class="mono" style="text-align:right;color:#f59e0b">${fmtN(b)}</div>
+      <div class="mono" style="text-align:right;color:#6b7280">${fmtN(a)}</div>
+      <div style="text-align:right">${badge(pFis)}</div>
+    </div>`;
+  });
+  html+=`</div>`;
+
+  // 4 cards de diferencias
+  const cardDiff=(titulo,getV,clr)=>`<div class="card" style="margin:0">
+    <div class="card-title" style="margin-bottom:10px"><span class="fuente-dot" style="background:${clr}"></span>${titulo} <span>vs Teórico</span></div>
+    ${MATERIALES.map(m=>{
+      const t=teo[m.key],v=getV(m.key),p=t?((v-t)/t*100):0,diff=v-t;
+      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px">${m.label}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="mono" style="color:${clrP(p)}">${diff>=0?"+":""}${fmtN(diff)} kg</span>
+          <span class="mono" style="color:${clrP(p)};width:50px;text-align:right">${fmtP(p)}</span>
+          ${badge(p)}
+        </div>
+      </div>`;
+    }).join("")}
+  </div>`;
+
+  html+=`<div class="grid2">
+    ${cardDiff("Físico (KPIS)",k=>fis[k],"#22c55e")}
+    ${cardDiff("Fabricación Odoo",k=>fab[k],"#f59e0b")}
+  </div>
+  <div class="grid2">
+    ${cardDiff("Almacén Odoo",k=>alm[k],"#6b7280")}
+    <div class="card" style="margin:0">
+      <div class="card-title" style="margin-bottom:10px">
+        <span class="fuente-dot" style="background:#ef4444"></span>Merma Física
+        <span>% sobre consumo físico</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px">Merma Total</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="mono" style="color:#ef4444">${fmtN(fis.merma||0)} kg</span>
+          <span class="mono" style="color:#ef4444;width:50px;text-align:right">${fmtN(fis.pct_merma_total||0)}%</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px">Merma Resina</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="mono" style="color:#f59e0b">${fmtN(fis.merma_resina||0)} kg</span>
+          <span class="mono" style="color:#f59e0b;width:50px;text-align:right">${fmtN(fis.pct_merma_resina||0)}%</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px">Merma Marmolina</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="mono" style="color:#22c55e">${fmtN(fis.merma_marmolina||0)} kg</span>
+          <span class="mono" style="color:#22c55e;width:50px;text-align:right">${fmtN(fis.pct_merma_marmolina||0)}%</span>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px">% Merma por material</div>
+        ${[["Resina","#f59e0b",fis.pct_merma_resina||0],["Marmolina","#22c55e",fis.pct_merma_marmolina||0],["Total","#ef4444",fis.pct_merma_total||0]].map(([lbl,clr,pct])=>`
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <span style="font-size:11px;color:var(--muted);width:70px">${lbl}</span>
+          <div style="flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden">
+            <div style="width:${Math.min(pct*5,100)}%;height:100%;background:${clr};border-radius:3px"></div>
+          </div>
+          <span class="mono" style="color:${clr};width:40px;text-align:right">${pct.toFixed(1)}%</span>
+        </div>`).join("")}
+      </div>
+    </div>
+  </div>
+      <div class="card-title" style="margin-bottom:10px">Ecuación completa <span>kg totales</span></div>
+      ${MATERIALES.map(m=>{
+        const t=teo[m.key],f=fis[m.key],b=fab[m.key],a=alm[m.key];
+        return`<div style="padding:6px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:500;margin-bottom:4px">${m.label}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span class="mono" style="color:#3b82f6">T:${fmtN(t)}</span>
+            <span style="color:var(--muted)">·</span>
+            <span class="mono" style="color:#22c55e">F:${fmtN(f)}</span>
+            <span style="color:var(--muted)">·</span>
+            <span class="mono" style="color:#f59e0b">Fab:${fmtN(b)}</span>
+            <span style="color:var(--muted)">·</span>
+            <span class="mono" style="color:#6b7280">Alm:${fmtN(a)}</span>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+
+  document.getElementById("main-content").innerHTML=html;
+}
+
+// ── Movimientos ──────────────────────────────────────────
+function renderMovimientos(movs,tot,teo,titulo,sinLinea=false){
+  const linLbl=sinLinea?"Total":(LINEA?`Línea ${LINEA}`:"Todas las líneas");
+  let html=`<div class="metrics" style="grid-template-columns:repeat(5,1fr)">
+    ${MATERIALES.map(m=>{const t=teo[m.key],v=tot[m.key],p=t?((v-t)/t*100):0;return`<div class="metric">
+      <div class="metric-label">${m.label}</div>
+      <div class="metric-val" style="color:${m.color}">${fmtN(v)}<span style="font-size:11px"> kg</span></div>
+      <div class="metric-sub" style="color:${clrP(p)}">${fmtP(p)} vs teórico</div>
+    </div>`;}).join("")}
+  </div>
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="table-header-title">${titulo} · ${linLbl}</div>
+      <span style="font-size:11px;color:var(--muted)">${movs.length} movimientos</span>
+    </div>
+    <table><thead><tr>
+      <th>Fecha</th><th>Material</th><th>Producto Odoo</th>
+      <th style="text-align:right">Cantidad (kg)</th>
+      <th>Workstation</th><th>Línea</th>
+      <th>Transferencia</th><th>Origen</th>
+    </tr></thead><tbody>
+      ${movs.length===0?`<tr><td colspan="8" class="empty">Sin movimientos</td></tr>`:
+        movs.sort((a,b)=>(b["Fecha"]||"").localeCompare(a["Fecha"]||"")).map(r=>{
+          const mat=MATERIALES.find(m=>m.key===r._mat);
+          const lb=r["Linea"]==="1"?`<span class="badge b-l1">L1</span>`:r["Linea"]==="2"?`<span class="badge b-l2">L2</span>`:`<span style="color:var(--muted)">—</span>`;
+          return`<tr>
+            <td class="mono">${(r["Fecha"]||"").substring(0,10)}</td>
+            <td><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${mat?.color||"var(--muted)"};margin-right:6px"></span>${mat?.label||r["Material"]}</td>
+            <td style="color:var(--muted)">${r["Producto Odoo"]||"—"}</td>
+            <td class="mono" style="text-align:right">${fmtN(r._qty)}</td>
+            <td style="color:var(--muted);font-size:11px">${r["Workstation"]||"—"}</td>
+            <td>${lb}</td>
+            <td style="color:var(--muted);font-size:11px">${r["Transferencia"]||"—"}</td>
+            <td style="color:var(--muted);font-size:11px">${r["Origen"]||"—"}</td>
+          </tr>`;
+        }).join("")}
+    </tbody></table>
+  </div>`;
+  document.getElementById("main-content").innerHTML=html;
+}
+
+// ── Modal detalle ─────────────────────────────────────────
+function abrirDetalle(key){
+  const mat=MATERIALES.find(m=>m.key===key);
+  const{tot:teo}=calcTeorico(TEORICO_RAW);
+  const{tot:fab,movs:mFab}=calcMovimientos(FAB_RAW);
+  const{tot:alm,movs:mAlm}=calcMovimientos(ALM_RAW,true);
+  const fis=getFisicoLinea();
+  const t=teo[key],f=fis[key],b=fab[key],a=alm[key];
+  const pFis=t?((f-t)/t*100):0,pFab=t?((b-t)/t*100):0,pAlm=t?((a-t)/t*100):0;
+  const mFabM=mFab.filter(r=>r._mat===key).sort((a,b)=>(b["Fecha"]||"").localeCompare(a["Fecha"]||""));
+  const mAlmM=mAlm.filter(r=>r._mat===key).sort((a,b)=>(b["Fecha"]||"").localeCompare(a["Fecha"]||""));
+
+  const miniTbl=movs=>movs.length===0?`<div class="empty">Sin movimientos</div>`:
+    `<table style="width:100%;border-collapse:collapse"><thead><tr>
+      ${["Fecha","Producto","kg","Workstation","L","Transferencia"].map(h=>`<th style="padding:5px 8px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">${h}</th>`).join("")}
+    </tr></thead><tbody>
+      ${movs.map(r=>{
+        const lb=r["Linea"]==="1"?`<span class="badge b-l1">L1</span>`:r["Linea"]==="2"?`<span class="badge b-l2">L2</span>`:"—";
+        return`<tr>
+          <td style="padding:5px 8px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${(r["Fecha"]||"").substring(0,10)}</td>
+          <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);color:var(--muted)">${r["Producto Odoo"]||"—"}</td>
+          <td style="padding:5px 8px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${fmtN(r._qty)}</td>
+          <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);color:var(--muted)">${r["Workstation"]||"—"}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid var(--border)">${lb}</td>
+          <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);color:var(--muted)">${r["Transferencia"]||"—"}</td>
+        </tr>`;
+      }).join("")}
+    </tbody></table>`;
+
+  document.getElementById("modal-mat-title").textContent=mat.label;
+  document.getElementById("modal-mat-body").innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+      ${[["TEÓRICO","#3b82f6",t,null],["FÍSICO","#22c55e",f,pFis],["FAB ODOO","#f59e0b",b,pFab],["ALMACÉN","#6b7280",a,pAlm]].map(([lbl,clr,v,p])=>`
+      <div style="background:${clr}18;border:1px solid ${clr}30;border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:18px;font-weight:700;color:${clr};font-family:'DM Mono',monospace">${fmtN(v)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${lbl}${p!==null?" · "+fmtP(p):""}</div>
+      </div>`).join("")}
+    </div>
+    <div class="section-title">Salidas Fabricación (${mFabM.length})</div>${miniTbl(mFabM)}
+    <div class="section-title" style="margin-top:14px">Llegadas Almacén (${mAlmM.length})</div>${miniTbl(mAlmM)}`;
+
+  document.getElementById("modal-mat").style.display="flex";
+}
+
+// ── Controles ─────────────────────────────────────────────
+function setLinea(l,btn){
+  LINEA=l;
+  document.querySelectorAll("#btn-linea button").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  render();
+}
+
+function setVista(v,el){
+  VISTA=v;
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+  el.classList.add("active");
+  // Mostrar/ocultar filtros según vista
+  const filtrosFecha = document.getElementById("filtros-fecha");
+  const filtroSemana = document.getElementById("filtro-semana");
+  if(v==="corte"){
+    if(filtrosFecha) filtrosFecha.style.display="none";
+    if(filtroSemana) filtroSemana.style.display="flex";
+  } else {
+    if(filtrosFecha) filtrosFecha.style.display="flex";
+    if(filtroSemana) filtroSemana.style.display="none";
+  }
+  render();
+}
+
+// ── Cargar ────────────────────────────────────────────────
+async function cargar(){
+  document.getElementById("main-content").innerHTML=`<div class="loading"><div class="spinner"></div><div>Conectando con Google Sheets…</div></div>`;
+  try{
+    [TEORICO_RAW, FAB_RAW, ALM_RAW,
+     KPIS_L1, KPIS_L2] = await Promise.all([
+      fetchSheet(SHEET_ID,"CONSUMOS_DIARIOS"),
+      fetchSheet(SHEET_ID,"SALIDAS_FABRICACION"),
+      fetchSheet(SHEET_ID,"LLEGADAS_ALMACEN"),
+      fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L1"),
+      fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L2"),
+    ]);
+    document.getElementById("sidebar-update").textContent=
+      `Actualizado ${new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}`;
+    render();
+  }catch(e){
+    document.getElementById("main-content").innerHTML=
+      `<div class="loading"><div style="color:var(--danger)">❌ Error: ${e.message}</div></div>`;
+  }
+}
+
+
+// ── Corte Semanal ─────────────────────────────────────────
+function renderCorte() {
+  document.getElementById("topbar-sub").textContent = "Inventario inicial + Entradas − Inventario final vs Teórico";
+
+  if (!INVENTARIOS_RAW || INVENTARIOS_RAW.length === 0) {
+    document.getElementById("main-content").innerHTML =
+      '<div class="loading"><div class="empty">Sin datos en hoja INVENTARIOS.<br>Corre sync_inventarios.py primero.</div></div>';
+    return;
+  }
+
+  // Agrupar por semana
+  const semanas = {};
+  INVENTARIOS_RAW.forEach(r => {
+    const sem = r["Semana"] || "";
+    if (!sem || sem === "Semana") return;
+    if (!semanas[sem]) semanas[sem] = { label:sem, inicio:r["Fecha Inicio"]||"", fin:r["Fecha Fin"]||"", materiales:{} };
+    const mat = r["Material"] || r[Object.keys(r)[3]] || "";
+    if (mat) semanas[sem].materiales[mat] = r;
+  });
+
+  const semList = Object.values(semanas).sort((a,b)=>a.label.localeCompare(b.label));
+
+  // Poblar selector de semanas
+  const sel = document.getElementById("sel-semana");
+  if(sel){
+    sel.innerHTML = semList.map(s=>`<option value="${s.label}" ${s.label===semActual?"selected":""}>${s.label} (${s.inicio} → ${s.fin})</option>`).join("");
+  }
+
+  if (semList.length === 0) {
+    document.getElementById("main-content").innerHTML =
+      '<div class="loading"><div class="empty">Sin datos en hoja INVENTARIOS.<br>Corre sync_inventarios.py primero.</div></div>';
+    return;
+  }
+
+  // Semana seleccionada (última por defecto)
+  const semActual = window._corteSemana || semList[semList.length-1].label;
+  const ultima = semanas[semActual] || semList[semList.length-1];
+
+  const MATS = ['Gelcoat','Butanox','Resina','Norox','Marmolina'];
+  const MAT_COLOR = {Gelcoat:"#3b82f6",Butanox:"#8b5cf6",Resina:"#f59e0b",Norox:"#06b6d4",Marmolina:"#22c55e"};
+
+  // Última semana para KPIs
+
+  let html = "";
+
+  // KPIs de la semana actual
+  const kpiMats = MATS.map(m => {
+    const r = ultima.materiales[m] || {};
+    const consReal = parseFloat(r["Consumo Real (kg)"]||"") || null;
+    const teo      = parseFloat(r["Teórico (kg)"]||"") || 0;
+    const pct      = consReal !== null && teo ? ((consReal-teo)/teo*100) : null;
+    return { m, consReal, teo, pct, estado: r["Estado"]||"⏳" };
+  });
+
+  const totalReal = kpiMats.reduce((s,k)=>s+(k.consReal||0),0);
+  const totalTeo  = kpiMats.reduce((s,k)=>s+k.teo,0);
+  const totalPct  = totalTeo ? ((totalReal-totalTeo)/totalTeo*100) : 0;
+  const pendientes = kpiMats.filter(k=>k.consReal===null).length;
+
+  html += `
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+    <div class="metric">
+      <div class="metric-label">Semana actual</div>
+      <div class="metric-val white" style="font-size:16px">${ultima.label}</div>
+      <div class="metric-sub">${ultima.inicio} → ${ultima.fin}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Consumo Real Total</div>
+      <div class="metric-val" style="color:${pendientes>0?"var(--muted)":colorPct(totalPct)};font-size:18px">${pendientes>0?"⏳ Pendiente":fmtNum(totalReal)+" kg"}</div>
+      <div class="metric-sub">${pendientes>0?pendientes+" materiales sin inventario":fmtPct(totalPct)+" vs teórico"}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Teórico semana</div>
+      <div class="metric-val" style="color:#3b82f6;font-size:18px">${fmtNum(totalTeo)} kg</div>
+      <div class="metric-sub">calculado desde producción</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Materiales con inventario</div>
+      <div class="metric-val ${pendientes===0?"green":"amber"}">${MATS.length-pendientes} / ${MATS.length}</div>
+      <div class="metric-sub">${pendientes>0?"Captura inv. inicial y final":"Corte completo ✅"}</div>
+    </div>
+  </div>`;
+
+  // Tabla histórica por semana
+  html += `
+  <div class="table-wrap" style="margin-bottom:12px">
+    <div class="table-header">
+      <div class="table-header-title">Histórico de Cortes Semanales</div>
+      <span style="font-size:11px;color:var(--muted)">${semList.length} semanas</span>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Semana</th>
+        <th>Período</th>
+        ${MATS.map(m=>`<th style="text-align:right;color:${MAT_COLOR[m]}">${m}</th>`).join("")}
+        <th style="text-align:right">Total Real</th>
+        <th style="text-align:right">Total Teo</th>
+        <th style="text-align:right">Diff %</th>
+        <th>Estado</th>
+      </tr></thead>
+      <tbody>
+        ${semList.map(sem=>{
+          let totReal=0, totTeo=0, todosCompletos=true, algunoPendiente=false;
+          const celdas = MATS.map(m=>{
+            const r=sem.materiales[m]||{};
+            const cr=parseFloat(r["Consumo Real (kg)"]||"")||null;
+            const t=parseFloat(r["Teórico (kg)"]||"")||0;
+            if(cr===null){algunoPendiente=true;todosCompletos=false;}
+            else totReal+=cr;
+            totTeo+=t;
+            const p=cr!==null&&t?((cr-t)/t*100):null;
+            return `<td class="mono" style="text-align:right;color:${cr===null?"var(--muted)":colorPct(p||0)}">${cr===null?"—":fmtNum(cr)}</td>`;
+          }).join("");
+          const p=totTeo?((totReal-totTeo)/totTeo*100):0;
+          const est=algunoPendiente?'<span style="color:var(--muted);font-size:11px">⏳ Pendiente</span>':estadoBadge(p);
+          return`<tr>
+            <td style="font-weight:600">${sem.label}</td>
+            <td style="color:var(--muted);font-size:11px">${sem.inicio} → ${sem.fin}</td>
+            ${celdas}
+            <td class="mono" style="text-align:right;color:${colorPct(p)}">${algunoPendiente?"—":fmtNum(totReal)}</td>
+            <td class="mono" style="text-align:right;color:#3b82f6">${fmtNum(totTeo)}</td>
+            <td class="mono" style="text-align:right;color:${colorPct(p)}">${algunoPendiente?"—":fmtPct(p)}</td>
+            <td>${est}</td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>
+  </div>`;
+
+  // Detalle de la última semana con inventarios
+  html += `
+  <div class="card">
+    <div class="card-title">Detalle Semana Actual — ${ultima.label} <span>${ultima.inicio} → ${ultima.fin}</span></div>
+    <div style="display:grid;grid-template-columns:120px 100px 110px 100px 110px 90px 90px 90px;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:4px">
+      ${["Material","Inv. Inicial","Entradas Odoo","Inv. Final","Consumo Real","Teórico","Diff (kg)","Estado"].map(h=>`<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${h}</div>`).join("")}
+    </div>
+    ${MATS.map(m=>{
+      const r=ultima.materiales[m]||{};
+      const invIni = r["Inv. Inicial (kg)"]||"";
+      const entOdo = parseFloat(r["Entradas Odoo (kg)"]||"0")||0;
+      const invFin = r["Inv. Final (kg)"]||"";
+      const cr     = r["Consumo Real (kg)"]||"";
+      const teo    = parseFloat(r["Teórico (kg)"]||"0")||0;
+      const diff   = r["Diferencia (kg)"]||"";
+      const pct    = parseFloat(r["Diferencia (%)"]||"")||null;
+      const est    = r["Estado"]||"⏳ Pendiente";
+      const crNum  = parseFloat(cr)||null;
+      return`<div style="display:grid;grid-template-columns:120px 100px 110px 100px 110px 90px 90px 90px;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:500;color:${MAT_COLOR[m]}">${m}</div>
+        <div class="mono" style="color:${invIni?"var(--text)":"var(--muted)"}">${invIni||"📝 Capturar"}</div>
+        <div class="mono" style="color:#6b7280">${fmtNum(entOdo)}</div>
+        <div class="mono" style="color:${invFin?"var(--text)":"var(--muted)"}">${invFin||"📝 Capturar"}</div>
+        <div class="mono" style="color:${crNum!==null?colorPct(pct||0):"var(--muted)"}">${crNum!==null?fmtNum(crNum):"—"}</div>
+        <div class="mono" style="color:#3b82f6">${fmtNum(teo)}</div>
+        <div class="mono" style="color:${diff?colorPct(pct||0):"var(--muted)"}">${diff?fmtNum(parseFloat(diff)):"—"}</div>
+        <div>${est.includes("Pendiente")?'<span style="color:var(--muted);font-size:11px">⏳</span>':estadoBadge(pct||0)}</div>
+      </div>`;
+    }).join("")}
+  </div>`;
+
+  document.getElementById("main-content").innerHTML = html;
+}
+
+function estadoBadge(pct){
+  const v=Number(pct);
+  if(Math.abs(v)<=5) return '<span class="badge b-ok">✓ OK</span>';
+  if(v>5)            return '<span class="badge b-warn">⚠ Exceso</span>';
+  return                    '<span class="badge b-danger">⚡ Faltante</span>';
+}
+
+// ── Init ──────────────────────────────────────────────────
+(function(){
+  const hoy=new Date(), hace30=new Date();
+  hace30.setDate(hoy.getDate()-30);
+  const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  document.getElementById("fDesde").value=fmt(hace30);
+  document.getElementById("fHasta").value=fmt(hoy);
+  document.getElementById("fDesde").addEventListener("change",render);
+  document.getElementById("fHasta").addEventListener("change",render);
+  document.getElementById("fDesde").addEventListener("input",render);
+  document.getElementById("fHasta").addEventListener("input",render);
+  cargar();
+})();
+</script>
+</body>
+</html>
