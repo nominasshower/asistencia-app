@@ -613,7 +613,7 @@ function renderCorte() {
     const sem = r["Semana"] || "";
     if (!sem || sem === "Semana") return;
     if (!semanas[sem]) semanas[sem] = { label:sem, inicio:r["Fecha Inicio"]||"", fin:r["Fecha Fin"]||"", materiales:{} };
-    const mat = r["Material"] || r[Object.keys(r)[3]] || "";
+    const mat = r["Material"] || "";
     if (mat) semanas[sem].materiales[mat] = r;
   });
 
@@ -621,140 +621,202 @@ function renderCorte() {
 
   if (semList.length === 0) {
     document.getElementById("main-content").innerHTML =
-      '<div class="loading"><div class="empty">Sin datos en hoja INVENTARIOS.<br>Corre sync_inventarios.py primero.</div></div>';
+      '<div class="loading"><div class="empty">Sin datos en hoja INVENTARIOS.</div></div>';
     return;
   }
 
-  // Semana seleccionada (última por defecto) — debe definirse ANTES del selector
   const semActual = window._corteSemana || semList[semList.length-1].label;
 
-  // Poblar selector de semanas
   const sel = document.getElementById("sel-semana");
   if(sel){
-    sel.innerHTML = semList.map(s=>`<option value="${s.label}" ${s.label===semActual?"selected":""}>${s.label} (${s.inicio} → ${s.fin})</option>`).join("");
+    sel.innerHTML = semList.map(s=>`<option value="${s.label}" ${s.label===semActual?"selected":""}>${s.label} · ${s.inicio} → ${s.fin}</option>`).join("");
   }
-  const ultima = semanas[semActual] || semList[semList.length-1];
 
+  const sem = semanas[semActual] || semList[semList.length-1];
   const MATS = ['Gelcoat','Butanox','Resina','Norox','Marmolina'];
+  const MAT_KEY = {Gelcoat:"Gelcoat", Butanox:"Butanox M-50", Resina:"Resina", Norox:"Norox", Marmolina:"Marmolina"};
   const MAT_COLOR = {Gelcoat:"#3b82f6",Butanox:"#8b5cf6",Resina:"#f59e0b",Norox:"#06b6d4",Marmolina:"#22c55e"};
 
-  // Última semana para KPIs
-
-  let html = "";
-
-  // KPIs de la semana actual
+  // ── KPIs de la semana ───────────────────────────────────
   const kpiMats = MATS.map(m => {
-    const r = ultima.materiales[m] || {};
+    const r        = sem.materiales[m] || {};
     const consReal = parseFloat(r["Consumo Real (kg)"]||"") || null;
     const teo      = parseFloat(r["Teórico (kg)"]||"") || 0;
-    const pct      = consReal !== null && teo ? ((consReal-teo)/teo*100) : null;
-    return { m, consReal, teo, pct, estado: r["Estado"]||"⏳" };
+    const invIni   = parseFloat(r["Inv. Inicial (kg)"]||"") || null;
+    const entOdo   = parseFloat(r["Entradas Odoo (kg)"]||"") || 0;
+    const invFin   = parseFloat(r["Inv. Final (kg)"]||"") || null;
+    const diff     = parseFloat(r["Diferencia (kg)"]||"") || null;
+    const pct      = parseFloat(r["Diferencia (%)"]||"") || null;
+    return { m, consReal, teo, invIni, entOdo, invFin, diff, pct };
   });
 
   const totalReal = kpiMats.reduce((s,k)=>s+(k.consReal||0),0);
   const totalTeo  = kpiMats.reduce((s,k)=>s+k.teo,0);
   const totalPct  = totalTeo ? ((totalReal-totalTeo)/totalTeo*100) : 0;
   const pendientes = kpiMats.filter(k=>k.consReal===null).length;
+  const totalParedes = TEORICO_RAW.filter(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    return f >= sem.inicio && f <= sem.fin;
+  }).length;
 
-  html += `
-  <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+  let html = `
+  <div class="metrics" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
     <div class="metric">
-      <div class="metric-label">Semana actual</div>
-      <div class="metric-val white" style="font-size:16px">${ultima.label}</div>
-      <div class="metric-sub">${ultima.inicio} → ${ultima.fin}</div>
+      <div class="metric-label">Semana</div>
+      <div class="metric-val white" style="font-size:15px">${sem.label}</div>
+      <div class="metric-sub">${sem.inicio} → ${sem.fin}</div>
     </div>
     <div class="metric">
-      <div class="metric-label">Consumo Real Total</div>
-      <div class="metric-val" style="color:${pendientes>0?"var(--muted)":clrP(totalPct)};font-size:18px">${pendientes>0?"⏳ Pendiente":fmtN(totalReal)+" kg"}</div>
-      <div class="metric-sub">${pendientes>0?pendientes+" materiales sin inventario":fmtP(totalPct)+" vs teórico"}</div>
+      <div class="metric-label">Paredes vaciadas</div>
+      <div class="metric-val" style="color:var(--accent2)">${totalParedes.toLocaleString()}</div>
+      <div class="metric-sub">producción teórica</div>
     </div>
     <div class="metric">
       <div class="metric-label">Teórico semana</div>
-      <div class="metric-val" style="color:#3b82f6;font-size:18px">${fmtN(totalTeo)} kg</div>
+      <div class="metric-val" style="color:#3b82f6">${fmtN(totalTeo)}<span style="font-size:12px"> kg</span></div>
       <div class="metric-sub">calculado desde producción</div>
     </div>
     <div class="metric">
-      <div class="metric-label">Materiales con inventario</div>
+      <div class="metric-label">Consumo Real</div>
+      <div class="metric-val" style="color:${pendientes>0?"var(--muted)":clrP(totalPct)}">${pendientes>0?"⏳ Pendiente":fmtN(totalReal)+" kg"}</div>
+      <div class="metric-sub">${pendientes>0?pendientes+" mat. sin inventario":fmtP(totalPct)+" vs teórico"}</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Materiales con corte</div>
       <div class="metric-val ${pendientes===0?"green":"amber"}">${MATS.length-pendientes} / ${MATS.length}</div>
-      <div class="metric-sub">${pendientes>0?"Captura inv. inicial y final":"Corte completo ✅"}</div>
+      <div class="metric-sub">${pendientes>0?"Falta inventario":"Corte completo ✅"}</div>
     </div>
   </div>`;
 
-  // Tabla histórica por semana
+  // ── Tabla inventario por material ───────────────────────
   html += `
-  <div class="table-wrap" style="margin-bottom:12px">
-    <div class="table-header">
-      <div class="table-header-title">Histórico de Cortes Semanales</div>
-      <span style="font-size:11px;color:var(--muted)">${semList.length} semanas</span>
-    </div>
-    <table>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Corte de Inventario — ${sem.label} <span>${sem.inicio} → ${sem.fin}</span></div>
+    <div style="overflow-x:auto">
+    <table style="min-width:700px">
       <thead><tr>
-        <th>Semana</th>
-        <th>Período</th>
-        ${MATS.map(m=>`<th style="text-align:right;color:${MAT_COLOR[m]}">${m}</th>`).join("")}
-        <th style="text-align:right">Total Real</th>
-        <th style="text-align:right">Total Teo</th>
+        <th>Material</th>
+        <th style="text-align:right">Inv. Inicial</th>
+        <th style="text-align:right">Entradas Odoo</th>
+        <th style="text-align:right">Inv. Final</th>
+        <th style="text-align:right">Consumo Real</th>
+        <th style="text-align:right">Teórico</th>
+        <th style="text-align:right">Diferencia kg</th>
         <th style="text-align:right">Diff %</th>
         <th>Estado</th>
       </tr></thead>
       <tbody>
-        ${semList.map(sem=>{
-          let totReal=0, totTeo=0, todosCompletos=true, algunoPendiente=false;
-          const celdas = MATS.map(m=>{
-            const r=sem.materiales[m]||{};
-            const cr=parseFloat(r["Consumo Real (kg)"]||"")||null;
-            const t=parseFloat(r["Teórico (kg)"]||"")||0;
-            if(cr===null){algunoPendiente=true;todosCompletos=false;}
-            else totReal+=cr;
-            totTeo+=t;
-            const p=cr!==null&&t?((cr-t)/t*100):null;
-            return `<td class="mono" style="text-align:right;color:${cr===null?"var(--muted)":clrP(p||0)}">${cr===null?"—":fmtN(cr)}</td>`;
-          }).join("");
-          const p=totTeo?((totReal-totTeo)/totTeo*100):0;
-          const est=algunoPendiente?'<span style="color:var(--muted);font-size:11px">⏳ Pendiente</span>':estadoBadge(p);
-          return`<tr>
-            <td style="font-weight:600">${sem.label}</td>
-            <td style="color:var(--muted);font-size:11px">${sem.inicio} → ${sem.fin}</td>
-            ${celdas}
-            <td class="mono" style="text-align:right;color:${clrP(p)}">${algunoPendiente?"—":fmtN(totReal)}</td>
-            <td class="mono" style="text-align:right;color:#3b82f6">${fmtN(totTeo)}</td>
-            <td class="mono" style="text-align:right;color:${clrP(p)}">${algunoPendiente?"—":fmtP(p)}</td>
-            <td>${est}</td>
-          </tr>`;
-        }).join("")}
+      ${kpiMats.map(k=>{
+        const ok = k.consReal !== null;
+        return `<tr>
+          <td style="font-weight:600;color:${MAT_COLOR[k.m]}">${k.m}</td>
+          <td class="mono" style="text-align:right;color:${k.invIni!==null?"var(--text)":"var(--muted)"}">${k.invIni!==null?fmtN(k.invIni):"📝"}</td>
+          <td class="mono" style="text-align:right;color:#6b7280">${fmtN(k.entOdo)}</td>
+          <td class="mono" style="text-align:right;color:${k.invFin!==null?"var(--text)":"var(--muted)"}">${k.invFin!==null?fmtN(k.invFin):"📝"}</td>
+          <td class="mono" style="text-align:right;color:${ok?clrP(k.pct||0):"var(--muted)"}">${ok?fmtN(k.consReal):"—"}</td>
+          <td class="mono" style="text-align:right;color:#3b82f6">${fmtN(k.teo)}</td>
+          <td class="mono" style="text-align:right;color:${ok?clrP(k.pct||0):"var(--muted)"}">${ok&&k.diff!==null?(k.diff>=0?"+":"")+fmtN(k.diff):"—"}</td>
+          <td class="mono" style="text-align:right;color:${ok?clrP(k.pct||0):"var(--muted)"}">${ok&&k.pct!==null?fmtP(k.pct):"—"}</td>
+          <td>${ok?estadoBadge(k.pct||0):'<span style="color:var(--muted);font-size:11px">⏳ Pendiente</span>'}</td>
+        </tr>`;
+      }).join("")}
+      <tr style="font-weight:700;border-top:2px solid var(--border)">
+        <td>TOTAL</td>
+        <td colspan="3"></td>
+        <td class="mono" style="text-align:right;color:${pendientes>0?"var(--muted)":clrP(totalPct)}">${pendientes>0?"—":fmtN(totalReal)}</td>
+        <td class="mono" style="text-align:right;color:#3b82f6">${fmtN(totalTeo)}</td>
+        <td class="mono" style="text-align:right;color:${clrP(totalPct)}">${pendientes>0?"—":(totalReal-totalTeo>=0?"+":"")+fmtN(totalReal-totalTeo)}</td>
+        <td class="mono" style="text-align:right;color:${clrP(totalPct)}">${pendientes>0?"—":fmtP(totalPct)}</td>
+        <td>${pendientes>0?'<span style="color:var(--muted);font-size:11px">⏳</span>':estadoBadge(totalPct)}</td>
+      </tr>
       </tbody>
     </table>
+    </div>
   </div>`;
 
-  // Detalle de la última semana con inventarios
+  // ── Producción día a día ────────────────────────────────
+  const diasMap = {};
+  const COL = {Gelcoat:"Gelcoat","Butanox M-50":"Butanox M-50",Resina:"Resina",Norox:"Norox",Marmolina:"Marmolina"};
+
+  TEORICO_RAW.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (!f || f < sem.inicio || f > sem.fin) return;
+    if (!diasMap[f]) diasMap[f] = { paredes:0, lineas:new Set(), Gelcoat:0, "Butanox M-50":0, Resina:0, Norox:0, Marmolina:0, totalKg:0 };
+    const d = diasMap[f];
+    d.paredes++;
+    if (r["Linea"]) d.lineas.add(r["Linea"]);
+    MATS.forEach(m => {
+      const col = MAT_KEY[m];
+      const v = parseFloat((r[col]||"").toString().replace(",",".")) || 0;
+      d[col] = (d[col]||0) + v;
+      d.totalKg += v;
+    });
+  });
+
+  const dias = Object.keys(diasMap).sort();
+  const totDia = { paredes:0, Gelcoat:0, "Butanox M-50":0, Resina:0, Norox:0, Marmolina:0, totalKg:0 };
+  dias.forEach(f => {
+    const d = diasMap[f];
+    totDia.paredes += d.paredes;
+    MATS.forEach(m => { totDia[MAT_KEY[m]] += d[MAT_KEY[m]]; });
+    totDia.totalKg += d.totalKg;
+  });
+
+  const diasSemana = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+
   html += `
-  <div class="card">
-    <div class="card-title">Detalle Semana Actual — ${ultima.label} <span>${ultima.inicio} → ${ultima.fin}</span></div>
-    <div style="display:grid;grid-template-columns:120px 100px 110px 100px 110px 90px 90px 90px;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:4px">
-      ${["Material","Inv. Inicial","Entradas Odoo","Inv. Final","Consumo Real","Teórico","Diff (kg)","Estado"].map(h=>`<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${h}</div>`).join("")}
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="table-header-title">Producción Día a Día — Teórico</div>
+      <span style="font-size:11px;color:var(--muted)">${dias.length} días · ${totDia.paredes.toLocaleString()} paredes</span>
     </div>
-    ${MATS.map(m=>{
-      const r=ultima.materiales[m]||{};
-      const invIni = r["Inv. Inicial (kg)"]||"";
-      const entOdo = parseFloat(r["Entradas Odoo (kg)"]||"0")||0;
-      const invFin = r["Inv. Final (kg)"]||"";
-      const cr     = r["Consumo Real (kg)"]||"";
-      const teo    = parseFloat(r["Teórico (kg)"]||"0")||0;
-      const diff   = r["Diferencia (kg)"]||"";
-      const pct    = parseFloat(r["Diferencia (%)"]||"")||null;
-      const est    = r["Estado"]||"⏳ Pendiente";
-      const crNum  = parseFloat(cr)||null;
-      return`<div style="display:grid;grid-template-columns:120px 100px 110px 100px 110px 90px 90px 90px;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-        <div style="font-size:12px;font-weight:500;color:${MAT_COLOR[m]}">${m}</div>
-        <div class="mono" style="color:${invIni?"var(--text)":"var(--muted)"}">${invIni||"📝 Capturar"}</div>
-        <div class="mono" style="color:#6b7280">${fmtN(entOdo)}</div>
-        <div class="mono" style="color:${invFin?"var(--text)":"var(--muted)"}">${invFin||"📝 Capturar"}</div>
-        <div class="mono" style="color:${crNum!==null?clrP(pct||0):"var(--muted)"}">${crNum!==null?fmtN(crNum):"—"}</div>
-        <div class="mono" style="color:#3b82f6">${fmtN(teo)}</div>
-        <div class="mono" style="color:${diff?clrP(pct||0):"var(--muted)"}">${diff?fmtN(parseFloat(diff)):"—"}</div>
-        <div>${est.includes("Pendiente")?'<span style="color:var(--muted);font-size:11px">⏳</span>':estadoBadge(pct||0)}</div>
-      </div>`;
-    }).join("")}
+    <table>
+      <thead><tr>
+        <th>Día</th>
+        <th>Fecha</th>
+        <th style="text-align:right">Paredes</th>
+        <th style="text-align:right;color:${MAT_COLOR.Gelcoat}">Gelcoat kg</th>
+        <th style="text-align:right;color:${MAT_COLOR.Butanox}">Butanox kg</th>
+        <th style="text-align:right;color:${MAT_COLOR.Resina}">Resina kg</th>
+        <th style="text-align:right;color:${MAT_COLOR.Norox}">Norox kg</th>
+        <th style="text-align:right;color:${MAT_COLOR.Marmolina}">Marmolina kg</th>
+        <th style="text-align:right">Total kg</th>
+        <th>Líneas</th>
+      </tr></thead>
+      <tbody>
+      ${dias.length===0
+        ? `<tr><td colspan="10" class="empty">Sin registros de producción en este período</td></tr>`
+        : dias.map(f => {
+            const d = diasMap[f];
+            const dow = diasSemana[new Date(f+"T12:00:00").getDay()];
+            const fmtFecha = new Date(f+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"short"});
+            return `<tr>
+              <td style="color:var(--muted);font-weight:600">${dow}</td>
+              <td class="mono">${fmtFecha}</td>
+              <td class="mono" style="text-align:right">${d.paredes.toLocaleString()}</td>
+              <td class="mono" style="text-align:right;color:${MAT_COLOR.Gelcoat}">${fmtN(d["Gelcoat"])}</td>
+              <td class="mono" style="text-align:right;color:${MAT_COLOR.Butanox}">${fmtN(d["Butanox M-50"])}</td>
+              <td class="mono" style="text-align:right;color:${MAT_COLOR.Resina}">${fmtN(d["Resina"])}</td>
+              <td class="mono" style="text-align:right;color:${MAT_COLOR.Norox}">${fmtN(d["Norox"])}</td>
+              <td class="mono" style="text-align:right;color:${MAT_COLOR.Marmolina}">${fmtN(d["Marmolina"])}</td>
+              <td class="mono" style="text-align:right;font-weight:600">${fmtN(d.totalKg)}</td>
+              <td style="color:var(--muted);font-size:11px">${[...d.lineas].sort().map(l=>`L${l}`).join(", ")||"—"}</td>
+            </tr>`;
+          }).join("")
+      }
+      <tr style="font-weight:700;border-top:2px solid var(--border);background:rgba(255,255,255,.03)">
+        <td colspan="2" style="color:var(--muted)">TOTAL SEMANA</td>
+        <td class="mono" style="text-align:right">${totDia.paredes.toLocaleString()}</td>
+        <td class="mono" style="text-align:right;color:${MAT_COLOR.Gelcoat}">${fmtN(totDia["Gelcoat"])}</td>
+        <td class="mono" style="text-align:right;color:${MAT_COLOR.Butanox}">${fmtN(totDia["Butanox M-50"])}</td>
+        <td class="mono" style="text-align:right;color:${MAT_COLOR.Resina}">${fmtN(totDia["Resina"])}</td>
+        <td class="mono" style="text-align:right;color:${MAT_COLOR.Norox}">${fmtN(totDia["Norox"])}</td>
+        <td class="mono" style="text-align:right;color:${MAT_COLOR.Marmolina}">${fmtN(totDia["Marmolina"])}</td>
+        <td class="mono" style="text-align:right;font-weight:700">${fmtN(totDia.totalKg)}</td>
+        <td></td>
+      </tr>
+      </tbody>
+    </table>
   </div>`;
 
   document.getElementById("main-content").innerHTML = html;
