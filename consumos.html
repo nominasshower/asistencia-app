@@ -145,9 +145,15 @@ tr:hover td{background:rgba(255,255,255,.02);}
           Aplicar
         </button>
       </div>
-      <div id="filtro-semana" style="display:none;align-items:center;gap:8px">
+      <div id="filtro-semana" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
+        <label class="lbl">Línea</label>
+        <div class="btn-group" id="btn-linea-corte">
+          <button class="active" onclick="setLineaCorte('',this)">Todas</button>
+          <button onclick="setLineaCorte('1',this)">Línea 1</button>
+          <button onclick="setLineaCorte('2',this)">Línea 2</button>
+        </div>
         <label class="lbl">Semana</label>
-        <select id="sel-semana" onchange="window._corteSemana=this.value;render()" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;min-width:160px"></select>
+        <select id="sel-semana" onchange="window._corteSemana=this.value;render()" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;min-width:200px"></select>
       </div>
       <button class="btn" onclick="cargar()">↺ Recargar</button>
     </div>
@@ -557,6 +563,39 @@ function setLinea(l,btn){
   render();
 }
 
+function setLineaCorte(l,btn){
+  LINEA=l;
+  document.querySelectorAll("#btn-linea-corte button").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  renderCorte();
+}
+
+// Consumo real desde KPIS para un rango de fechas específico
+function calcFisicoRango(inicio, fin) {
+  const rows = LINEA==="1" ? KPIS_L1 : LINEA==="2" ? KPIS_L2 : [...KPIS_L1, ...KPIS_L2];
+  const tot  = { gelcoat:0, resina:0, marmolina:0, catalizador:0 };
+  for (let i=1; i<rows.length; i++) {
+    const fila = rows[i];
+    const fs   = String(fila[KPIS_COLS.fecha]||"");
+    let fd;
+    if (fs.includes("/")) { const p=fs.split("/"); fd=new Date(+p[2],+p[1]-1,+p[0]); }
+    else { const m=fs.match(/(\d{4})-(\d{2})-(\d{2})/); if(!m) continue; fd=new Date(+m[1],+m[2]-1,+m[3]); }
+    const fStr = fd.toISOString().slice(0,10);
+    if (fStr < inicio || fStr > fin) continue;
+    tot.gelcoat      += parseFloat(String(fila[KPIS_COLS.gelcoat]   ||"0").replace(/,/g,""))||0;
+    tot.resina       += parseFloat(String(fila[KPIS_COLS.resina]    ||"0").replace(/,/g,""))||0;
+    tot.marmolina    += parseFloat(String(fila[KPIS_COLS.marmolina] ||"0").replace(/,/g,""))||0;
+    tot.catalizador  += parseFloat(String(fila[KPIS_COLS.catalizador]||"0").replace(/,/g,""))||0;
+  }
+  return {
+    Gelcoat:   round2(tot.gelcoat),
+    Butanox:   round2(tot.catalizador / 2),
+    Resina:    round2(tot.resina),
+    Norox:     round2(tot.catalizador / 2),
+    Marmolina: round2(tot.marmolina),
+  };
+}
+
 function setVista(v,el){
   VISTA=v;
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
@@ -636,27 +675,34 @@ function renderCorte() {
   const MATS = ['Gelcoat','Butanox','Resina','Norox','Marmolina'];
   const MAT_KEY = {Gelcoat:"Gelcoat", Butanox:"Butanox M-50", Resina:"Resina", Norox:"Norox", Marmolina:"Marmolina"};
   const MAT_COLOR = {Gelcoat:"#3b82f6",Butanox:"#8b5cf6",Resina:"#f59e0b",Norox:"#06b6d4",Marmolina:"#22c55e"};
+  const linLbl = LINEA ? `Línea ${LINEA}` : "Todas las líneas";
+
+  // ── Consumo real desde KPIS para este rango ─────────────
+  const kpisReal = calcFisicoRango(sem.inicio, sem.fin);
 
   // ── KPIs de la semana ───────────────────────────────────
   const kpiMats = MATS.map(m => {
-    const r        = sem.materiales[m] || {};
-    const consReal = parseFloat(r["Consumo Real (kg)"]||"") || null;
-    const teo      = parseFloat(r["Teórico (kg)"]||"") || 0;
-    const invIni   = parseFloat(r["Inv. Inicial (kg)"]||"") || null;
-    const entOdo   = parseFloat(r["Entradas Odoo (kg)"]||"") || 0;
-    const invFin   = parseFloat(r["Inv. Final (kg)"]||"") || null;
-    const diff     = parseFloat(r["Diferencia (kg)"]||"") || null;
-    const pct      = parseFloat(r["Diferencia (%)"]||"") || null;
+    const r      = sem.materiales[m] || {};
+    const teo    = parseFloat(r["Teórico (kg)"]||"") || 0;
+    const invIni = parseFloat(r["Inv. Inicial (kg)"]||"") || null;
+    const entOdo = parseFloat(r["Entradas Odoo (kg)"]||"") || 0;
+    const invFin = parseFloat(r["Inv. Final (kg)"]||"") || null;
+    // Consumo real: preferir KPIS físico, fallback a hoja INVENTARIOS
+    const consReal = kpisReal[m] > 0 ? kpisReal[m] : (parseFloat(r["Consumo Real (kg)"]||"")||null);
+    const diff     = consReal !== null ? round2(consReal - teo) : null;
+    const pct      = consReal !== null && teo ? round2((consReal-teo)/teo*100) : null;
     return { m, consReal, teo, invIni, entOdo, invFin, diff, pct };
   });
 
-  const totalReal = kpiMats.reduce((s,k)=>s+(k.consReal||0),0);
-  const totalTeo  = kpiMats.reduce((s,k)=>s+k.teo,0);
-  const totalPct  = totalTeo ? ((totalReal-totalTeo)/totalTeo*100) : 0;
-  const pendientes = kpiMats.filter(k=>k.consReal===null).length;
+  const totalReal  = kpiMats.reduce((s,k)=>s+(k.consReal||0),0);
+  const totalTeo   = kpiMats.reduce((s,k)=>s+k.teo,0);
+  const totalPct   = totalTeo ? ((totalReal-totalTeo)/totalTeo*100) : 0;
+  const pendientes = kpiMats.filter(k=>k.consReal===null||k.consReal===0).length;
   const totalParedes = TEORICO_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
-    return f >= sem.inicio && f <= sem.fin;
+    if (f < sem.inicio || f > sem.fin) return false;
+    if (LINEA && String(r["Linea"]||"").trim() !== LINEA) return false;
+    return true;
   }).length;
 
   let html = `
@@ -664,12 +710,12 @@ function renderCorte() {
     <div class="metric">
       <div class="metric-label">Semana</div>
       <div class="metric-val white" style="font-size:15px">${sem.label}</div>
-      <div class="metric-sub">${sem.inicio} → ${sem.fin}</div>
+      <div class="metric-sub">${sem.inicio} → ${sem.fin} · ${linLbl}</div>
     </div>
     <div class="metric">
       <div class="metric-label">Paredes vaciadas</div>
       <div class="metric-val" style="color:var(--accent2)">${totalParedes.toLocaleString()}</div>
-      <div class="metric-sub">producción teórica</div>
+      <div class="metric-sub">${linLbl}</div>
     </div>
     <div class="metric">
       <div class="metric-label">Teórico semana</div>
@@ -677,9 +723,9 @@ function renderCorte() {
       <div class="metric-sub">calculado desde producción</div>
     </div>
     <div class="metric">
-      <div class="metric-label">Consumo Real</div>
-      <div class="metric-val" style="color:${pendientes>0?"var(--muted)":clrP(totalPct)}">${pendientes>0?"⏳ Pendiente":fmtN(totalReal)+" kg"}</div>
-      <div class="metric-sub">${pendientes>0?pendientes+" mat. sin inventario":fmtP(totalPct)+" vs teórico"}</div>
+      <div class="metric-label">Consumo Real (KPIS)</div>
+      <div class="metric-val" style="color:${pendientes>0?"var(--muted)":clrP(totalPct)}">${pendientes>0?"⏳ Sin datos":fmtN(totalReal)+" kg"}</div>
+      <div class="metric-sub">${pendientes>0?"Sin datos en KPIS":fmtP(totalPct)+" vs teórico"}</div>
     </div>
     <div class="metric">
       <div class="metric-label">Materiales con corte</div>
@@ -741,6 +787,7 @@ function renderCorte() {
   TEORICO_RAW.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (!f || f < sem.inicio || f > sem.fin) return;
+    if (LINEA && String(r["Linea"]||"").trim() !== LINEA) return;
     if (!diasMap[f]) diasMap[f] = { paredes:0, lineas:new Set(), Gelcoat:0, "Butanox M-50":0, Resina:0, Norox:0, Marmolina:0, totalKg:0 };
     const d = diasMap[f];
     d.paredes++;
@@ -767,7 +814,7 @@ function renderCorte() {
   html += `
   <div class="table-wrap">
     <div class="table-header">
-      <div class="table-header-title">Producción Día a Día — Teórico</div>
+      <div class="table-header-title">Producción Día a Día — Teórico · ${linLbl}</div>
       <span style="font-size:11px;color:var(--muted)">${dias.length} días · ${totDia.paredes.toLocaleString()} paredes</span>
     </div>
     <table>
