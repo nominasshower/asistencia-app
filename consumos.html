@@ -102,6 +102,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Corte Semanal
     </div>
+    <div class="nav-item" onclick="setVista('ventas',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 001.95-1.57l1.65-7.43H6"/></svg>
+      Ventas
+    </div>
   </div>
   <div class="nav-group">
     <div class="nav-label">Leyenda</div>
@@ -181,7 +185,7 @@ const SHEET_ID      = "1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c";
 const KPIS_SHEET_ID = "1tr8iCcA9SL2U4i-a1U7LC_Fd5EnQe1krAyPMA599D-o";
 
 let VISTA="resumen", LINEA="";
-let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[];
+let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[], VENTAS_RAW=[];
 let KPIS_L1=[], KPIS_L2=[];
 
 const MATERIALES = [
@@ -336,6 +340,7 @@ function render(){
   if(VISTA==="resumen") renderResumen(teo,fab,alm,fis,paredes);
   else if(VISTA==="fabricacion") renderMovimientos(movsFab,fab,teo,"Salidas hacia Fabricación");
   else if(VISTA==="corte") renderCorte();
+  else if(VISTA==="ventas") renderVentas();
   else renderMovimientos(movsAlm,alm,teo,"Llegadas al Almacén",true);
 }
 
@@ -606,9 +611,17 @@ function setVista(v,el){
   if(v==="corte"){
     if(filtrosFecha) filtrosFecha.style.display="none";
     if(filtroSemana) filtroSemana.style.display="flex";
+  } else if(v==="ventas"){
+    if(filtrosFecha) filtrosFecha.style.display="flex";
+    if(filtroSemana) filtroSemana.style.display="none";
+    // Ventas no necesita filtro de línea
+    document.getElementById("btn-linea").style.display="none";
+    document.querySelector("#filtros-fecha label.lbl").style.display="none";
   } else {
     if(filtrosFecha) filtrosFecha.style.display="flex";
     if(filtroSemana) filtroSemana.style.display="none";
+    document.getElementById("btn-linea").style.display="flex";
+    document.querySelector("#filtros-fecha label.lbl").style.display="inline";
   }
   render();
 }
@@ -617,12 +630,14 @@ function setVista(v,el){
 async function cargar(){
   document.getElementById("main-content").innerHTML=`<div class="loading"><div class="spinner"></div><div>Conectando con Google Sheets…</div></div>`;
   try{
-    [TEORICO_RAW, FAB_RAW, ALM_RAW, INVENTARIOS_RAW,
+    const safe = name => fetchSheet(SHEET_ID, name).catch(() => []);
+    [TEORICO_RAW, FAB_RAW, ALM_RAW, INVENTARIOS_RAW, VENTAS_RAW,
      KPIS_L1, KPIS_L2] = await Promise.all([
       fetchSheet(SHEET_ID,"CONSUMOS_DIARIOS"),
       fetchSheet(SHEET_ID,"SALIDAS_FABRICACION"),
       fetchSheet(SHEET_ID,"LLEGADAS_ALMACEN"),
       fetchSheet(SHEET_ID,"INVENTARIOS"),
+      safe("VENTAS"),
       fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L1"),
       fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L2"),
     ]);
@@ -899,6 +914,162 @@ function renderCorte() {
         <td class="mono" style="text-align:right;color:${totDia.realTotal?"#22c55e":"var(--muted)"}">${totDia.realTotal?fmtN(totDia.realTotal):"—"}</td>
         <td class="mono" style="text-align:right;color:${totDiff!==null?clrP(totDiff):"var(--muted)"}">${totDiff!==null?fmtP(totDiff):"—"}</td>
       </tr>
+      </tbody>
+    </table>
+  </div>`;
+
+  document.getElementById("main-content").innerHTML = html;
+}
+
+// ── Ventas ────────────────────────────────────────────────
+function renderVentas() {
+  document.getElementById("topbar-sub").textContent = "Pedidos de venta desde Odoo";
+
+  if (!VENTAS_RAW || VENTAS_RAW.length === 0) {
+    document.getElementById("main-content").innerHTML =
+      `<div class="loading"><div class="empty">Sin datos en hoja VENTAS.<br>
+       Corre <code style="color:var(--accent)">python odoo_ventas.py --dias 90</code> primero.</div></div>`;
+    return;
+  }
+
+  const{desde,hasta} = getFechas();
+  const datos = VENTAS_RAW.filter(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (desde && f < desde) return false;
+    if (hasta && f > hasta) return false;
+    return true;
+  });
+
+  // ── KPIs ───────────────────────────────────────────────
+  const confirmados = datos.filter(r => r["Estado"]==="Confirmado"||r["Estado"]==="Cerrado");
+  const totalPiezas = confirmados.reduce((s,r)=>s+parseFloat(r["Cantidad"]||0),0);
+  const totalMonto  = confirmados.reduce((s,r)=>s+parseFloat(r["Subtotal"]||0),0);
+  const totalEntregado = confirmados.reduce((s,r)=>s+parseFloat(r["Entregado"]||0),0);
+  const totalPendiente = confirmados.reduce((s,r)=>s+parseFloat(r["Pendiente"]||0),0);
+  const pctEntrega  = totalPiezas ? Math.round(totalEntregado/totalPiezas*100) : 0;
+
+  // Por cliente
+  const clientes = {};
+  confirmados.forEach(r => {
+    const c = r["Cliente"]||"—";
+    if (!clientes[c]) clientes[c] = { piezas:0, monto:0, pedidos:new Set() };
+    clientes[c].piezas += parseFloat(r["Cantidad"]||0);
+    clientes[c].monto  += parseFloat(r["Subtotal"]||0);
+    clientes[c].pedidos.add(r["Pedido"]);
+  });
+  const topClientes = Object.entries(clientes)
+    .sort((a,b)=>b[1].monto-a[1].monto).slice(0,8);
+  const maxMonto = topClientes[0]?.[1].monto || 1;
+
+  // Por SKU/Producto
+  const skuMap = {};
+  confirmados.forEach(r => {
+    const k = r["SKU"]||r["Producto"]||"—";
+    if (!skuMap[k]) skuMap[k] = { piezas:0, monto:0 };
+    skuMap[k].piezas += parseFloat(r["Cantidad"]||0);
+    skuMap[k].monto  += parseFloat(r["Subtotal"]||0);
+  });
+  const topSKU = Object.entries(skuMap).sort((a,b)=>b[1].piezas-a[1].piezas).slice(0,10);
+  const maxSKU = topSKU[0]?.[1].piezas || 1;
+
+  // Por estado
+  const estados = {};
+  datos.forEach(r => { const e=r["Estado"]||"—"; estados[e]=(estados[e]||0)+parseFloat(r["Cantidad"]||0); });
+
+  const fmtMXN = v => v.toLocaleString('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:0});
+
+  let html = `
+  <div class="metrics" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
+    <div class="metric">
+      <div class="metric-label">Piezas vendidas</div>
+      <div class="metric-val" style="color:var(--accent2)">${Math.round(totalPiezas).toLocaleString()}</div>
+      <div class="metric-sub">pedidos confirmados/cerrados</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Monto total</div>
+      <div class="metric-val green" style="font-size:18px">${fmtMXN(totalMonto)}</div>
+      <div class="metric-sub">${confirmados.length} líneas</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Entregado</div>
+      <div class="metric-val" style="color:var(--accent)">${Math.round(totalEntregado).toLocaleString()}</div>
+      <div class="metric-sub">${pctEntrega}% del total</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Pendiente entregar</div>
+      <div class="metric-val" style="color:${totalPendiente>0?"var(--warn)":"var(--accent)"}">${Math.round(totalPendiente).toLocaleString()}</div>
+      <div class="metric-sub">piezas por despachar</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Clientes activos</div>
+      <div class="metric-val white">${Object.keys(clientes).length}</div>
+      <div class="metric-sub">en el período</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Top Clientes por Monto <span>confirmados + cerrados</span></div>
+      <div class="bar-chart">
+        ${topClientes.map(([c,v])=>`
+        <div class="bar-row">
+          <div class="bar-label" title="${c}">${c}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v.monto/maxMonto*100)}%;background:var(--accent2)"></div></div>
+          <div style="width:80px;text-align:right;font-size:11px;color:var(--muted)">${fmtMXN(v.monto)}</div>
+        </div>`).join("")}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Top Productos por Piezas <span>confirmados + cerrados</span></div>
+      <div class="bar-chart">
+        ${topSKU.map(([k,v])=>`
+        <div class="bar-row">
+          <div class="bar-label" title="${k}">${k}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v.piezas/maxSKU*100)}%;background:var(--accent)"></div></div>
+          <div class="bar-val">${Math.round(v.piezas)}</div>
+        </div>`).join("")}
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="table-header-title">Detalle de Pedidos</div>
+      <span style="font-size:11px;color:var(--muted)">${datos.length} líneas · ${[...new Set(datos.map(r=>r["Pedido"]))].length} pedidos</span>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Fecha</th><th>Pedido</th><th>Cliente</th>
+        <th>SKU</th><th>Producto</th>
+        <th style="text-align:right">Cant.</th>
+        <th style="text-align:right">Precio Unit</th>
+        <th style="text-align:right">Subtotal</th>
+        <th style="text-align:right">Entregado</th>
+        <th style="text-align:right">Pendiente</th>
+        <th>Estado</th>
+      </tr></thead>
+      <tbody>
+      ${datos.length===0
+        ? `<tr><td colspan="11" class="empty">Sin datos en el período</td></tr>`
+        : datos.map(r=>{
+            const est  = r["Estado"]||"—";
+            const pend = parseFloat(r["Pendiente"]||0);
+            const bClr = est==="Confirmado"?"b-ok":est==="Cerrado"?"b-l1":est==="Cancelado"?"b-danger":"b-warn";
+            return `<tr>
+              <td class="mono">${r["Fecha"]||"—"}</td>
+              <td class="mono" style="color:var(--accent2)">${r["Pedido"]||"—"}</td>
+              <td style="max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Cliente"]||""}">${r["Cliente"]||"—"}</td>
+              <td class="mono" style="color:var(--accent)">${r["SKU"]||"—"}</td>
+              <td style="max-width:180px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--muted)" title="${r["Producto"]||""}">${r["Producto"]||"—"}</td>
+              <td class="mono" style="text-align:right">${parseFloat(r["Cantidad"]||0).toLocaleString()}</td>
+              <td class="mono" style="text-align:right;color:var(--muted)">${fmtMXN(parseFloat(r["Precio Unit"]||0))}</td>
+              <td class="mono" style="text-align:right;font-weight:600">${fmtMXN(parseFloat(r["Subtotal"]||0))}</td>
+              <td class="mono" style="text-align:right;color:var(--accent)">${parseFloat(r["Entregado"]||0).toLocaleString()}</td>
+              <td class="mono" style="text-align:right;color:${pend>0?"var(--warn)":"var(--muted)"}">${pend>0?pend.toLocaleString():"—"}</td>
+              <td><span class="badge ${bClr}">${est}</span></td>
+            </tr>`;
+          }).join("")
+      }
       </tbody>
     </table>
   </div>`;
