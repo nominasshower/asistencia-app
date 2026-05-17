@@ -947,6 +947,9 @@ function renderVentas() {
   const totalEntregado = confirmados.reduce((s,r)=>s+parseFloat(r["Entregado"]||0),0);
   const totalPendiente = confirmados.reduce((s,r)=>s+parseFloat(r["Pendiente"]||0),0);
   const pctEntrega  = totalPiezas ? Math.round(totalEntregado/totalPiezas*100) : 0;
+  const hoyStr      = new Date().toISOString().slice(0,10);
+  const vencidas    = confirmados.filter(r=>r["Fecha Entrega"]&&r["Fecha Entrega"]<hoyStr&&parseFloat(r["Pendiente"]||0)>0);
+  const piezasVenc  = vencidas.reduce((s,r)=>s+parseFloat(r["Pendiente"]||0),0);
 
   // Por cliente
   const clientes = {};
@@ -1001,9 +1004,9 @@ function renderVentas() {
       <div class="metric-sub">piezas por despachar</div>
     </div>
     <div class="metric">
-      <div class="metric-label">Clientes activos</div>
-      <div class="metric-val white">${Object.keys(clientes).length}</div>
-      <div class="metric-sub">en el período</div>
+      <div class="metric-label">Entregas vencidas</div>
+      <div class="metric-val" style="color:${vencidas.length>0?"var(--danger)":"var(--accent)"}">${vencidas.length>0?"⚠ "+Math.round(piezasVenc)+" pzas":"✓ Al día"}</div>
+      <div class="metric-sub">${vencidas.length>0?vencidas.length+" líneas atrasadas":"Sin retrasos"}</div>
     </div>
   </div>
 
@@ -1039,10 +1042,9 @@ function renderVentas() {
     </div>
     <table>
       <thead><tr>
-        <th>Fecha</th><th>Pedido</th><th>Cliente</th>
+        <th>Fecha Pedido</th><th>Entrega Prog.</th><th>Pedido</th><th>Cliente</th>
         <th>SKU</th><th>Producto</th>
         <th style="text-align:right">Cant.</th>
-        <th style="text-align:right">Precio Unit</th>
         <th style="text-align:right">Subtotal</th>
         <th style="text-align:right">Entregado</th>
         <th style="text-align:right">Pendiente</th>
@@ -1052,17 +1054,23 @@ function renderVentas() {
       ${datos.length===0
         ? `<tr><td colspan="11" class="empty">Sin datos en el período</td></tr>`
         : datos.map(r=>{
-            const est  = r["Estado"]||"—";
-            const pend = parseFloat(r["Pendiente"]||0);
-            const bClr = est==="Confirmado"?"b-ok":est==="Cerrado"?"b-l1":est==="Cancelado"?"b-danger":"b-warn";
+            const est      = r["Estado"]||"—";
+            const pend     = parseFloat(r["Pendiente"]||0);
+            const bClr     = est==="Confirmado"?"b-ok":est==="Cerrado"?"b-l1":est==="Cancelado"?"b-danger":"b-warn";
+            const fEnt     = r["Fecha Entrega"]||"";
+            const hoy      = new Date().toISOString().slice(0,10);
+            const vencida  = fEnt && fEnt < hoy && pend > 0;
+            const proxima  = fEnt && fEnt >= hoy && fEnt <= new Date(Date.now()+7*86400000).toISOString().slice(0,10) && pend > 0;
+            const entClr   = vencida?"var(--danger)":proxima?"var(--warn)":fEnt?"var(--text)":"var(--muted)";
+            const entLabel = fEnt ? (vencida?`⚠ ${fEnt}`:proxima?`⏰ ${fEnt}`:fEnt) : "—";
             return `<tr>
               <td class="mono">${r["Fecha"]||"—"}</td>
+              <td class="mono" style="color:${entClr};font-weight:${vencida||proxima?"600":"400"}">${entLabel}</td>
               <td class="mono" style="color:var(--accent2)">${r["Pedido"]||"—"}</td>
-              <td style="max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Cliente"]||""}">${r["Cliente"]||"—"}</td>
+              <td style="max-width:150px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Cliente"]||""}">${r["Cliente"]||"—"}</td>
               <td class="mono" style="color:var(--accent)">${r["SKU"]||"—"}</td>
-              <td style="max-width:180px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--muted)" title="${r["Producto"]||""}">${r["Producto"]||"—"}</td>
+              <td style="max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--muted)" title="${r["Producto"]||""}">${r["Producto"]||"—"}</td>
               <td class="mono" style="text-align:right">${parseFloat(r["Cantidad"]||0).toLocaleString()}</td>
-              <td class="mono" style="text-align:right;color:var(--muted)">${fmtMXN(parseFloat(r["Precio Unit"]||0))}</td>
               <td class="mono" style="text-align:right;font-weight:600">${fmtMXN(parseFloat(r["Subtotal"]||0))}</td>
               <td class="mono" style="text-align:right;color:var(--accent)">${parseFloat(r["Entregado"]||0).toLocaleString()}</td>
               <td class="mono" style="text-align:right;color:${pend>0?"var(--warn)":"var(--muted)"}">${pend>0?pend.toLocaleString():"—"}</td>

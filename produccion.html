@@ -865,7 +865,69 @@ function renderPlan() {
   const cDelta = d => d >= 0 ? "color:var(--accent)" : "color:var(--danger)";
   const cPct   = p => p >= 100 ? "var(--accent)" : p >= 70 ? "var(--warn)" : "var(--danger)";
 
+  // ── Detección de posibles errores de captura ──
+  // Alerta cuando aProducir y vaciado difieren de forma sospechosa
+  const alertas = filas.filter(f => {
+    if (f.aProducir <= 0) return false;
+    // Caso 1: vaciado real difiere bastante del capturado
+    if (f.vaciado > 0) {
+      const diff  = Math.abs(f.aProducir - f.vaciado);
+      const mayor = Math.max(f.aProducir, f.vaciado);
+      if (diff >= 3 && (diff / mayor) >= 0.30) return true;
+    }
+    // Caso 2: aProducir supera el Total de la orden completa (typo seguro)
+    if (f.total > 0 && f.aProducir > f.total) return true;
+    return false;
+  }).map(f => {
+    let razon;
+    if (f.total > 0 && f.aProducir > f.total) {
+      razon = `A producir (${f.aProducir}) supera el total de la orden (${f.total}). ¿Error de dígito?`;
+    } else if (f.aProducir < f.vaciado) {
+      razon = `Capturaste ${f.aProducir} pero se vaciaron ${f.vaciado}. ¿Faltó agregar piezas?`;
+    } else {
+      razon = `Capturaste ${f.aProducir} pero solo se vaciaron ${f.vaciado}. ¿Dígito de más?`;
+    }
+    return { ...f, razon };
+  });
+
   document.getElementById("main-content").innerHTML = `
+  ${alertas.length > 0 ? `
+  <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);border-radius:10px;padding:14px 18px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:18px">⚠️</span>
+      <span style="font-weight:700;color:var(--danger);font-size:14px">Posibles errores de captura en PLAN_DIARIO (${alertas.length})</span>
+      <span style="font-size:11px;color:var(--muted);margin-left:auto">Diferencia ≥ 3 piezas y ≥ 30 % — revisa antes de cerrar el día</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="color:var(--muted);border-bottom:1px solid rgba(255,255,255,0.08)">
+          <th style="text-align:left;padding:4px 8px">Fecha</th>
+          <th style="text-align:left;padding:4px 8px">Patrón</th>
+          <th style="text-align:left;padding:4px 8px">Medida</th>
+          <th style="text-align:center;padding:4px 8px">A Producir<br><span style="font-weight:400;font-size:10px">(lo que capturaste)</span></th>
+          <th style="text-align:center;padding:4px 8px">Vaciado real</th>
+          <th style="text-align:center;padding:4px 8px">Diferencia</th>
+          <th style="text-align:center;padding:4px 8px">Total orden</th>
+          <th style="text-align:left;padding:4px 8px">Probable explicación</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${alertas.map(a=>`
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+          <td class="mono" style="padding:5px 8px">${a.fecha}</td>
+          <td style="padding:5px 8px;max-width:180px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${a.patron}">${a.patron||"—"}</td>
+          <td class="mono" style="padding:5px 8px">${normMedida(a.medida)||"—"}</td>
+          <td style="text-align:center;padding:5px 8px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--danger)">${a.aProducir}</td>
+          <td style="text-align:center;padding:5px 8px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--accent)">${a.vaciado}</td>
+          <td style="text-align:center;padding:5px 8px;font-family:'DM Mono',monospace;font-size:13px;color:var(--warn)">
+            ${a.aProducir < a.vaciado ? "+" : ""}${a.vaciado - a.aProducir}
+          </td>
+          <td style="text-align:center;padding:5px 8px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted)">${a.total||"—"}</td>
+          <td style="padding:5px 8px;color:var(--muted);font-size:11px">${a.razon}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>` : ""}
   <div class="metrics" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
     <div class="metric"><div class="metric-label">A producir (plan)</div><div class="metric-val white">${totalPlan.toLocaleString()}</div><div class="metric-sub">piezas programadas</div></div>
     <div class="metric"><div class="metric-label">Vaciado total</div><div class="metric-val blue">${totalVac.toLocaleString()}</div><div class="metric-sub">piezas vaciadas</div></div>
