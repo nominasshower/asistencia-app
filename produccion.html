@@ -95,6 +95,29 @@ tr:hover td{background:rgba(255,255,255,.02);}
 @keyframes spin{to{transform:rotate(360deg);}}
 .empty{color:var(--muted);font-size:12px;text-align:center;padding:30px;}
 .threshold-note{font-size:11px;color:var(--muted);padding:6px 0 12px;}
+/* Gantt */
+.gantt-wrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 160px);}
+.gantt-table{border-collapse:collapse;font-size:11px;white-space:nowrap;}
+.gantt-table th{position:sticky;top:0;background:var(--bg2);padding:5px 4px;text-align:center;border:1px solid var(--border);font-size:10px;color:var(--muted);z-index:10;min-width:44px;}
+.gantt-table th.col-fija{left:0;z-index:20;text-align:left;padding:5px 8px;min-width:0;}
+.gantt-table th.col-fija2{left:160px;z-index:20;}
+.gantt-table th.col-fija3{left:280px;z-index:20;}
+.gantt-table th.hoy{color:var(--accent);border-color:rgba(34,197,94,.4);}
+.gantt-table td{border:1px solid rgba(255,255,255,.04);padding:3px 4px;vertical-align:middle;}
+.gantt-table td.col-fija{position:sticky;left:0;background:var(--bg2);z-index:5;border-right:1px solid var(--border);max-width:160px;overflow:hidden;text-overflow:ellipsis;padding:4px 8px;}
+.gantt-table td.col-fija2{position:sticky;left:160px;background:var(--bg2);z-index:5;border-right:1px solid var(--border);max-width:120px;overflow:hidden;text-overflow:ellipsis;padding:4px 8px;}
+.gantt-table td.col-fija3{position:sticky;left:280px;background:var(--bg2);z-index:5;border-right:1px solid var(--border);padding:4px 8px;font-family:'DM Mono',monospace;}
+.gantt-table tr:hover td{background:rgba(255,255,255,.025);}
+.gantt-table tr:hover td.col-fija,.gantt-table tr:hover td.col-fija2,.gantt-table tr:hover td.col-fija3{background:var(--bg3);}
+.gcell{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:4px;min-height:26px;padding:2px 3px;gap:1px;}
+.gcell-plan{font-weight:700;font-size:11px;line-height:1;}
+.gcell-real{font-size:9px;line-height:1;opacity:.8;}
+.gc-done{background:rgba(34,197,94,.18);color:#4ade80;}
+.gc-over{background:rgba(59,130,246,.18);color:#60a5fa;}
+.gc-part{background:rgba(245,158,11,.15);color:#fbbf24;}
+.gc-zero{background:rgba(239,68,68,.12);color:#f87171;}
+.gc-empty{background:transparent;}
+.gantt-hoy-line td:not(.col-fija):not(.col-fija2):not(.col-fija3){border-left:2px solid rgba(34,197,94,.5);}
 
 /* ── Modal detalle TAG ─────────────────────────────────── */
 .modal-tag { width: 680px; }
@@ -151,6 +174,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <div class="nav-item" id="nav-ventas" onclick="navegar('ventas',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
       Pedidos Odoo
+    </div>
+    <div class="nav-item" id="nav-gantt" onclick="navegar('gantt',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10" width="12" height="3" rx="1"/><rect x="3" y="16" width="15" height="3" rx="1"/></svg>
+      Gantt Producción
     </div>
   </div>
   <div class="nav-group">
@@ -448,6 +475,7 @@ function renderVista(data) {
   else if (VISTA === "tabla")    renderTabla(dataLimpia);
   else if (VISTA === "plan")     renderPlan();
   else if (VISTA === "ventas")   renderVentas();
+  else if (VISTA === "gantt")    renderGantt();
   else if (VISTA === "liberado") renderLiberado();
   else if (VISTA === "pt")       renderPT();
   else if (VISTA === "empaque")  renderEmpaque();
@@ -1006,6 +1034,145 @@ function renderVentas() {
       </tbody>
     </table>
   </div>` : ""}`;
+}
+
+// ── Gantt de Producción ───────────────────────────────────
+function renderGantt() {
+  document.getElementById("topbar-title").textContent = "Gantt Producción";
+
+  if (!PLAN.length) {
+    document.getElementById("main-content").innerHTML =
+      `<div class="loading"><div class="empty">Sin datos en PLAN_DIARIO.<br>Corre <code style="color:var(--accent)">gantt_to_sheets.py</code> primero.</div></div>`;
+    return;
+  }
+
+  const hoy = new Date().toISOString().slice(0,10);
+
+  // ── Vaciado por fecha+patron+medida ──
+  const vacMap = {};
+  VAC_RAW.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    const k = `${f}||${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
+    vacMap[k] = (vacMap[k]||0) + 1;
+  });
+
+  // ── Fechas únicas del plan (ordenadas) — mostrar solo ±30 días de hoy ──
+  const fechaMin = new Date(Date.now() - 14*864e5).toISOString().slice(0,10);
+  const fechaMax = new Date(Date.now() + 45*864e5).toISOString().slice(0,10);
+  const fechas = [...new Set(
+    PLAN.map(r => {
+      const f = parsePlanFecha ? null : (r["Fecha"]||"").slice(0,10);
+      return (r["Fecha"]||"").slice(0,10);
+    }).filter(f => f >= fechaMin && f <= fechaMax)
+  )].sort();
+
+  if (!fechas.length) {
+    document.getElementById("main-content").innerHTML =
+      `<div class="loading"><div class="empty">No hay fechas en el rango ±45 días. Ajusta el rango o corre el script.</div></div>`;
+    return;
+  }
+
+  // ── Filas únicas del plan: una por Odoo+Modelo+Medida+Lado ──
+  const filasMap = {};
+  PLAN.forEach(r => {
+    const fecha = (r["Fecha"]||"").slice(0,10);
+    if (fecha < fechaMin || fecha > fechaMax) return;
+    const key = `${r["Odoo"]||""}||${normPatron(r["PATRON"]||r["Modelo"]||"")}||${normMedida(r["Medida"]||"")}||${r["Lado"]||""}`;
+    if (!filasMap[key]) filasMap[key] = {
+      odoo:    r["Odoo"]||"",
+      cliente: (r["Cliente"]||"").slice(0,28),
+      modelo:  r["PATRON"]||r["Modelo"]||"",
+      medida:  r["Medida"]||"",
+      lado:    r["Lado"]||"",
+      total:   parseInt(r["Total"]||0)||0,
+      dias:    {},
+    };
+    filasMap[key].dias[fecha] = (filasMap[key].dias[fecha]||0) + (parseInt(r["A PRODUCIR"]||r["A Producir"]||0)||0);
+  });
+
+  const filas = Object.values(filasMap).sort((a,b) =>
+    a.odoo.localeCompare(b.odoo) || a.modelo.localeCompare(b.modelo)
+  );
+
+  // ── Totales por fecha (plan y real) ──
+  const totPlan = {}, totReal = {};
+  fechas.forEach(f => { totPlan[f]=0; totReal[f]=0; });
+  filas.forEach(fila => {
+    fechas.forEach(f => {
+      const plan = fila.dias[f]||0;
+      totPlan[f] += plan;
+      if (plan > 0) {
+        const k = `${f}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
+        totReal[f] += vacMap[k]||0;
+      }
+    });
+  });
+
+  // ── Render ──
+  const fmtDia = f => {
+    const d = new Date(f+'T12:00:00');
+    return `${d.getDate()}/${d.getMonth()+1}<br><span style="font-size:9px">${['Do','Lu','Ma','Mi','Ju','Vi','Sá'][d.getDay()]}</span>`;
+  };
+
+  const celda = (fila, fecha) => {
+    const plan = fila.dias[fecha]||0;
+    if (!plan) return `<td></td>`;
+    const k    = `${fecha}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
+    const real = vacMap[k]||0;
+    let cls;
+    if (real >= plan)        cls = 'gc-done';
+    else if (real > plan*1.0 && real > plan) cls = 'gc-over';
+    else if (real > 0)       cls = 'gc-part';
+    else if (fecha < hoy)    cls = 'gc-zero';
+    else                     cls = 'gc-part' ; // futuro con plan
+    // Para futuro sin real, mostrar solo plan
+    const realTxt = (fecha <= hoy) ? `<div class="gcell-real">${real}✓</div>` : '';
+    return `<td><div class="gcell ${cls}"><div class="gcell-plan">${plan}</div>${realTxt}</div></td>`;
+  };
+
+  document.getElementById("main-content").innerHTML = `
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="font-size:12px;color:var(--muted)">${filas.length} productos · ${fechas.length} días visibles</div>
+    <div style="display:flex;gap:10px;font-size:11px;flex-wrap:wrap">
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(34,197,94,.3);border-radius:2px;margin-right:4px"></span>Cumplido</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(245,158,11,.2);border-radius:2px;margin-right:4px"></span>Parcial</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(239,68,68,.2);border-radius:2px;margin-right:4px"></span>Sin producir (pasado)</span>
+      <span style="color:var(--muted)">Número grande = plan · pequeño = real vaciado</span>
+    </div>
+  </div>
+  <div class="gantt-wrap">
+    <table class="gantt-table">
+      <thead>
+        <tr>
+          <th class="col-fija" style="min-width:160px">Modelo / Patrón</th>
+          <th class="col-fija2" style="min-width:120px">Medida · Lado</th>
+          <th class="col-fija3" style="min-width:60px">Total</th>
+          ${fechas.map(f=>`<th class="${f===hoy?'hoy':''}">${fmtDia(f)}</th>`).join('')}
+        </tr>
+        <tr style="background:var(--bg3)">
+          <th class="col-fija" style="font-size:10px;color:var(--accent)">Plan total</th>
+          <th class="col-fija2"></th>
+          <th class="col-fija3"></th>
+          ${fechas.map(f=>`<th style="color:${totPlan[f]>0?'var(--text)':'var(--muted)'};">${totPlan[f]||''}</th>`).join('')}
+        </tr>
+        <tr style="background:var(--bg3)">
+          <th class="col-fija" style="font-size:10px;color:var(--accent2)">Real vaciado</th>
+          <th class="col-fija2"></th>
+          <th class="col-fija3"></th>
+          ${fechas.map(f=>`<th style="color:${totReal[f]>0?'var(--accent2)':'var(--muted)'};">${totReal[f]||''}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${filas.map(fila => `
+        <tr>
+          <td class="col-fija" title="${fila.modelo}" style="font-size:11px">${fila.modelo.slice(0,24)||'—'}</td>
+          <td class="col-fija2" style="font-size:11px;color:var(--muted)">${normMedida(fila.medida)||'—'} ${fila.lado?'· '+fila.lado:''}</td>
+          <td class="col-fija3" style="color:var(--muted);font-size:11px">${fila.total||'—'}</td>
+          ${fechas.map(f => celda(fila,f)).join('')}
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
 }
 
 // Normaliza patrón para cruce PLAN↔VACIADO
