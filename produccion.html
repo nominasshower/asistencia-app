@@ -1110,24 +1110,51 @@ function renderPlan() {
   const cPct   = p => p >= 100 ? "var(--accent)" : p >= 70 ? "var(--warn)" : "var(--danger)";
 
   // ── Detección de posibles errores de captura ──
-  // Solo aplica a días PASADOS (no hoy ni futuro) — hoy el vaciado aún está en curso
-  const hoyStr = new Date().toISOString().slice(0,10);
+  // Lógica: compara el plan de HOY vs lo vaciado AYER del mismo producto.
+  // Si hoy pusiste un número mucho mayor que lo que ayer se produjo → posible typo (ej. 3→31)
+  // También detecta: aProducir supera el Total de la orden completa.
+  const hoyStr  = new Date().toISOString().slice(0,10);
+  const ayerStr = new Date(Date.now() - 864e5).toISOString().slice(0,10);
+
+  // Mapa: key(patron+medida) → vaciado del día anterior
+  const vacAyer = {};
+  vacPeriodo.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (f !== ayerStr) return;
+    const k = `${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
+    vacAyer[k] = (vacAyer[k]||0) + 1;
+  });
+
   const alertas = filas.filter(f => {
     if (f.aProducir <= 0) return false;
-    if (f.fecha >= hoyStr) return false; // ignorar hoy y futuro
-    // Caso 1: vaciado real difiere bastante del capturado
-    if (f.vaciado > 0) {
+
+    // Caso 1: plan de HOY vs vaciado de AYER — posible dígito extra
+    if (f.fecha === hoyStr) {
+      const k = `${normPatron(f.patron)}||${normMedida(f.medida)}`;
+      const vayer = vacAyer[k] || 0;
+      // Sospechoso si hoy planeas ≥5x más de lo que ayer se produjo (y ayer produjeron algo)
+      if (vayer > 0 && f.aProducir >= vayer * 5 && f.aProducir >= 10) return true;
+    }
+
+    // Caso 2: día pasado — vaciado real muy diferente al plan (día ya cerrado)
+    if (f.fecha < hoyStr && f.vaciado > 0) {
       const diff  = Math.abs(f.aProducir - f.vaciado);
       const mayor = Math.max(f.aProducir, f.vaciado);
       if (diff >= 3 && (diff / mayor) >= 0.30) return true;
     }
-    // Caso 2: aProducir supera el Total de la orden completa (typo seguro)
+
+    // Caso 3: aProducir supera el Total de la orden (typo seguro, cualquier día)
     if (f.total > 0 && f.aProducir > f.total) return true;
+
     return false;
   }).map(f => {
     let razon;
     if (f.total > 0 && f.aProducir > f.total) {
       razon = `A producir (${f.aProducir}) supera el total de la orden (${f.total}). ¿Error de dígito?`;
+    } else if (f.fecha === hoyStr) {
+      const k = `${normPatron(f.patron)}||${normMedida(f.medida)}`;
+      const vayer = vacAyer[k] || 0;
+      razon = `Hoy pusiste ${f.aProducir} pero ayer solo se vaciaron ${vayer}. ¿Se coló un dígito de más?`;
     } else if (f.aProducir < f.vaciado) {
       razon = `Capturaste ${f.aProducir} pero se vaciaron ${f.vaciado}. ¿Faltó agregar piezas?`;
     } else {
@@ -1142,7 +1169,7 @@ function renderPlan() {
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <span style="font-size:18px">⚠️</span>
       <span style="font-weight:700;color:var(--danger);font-size:14px">Posibles errores de captura en PLAN_DIARIO (${alertas.length})</span>
-      <span style="font-size:11px;color:var(--muted);margin-left:auto">Diferencia ≥ 3 piezas y ≥ 30 % — revisa antes de cerrar el día</span>
+      <span style="font-size:11px;color:var(--muted);margin-left:auto">Plan de hoy vs vaciado de ayer · días pasados vs su propio vaciado</span>
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead>
