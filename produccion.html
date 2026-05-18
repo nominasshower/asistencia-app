@@ -1084,7 +1084,7 @@ function renderGantt() {
   const vacMap = {};
   VAC_RAW.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
-    const k = `${f}||${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
+    const k = `${f}||${normKey(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
     vacMap[k] = (vacMap[k]||0) + 1;
   });
 
@@ -1104,7 +1104,7 @@ function renderGantt() {
     const total = Object.values(patrones).reduce((s,c)=>s+c,0);
     const [base, cnt] = Object.entries(patrones).sort((a,b)=>b[1]-a[1])[0];
     if (cnt/total >= 0.7) { // patrón dominante
-      const k = normPatron(base);
+      const k = normKey(base);
       moldisMap[k] = (moldisMap[k]||0) + 1;
     }
   });
@@ -1122,7 +1122,7 @@ function renderGantt() {
   PLAN.forEach(r => {
     const fecha = normFechaGantt(r["Fecha"]);
     if (!fecha || fecha < fechaMin || fecha > fechaMax) return;
-    const key = `${r["Odoo"]||""}||${normPatron(r["PATRON"]||r["Modelo"]||"")}||${normMedida(r["Medida"]||"")}||${r["Lado"]||""}`;
+    const key = `${r["Odoo"]||""}||${normKey(r["PATRON"]||r["Modelo"]||"")}||${normMedida(r["Medida"]||"")}`;
     if (!filasMap[key]) filasMap[key] = {
       odoo: r["Odoo"]||"", cliente: r["Cliente"]||"",
       modelo: r["PATRON"]||r["Modelo"]||"",
@@ -1136,7 +1136,7 @@ function renderGantt() {
 
   // Calcular real hoy y estado por fila
   let todasFilas = Object.values(filasMap).map(fila => {
-    const kHoy = `${hoy}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
+    const kHoy = `${hoy}||${normKey(fila.modelo)}||${normMedida(fila.medida)}`;
     fila.realHoy  = vacMap[kHoy]||0;
     fila.planHoy  = (fila.dias[hoy]||{}).piezas||0;
     fila.moldesHoy= (fila.dias[hoy]||{}).moldes||0;
@@ -1171,7 +1171,7 @@ function renderGantt() {
   todasFilas.forEach(fila => fechas.forEach(f => {
     const d=fila.dias[f]||{}; const plan=d.piezas||0; const moldes=d.moldes||0;
     totPlan[f]+=plan; totMoldes[f]+=moldes;
-    if(plan>0){ const k=`${f}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`; totReal[f]+=vacMap[k]||0; }
+    if(plan>0){ const k=`${f}||${normKey(fila.modelo)}||${normMedida(fila.medida)}`; totReal[f]+=vacMap[k]||0; }
   }));
   // Sumar también vaciados sin plan para el total real del día
   VAC_RAW.forEach(r => {
@@ -1198,9 +1198,9 @@ function renderGantt() {
     const d=fila.dias[fecha]||{};
     const piezas=d.piezas||0; const moldesPlan=d.moldes||0;
     if(!piezas && !moldesPlan) return `<td style="background:transparent"></td>`;
-    const k=`${fecha}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
+    const k=`${fecha}||${normKey(fila.modelo)}||${normMedida(fila.medida)}`;
     const realPiezas=vacMap[k]||0;
-    const moldisDisp=moldisMap[normPatron(fila.modelo)]||0;
+    const moldisDisp=moldisMap[normKey(fila.modelo)]||0;
     let cls;
     if(realPiezas>=piezas && piezas>0) cls='gc-done';
     else if(realPiezas>0)              cls='gc-part';
@@ -1351,25 +1351,25 @@ function verDetalleCeldaGantt(el) {
   const fecha  = el.dataset.fecha;
   const modelo = el.dataset.modelo;
   const medida = el.dataset.medida;
-  const k = `${fecha}||${normPatron(modelo)}||${medida}`;
+  const k = `${fecha}||${normKey(modelo)}||${medida}`;
   const piezas = VAC_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     return f === fecha
-      && normPatron(r["Patron"]||"") === normPatron(modelo)
+      && normKey(r["Patron"]||"") === normKey(modelo)
       && normMedida(r["Medida"]||"") === medida;
   });
 
   const planRow = PLAN.find(r => {
     const f = normFechaGantt(r["Fecha"]);
     return f === fecha
-      && normPatron(r["PATRON"]||r["Modelo"]||"") === normPatron(modelo)
+      && normKey(r["PATRON"]||r["Modelo"]||"") === normKey(modelo)
       && normMedida(r["Medida"]||"") === medida;
   });
   const planPiezas = planRow ? (parseInt(planRow["A Producir"]||planRow["A PRODUCIR"]||0)||0) : 0;
   const planMoldes = planRow ? (parseInt(planRow["Moldes"]||planRow["MOLDES"]||0)||0) : 0;
 
   const tagsFecha = [...new Set(piezas.map(r=>(r["TAG"]||r["Tag"]||"").trim().toUpperCase()).filter(Boolean))];
-  const moldisDisp = moldisMap ? (moldisMap[normPatron(modelo)]||0) : 0;
+  const moldisDisp = moldisMap ? (moldisMap[normKey(modelo)]||0) : 0;
 
   // Grades de las piezas
   const grades = piezas.map(r => {
@@ -1707,32 +1707,36 @@ async function savePlan() {
 }
 
 // Normaliza patrón para cruce PLAN↔VACIADO
+// Normaliza para MOSTRAR: limpia pero conserva nombre completo
 function normPatron(s) {
+  return (s||"")
+    .replace(/^WALL\s+/i, '')
+    .replace(/LEFT[,\/\s]*IZQ|IZQ[,\/\s]*LEFT/gi, 'LEFT')
+    .replace(/RIGHT[,\/\s]*DER|DER[,\/\s]*RIGHT/gi, 'RIGHT')
+    .replace(/\bSIDE\s+(LEFT|RIGHT)/gi, '$1')
+    .replace(/\bUNI\b/gi, '').replace(/\bSIDE\b/gi, '')
+    .replace(/\bCENTRO\b|\bCENTAR\b/gi, 'CENTER')
+    .replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+// Clave interna para CRUZAR PLAN↔VACIADO: usa siglas entre paréntesis + lado
+// Ej: "WALL 4X12 VERTICAL (VT) CENTER" → "VT CENTER"
+//     "4X12 VERTICAL (VL) CENTER"      → "VL CENTER"  ← no cruza si siglas distintas
+//     "HERRINGBONE (HE) LEFT/IZQ"      → "HE LEFT"
+function normKey(s) {
   const str = (s||"").toUpperCase().trim();
+  const abrev = str.match(/\(([A-Z0-9]{1,4})\)/)?.[1];
 
-  // ── Extraer siglas entre paréntesis (clave estable del patrón) ──
-  const abrev = str.match(/\(([A-Z0-9]{1,4})\)/)?.[1] || null;
-
-  // ── Extraer LADO de todo el texto ──
+  // Extraer LADO
   let lado = '';
-  if (/LEFT[,\/\s]*IZQ|IZQ[,\/\s]*LEFT|\bIZQ\b/.test(str) || /\bLEFT\b/.test(str))   lado = 'LEFT';
-  else if (/RIGHT[,\/\s]*DER|DER[,\/\s]*RIGHT|\bDER\b/.test(str) || /\bRIGHT\b/.test(str)) lado = 'RIGHT';
-  else if (/\bCENT(E?R|RO|AR)\b/.test(str)) lado = 'CENTER';
+  if (/\bLEFT\b|LEFT[,\/]|\/IZQ|\bIZQ\b/.test(str))  lado = 'LEFT';
+  else if (/\bRIGHT\b|RIGHT[,\/]|\/DER|\bDER\b/.test(str)) lado = 'RIGHT';
+  else if (/\bCENT(ER|RO|AR)\b/.test(str)) lado = 'CENTER';
 
-  if (abrev) {
-    // Clave principal: siglas + lado  (ej: "VT LEFT", "MG CENTER", "SB")
-    return lado ? `${abrev} ${lado}` : abrev;
-  }
+  if (abrev) return lado ? `${abrev}||${lado}` : abrev;
 
-  // Fallback para nombres sin paréntesis
-  return str
-    .replace(/^WALL\s+/, '')
-    .replace(/LEFT[,\/\s]*IZQ|IZQ[,\/\s]*LEFT/g, 'LEFT')
-    .replace(/RIGHT[,\/\s]*DER|DER[,\/\s]*RIGHT/g, 'RIGHT')
-    .replace(/\bSIDE\s+(LEFT|RIGHT)/g, '$1')
-    .replace(/\bUNI\b|\bSIDE\b/g, '')
-    .replace(/\bCENT(RO|AR)\b/g, 'CENTER')
-    .replace(/\s+/g, ' ').trim();
+  // Sin siglas: fallback a normPatron
+  return normPatron(str) + (lado ? `||${lado}` : '');
 }
 
 // Normaliza medida: quita comillas, unifica separador
@@ -1756,7 +1760,7 @@ function renderPlan() {
   const vacGrupos = {};
   vacPeriodo.forEach(r => {
     const fechaVac = (r["Fecha"]||"").slice(0,10);
-    const key = `${fechaVac}||${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
+    const key = `${fechaVac}||${normKey(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
     if (!vacGrupos[key]) vacGrupos[key] = { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
     vacGrupos[key].vaciado++;
 
@@ -1777,7 +1781,7 @@ function renderPlan() {
   PLAN.forEach(r => {
     const fecha = parsePlanFecha(r["Fecha"]);
     if (!fecha || fecha < desde || fecha > hasta) return;
-    const patronNorm = normPatron(r["PATRON"] || r["Modelo"] || "");
+    const patronNorm = normKey(r["PATRON"] || r["Modelo"] || "");
     const medidaNorm = normMedida(r["Medida"] || "");
     const key = `${fecha}||${patronNorm}||${medidaNorm}`;
     if (!planGrupos[key]) planGrupos[key] = {
@@ -1837,7 +1841,7 @@ function renderPlan() {
   vacPeriodo.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (f !== ayerStr) return;
-    const k = `${normPatron(r["Patron"])}||${normMedida(r["Medida"])}`;
+    const k = `${normKey(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
     vacAyer[k] = (vacAyer[k]||0) + 1;
   });
 
@@ -1846,7 +1850,7 @@ function renderPlan() {
 
     // Caso 1: plan de HOY vs vaciado de AYER — posible dígito extra
     if (f.fecha === hoyStr) {
-      const k = `${normPatron(f.patron)}||${normMedida(f.medida)}`;
+      const k = `${normKey(f.patron)}||${normMedida(f.medida)}`;
       const vayer = vacAyer[k] || 0;
       // Sospechoso si hoy planeas ≥5x más de lo que ayer se produjo (y ayer produjeron algo)
       if (vayer > 0 && f.aProducir >= vayer * 5 && f.aProducir >= 10) return true;
@@ -1868,7 +1872,7 @@ function renderPlan() {
     if (f.total > 0 && f.aProducir > f.total) {
       razon = `A producir (${f.aProducir}) supera el total de la orden (${f.total}). ¿Error de dígito?`;
     } else if (f.fecha === hoyStr) {
-      const k = `${normPatron(f.patron)}||${normMedida(f.medida)}`;
+      const k = `${normKey(f.patron)}||${normMedida(f.medida)}`;
       const vayer = vacAyer[k] || 0;
       razon = `Hoy pusiste ${f.aProducir} pero ayer solo se vaciaron ${vayer}. ¿Se coló un dígito de más?`;
     } else if (f.aProducir < f.vaciado) {
