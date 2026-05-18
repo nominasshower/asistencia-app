@@ -1097,14 +1097,17 @@ function renderGantt() {
       medida: r["Medida"]||"", lado: r["Lado"]||"",
       total: parseInt(r["Total"]||0)||0, dias:{},
     };
-    filasMap[key].dias[fecha] = (filasMap[key].dias[fecha]||0)+(parseInt(r["A PRODUCIR"]||r["A Producir"]||0)||0);
+    if (!filasMap[key].dias[fecha]) filasMap[key].dias[fecha] = {moldes:0, piezas:0};
+    filasMap[key].dias[fecha].moldes += parseInt(r["Moldes"]||r["MOLDES"]||0)||0;
+    filasMap[key].dias[fecha].piezas += parseInt(r["A PRODUCIR"]||r["A Producir"]||0)||0;
   });
 
   // Calcular real hoy y estado por fila
   let todasFilas = Object.values(filasMap).map(fila => {
     const kHoy = `${hoy}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
     fila.realHoy  = vacMap[kHoy]||0;
-    fila.planHoy  = fila.dias[hoy]||0;
+    fila.planHoy  = (fila.dias[hoy]||{}).piezas||0;
+    fila.moldesHoy= (fila.dias[hoy]||{}).moldes||0;
     fila.produciendo = fila.planHoy > 0 && fila.realHoy > 0;
     fila.pendienteHoy = fila.planHoy > 0 && fila.realHoy < fila.planHoy;
     return fila;
@@ -1131,10 +1134,11 @@ function renderGantt() {
   });
 
   // ── Totales ──
-  const totPlan={}, totReal={};
-  fechas.forEach(f=>{totPlan[f]=0;totReal[f]=0;});
+  const totPlan={}, totReal={}, totMoldes={};
+  fechas.forEach(f=>{totPlan[f]=0;totReal[f]=0;totMoldes[f]=0;});
   todasFilas.forEach(fila => fechas.forEach(f => {
-    const plan=fila.dias[f]||0; totPlan[f]+=plan;
+    const d=fila.dias[f]||{}; const plan=d.piezas||0; const moldes=d.moldes||0;
+    totPlan[f]+=plan; totMoldes[f]+=moldes;
     if(plan>0){ const k=`${f}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`; totReal[f]+=vacMap[k]||0; }
   }));
 
@@ -1144,18 +1148,30 @@ function renderGantt() {
   };
 
   const celda = (fila, fecha) => {
-    const plan=fila.dias[fecha]||0;
-    if(!plan) return `<td style="background:transparent"></td>`;
+    const d=fila.dias[fecha]||{};
+    const piezas=d.piezas||0; const moldes=d.moldes||0;
+    if(!piezas && !moldes) return `<td style="background:transparent"></td>`;
     const k=`${fecha}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
-    const real=vacMap[k]||0;
+    const realPiezas=vacMap[k]||0;
     let cls;
-    if(real>=plan)      cls='gc-done';
-    else if(real>0)     cls='gc-part';
-    else if(fecha<hoy)  cls='gc-zero';
-    else                cls='gc-empty';
-    const realTxt=fecha<=hoy?`<div class="gcell-real">${real}✓</div>`:'';
+    if(realPiezas>=piezas && piezas>0) cls='gc-done';
+    else if(realPiezas>0)              cls='gc-part';
+    else if(fecha<hoy)                 cls='gc-zero';
+    else                               cls='gc-empty';
     const borde=fecha===hoy?'border:1px solid rgba(34,197,94,.5);':'';
-    return `<td><div class="gcell ${cls}" style="${borde}"><div class="gcell-plan">${plan}</div>${realTxt}</div></td>`;
+    // Línea 1: moldes plan / moldes reales (futuro solo plan)
+    // Línea 2: piezas plan / piezas vaciadas
+    const esPasadoHoy = fecha<=hoy;
+    return `<td title="${moldes} moldes · ${piezas} piezas">
+      <div class="gcell ${cls}" style="${borde}">
+        <div style="font-size:10px;color:${cls==='gc-done'?'#4ade80':cls==='gc-part'?'#fbbf24':cls==='gc-zero'?'#f87171':'var(--muted)'};font-weight:700;line-height:1.2">
+          🔲${moldes}${esPasadoHoy?'':''}
+        </div>
+        <div style="font-size:11px;font-weight:700;line-height:1.2">
+          ${piezas}${esPasadoHoy?`<span style="font-size:9px;opacity:.8"> /${realPiezas}✓</span>`:''}
+        </div>
+      </div>
+    </td>`;
   };
 
   // ── Indicador hoy ──
@@ -1210,7 +1226,12 @@ function renderGantt() {
           ${fechas.map(f=>`<th class="${f===hoy?'hoy':''}">${fmtDia(f)}</th>`).join('')}
         </tr>
         <tr style="background:var(--bg3)">
-          <th class="col-fija" style="font-size:10px;color:var(--accent)">▲ Plan</th>
+          <th class="col-fija" style="font-size:10px;color:var(--muted)">🔲 Moldes plan</th>
+          <th class="col-fija2"></th><th class="col-fija3"></th>
+          ${fechas.map(f=>`<th style="color:${totMoldes[f]>0?'var(--muted)':'rgba(255,255,255,.2)'};font-size:10px">${totMoldes[f]||''}</th>`).join('')}
+        </tr>
+        <tr style="background:var(--bg3)">
+          <th class="col-fija" style="font-size:10px;color:var(--accent)">▲ Piezas plan</th>
           <th class="col-fija2"></th><th class="col-fija3"></th>
           ${fechas.map(f=>`<th style="color:${totPlan[f]>0?'var(--text)':'var(--muted)'};font-weight:${f===hoy?700:400}">${totPlan[f]||''}</th>`).join('')}
         </tr>
