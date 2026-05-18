@@ -1173,6 +1173,21 @@ function renderGantt() {
     totPlan[f]+=plan; totMoldes[f]+=moldes;
     if(plan>0){ const k=`${f}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`; totReal[f]+=vacMap[k]||0; }
   }));
+  // Sumar también vaciados sin plan para el total real del día
+  VAC_RAW.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (fechas.includes(f)) {
+      const k=`${f}||${normPatron(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
+      if (!Object.values(vacMap).length || !(k in vacMap)) return; // ya sumado arriba
+    }
+  });
+  // Contar total real directo desde VAC_RAW por fecha
+  const totRealDia = {};
+  VAC_RAW.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (fechas.includes(f)) totRealDia[f] = (totRealDia[f]||0) + 1;
+  });
+  fechas.forEach(f => { if(totRealDia[f]) totReal[f] = totRealDia[f]; });
 
   const fmtDia = f => {
     const d=new Date(f+'T12:00:00');
@@ -1411,7 +1426,7 @@ function verDetalleCeldaGantt(el) {
       <div style="margin-bottom:14px">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px">MOLDES EN LÍNEA HOY (${tagsFecha.length})</div>
         <div style="display:flex;flex-wrap:wrap;gap:4px">
-          ${tagsFecha.map(t=>`<span style="font-family:'DM Mono',monospace;font-size:10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 7px">${t.slice(-8)}</span>`).join('')}
+          ${tagsFecha.map(t=>`<span style="font-family:'DM Mono',monospace;font-size:10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 7px">${tagCorto(t)}</span>`).join('')}
         </div>
       </div>` : ''}
 
@@ -1432,7 +1447,7 @@ function verDetalleCeldaGantt(el) {
             const gCol=grade==="A"?"var(--accent)":grade==="B"?"var(--warn)":grade==="C"?"var(--danger)":"var(--muted)";
             const tag=(r["TAG"]||r["Tag"]||"").trim();
             return `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
-              <td style="padding:4px 6px;font-family:'DM Mono',monospace;font-size:10px">${tag.slice(-10)||"—"}</td>
+              <td style="padding:4px 6px;font-family:'DM Mono',monospace;font-size:10px">${tagCorto(tag)||"—"}</td>
               <td style="padding:4px 6px;font-family:'DM Mono',monospace;font-size:10px">${sku||"—"}</td>
               <td style="padding:4px 6px;text-align:center;font-weight:700;color:${gCol}">${grade}</td>
               <td style="padding:4px 6px;font-size:10px;color:var(--muted)">${r["Color"]||"—"}</td>
