@@ -102,10 +102,6 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Corte Semanal
     </div>
-    <div class="nav-item" onclick="setVista('ventas',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 001.95-1.57l1.65-7.43H6"/></svg>
-      Ventas
-    </div>
   </div>
   <div class="nav-group">
     <div class="nav-label">Leyenda</div>
@@ -185,7 +181,7 @@ const SHEET_ID      = "1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c";
 const KPIS_SHEET_ID = "1tr8iCcA9SL2U4i-a1U7LC_Fd5EnQe1krAyPMA599D-o";
 
 let VISTA="resumen", LINEA="";
-let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[], VENTAS_RAW=[];
+let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[];
 let KPIS_L1=[], KPIS_L2=[];
 
 const MATERIALES = [
@@ -340,7 +336,6 @@ function render(){
   if(VISTA==="resumen") renderResumen(teo,fab,alm,fis,paredes);
   else if(VISTA==="fabricacion") renderMovimientos(movsFab,fab,teo,"Salidas hacia Fabricación");
   else if(VISTA==="corte") renderCorte();
-  else if(VISTA==="ventas") renderVentas();
   else renderMovimientos(movsAlm,alm,teo,"Llegadas al Almacén",true);
 }
 
@@ -611,12 +606,6 @@ function setVista(v,el){
   if(v==="corte"){
     if(filtrosFecha) filtrosFecha.style.display="none";
     if(filtroSemana) filtroSemana.style.display="flex";
-  } else if(v==="ventas"){
-    if(filtrosFecha) filtrosFecha.style.display="flex";
-    if(filtroSemana) filtroSemana.style.display="none";
-    // Ventas no necesita filtro de línea
-    document.getElementById("btn-linea").style.display="none";
-    document.querySelector("#filtros-fecha label.lbl").style.display="none";
   } else {
     if(filtrosFecha) filtrosFecha.style.display="flex";
     if(filtroSemana) filtroSemana.style.display="none";
@@ -630,14 +619,12 @@ function setVista(v,el){
 async function cargar(){
   document.getElementById("main-content").innerHTML=`<div class="loading"><div class="spinner"></div><div>Conectando con Google Sheets…</div></div>`;
   try{
-    const safe = name => fetchSheet(SHEET_ID, name).catch(() => []);
-    [TEORICO_RAW, FAB_RAW, ALM_RAW, INVENTARIOS_RAW, VENTAS_RAW,
+    [TEORICO_RAW, FAB_RAW, ALM_RAW, INVENTARIOS_RAW,
      KPIS_L1, KPIS_L2] = await Promise.all([
       fetchSheet(SHEET_ID,"CONSUMOS_DIARIOS"),
       fetchSheet(SHEET_ID,"SALIDAS_FABRICACION"),
       fetchSheet(SHEET_ID,"LLEGADAS_ALMACEN"),
       fetchSheet(SHEET_ID,"INVENTARIOS"),
-      safe("VENTAS"),
       fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L1"),
       fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L2"),
     ]);
@@ -921,8 +908,8 @@ function renderCorte() {
   document.getElementById("main-content").innerHTML = html;
 }
 
-// ── Ventas ────────────────────────────────────────────────
-function renderVentas() {
+// ── (Ventas movida a produccion.html) ─────────────────────
+function renderVentas_REMOVED() {
   document.getElementById("topbar-sub").textContent = "Pedidos de venta desde Odoo";
 
   if (!VENTAS_RAW || VENTAS_RAW.length === 0) {
