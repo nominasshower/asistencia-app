@@ -1719,24 +1719,26 @@ function normPatron(s) {
     .replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
-// Clave interna para CRUZAR PLAN↔VACIADO: usa siglas entre paréntesis + lado
-// Ej: "WALL 4X12 VERTICAL (VT) CENTER" → "VT CENTER"
-//     "4X12 VERTICAL (VL) CENTER"      → "VL CENTER"  ← no cruza si siglas distintas
-//     "HERRINGBONE (HE) LEFT/IZQ"      → "HE LEFT"
+// Clave interna para CRUZAR PLAN↔VACIADO
+// Usa siglas entre () como identificador estable + lado normalizado
+// Ej: "WALL 4X12 VERTICAL (VT) CENTER" → "VT_CENTER"
+//     "4X12 VERTICAL (VT) CENTER"      → "VT_CENTER"   ✓ cruzan
+//     "HERRINGBONE (HE) LEFT/IZQ"      → "HE_LEFT"
+// Separador "_" para no interferir con el separador "||" de las claves compuestas
 function normKey(s) {
   const str = (s||"").toUpperCase().trim();
   const abrev = str.match(/\(([A-Z0-9]{1,4})\)/)?.[1];
 
   // Extraer LADO
   let lado = '';
-  if (/\bLEFT\b|LEFT[,\/]|\/IZQ|\bIZQ\b/.test(str))  lado = 'LEFT';
+  if (/\bLEFT\b|LEFT[,\/]|\/IZQ|\bIZQ\b/.test(str))       lado = 'LEFT';
   else if (/\bRIGHT\b|RIGHT[,\/]|\/DER|\bDER\b/.test(str)) lado = 'RIGHT';
-  else if (/\bCENT(ER|RO|AR)\b/.test(str)) lado = 'CENTER';
+  else if (/\bCENT(ER|RO|AR)\b/.test(str))                  lado = 'CENTER';
 
-  if (abrev) return lado ? `${abrev}||${lado}` : abrev;
+  if (abrev) return lado ? `${abrev}_${lado}` : abrev;
 
-  // Sin siglas: fallback a normPatron
-  return normPatron(str) + (lado ? `||${lado}` : '');
+  // Sin siglas: fallback a normPatron limpio
+  return normPatron(str);
 }
 
 // Normaliza medida: quita comillas, unifica separador
