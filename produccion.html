@@ -791,6 +791,15 @@ function renderVentas() {
 
   const $ = v => (parseFloat(v)||0);
 
+  // ── Avance desde PLAN_DIARIO: sumar A Producir por número de pedido ──
+  const planPorPedido = {};
+  PLAN.forEach(r => {
+    const od = (r["Odoo"]||"").trim().toUpperCase();
+    if (!od) return;
+    if (!planPorPedido[od]) planPorPedido[od] = 0;
+    planPorPedido[od] += parseInt(r["A PRODUCIR"]||r["A Producir"]||0)||0;
+  });
+
   // ── Agrupar líneas por Pedido ──────────────────────────
   const pedidos = {};
   VENTAS_RAW.forEach(r => {
@@ -802,12 +811,13 @@ function renderVentas() {
       entrega:  (r["Fecha Entrega"]||"").slice(0,10),
       estado:   r["Estado"]||"",
       moneda:   r["Moneda"]||"MXN",
-      total:    0, entregado:0, pendiente:0, lineas:0,
+      total:    0, entregado:0, pendiente:0, lineas:0, cantidad:0,
     };
     const p = pedidos[id];
     p.total     += $(r["Subtotal"]);
     p.entregado += $(r["Entregado"]);
     p.pendiente += $(r["Pendiente"]);
+    p.cantidad  += $(r["Cantidad"]);
     p.lineas++;
     // tomar la fecha de entrega más cercana (mínima no vacía)
     const fe = (r["Fecha Entrega"]||"").slice(0,10);
@@ -827,10 +837,12 @@ function renderVentas() {
   const vencidos  = confirmados.filter(p => p.entrega && p.entrega < hoy && p.pendiente > 0);
   const proximos  = confirmados.filter(p => p.entrega && p.entrega >= hoy && p.entrega <= en7d);
 
-  // Avance general: piezas entregadas / (entregadas + pendientes) de abiertos
+  // Avance general desde PLAN_DIARIO vs cantidad total de pedidos abiertos
+  const totProducido = abiertos.reduce((s,p)=>s+(planPorPedido[(p.pedido||"").toUpperCase()]||0),0);
+  const totCantidad  = abiertos.reduce((s,p)=>s+p.cantidad,0);
   const totEnt  = abiertos.reduce((s,p)=>s+p.entregado,0);
   const totPend = abiertos.reduce((s,p)=>s+p.pendiente,0);
-  const pctAvance = (totEnt+totPend) > 0 ? Math.round(totEnt*100/(totEnt+totPend)) : 0;
+  const pctAvance = totCantidad > 0 ? Math.min(100,Math.round(totProducido*100/totCantidad)) : 0;
 
   // ── Top clientes por monto total ──────────────────────
   const porCli = {};
@@ -860,16 +872,19 @@ function renderVentas() {
     return `<span class="mono">${fe}</span>`;
   };
 
-  const progBar = (ent, pend) => {
-    const tot = ent + pend;
-    if (!tot) return "—";
-    const pct = Math.round(ent*100/tot);
+  // progBar: producido en plan vs cantidad total del pedido
+  const progBar = (pedidoId, cantidad) => {
+    const producido = planPorPedido[(pedidoId||"").toUpperCase()] || 0;
+    const tot = cantidad || 0;
+    if (!tot) return `<span style="color:var(--muted);font-size:11px">Sin total</span>`;
+    if (!producido) return `<span style="color:var(--muted);font-size:11px">Sin plan</span>`;
+    const pct = Math.min(100, Math.round(producido*100/tot));
     const col = pct>=100?"var(--accent)":pct>=60?"var(--accent2)":"var(--warn)";
     return `<div style="display:flex;align-items:center;gap:6px">
       <div style="flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;min-width:50px">
         <div style="width:${pct}%;height:100%;background:${col};border-radius:3px"></div>
       </div>
-      <span style="font-family:'DM Mono',monospace;font-size:11px;color:${col};width:30px;text-align:right">${pct}%</span>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:${col};width:36px;text-align:right">${producido}/${Math.round(tot)}</span>
     </div>`;
   };
 
@@ -885,7 +900,7 @@ function renderVentas() {
     <div class="metric">
       <div class="metric-label">Avance de entrega</div>
       <div class="metric-val" style="color:${pctAvance>=80?"var(--accent)":pctAvance>=50?"var(--warn)":"var(--danger)"}">${pctAvance}%</div>
-      <div class="metric-sub">${Math.round(totEnt)} entregadas · ${Math.round(totPend)} pendientes</div>
+      <div class="metric-sub">${Math.round(totProducido)} en plan · ${Math.round(totCantidad)} total</div>
     </div>
     <div class="metric">
       <div class="metric-label">Ya enviados</div>
@@ -958,7 +973,7 @@ function renderVentas() {
             <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${Math.round(tot)||"—"}</td>
             <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--accent)">${Math.round(p.entregado)||"—"}</td>
             <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${p.pendiente>0?"var(--warn)":"var(--muted)"}">${Math.round(p.pendiente)||"—"}</td>
-            <td>${progBar(p.entregado, p.pendiente)}</td>
+            <td>${progBar(p.pedido, p.cantidad)}</td>
           </tr>`;
         }).join("")}
         ${tablaAbiertos.length===0?`<tr><td colspan="9" class="empty">Sin pedidos confirmados</td></tr>`:""}
