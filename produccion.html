@@ -1040,6 +1040,26 @@ function renderVentas() {
 // Estado del Gantt (filtros persistentes mientras no se navega)
 let _ganttFiltro = { texto:'', solo:'todos', dias:30 };
 
+// Normaliza cualquier formato de fecha a YYYY-MM-DD
+const MESES_NORM = {ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12,
+                   jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+function normFechaGantt(s) {
+  if (!s) return null;
+  s = s.trim();
+  // ISO: 2026-05-18
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // 18-may o 18-May
+  const m1 = s.match(/^(\d{1,2})[-\/]([a-záéíóúA-Z]{3})/i);
+  if (m1) {
+    const mes = MESES_NORM[(m1[2]||'').toLowerCase()];
+    if (mes) return `${new Date().getFullYear()}-${String(mes).padStart(2,'0')}-${String(m1[1]).padStart(2,'0')}`;
+  }
+  // "18 May" via parsePlanFecha
+  const p = parsePlanFecha(s);
+  if (p) return p;
+  return null;
+}
+
 function renderGantt() {
   document.getElementById("topbar-title").textContent = "Gantt Producción";
   if (!PLAN.length) {
@@ -1062,14 +1082,14 @@ function renderGantt() {
   const diasAdelante = _ganttFiltro.dias;
   const fechaMin = new Date(Date.now() - diasAtras*864e5).toISOString().slice(0,10);
   const fechaMax = new Date(Date.now() + diasAdelante*864e5).toISOString().slice(0,10);
-  const fechas = [...new Set(PLAN.map(r=>(r["Fecha"]||"").slice(0,10))
-    .filter(f=>f>=fechaMin && f<=fechaMax))].sort();
+  const fechas = [...new Set(PLAN.map(r=>normFechaGantt(r["Fecha"]))
+    .filter(f=>f && f>=fechaMin && f<=fechaMax))].sort();
 
   // ── Construir filas ──
   const filasMap = {};
   PLAN.forEach(r => {
-    const fecha = (r["Fecha"]||"").slice(0,10);
-    if (fecha < fechaMin || fecha > fechaMax) return;
+    const fecha = normFechaGantt(r["Fecha"]);
+    if (!fecha || fecha < fechaMin || fecha > fechaMax) return;
     const key = `${r["Odoo"]||""}||${normPatron(r["PATRON"]||r["Modelo"]||"")}||${normMedida(r["Medida"]||"")}||${r["Lado"]||""}`;
     if (!filasMap[key]) filasMap[key] = {
       odoo: r["Odoo"]||"", cliente: r["Cliente"]||"",
