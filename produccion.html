@@ -774,8 +774,9 @@ function parsePlanFecha(s) {
 // ── Pedidos Odoo ──────────────────────────────────────────
 function renderVentas() {
   document.getElementById("topbar-title").textContent = "Pedidos Odoo";
-  const hoy   = new Date().toISOString().slice(0,10);
-  const en7d  = new Date(Date.now() + 7*864e5).toISOString().slice(0,10);
+  const hoy  = new Date().toISOString().slice(0,10);
+  const en7d = new Date(Date.now() +  7*864e5).toISOString().slice(0,10);
+  const en30 = new Date(Date.now() + 30*864e5).toISOString().slice(0,10);
 
   if (!VENTAS_RAW.length) {
     document.getElementById("main-content").innerHTML = `
@@ -788,153 +789,208 @@ function renderVentas() {
     return;
   }
 
-  // Solo confirmados/cerrados y con pendiente > 0
-  const activos = VENTAS_RAW.filter(r => {
-    const est = r["Estado"]||"";
-    return est === "Confirmado" || est === "Cerrado" || est === "Enviado";
-  });
-  const conPendiente = activos.filter(r => parseFloat(r["Pendiente"]||0) > 0);
+  const $ = v => (parseFloat(v)||0);
 
-  // KPIs
-  const totalPend  = conPendiente.reduce((s,r) => s + parseFloat(r["Pendiente"]||0), 0);
-  const vencidos   = conPendiente.filter(r => {
+  // ── Agrupar líneas por Pedido ──────────────────────────
+  const pedidos = {};
+  VENTAS_RAW.forEach(r => {
+    const id = r["Pedido"]||"?";
+    if (!pedidos[id]) pedidos[id] = {
+      pedido:   id,
+      cliente:  r["Cliente"]||"",
+      fecha:    (r["Fecha"]||"").slice(0,10),
+      entrega:  (r["Fecha Entrega"]||"").slice(0,10),
+      estado:   r["Estado"]||"",
+      moneda:   r["Moneda"]||"MXN",
+      total:    0, entregado:0, pendiente:0, lineas:0,
+    };
+    const p = pedidos[id];
+    p.total     += $(r["Subtotal"]);
+    p.entregado += $(r["Entregado"]);
+    p.pendiente += $(r["Pendiente"]);
+    p.lineas++;
+    // tomar la fecha de entrega más cercana (mínima no vacía)
     const fe = (r["Fecha Entrega"]||"").slice(0,10);
-    return fe && fe < hoy;
+    if (fe && (!p.entrega || fe < p.entrega)) p.entrega = fe;
   });
-  const proximos   = conPendiente.filter(r => {
-    const fe = (r["Fecha Entrega"]||"").slice(0,10);
-    return fe && fe >= hoy && fe <= en7d;
+  const todos = Object.values(pedidos);
+
+  // ── KPIs globales ──────────────────────────────────────
+  const abiertos  = todos.filter(p => p.estado==="Confirmado" || p.estado==="Enviado");
+  const enviados  = todos.filter(p => p.estado==="Enviado");
+  const confirmados = todos.filter(p => p.estado==="Confirmado");
+
+  const montoTotal    = abiertos.reduce((s,p)=>s+p.total,0);
+  const montoPend     = abiertos.reduce((s,p)=>s+p.pendiente,0);  // piezas
+  const montoEnviado  = enviados.reduce((s,p)=>s+p.total,0);
+
+  const vencidos  = confirmados.filter(p => p.entrega && p.entrega < hoy && p.pendiente > 0);
+  const proximos  = confirmados.filter(p => p.entrega && p.entrega >= hoy && p.entrega <= en7d);
+
+  // Avance general: piezas entregadas / (entregadas + pendientes) de abiertos
+  const totEnt  = abiertos.reduce((s,p)=>s+p.entregado,0);
+  const totPend = abiertos.reduce((s,p)=>s+p.pendiente,0);
+  const pctAvance = (totEnt+totPend) > 0 ? Math.round(totEnt*100/(totEnt+totPend)) : 0;
+
+  // ── Top clientes por monto total ──────────────────────
+  const porCli = {};
+  abiertos.forEach(p => {
+    if (!porCli[p.cliente]) porCli[p.cliente] = { total:0, pend:0, venc:0 };
+    porCli[p.cliente].total += p.total;
+    porCli[p.cliente].pend  += p.pendiente;
+    if (p.entrega && p.entrega < hoy && p.pendiente>0) porCli[p.cliente].venc++;
   });
-  const sinFecha   = conPendiente.filter(r => !(r["Fecha Entrega"]||"").slice(0,10));
-  const pedidosU   = new Set(conPendiente.map(r=>r["Pedido"])).size;
+  const topCli = Object.entries(porCli).sort((a,b)=>b[1].total-a[1].total).slice(0,8);
+  const maxCli = topCli[0]?.[1].total||1;
 
-  // Agrupar por producto para ver qué hay que fabricar más
-  const porProd = {};
-  conPendiente.forEach(r => {
-    const k = (r["SKU"]||r["Producto"]||"").trim();
-    if (!k) return;
-    if (!porProd[k]) porProd[k] = { sku: r["SKU"]||"", prod: r["Producto"]||"", pend:0, venc:0 };
-    porProd[k].pend += parseFloat(r["Pendiente"]||0);
-    const fe = (r["Fecha Entrega"]||"").slice(0,10);
-    if (fe && fe < hoy) porProd[k].venc++;
-  });
-  const topProd = Object.values(porProd).sort((a,b)=>b.pend-a.pend).slice(0,10);
-  const maxProd = topProd[0]?.pend || 1;
-
-  // Agrupar por cliente
-  const porCliente = {};
-  conPendiente.forEach(r => {
-    const k = r["Cliente"]||"Sin cliente";
-    if (!porCliente[k]) porCliente[k] = { pend:0, venc:0 };
-    porCliente[k].pend += parseFloat(r["Pendiente"]||0);
-    const fe = (r["Fecha Entrega"]||"").slice(0,10);
-    if (fe && fe < hoy) porCliente[k].venc++;
-  });
-  const topCli = Object.entries(porCliente).sort((a,b)=>b[1].pend-a[1].pend).slice(0,8);
-  const maxCli = topCli[0]?.[1].pend || 1;
-
-  // Tabla: primero vencidos, luego por fecha
-  const filas = [...conPendiente].sort((a,b) => {
-    const fa = (a["Fecha Entrega"]||"9999").slice(0,10);
-    const fb = (b["Fecha Entrega"]||"9999").slice(0,10);
-    return fa.localeCompare(fb);
+  // ── Tabla de pedidos: abiertos primero ordenados por entrega ──
+  const tablaAbiertos = [...confirmados].sort((a,b)=>{
+    // vencidos primero, luego por fecha entrega asc
+    const va = (a.entrega && a.entrega < hoy && a.pendiente>0) ? "0" : (a.entrega||"9");
+    const vb = (b.entrega && b.entrega < hoy && b.pendiente>0) ? "0" : (b.entrega||"9");
+    return va.localeCompare(vb);
   });
 
-  const badgeEst = e => {
-    const m = {"Confirmado":"var(--accent)","Cerrado":"var(--accent2)","Enviado":"var(--warn)"};
-    return `<span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;background:${m[e]||"var(--bg3)"}22;color:${m[e]||"var(--muted)"}">${e}</span>`;
-  };
+  const fmtMXN = v => v.toLocaleString("es-MX",{minimumFractionDigits:0,maximumFractionDigits:0});
 
-  const fmtFechaEnt = (fe, pend) => {
-    if (!fe) return `<span style="color:var(--muted)">—</span>`;
+  const fmtEnt = (fe, pend) => {
+    if (!fe) return `<span style="color:var(--muted)">Sin fecha</span>`;
     if (fe < hoy && pend > 0) return `<span style="color:var(--danger);font-weight:600">⚠ ${fe}</span>`;
-    if (fe <= en7d) return `<span style="color:var(--warn)">⏰ ${fe}</span>`;
+    if (fe <= en7d)            return `<span style="color:var(--warn)">⏰ ${fe}</span>`;
     return `<span class="mono">${fe}</span>`;
   };
 
+  const progBar = (ent, pend) => {
+    const tot = ent + pend;
+    if (!tot) return "—";
+    const pct = Math.round(ent*100/tot);
+    const col = pct>=100?"var(--accent)":pct>=60?"var(--accent2)":"var(--warn)";
+    return `<div style="display:flex;align-items:center;gap:6px">
+      <div style="flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;min-width:50px">
+        <div style="width:${pct}%;height:100%;background:${col};border-radius:3px"></div>
+      </div>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:${col};width:30px;text-align:right">${pct}%</span>
+    </div>`;
+  };
+
   document.getElementById("main-content").innerHTML = `
+
+  <!-- KPIs -->
   <div class="metrics" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
-    <div class="metric"><div class="metric-label">Piezas pendientes</div><div class="metric-val white">${Math.round(totalPend).toLocaleString()}</div><div class="metric-sub">${pedidosU} pedidos activos</div></div>
-    <div class="metric"><div class="metric-label">Vencidos</div><div class="metric-val red">${vencidos.length}</div><div class="metric-sub">líneas con entrega vencida</div></div>
-    <div class="metric"><div class="metric-label">Próximos 7 días</div><div class="metric-val amber">${proximos.length}</div><div class="metric-sub">líneas por vencer</div></div>
-    <div class="metric"><div class="metric-label">Sin fecha</div><div class="metric-val" style="color:var(--muted)">${sinFecha.length}</div><div class="metric-sub">sin compromiso registrado</div></div>
-    <div class="metric"><div class="metric-label">Total líneas activas</div><div class="metric-val blue">${conPendiente.length}</div><div class="metric-sub">con cantidad pendiente</div></div>
-  </div>
-
-  <div class="grid2" style="margin-bottom:16px">
-    <div class="card">
-      <div class="card-title">Top productos a fabricar <span>${topProd.length} SKUs</span></div>
-      <div class="bar-chart">
-        ${topProd.map(p=>`
-        <div class="bar-row">
-          <div class="bar-label" title="${p.prod}">${p.sku||p.prod.slice(0,22)}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(p.pend*100/maxProd)}%;background:${p.venc>0?"var(--danger)":"var(--accent2)"}"></div></div>
-          <div class="bar-val">${Math.round(p.pend)}</div>
-        </div>`).join("")}
-      </div>
+    <div class="metric">
+      <div class="metric-label">Monto abierto</div>
+      <div class="metric-val white" style="font-size:20px">$${fmtMXN(montoTotal)}</div>
+      <div class="metric-sub">${abiertos.length} pedidos · ${confirmados.length} confirmados</div>
     </div>
-    <div class="card">
-      <div class="card-title">Por cliente <span>piezas pendientes</span></div>
-      <div class="bar-chart">
-        ${topCli.map(([cli,v])=>`
-        <div class="bar-row">
-          <div class="bar-label" title="${cli}">${cli.slice(0,22)}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v.pend*100/maxCli)}%;background:${v.venc>0?"var(--warn)":"var(--accent)"}"></div></div>
-          <div class="bar-val">${Math.round(v.pend)}</div>
-        </div>`).join("")}
-      </div>
+    <div class="metric">
+      <div class="metric-label">Avance de entrega</div>
+      <div class="metric-val" style="color:${pctAvance>=80?"var(--accent)":pctAvance>=50?"var(--warn)":"var(--danger)"}">${pctAvance}%</div>
+      <div class="metric-sub">${Math.round(totEnt)} entregadas · ${Math.round(totPend)} pendientes</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Ya enviados</div>
+      <div class="metric-val blue">${enviados.length}</div>
+      <div class="metric-sub">$${fmtMXN(montoEnviado)} completados</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Vencidos</div>
+      <div class="metric-val red">${vencidos.length}</div>
+      <div class="metric-sub">pedidos con entrega atrasada</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Próximos 7 días</div>
+      <div class="metric-val amber">${proximos.length}</div>
+      <div class="metric-sub">pedidos por vencer esta semana</div>
     </div>
   </div>
 
+  <!-- Top clientes -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Top clientes por monto <span>pedidos abiertos</span></div>
+    <div class="bar-chart">
+      ${topCli.map(([cli,v])=>`
+      <div class="bar-row">
+        <div class="bar-label" title="${cli}">${cli.slice(0,26)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v.total*100/maxCli)}%;background:${v.venc>0?"var(--danger)":"var(--accent2)"}"></div></div>
+        <div style="width:80px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">$${fmtMXN(v.total)}</div>
+      </div>`).join("")}
+    </div>
+  </div>
+
+  <!-- Alerta vencidos -->
   ${vencidos.length > 0 ? `
   <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
     <span style="font-size:18px">⚠️</span>
-    <span style="font-size:13px;font-weight:600;color:var(--danger)">${vencidos.length} líneas con fecha de entrega vencida</span>
-    <span style="font-size:11px;color:var(--muted);margin-left:4px">${Math.round(vencidos.reduce((s,r)=>s+parseFloat(r["Pendiente"]||0),0))} piezas — revisa prioridades con el equipo</span>
+    <span style="font-size:13px;font-weight:600;color:var(--danger)">${vencidos.length} pedidos con fecha de entrega vencida</span>
+    <span style="font-size:11px;color:var(--muted);margin-left:4px">$${fmtMXN(vencidos.reduce((s,p)=>s+p.total,0))} en riesgo</span>
   </div>` : ""}
 
-  <div class="table-wrap" style="overflow-x:auto">
+  <!-- Tabla pedidos confirmados -->
+  <div class="table-wrap" style="overflow-x:auto;margin-bottom:14px">
     <div class="table-header">
-      <div class="table-header-title">Pedidos con entrega pendiente</div>
-      <div style="font-size:11px;color:var(--muted)">${filas.length} líneas · ordenado por fecha de entrega</div>
+      <div class="table-header-title">Pedidos confirmados — avance de entrega</div>
+      <div style="font-size:11px;color:var(--muted)">${tablaAbiertos.length} pedidos · ordenados por urgencia</div>
     </div>
     <table>
       <thead><tr>
-        <th>Fecha pedido</th>
-        <th>Entrega prog.</th>
         <th>Pedido</th>
         <th>Cliente</th>
-        <th>SKU</th>
-        <th>Producto</th>
-        <th style="text-align:center">Cantidad</th>
+        <th>Fecha pedido</th>
+        <th>Entrega prog.</th>
+        <th style="text-align:right">Total $</th>
+        <th style="text-align:center">Piezas</th>
         <th style="text-align:center">Entregado</th>
         <th style="text-align:center">Pendiente</th>
-        <th>Estado</th>
+        <th style="min-width:110px">Avance</th>
       </tr></thead>
       <tbody>
-        ${filas.slice(0,300).map(r => {
-          const pend = parseFloat(r["Pendiente"]||0);
-          const fe   = (r["Fecha Entrega"]||"").slice(0,10);
-          const rowStyle = (fe && fe < hoy && pend > 0)
-            ? "background:rgba(239,68,68,0.05)"
-            : (fe && fe <= en7d && pend > 0) ? "background:rgba(245,158,11,0.04)" : "";
-          return `<tr style="${rowStyle}">
-            <td class="mono">${(r["Fecha"]||"").slice(0,10)||"—"}</td>
-            <td>${fmtFechaEnt(fe, pend)}</td>
-            <td class="mono" style="font-weight:600">${r["Pedido"]||"—"}</td>
-            <td style="font-size:11px;max-width:140px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Cliente"]||""}">${r["Cliente"]||"—"}</td>
-            <td class="mono" style="font-size:10px">${r["SKU"]||"—"}</td>
-            <td style="font-size:11px;max-width:180px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Producto"]||""}">${r["Producto"]||"—"}</td>
-            <td style="text-align:center;font-family:'DM Mono',monospace">${r["Cantidad"]||"—"}</td>
-            <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--accent)">${r["Entregado"]||"0"}</td>
-            <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${pend>0?"var(--warn)":"var(--muted)"}">${Math.round(pend)||"—"}</td>
-            <td>${badgeEst(r["Estado"]||"")}</td>
+        ${tablaAbiertos.map(p => {
+          const venc = p.entrega && p.entrega < hoy && p.pendiente > 0;
+          const prox = p.entrega && p.entrega >= hoy && p.entrega <= en7d;
+          const rowBg = venc ? "background:rgba(239,68,68,0.05)" : prox ? "background:rgba(245,158,11,0.04)" : "";
+          const tot = p.entregado + p.pendiente;
+          return `<tr style="${rowBg}">
+            <td class="mono" style="font-weight:700">${p.pedido}</td>
+            <td style="font-size:11px;max-width:150px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${p.cliente}">${p.cliente||"—"}</td>
+            <td class="mono">${p.fecha||"—"}</td>
+            <td>${fmtEnt(p.entrega, p.pendiente)}</td>
+            <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:600">$${fmtMXN(p.total)}</td>
+            <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${Math.round(tot)||"—"}</td>
+            <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--accent)">${Math.round(p.entregado)||"—"}</td>
+            <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${p.pendiente>0?"var(--warn)":"var(--muted)"}">${Math.round(p.pendiente)||"—"}</td>
+            <td>${progBar(p.entregado, p.pendiente)}</td>
           </tr>`;
         }).join("")}
-        ${filas.length===0?`<tr><td colspan="10" class="empty">Sin pedidos pendientes</td></tr>`:""}
+        ${tablaAbiertos.length===0?`<tr><td colspan="9" class="empty">Sin pedidos confirmados</td></tr>`:""}
       </tbody>
     </table>
-  </div>`;
+  </div>
+
+  <!-- Tabla enviados -->
+  ${enviados.length > 0 ? `
+  <div class="table-wrap" style="overflow-x:auto">
+    <div class="table-header">
+      <div class="table-header-title" style="color:var(--accent2)">Pedidos enviados ✓</div>
+      <div style="font-size:11px;color:var(--muted)">${enviados.length} pedidos · $${fmtMXN(montoEnviado)}</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Pedido</th><th>Cliente</th><th>Fecha pedido</th><th>Entrega prog.</th>
+        <th style="text-align:right">Total $</th><th style="text-align:center">Piezas</th>
+      </tr></thead>
+      <tbody>
+        ${enviados.sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,50).map(p=>`
+        <tr>
+          <td class="mono" style="font-weight:700;color:var(--accent2)">${p.pedido}</td>
+          <td style="font-size:11px;max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${p.cliente}">${p.cliente||"—"}</td>
+          <td class="mono">${p.fecha||"—"}</td>
+          <td class="mono" style="color:var(--muted)">${p.entrega||"—"}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace">$${fmtMXN(p.total)}</td>
+          <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${Math.round(p.entregado+p.pendiente)||"—"}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>` : ""}`;
 }
 
 // Normaliza patrón para cruce PLAN↔VACIADO
