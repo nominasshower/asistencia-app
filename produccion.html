@@ -1708,17 +1708,31 @@ async function savePlan() {
 
 // Normaliza patrón para cruce PLAN↔VACIADO
 function normPatron(s) {
-  return (s||"")
-    .replace(/^WALL\s+/i, '')
-    // Normalizar LEFT/RIGHT con variantes coma, barra, espacio
-    .replace(/LEFT[,\/\s]*IZQ/gi, 'LEFT').replace(/RIGHT[,\/\s]*DER/gi, 'RIGHT')
-    .replace(/IZQ[,\/\s]*LEFT/gi, 'LEFT').replace(/DER[,\/\s]*RIGHT/gi, 'RIGHT')
-    // Asegurar espacio antes de LEFT/RIGHT/CENTER pegado a paréntesis: "(VL)LEFT" → "(VL) LEFT"
-    .replace(/\)(\s*)(LEFT|RIGHT|CENTER|SIDE)/gi, ') $2')
-    .replace(/\bSIDE\s+LEFT\b/gi, 'LEFT').replace(/\bSIDE\s+RIGHT\b/gi, 'RIGHT')
-    .replace(/\bUNI\b/gi, '').replace(/\bSIDE\b/gi, '')
-    .replace(/\bCENTRO\b/gi, 'CENTER').replace(/\bCENTAR\b/gi, 'CENTER')
-    .replace(/\s+/g, ' ').trim().toUpperCase();
+  const str = (s||"").toUpperCase().trim();
+
+  // ── Extraer siglas entre paréntesis (clave estable del patrón) ──
+  const abrev = str.match(/\(([A-Z0-9]{1,4})\)/)?.[1] || null;
+
+  // ── Extraer LADO de todo el texto ──
+  let lado = '';
+  if (/LEFT[,\/\s]*IZQ|IZQ[,\/\s]*LEFT|\bIZQ\b/.test(str) || /\bLEFT\b/.test(str))   lado = 'LEFT';
+  else if (/RIGHT[,\/\s]*DER|DER[,\/\s]*RIGHT|\bDER\b/.test(str) || /\bRIGHT\b/.test(str)) lado = 'RIGHT';
+  else if (/\bCENT(E?R|RO|AR)\b/.test(str)) lado = 'CENTER';
+
+  if (abrev) {
+    // Clave principal: siglas + lado  (ej: "VT LEFT", "MG CENTER", "SB")
+    return lado ? `${abrev} ${lado}` : abrev;
+  }
+
+  // Fallback para nombres sin paréntesis
+  return str
+    .replace(/^WALL\s+/, '')
+    .replace(/LEFT[,\/\s]*IZQ|IZQ[,\/\s]*LEFT/g, 'LEFT')
+    .replace(/RIGHT[,\/\s]*DER|DER[,\/\s]*RIGHT/g, 'RIGHT')
+    .replace(/\bSIDE\s+(LEFT|RIGHT)/g, '$1')
+    .replace(/\bUNI\b|\bSIDE\b/g, '')
+    .replace(/\bCENT(RO|AR)\b/g, 'CENTER')
+    .replace(/\s+/g, ' ').trim();
 }
 
 // Normaliza medida: quita comillas, unifica separador
