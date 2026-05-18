@@ -1077,6 +1077,27 @@ function renderGantt() {
     vacMap[k] = (vacMap[k]||0) + 1;
   });
 
+  // ── Moldes disponibles por base de patrón (de VAC_RAW por TAG) ──
+  const tagPatron = {};
+  VAC_RAW.forEach(r => {
+    const tag = (r["TAG"]||r["Tag"]||"").trim().toUpperCase();
+    if (!tag) return;
+    const base = basePatronMolde(r["Patron"]||"");
+    if (!base) return;
+    if (!tagPatron[tag]) tagPatron[tag] = {};
+    tagPatron[tag][base] = (tagPatron[tag][base]||0) + 1;
+  });
+  // Mapa base → cantidad de moldes (TAGs) asignados a ese patrón
+  const moldisMap = {}; // normPatron(base) → count
+  Object.entries(tagPatron).forEach(([tag, patrones]) => {
+    const total = Object.values(patrones).reduce((s,c)=>s+c,0);
+    const [base, cnt] = Object.entries(patrones).sort((a,b)=>b[1]-a[1])[0];
+    if (cnt/total >= 0.7) { // patrón dominante
+      const k = normPatron(base);
+      moldisMap[k] = (moldisMap[k]||0) + 1;
+    }
+  });
+
   // ── Fechas del rango visible ──
   const diasAtras  = 7;
   const diasAdelante = _ganttFiltro.dias;
@@ -1149,27 +1170,25 @@ function renderGantt() {
 
   const celda = (fila, fecha) => {
     const d=fila.dias[fecha]||{};
-    const piezas=d.piezas||0; const moldes=d.moldes||0;
-    if(!piezas && !moldes) return `<td style="background:transparent"></td>`;
+    const piezas=d.piezas||0; const moldesPlan=d.moldes||0;
+    if(!piezas && !moldesPlan) return `<td style="background:transparent"></td>`;
     const k=`${fecha}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
     const realPiezas=vacMap[k]||0;
+    const moldisDisp=moldisMap[normPatron(fila.modelo)]||0;
     let cls;
     if(realPiezas>=piezas && piezas>0) cls='gc-done';
     else if(realPiezas>0)              cls='gc-part';
     else if(fecha<hoy)                 cls='gc-zero';
     else                               cls='gc-empty';
-    const borde=fecha===hoy?'border:1px solid rgba(34,197,94,.5);':'';
-    // Línea 1: moldes plan / moldes reales (futuro solo plan)
-    // Línea 2: piezas plan / piezas vaciadas
+    const borde=fecha===hoy?'border:1px solid rgba(34,197,94,.6);':'';
     const esPasadoHoy = fecha<=hoy;
-    return `<td title="${moldes} moldes · ${piezas} piezas">
+    const colMolde = cls==='gc-done'?'#4ade80':cls==='gc-part'?'#fbbf24':cls==='gc-zero'?'#f87171':'var(--muted)';
+    // Moldes: plan/disponibles en línea
+    const moldesInfo = `🔲${moldesPlan}${moldisDisp?`<span style="font-size:9px;color:var(--accent2)">/${moldisDisp}</span>`:''}`;
+    return `<td onclick="verDetalleCeldaGantt('${fecha}','${fila.modelo.replace(/'/g,"\\'")}','${normMedida(fila.medida)}')" style="cursor:pointer">
       <div class="gcell ${cls}" style="${borde}">
-        <div style="font-size:10px;color:${cls==='gc-done'?'#4ade80':cls==='gc-part'?'#fbbf24':cls==='gc-zero'?'#f87171':'var(--muted)'};font-weight:700;line-height:1.2">
-          🔲${moldes}${esPasadoHoy?'':''}
-        </div>
-        <div style="font-size:11px;font-weight:700;line-height:1.2">
-          ${piezas}${esPasadoHoy?`<span style="font-size:9px;opacity:.8"> /${realPiezas}✓</span>`:''}
-        </div>
+        <div style="font-size:10px;color:${colMolde};font-weight:700;line-height:1.3">${moldesInfo}</div>
+        <div style="font-size:12px;font-weight:700;line-height:1.3;color:${cls==='gc-empty'?'var(--text)':''}">${piezas}${esPasadoHoy?`<span style="font-size:9px;font-weight:400;opacity:.85">/${realPiezas}✓</span>`:''}</div>
       </div>
     </td>`;
   };
@@ -1274,6 +1293,120 @@ function renderGantt() {
 
 // Re-dibuja sin reconstruir todo (para filtro de texto en tiempo real)
 function _dibujarGantt() { renderGantt(); }
+
+// ── Modal detalle celda Gantt ─────────────────────────────
+function verDetalleCeldaGantt(fecha, modelo, medida) {
+  const k = `${fecha}||${normPatron(modelo)}||${medida}`;
+  const piezas = VAC_RAW.filter(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    return f === fecha
+      && normPatron(r["Patron"]||"") === normPatron(modelo)
+      && normMedida(r["Medida"]||"") === medida;
+  });
+
+  const planRow = PLAN.find(r => {
+    const f = normFechaGantt(r["Fecha"]);
+    return f === fecha
+      && normPatron(r["PATRON"]||r["Modelo"]||"") === normPatron(modelo)
+      && normMedida(r["Medida"]||"") === medida;
+  });
+  const planPiezas = planRow ? (parseInt(planRow["A Producir"]||planRow["A PRODUCIR"]||0)||0) : 0;
+  const planMoldes = planRow ? (parseInt(planRow["Moldes"]||planRow["MOLDES"]||0)||0) : 0;
+
+  const tagsFecha = [...new Set(piezas.map(r=>(r["TAG"]||r["Tag"]||"").trim().toUpperCase()).filter(Boolean))];
+  const moldisDisp = moldisMap ? (moldisMap[normPatron(modelo)]||0) : 0;
+
+  // Grades de las piezas
+  const grades = piezas.map(r => {
+    const sku = (r["SKU"]||"").trim().toUpperCase();
+    return SKU_INSP[sku]?.grade || "?";
+  });
+  const cA = grades.filter(g=>g==="A").length;
+  const cB = grades.filter(g=>g==="B").length;
+  const cC = grades.filter(g=>g==="C").length;
+  const sinInsp = grades.filter(g=>g==="?").length;
+
+  const pct = planPiezas > 0 ? Math.round(piezas.length*100/planPiezas) : 0;
+  const colPct = pct>=100?"var(--accent)":pct>=60?"var(--warn)":"var(--danger)";
+
+  const html = `
+  <div id="modal-gantt" onclick="if(event.target===this)this.remove()"
+    style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;width:580px;max-height:80vh;overflow-y:auto;position:relative">
+      <button onclick="document.getElementById('modal-gantt').remove()"
+        style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px">${modelo}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:16px">${medida} · ${fecha}</div>
+
+      <!-- KPIs -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+        <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Plan moldes</div>
+          <div style="font-size:20px;font-weight:700">${planMoldes}</div>
+          <div style="font-size:10px;color:var(--accent2)">${moldisDisp} disponibles</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Plan piezas</div>
+          <div style="font-size:20px;font-weight:700">${planPiezas}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Vaciadas</div>
+          <div style="font-size:20px;font-weight:700;color:${colPct}">${piezas.length}</div>
+          <div style="font-size:10px;color:${colPct}">${pct}% del plan</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--muted)">Calidad</div>
+          <div style="font-size:12px;font-weight:700;margin-top:4px">
+            <span style="color:var(--accent)">A:${cA}</span>
+            <span style="color:var(--warn)"> B:${cB}</span>
+            <span style="color:var(--danger)"> C:${cC}</span>
+            ${sinInsp?`<span style="color:var(--muted)"> ?:${sinInsp}</span>`:''}
+          </div>
+        </div>
+      </div>
+
+      <!-- Moldes en línea (TAGs) -->
+      ${tagsFecha.length > 0 ? `
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">MOLDES EN LÍNEA HOY (${tagsFecha.length})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${tagsFecha.map(t=>`<span style="font-family:'DM Mono',monospace;font-size:10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 7px">${t.slice(-8)}</span>`).join('')}
+        </div>
+      </div>` : ''}
+
+      <!-- Tabla piezas -->
+      ${piezas.length > 0 ? `
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">PIEZAS VACIADAS (${piezas.length})</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="color:var(--muted);border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:4px 6px">TAG</th>
+          <th style="text-align:left;padding:4px 6px">SKU</th>
+          <th style="text-align:center;padding:4px 6px">Grado</th>
+          <th style="text-align:left;padding:4px 6px">Color</th>
+        </tr></thead>
+        <tbody>
+          ${piezas.slice(0,50).map(r=>{
+            const sku=(r["SKU"]||"").trim().toUpperCase();
+            const grade=SKU_INSP[sku]?.grade||"?";
+            const gCol=grade==="A"?"var(--accent)":grade==="B"?"var(--warn)":grade==="C"?"var(--danger)":"var(--muted)";
+            const tag=(r["TAG"]||r["Tag"]||"").trim();
+            return `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+              <td style="padding:4px 6px;font-family:'DM Mono',monospace;font-size:10px">${tag.slice(-10)||"—"}</td>
+              <td style="padding:4px 6px;font-family:'DM Mono',monospace;font-size:10px">${sku||"—"}</td>
+              <td style="padding:4px 6px;text-align:center;font-weight:700;color:${gCol}">${grade}</td>
+              <td style="padding:4px 6px;font-size:10px;color:var(--muted)">${r["Color"]||"—"}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      ${piezas.length>50?`<div style="font-size:10px;color:var(--muted);padding:6px">...y ${piezas.length-50} más</div>`:''}
+      ` : `<div style="color:var(--muted);font-size:12px;padding:16px;text-align:center">Sin piezas vaciadas registradas para esta fecha</div>`}
+    </div>
+  </div>`;
+
+  document.body.insertAdjacentHTML('beforeend', html);
+}
 
 // Normaliza patrón para cruce PLAN↔VACIADO
 function normPatron(s) {
