@@ -1110,9 +1110,11 @@ function renderPlan() {
   const cPct   = p => p >= 100 ? "var(--accent)" : p >= 70 ? "var(--warn)" : "var(--danger)";
 
   // ── Detección de posibles errores de captura ──
-  // Alerta cuando aProducir y vaciado difieren de forma sospechosa
+  // Solo aplica a días PASADOS (no hoy ni futuro) — hoy el vaciado aún está en curso
+  const hoyStr = new Date().toISOString().slice(0,10);
   const alertas = filas.filter(f => {
     if (f.aProducir <= 0) return false;
+    if (f.fecha >= hoyStr) return false; // ignorar hoy y futuro
     // Caso 1: vaciado real difiere bastante del capturado
     if (f.vaciado > 0) {
       const diff  = Math.abs(f.aProducir - f.vaciado);
