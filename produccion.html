@@ -1037,15 +1037,16 @@ function renderVentas() {
 }
 
 // ── Gantt de Producción ───────────────────────────────────
+// Estado del Gantt (filtros persistentes mientras no se navega)
+let _ganttFiltro = { texto:'', solo:'todos', dias:30 };
+
 function renderGantt() {
   document.getElementById("topbar-title").textContent = "Gantt Producción";
-
   if (!PLAN.length) {
     document.getElementById("main-content").innerHTML =
       `<div class="loading"><div class="empty">Sin datos en PLAN_DIARIO.<br>Corre <code style="color:var(--accent)">gantt_to_sheets.py</code> primero.</div></div>`;
     return;
   }
-
   const hoy = new Date().toISOString().slice(0,10);
 
   // ── Vaciado por fecha+patron+medida ──
@@ -1056,124 +1057,182 @@ function renderGantt() {
     vacMap[k] = (vacMap[k]||0) + 1;
   });
 
-  // ── Fechas únicas del plan (ordenadas) — mostrar solo ±30 días de hoy ──
-  const fechaMin = new Date(Date.now() - 14*864e5).toISOString().slice(0,10);
-  const fechaMax = new Date(Date.now() + 45*864e5).toISOString().slice(0,10);
-  const fechas = [...new Set(
-    PLAN.map(r => {
-      const f = parsePlanFecha ? null : (r["Fecha"]||"").slice(0,10);
-      return (r["Fecha"]||"").slice(0,10);
-    }).filter(f => f >= fechaMin && f <= fechaMax)
-  )].sort();
+  // ── Fechas del rango visible ──
+  const diasAtras  = 7;
+  const diasAdelante = _ganttFiltro.dias;
+  const fechaMin = new Date(Date.now() - diasAtras*864e5).toISOString().slice(0,10);
+  const fechaMax = new Date(Date.now() + diasAdelante*864e5).toISOString().slice(0,10);
+  const fechas = [...new Set(PLAN.map(r=>(r["Fecha"]||"").slice(0,10))
+    .filter(f=>f>=fechaMin && f<=fechaMax))].sort();
 
-  if (!fechas.length) {
-    document.getElementById("main-content").innerHTML =
-      `<div class="loading"><div class="empty">No hay fechas en el rango ±45 días. Ajusta el rango o corre el script.</div></div>`;
-    return;
-  }
-
-  // ── Filas únicas del plan: una por Odoo+Modelo+Medida+Lado ──
+  // ── Construir filas ──
   const filasMap = {};
   PLAN.forEach(r => {
     const fecha = (r["Fecha"]||"").slice(0,10);
     if (fecha < fechaMin || fecha > fechaMax) return;
     const key = `${r["Odoo"]||""}||${normPatron(r["PATRON"]||r["Modelo"]||"")}||${normMedida(r["Medida"]||"")}||${r["Lado"]||""}`;
     if (!filasMap[key]) filasMap[key] = {
-      odoo:    r["Odoo"]||"",
-      cliente: (r["Cliente"]||"").slice(0,28),
-      modelo:  r["PATRON"]||r["Modelo"]||"",
-      medida:  r["Medida"]||"",
-      lado:    r["Lado"]||"",
-      total:   parseInt(r["Total"]||0)||0,
-      dias:    {},
+      odoo: r["Odoo"]||"", cliente: r["Cliente"]||"",
+      modelo: r["PATRON"]||r["Modelo"]||"",
+      medida: r["Medida"]||"", lado: r["Lado"]||"",
+      total: parseInt(r["Total"]||0)||0, dias:{},
     };
-    filasMap[key].dias[fecha] = (filasMap[key].dias[fecha]||0) + (parseInt(r["A PRODUCIR"]||r["A Producir"]||0)||0);
+    filasMap[key].dias[fecha] = (filasMap[key].dias[fecha]||0)+(parseInt(r["A PRODUCIR"]||r["A Producir"]||0)||0);
   });
 
-  const filas = Object.values(filasMap).sort((a,b) =>
-    a.odoo.localeCompare(b.odoo) || a.modelo.localeCompare(b.modelo)
+  // Calcular real hoy y estado por fila
+  let todasFilas = Object.values(filasMap).map(fila => {
+    const kHoy = `${hoy}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
+    fila.realHoy  = vacMap[kHoy]||0;
+    fila.planHoy  = fila.dias[hoy]||0;
+    fila.produciendo = fila.planHoy > 0 && fila.realHoy > 0;
+    fila.pendienteHoy = fila.planHoy > 0 && fila.realHoy < fila.planHoy;
+    return fila;
+  });
+
+  // ── Filtros ──
+  const txt = _ganttFiltro.texto.toLowerCase();
+  if (txt) todasFilas = todasFilas.filter(f =>
+    f.odoo.toLowerCase().includes(txt) ||
+    f.modelo.toLowerCase().includes(txt) ||
+    f.cliente.toLowerCase().includes(txt) ||
+    normMedida(f.medida).toLowerCase().includes(txt)
   );
+  if (_ganttFiltro.solo === 'hoy')        todasFilas = todasFilas.filter(f => f.planHoy > 0);
+  if (_ganttFiltro.solo === 'produciendo') todasFilas = todasFilas.filter(f => f.produciendo);
+  if (_ganttFiltro.solo === 'pendiente')   todasFilas = todasFilas.filter(f => f.pendienteHoy);
 
-  // ── Totales por fecha (plan y real) ──
-  const totPlan = {}, totReal = {};
-  fechas.forEach(f => { totPlan[f]=0; totReal[f]=0; });
-  filas.forEach(fila => {
-    fechas.forEach(f => {
-      const plan = fila.dias[f]||0;
-      totPlan[f] += plan;
-      if (plan > 0) {
-        const k = `${f}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
-        totReal[f] += vacMap[k]||0;
-      }
-    });
+  // ── Ordenar: produciendo hoy primero, luego pendientes hoy, luego resto ──
+  todasFilas.sort((a,b) => {
+    const prioA = a.produciendo ? 0 : a.pendienteHoy ? 1 : a.planHoy>0 ? 2 : 3;
+    const prioB = b.produciendo ? 0 : b.pendienteHoy ? 1 : b.planHoy>0 ? 2 : 3;
+    if (prioA !== prioB) return prioA - prioB;
+    return a.odoo.localeCompare(b.odoo);
   });
 
-  // ── Render ──
+  // ── Totales ──
+  const totPlan={}, totReal={};
+  fechas.forEach(f=>{totPlan[f]=0;totReal[f]=0;});
+  todasFilas.forEach(fila => fechas.forEach(f => {
+    const plan=fila.dias[f]||0; totPlan[f]+=plan;
+    if(plan>0){ const k=`${f}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`; totReal[f]+=vacMap[k]||0; }
+  }));
+
   const fmtDia = f => {
-    const d = new Date(f+'T12:00:00');
+    const d=new Date(f+'T12:00:00');
     return `${d.getDate()}/${d.getMonth()+1}<br><span style="font-size:9px">${['Do','Lu','Ma','Mi','Ju','Vi','Sá'][d.getDay()]}</span>`;
   };
 
   const celda = (fila, fecha) => {
-    const plan = fila.dias[fecha]||0;
-    if (!plan) return `<td></td>`;
-    const k    = `${fecha}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
-    const real = vacMap[k]||0;
+    const plan=fila.dias[fecha]||0;
+    if(!plan) return `<td style="background:transparent"></td>`;
+    const k=`${fecha}||${normPatron(fila.modelo)}||${normMedida(fila.medida)}`;
+    const real=vacMap[k]||0;
     let cls;
-    if (real >= plan)        cls = 'gc-done';
-    else if (real > plan*1.0 && real > plan) cls = 'gc-over';
-    else if (real > 0)       cls = 'gc-part';
-    else if (fecha < hoy)    cls = 'gc-zero';
-    else                     cls = 'gc-part' ; // futuro con plan
-    // Para futuro sin real, mostrar solo plan
-    const realTxt = (fecha <= hoy) ? `<div class="gcell-real">${real}✓</div>` : '';
-    return `<td><div class="gcell ${cls}"><div class="gcell-plan">${plan}</div>${realTxt}</div></td>`;
+    if(real>=plan)      cls='gc-done';
+    else if(real>0)     cls='gc-part';
+    else if(fecha<hoy)  cls='gc-zero';
+    else                cls='gc-empty';
+    const realTxt=fecha<=hoy?`<div class="gcell-real">${real}✓</div>`:'';
+    const borde=fecha===hoy?'border:1px solid rgba(34,197,94,.5);':'';
+    return `<td><div class="gcell ${cls}" style="${borde}"><div class="gcell-plan">${plan}</div>${realTxt}</div></td>`;
   };
 
+  // ── Indicador hoy ──
+  const resHoy = todasFilas.filter(f=>f.planHoy>0);
+  const vacHoy = resHoy.reduce((s,f)=>s+f.realHoy,0);
+  const planHoyTotal = resHoy.reduce((s,f)=>s+f.planHoy,0);
+  const pctHoy = planHoyTotal>0?Math.round(vacHoy*100/planHoyTotal):0;
+  const produciendo = resHoy.filter(f=>f.produciendo).length;
+
   document.getElementById("main-content").innerHTML = `
-  <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;flex-wrap:wrap">
-    <div style="font-size:12px;color:var(--muted)">${filas.length} productos · ${fechas.length} días visibles</div>
-    <div style="display:flex;gap:10px;font-size:11px;flex-wrap:wrap">
-      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(34,197,94,.3);border-radius:2px;margin-right:4px"></span>Cumplido</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(245,158,11,.2);border-radius:2px;margin-right:4px"></span>Parcial</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(239,68,68,.2);border-radius:2px;margin-right:4px"></span>Sin producir (pasado)</span>
-      <span style="color:var(--muted)">Número grande = plan · pequeño = real vaciado</span>
+  <!-- Barra de filtros -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 14px">
+    <input id="g-txt" type="text" placeholder="Buscar pedido, modelo, cliente…" value="${_ganttFiltro.texto}"
+      oninput="_ganttFiltro.texto=this.value;_dibujarGantt()"
+      style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;width:220px;outline:none">
+
+    <div class="btn-group">
+      <button onclick="_ganttFiltro.solo='todos';_dibujarGantt()" class="${_ganttFiltro.solo==='todos'?'active':''}">Todos</button>
+      <button onclick="_ganttFiltro.solo='hoy';_dibujarGantt()" class="${_ganttFiltro.solo==='hoy'?'active':''}">Plan hoy</button>
+      <button onclick="_ganttFiltro.solo='produciendo';_dibujarGantt()" class="${_ganttFiltro.solo==='produciendo'?'active':''}">Produciendo</button>
+      <button onclick="_ganttFiltro.solo='pendiente';_dibujarGantt()" class="${_ganttFiltro.solo==='pendiente'?'active':''}">Pendiente hoy</button>
+    </div>
+
+    <div class="btn-group">
+      <button onclick="_ganttFiltro.dias=14;renderGantt()" class="${_ganttFiltro.dias===14?'active':''}">2 sem</button>
+      <button onclick="_ganttFiltro.dias=30;renderGantt()" class="${_ganttFiltro.dias===30?'active':''}">1 mes</button>
+      <button onclick="_ganttFiltro.dias=60;renderGantt()" class="${_ganttFiltro.dias===60?'active':''}">2 meses</button>
+    </div>
+
+    <div style="margin-left:auto;display:flex;gap:16px;align-items:center;font-size:12px">
+      <span>📅 Hoy: <b style="color:${pctHoy>=80?'var(--accent)':pctHoy>=40?'var(--warn)':'var(--danger)'}">${vacHoy}/${planHoyTotal} (${pctHoy}%)</b></span>
+      <span style="color:var(--accent)">● ${produciendo} modelos produciendo</span>
+      <span style="color:var(--muted)">${todasFilas.length} filas</span>
     </div>
   </div>
-  <div class="gantt-wrap">
+
+  <!-- Leyenda -->
+  <div style="display:flex;gap:14px;font-size:11px;margin-bottom:8px;color:var(--muted)">
+    <span><span style="display:inline-block;width:10px;height:10px;background:rgba(34,197,94,.3);border-radius:2px;margin-right:3px"></span>Cumplido</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:rgba(245,158,11,.2);border-radius:2px;margin-right:3px"></span>En proceso</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:rgba(239,68,68,.15);border-radius:2px;margin-right:3px"></span>Sin producir (pasado)</span>
+    <span>Número grande=plan · pequeño=vaciado real</span>
+  </div>
+
+  <div class="gantt-wrap" id="gantt-body">
     <table class="gantt-table">
       <thead>
         <tr>
-          <th class="col-fija" style="min-width:160px">Modelo / Patrón</th>
+          <th class="col-fija" style="min-width:200px">Modelo / Patrón</th>
           <th class="col-fija2" style="min-width:120px">Medida · Lado</th>
-          <th class="col-fija3" style="min-width:60px">Total</th>
+          <th class="col-fija3" style="min-width:50px">Total</th>
           ${fechas.map(f=>`<th class="${f===hoy?'hoy':''}">${fmtDia(f)}</th>`).join('')}
         </tr>
         <tr style="background:var(--bg3)">
-          <th class="col-fija" style="font-size:10px;color:var(--accent)">Plan total</th>
-          <th class="col-fija2"></th>
-          <th class="col-fija3"></th>
-          ${fechas.map(f=>`<th style="color:${totPlan[f]>0?'var(--text)':'var(--muted)'};">${totPlan[f]||''}</th>`).join('')}
+          <th class="col-fija" style="font-size:10px;color:var(--accent)">▲ Plan</th>
+          <th class="col-fija2"></th><th class="col-fija3"></th>
+          ${fechas.map(f=>`<th style="color:${totPlan[f]>0?'var(--text)':'var(--muted)'};font-weight:${f===hoy?700:400}">${totPlan[f]||''}</th>`).join('')}
         </tr>
         <tr style="background:var(--bg3)">
-          <th class="col-fija" style="font-size:10px;color:var(--accent2)">Real vaciado</th>
-          <th class="col-fija2"></th>
-          <th class="col-fija3"></th>
-          ${fechas.map(f=>`<th style="color:${totReal[f]>0?'var(--accent2)':'var(--muted)'};">${totReal[f]||''}</th>`).join('')}
+          <th class="col-fija" style="font-size:10px;color:var(--accent2)">● Real vaciado</th>
+          <th class="col-fija2"></th><th class="col-fija3"></th>
+          ${fechas.map(f=>`<th style="color:${totReal[f]>0?'var(--accent2)':'var(--muted)'};font-weight:${f===hoy?700:400}">${totReal[f]||''}</th>`).join('')}
         </tr>
       </thead>
       <tbody>
-        ${filas.map(fila => `
-        <tr>
-          <td class="col-fija" title="${fila.modelo}" style="font-size:11px">${fila.modelo.slice(0,24)||'—'}</td>
-          <td class="col-fija2" style="font-size:11px;color:var(--muted)">${normMedida(fila.medida)||'—'} ${fila.lado?'· '+fila.lado:''}</td>
-          <td class="col-fija3" style="color:var(--muted);font-size:11px">${fila.total||'—'}</td>
-          ${fechas.map(f => celda(fila,f)).join('')}
-        </tr>`).join('')}
+        ${todasFilas.map(fila => {
+          const rowStyle = fila.produciendo
+            ? 'border-left:3px solid var(--accent)'
+            : fila.pendienteHoy
+            ? 'border-left:3px solid var(--warn)'
+            : 'border-left:3px solid transparent';
+          return `<tr style="${rowStyle}">
+            <td class="col-fija" title="${fila.modelo} — ${fila.cliente}" style="font-size:11px">
+              <div style="font-weight:600">${fila.modelo.slice(0,26)||'—'}</div>
+              <div style="font-size:10px;color:var(--muted)">${fila.odoo} · ${fila.cliente.slice(0,18)}</div>
+            </td>
+            <td class="col-fija2" style="font-size:11px;color:var(--muted)">${normMedida(fila.medida)||'—'}${fila.lado?' · '+fila.lado:''}</td>
+            <td class="col-fija3" style="color:var(--muted);font-size:11px;text-align:center">${fila.total||'—'}</td>
+            ${fechas.map(f=>celda(fila,f)).join('')}
+          </tr>`;
+        }).join('')}
+        ${todasFilas.length===0?`<tr><td colspan="${fechas.length+3}" class="empty">Sin resultados para los filtros aplicados</td></tr>`:''}
       </tbody>
     </table>
   </div>`;
+
+  // Scroll automático a columna de hoy
+  setTimeout(()=>{
+    const wrap=document.getElementById('gantt-body');
+    const ths=[...document.querySelectorAll('.gantt-table thead tr:first-child th')];
+    const idxHoy=ths.findIndex(th=>th.classList.contains('hoy'));
+    if(idxHoy>0 && wrap) wrap.scrollLeft=Math.max(0,(idxHoy-3)*44-wrap.clientWidth/2);
+  },50);
 }
+
+// Re-dibuja sin reconstruir todo (para filtro de texto en tiempo real)
+function _dibujarGantt() { renderGantt(); }
 
 // Normaliza patrón para cruce PLAN↔VACIADO
 function normPatron(s) {
