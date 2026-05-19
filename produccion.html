@@ -1865,7 +1865,8 @@ function renderGantt() {
 
   // ── Indicador hoy ──
   const resHoy = todasFilas.filter(f=>f.planHoy>0);
-  const vacHoy = resHoy.reduce((s,f)=>s+f.realHoy,0);
+  // Usar conteo real directo (todos los vaciados del día, incl. bases y lado-diferente)
+  const vacHoy      = totRealDia[hoy] || resHoy.reduce((s,f)=>s+f.realHoy,0);
   const planHoyTotal = resHoy.reduce((s,f)=>s+f.planHoy,0);
   const pctHoy = planHoyTotal>0?Math.round(vacHoy*100/planHoyTotal):0;
   const produciendo = resHoy.filter(f=>f.produciendo).length;
