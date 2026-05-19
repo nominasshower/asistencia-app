@@ -2019,15 +2019,20 @@ function renderPlan() {
     return { ...p, ...v, buenos, delta, pct, key };
   }).sort((a,b) => a.fecha.localeCompare(b.fecha) || b.aProducir - a.aProducir);
 
-  // ── Mapa SKU → entradas del plan en CUALQUIER fecha (para detectar órdenes futuras) ──
-  const planTodoMap = {}; // prodSKU → [{fecha, odoo, cliente}]
+  // ── Mapa MODELO-FAMILIA → entradas del plan en CUALQUIER fecha ──
+  // Clave: abrev(AR) + medida — sin lado ni color, porque la producción adelantada
+  // puede ser LEFT/RIGHT de un plan que dice CENTER o SIDE.
+  const planTodoMap = {}; // "AR||medida" → [{fecha, odoo, cliente, lado}]
   PLAN.forEach(r => {
     const f = parsePlanFecha(r["Fecha"]);
     if (!f) return;
-    const sk = buildSKU(r["PATRON"]||r["Modelo"]||"", r["Medida"]||"", r["Lado"]||"", r["Acabado"]||"", r["Color"]||"");
-    if (!sk) return;
-    if (!planTodoMap[sk]) planTodoMap[sk] = [];
-    planTodoMap[sk].push({ fecha: f, odoo: r["Odoo"]||"", cliente: r["Cliente"]||"" });
+    const modelo = r["PATRON"]||r["Modelo"]||"";
+    const ar     = normAbrev(modelo); // solo la abreviatura: "IA", "VT", "HE"...
+    const med    = normMedida(r["Medida"]||"");
+    if (!ar || !med) return;
+    const fk = `${ar}||${med}`;
+    if (!planTodoMap[fk]) planTodoMap[fk] = [];
+    planTodoMap[fk].push({ fecha: f, odoo: r["Odoo"]||"", cliente: r["Cliente"]||"", lado: r["Lado"]||"" });
   });
 
   // ── Vaciado sin plan (SKU de VAC no encontrado en ningún plan del período) ──
@@ -2038,8 +2043,11 @@ function renderPlan() {
     const [fecha, ...rest] = key.split("||");
     const patron = v.sku || rest.join("||");
     const medida = v.medida || '';
-    // ¿Hay orden futura para este mismo SKU?
-    const futuros = (planTodoMap[v.sku]||[])
+    // ¿Hay orden futura para este modelo+medida (sin importar lado)?
+    const arVac  = normAbrev(v.patron || patron);
+    const medVac = normMedida(medida);
+    const fk     = `${arVac}||${medVac}`;
+    const futuros = (planTodoMap[fk]||[])
       .filter(p => p.fecha > fecha)
       .sort((a,b) => a.fecha.localeCompare(b.fecha));
     const proximoPlan = futuros[0] || null;
