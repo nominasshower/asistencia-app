@@ -1614,9 +1614,9 @@ function editarCeldaPopup(td) {
     background:var(--bg2);border:1px solid var(--accent);border-radius:8px;
     padding:12px;width:210px;box-shadow:0 4px 20px rgba(0,0,0,.5)`;
   const hoyGantt = new Date().toISOString().slice(0,10);
-  const esFuturo = fecha > hoyGantt;
+  const esFuturo = fecha >= hoyGantt; // hoy también permite mover
   popup.innerHTML = `
-    <div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--accent)">${fecha}${esFuturo?' <span style="color:var(--warn);font-size:10px">futuro</span>':''}</div>
+    <div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--accent)">${fecha}${fecha > hoyGantt?' <span style="color:var(--warn);font-size:10px">futuro</span>':''}</div>
     <div style="font-size:10px;color:var(--muted);margin-bottom:8px">${odoo} · ${medida}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <div>
@@ -1630,17 +1630,16 @@ function editarCeldaPopup(td) {
           style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-size:13px;font-weight:700;text-align:center;outline:none">
       </div>
     </div>
-    ${esFuturo ? `
     <div style="margin-bottom:8px;padding:6px 8px;background:rgba(251,191,36,.1);border-radius:6px;border:1px solid rgba(251,191,36,.3)">
       <div style="font-size:10px;color:var(--warn);margin-bottom:4px">📅 Mover a otra fecha</div>
       <input id="pe-fecha-nueva" type="date" value="${fecha}"
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 7px;color:var(--text);font-size:12px;outline:none">
-    </div>` : ''}
+    </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button onclick="confirmarEditCelda('${fecha}','${odoo}','${medida.replace(/'/g,"\\'")}','${modelo.replace(/'/g,"\\'")}',this)"
         style="flex:1;min-width:60px;background:var(--accent);border:none;border-radius:5px;padding:6px;color:#000;font-weight:700;cursor:pointer;font-size:11px">💾 Guardar</button>
-      ${esFuturo ? `<button onclick="moverFechaOrden('${fecha}','${odoo}','${medida.replace(/'/g,"\\'")}','${modelo.replace(/'/g,"\\'")}',this)"
-        style="flex:1;min-width:60px;background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.4);border-radius:5px;padding:6px;color:var(--accent2);font-weight:700;cursor:pointer;font-size:11px">📌 Mover</button>` : ''}
+      <button onclick="moverFechaOrden('${fecha}','${odoo}','${medida.replace(/'/g,"\\'")}','${modelo.replace(/'/g,"\\'")}',this)"
+        style="flex:1;min-width:60px;background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.4);border-radius:5px;padding:6px;color:var(--accent2);font-weight:700;cursor:pointer;font-size:11px">📌 Mover</button>
       <button onclick="document.getElementById('popup-celda-edit').remove()"
         style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--muted);cursor:pointer;font-size:11px">✕</button>
     </div>`;
@@ -2065,7 +2064,7 @@ function renderPlan() {
     const medVac = normMedida(medida);
     const fk     = `${arVac}||${medVac}`;
     const futuros = (planTodoMap[fk]||[])
-      .filter(p => p.fecha > fecha)
+      .filter(p => p.fecha >= fecha)
       .sort((a,b) => a.fecha.localeCompare(b.fecha));
     const proximoPlan = futuros[0] || null;
     sinPlan.push({ fecha, patron, medida, ...v, proximoPlan });
@@ -2238,7 +2237,7 @@ function renderPlan() {
         <th style="text-align:center">A+B</th>
         <th style="text-align:center">C mismo día</th>
         <th style="text-align:center">C otro día</th>
-        <th>¿Hay orden futura?</th>
+        <th>¿Hay orden (hoy o futura)?</th>
       </tr></thead>
       <tbody>
         ${sinPlan.map(f => {
@@ -2249,9 +2248,11 @@ function renderPlan() {
             const mes = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()];
             return `${d.getDate()}-${mes}`;
           })() : null;
+          const hoyStr = new Date().toISOString().slice(0,10);
+          const esHoy  = pp && pp.fecha === hoyStr;
           const ordenTag = pp
-            ? `<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--warn)">
-                📅 ${fmtProx} · ${pp.odoo}
+            ? `<span style="display:inline-flex;align-items:center;gap:6px;background:${esHoy?'rgba(34,197,94,.12)':'rgba(251,191,36,.12)'};border:1px solid ${esHoy?'rgba(34,197,94,.35)':'rgba(251,191,36,.35)'};border-radius:6px;padding:3px 8px;font-size:11px;color:${esHoy?'var(--accent)':'var(--warn)'}">
+                ${esHoy?'✅':'📅'} ${fmtProx} · ${pp.odoo}
                 <button onclick="irAGanttOrden('${pp.odoo}')"
                   style="background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.4);border-radius:4px;color:var(--accent2);cursor:pointer;padding:1px 6px;font-size:10px;font-family:'DM Sans',sans-serif">
                   Ver Gantt →
