@@ -2040,18 +2040,53 @@ function renderPlan() {
     planGrupos[key].moldes    += parseInt(r["Moldes"]||r["MOLDES"]||0) || 0;
   });
 
-  // ── Índice lado-agnostico: fecha||AR||medida → para absorber vaciados con lado distinto al plan ──
-  // Ej: vaciado IA RIGHT 36x96 es absorbido por plan IA LEFT 36x96 del mismo día
-  const planSinLadoKeys = new Set();
-  Object.values(planGrupos).forEach(p => {
+  // ── Índice planKey por fecha||AR||medida (para absorber vaciados con lado distinto) ──
+  // Mapea "fecha||AR||medida" → planKey exacto, para poder fusionar conteos
+  const planKeyPorArMed = {}; // "fecha||AR||med" → planKey (primer match)
+  Object.entries(planGrupos).forEach(([key, p]) => {
     const ar  = normAbrev(p.patron);
     const med = normMedida(p.medida);
-    if (ar && med) planSinLadoKeys.add(`${p.fecha}||${ar}||${med}`);
+    if (ar && med) {
+      const fk = `${p.fecha}||${ar}||${med}`;
+      if (!planKeyPorArMed[fk]) planKeyPorArMed[fk] = key; // primera variante (CENTER, LEFT…)
+    }
   });
 
-  // ── Unir plan + real por clave SKU exacta ──
+  // ── Pre-absorción: vaciados con lado distinto al plan se fusionan en el plan del mismo día ──
+  // Sus conteos se acumulan en vacMerge[planKey] para sumarse al calcular filas.
+  const _planKeys    = new Set(Object.keys(planGrupos));
+  const vacMerge     = {}; // planKey → {vaciado, ab, cMismo, cOtro, sinInsp}
+  const vacAbsorbidos = new Set(); // vacKeys ya absorbidos (no van a sinPlan)
+  Object.entries(vacGrupos).forEach(([vacKey, v]) => {
+    if (!v.patron) return;                 // sin info de patrón no podemos absorber
+    if (_planKeys.has(vacKey)) return;     // ya tiene match exacto
+    const [fechaVac] = vacKey.split("||");
+    const ar  = normAbrev(v.patron);
+    const med = normMedida(v.medida || '');
+    if (!ar || !med) return;
+    const planKey = planKeyPorArMed[`${fechaVac}||${ar}||${med}`];
+    if (!planKey) return; // sin plan del mismo día para este AR+medida
+    // Fusionar conteos en el plan correspondiente
+    if (!vacMerge[planKey]) vacMerge[planKey] = {vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0};
+    vacMerge[planKey].vaciado  += v.vaciado;
+    vacMerge[planKey].ab       += v.ab;
+    vacMerge[planKey].cMismo   += v.cMismo;
+    vacMerge[planKey].cOtro    += v.cOtro;
+    vacMerge[planKey].sinInsp  += v.sinInsp;
+    vacAbsorbidos.add(vacKey);
+  });
+
+  // ── Unir plan + real por clave SKU exacta (+ vaciados absorbidos por lado) ──
   const filas = Object.entries(planGrupos).map(([key, p]) => {
-    const v = vacGrupos[key] || { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
+    const v1 = vacGrupos[key] || { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
+    const v2 = vacMerge[key]  || { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
+    const v  = {
+      vaciado: v1.vaciado + v2.vaciado,
+      ab:      v1.ab      + v2.ab,
+      cMismo:  v1.cMismo  + v2.cMismo,
+      cOtro:   v1.cOtro   + v2.cOtro,
+      sinInsp: v1.sinInsp + v2.sinInsp,
+    };
     const buenos = v.ab;
     const delta  = buenos - p.aProducir;
     const pct    = p.aProducir > 0 ? Math.round(buenos * 100 / p.aProducir) : 0;
@@ -2066,7 +2101,7 @@ function renderPlan() {
     const f = parsePlanFecha(r["Fecha"]);
     if (!f) return;
     const modelo = r["PATRON"]||r["Modelo"]||"";
-    const ar     = normAbrev(modelo); // solo la abreviatura: "IA", "VT", "HE"...
+    const ar     = normAbrev(modelo);
     const med    = normMedida(r["Medida"]||"");
     if (!ar || !med) return;
     const fk = `${ar}||${med}`;
@@ -2074,21 +2109,16 @@ function renderPlan() {
     planTodoMap[fk].push({ fecha: f, odoo: r["Odoo"]||"", cliente: r["Cliente"]||"", lado: r["Lado"]||"" });
   });
 
-  // ── Vaciado sin plan (SKU de VAC no encontrado en ningún plan del período) ──
+  // ── Vaciado sin plan (no tiene plan del mismo día ni siquiera por lado) ──
   const keysConPlan = new Set(Object.keys(planGrupos));
   const sinPlan = [];
   Object.entries(vacGrupos).forEach(([key, v]) => {
-    if (keysConPlan.has(key)) return;
-    // Segunda oportunidad: mismo día, mismo AR, misma medida, lado diferente
-    // (ej: vaciado RIGHT vs plan LEFT, o vaciado sin lado vs plan CENTER)
-    const [fechaVac2] = key.split("||");
-    const ar2  = normAbrev(v.patron || '');
-    const med2 = normMedida(v.medida || '');
-    if (ar2 && med2 && planSinLadoKeys.has(`${fechaVac2}||${ar2}||${med2}`)) return;
+    if (keysConPlan.has(key)) return;   // match exacto
+    if (vacAbsorbidos.has(key)) return; // absorbido por match lado-agnostico
     const [fecha, ...rest] = key.split("||");
     const patron = v.sku || rest.join("||");
     const medida = v.medida || '';
-    // ¿Hay orden futura para este modelo+medida (sin importar lado)?
+    // ¿Hay orden futura/hoy para este modelo+medida (sin importar lado)?
     const arVac  = normAbrev(v.patron || patron);
     const medVac = normMedida(medida);
     const fk     = `${arVac}||${medVac}`;
