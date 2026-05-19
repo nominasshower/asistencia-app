@@ -1720,13 +1720,24 @@ function moverFechaOrden(fechaOrig, odoo, medida, modelo, btn) {
     planDirty = true;
     document.getElementById('popup-celda-edit')?.remove();
     renderGantt();
-    // Auto-guardar silenciosamente + toast
+    // Auto-guardar + volver a Plan vs Real si se llegó desde ahí
+    const volverAPlan = _ganttFiltro._vieneDesPlan;
     savePlan().then(() => {
+      if (volverAPlan) {
+        // Volver a Plan vs Real con datos actualizados
+        VISTA = 'plan';
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        const planNav = [...document.querySelectorAll('.nav-item')].find(n => n.textContent.includes('Plan'));
+        if (planNav) planNav.classList.add('active');
+        renderPlan();
+        _ganttFiltro._vieneDesPlan = false;
+        _ganttFiltro.texto = '';
+      }
       const t = document.createElement('div');
       t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;
         background:var(--accent);color:#000;font-weight:700;font-size:12px;
         padding:10px 18px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.4)`;
-      t.textContent = '✓ Fecha movida y plan guardado';
+      t.textContent = volverAPlan ? '✓ Fecha movida · volviendo a Plan vs Real…' : '✓ Fecha movida y plan guardado';
       document.body.appendChild(t);
       setTimeout(() => t.remove(), 3000);
     }).catch(() => {});
@@ -1737,7 +1748,10 @@ function moverFechaOrden(fechaOrig, odoo, medida, modelo, btn) {
 
 // ── Navegar a Gantt filtrando por orden ─────────────────────
 function irAGanttOrden(odoo) {
-  // Cambiar a la vista Gantt y filtrar por el número de orden
+  // Registrar que venimos de Plan vs Real para volver al salir
+  _ganttFiltro._vieneDesPlan = (VISTA === 'plan');
+  // Cambiar VISTA a gantt para que al navegar a Plan se re-renderice con datos frescos
+  VISTA = 'gantt';
   _ganttFiltro.texto = odoo;
   renderGantt();
   // Activar nav item
@@ -2276,7 +2290,10 @@ function renderPlan() {
             : `<span style="color:var(--muted);font-size:11px">Sin orden</span>`;
           return `<tr style="${pp?'background:rgba(251,191,36,.04)':''}">
             <td class="mono">${f.fecha}</td>
-            <td style="max-width:200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${f.patron||''}">${f.patron||"—"}</td>
+            <td style="max-width:220px" title="${f.patron||''}">
+              <div style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${f.patron||"—"}</div>
+              ${f.sku?`<div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:1px;opacity:.7">${f.sku}</div>`:''}
+            </td>
             <td class="mono">${f.medida||"—"}</td>
             <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700">${f.vaciado}</td>
             <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--accent)">${f.ab||"—"}</td>
