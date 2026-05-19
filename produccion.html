@@ -1141,14 +1141,37 @@ function cargarExcelPlan(inputEl) {
       const resultado = {};
       const hoyStr = new Date().toISOString().slice(0,10);
 
-      // Helper: normaliza un valor de celda a "yyyy-mm-dd" si es fecha, sino null
+      // Helper: normaliza un valor de celda a "yyyy-mm-dd" — maneja todos los formatos
       function toDateStr(v) {
-        if (!v) return null;
-        if (typeof v === 'string') {
-          const p = new Date(v);
-          return isNaN(p) ? null : p.toISOString().slice(0,10);
+        if (v == null || v === '') return null;
+        // Date object → usar partes locales para evitar desfase de timezone
+        if (v instanceof Date) {
+          if (isNaN(v)) return null;
+          return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
         }
-        if (v instanceof Date) return v.toISOString().slice(0,10);
+        // Número → serial Excel (días desde 1900-01-01)
+        if (typeof v === 'number' && v > 1000) {
+          const d = new Date(Math.round((v - 25569) * 86400000));
+          return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+        }
+        const str = v.toString().trim();
+        if (!str) return null;
+        // ISO yyyy-mm-dd
+        if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0,10);
+        // dd/mm/yyyy (formato mexicano — más común en estos archivos)
+        const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
+        // dd-mmm o dd/mmm (ej: "19-may", "19-May", "19/may")
+        const ddmmm = str.match(/^(\d{1,2})[-\/]([a-zA-Z]{3,4})$/);
+        if (ddmmm) {
+          const M = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11,
+                     ene:0,abr:3,ago:7,dic:11};
+          const mes = M[ddmmm[2].toLowerCase().slice(0,3)];
+          if (mes !== undefined) {
+            const yr = new Date().getFullYear();
+            return `${yr}-${String(mes+1).padStart(2,'0')}-${String(parseInt(ddmmm[1])).padStart(2,'0')}`;
+          }
+        }
         return null;
       }
 
@@ -1190,18 +1213,29 @@ function cargarExcelPlan(inputEl) {
       const nombreHojaB = wb.SheetNames.find(n => n.toUpperCase().includes('BASE')) || null;
       const wsB = nombreHojaB ? wb.Sheets[nombreHojaB] : null;
       if (wsB) {
-        const data = XLSX.utils.sheet_to_json(wsB, { header:1, raw:false, dateNF:'yyyy-mm-dd' });
-        const hdrRow = data[0] || []; // fila 1 = índice 0
-        let colHoy = hdrRow.findIndex(v => toDateStr(v) === hoyStr);
+        // Usar raw:true para detectar el encabezado de fechas (evita problemas de formato)
+        const dataRaw  = XLSX.utils.sheet_to_json(wsB, { header:1, raw:true });
+        const dataFmt  = XLSX.utils.sheet_to_json(wsB, { header:1, raw:false, dateNF:'yyyy-mm-dd' });
+        // Buscar columna de hoy en filas 0-4 (el Gantt de bases puede tener estructura variable)
+        let colHoy = -1, filaHdr = 0;
+        for (let ri = 0; ri <= 4 && colHoy < 0; ri++) {
+          const hdr = dataRaw[ri] || [];
+          const ci = hdr.findIndex(v => toDateStr(v) === hoyStr);
+          if (ci >= 0) { colHoy = ci; filaHdr = ri; }
+        }
         if (colHoy < 0) {
-          const fechas = hdrRow.map(v => toDateStr(v)).filter(Boolean);
-          const ultimas = fechas.slice(-5).join(', ');
-          console.warn('[ExcelPlan] BASES: no encontré col de hoy', hoyStr);
-          alert(`⚠️ BASES: no encontré columna para hoy (${hoyStr}) en la hoja "${nombreHojaB}".\n\nÚltimas fechas disponibles: ${ultimas||'ninguna'}`);
+          // Mostrar diagnóstico: fechas encontradas en row 0 con todos los formatos
+          const todas = (dataRaw[0]||[]).map(v => toDateStr(v)).filter(Boolean);
+          const ultimas = todas.slice(-5).join(', ');
+          console.warn('[ExcelPlan] BASES: no encontré col de hoy', hoyStr, 'últimas:', ultimas);
+          alert(`⚠️ BASES: no encontré columna para hoy (${hoyStr}) en la hoja "${nombreHojaB}".\n\nÚltimas fechas disponibles: ${ultimas||'ninguna'}\n\nVerifica que el archivo tenga la fecha de hoy en el encabezado.`);
         }
         else {
-          for (let r = 3; r < data.length; r++) { // datos desde fila 4 = índice 3
-            const row = data[r];
+          console.log(`[BASES] colHoy=${colHoy} en fila ${filaHdr+1}`);
+          // dataRowStart depende de dónde estaba el encabezado
+          const dataRowStart = Math.max(filaHdr + 1, 3);
+          for (let r = dataRowStart; r < dataFmt.length; r++) {
+            const row = dataFmt[r];
             if (!row || !row[4]) continue;
             const moldes = parseFloat(row[colHoy])   || 0;
             const piezas = parseFloat(row[colHoy+1]) || 0;
@@ -1245,29 +1279,56 @@ function cargarExcelSoloBases(inputEl) {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
       const hoyStr = new Date().toISOString().slice(0,10);
+      // mismo toDateStr robusto que en cargarExcelPlan
       function toDateStr(v) {
-        if (!v) return null;
-        if (typeof v === 'string') { const p = new Date(v); return isNaN(p)?null:p.toISOString().slice(0,10); }
-        if (v instanceof Date) return v.toISOString().slice(0,10);
+        if (v == null || v === '') return null;
+        if (v instanceof Date) {
+          if (isNaN(v)) return null;
+          return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+        }
+        if (typeof v === 'number' && v > 1000) {
+          const d = new Date(Math.round((v - 25569) * 86400000));
+          return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+        }
+        const str = v.toString().trim();
+        if (!str) return null;
+        if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0,10);
+        const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
+        const ddmmm = str.match(/^(\d{1,2})[-\/]([a-zA-Z]{3,4})$/);
+        if (ddmmm) {
+          const M = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11,ene:0,abr:3,ago:7,dic:11};
+          const mes = M[ddmmm[2].toLowerCase().slice(0,3)];
+          if (mes !== undefined) {
+            const yr = new Date().getFullYear();
+            return `${yr}-${String(mes+1).padStart(2,'0')}-${String(parseInt(ddmmm[1])).padStart(2,'0')}`;
+          }
+        }
         return null;
       }
-      // Buscar la hoja GANTT BASES (o cualquier hoja con "BASE" en el nombre)
+      // Buscar la hoja con "BASE" en el nombre
       const nombreHoja = wb.SheetNames.find(n => n.toUpperCase().includes('BASE')) || null;
-      if (!nombreHoja) { alert('No encontré hoja con "BASE" en el nombre en este archivo.\nHojas disponibles: ' + wb.SheetNames.join(', ')); return; }
+      if (!nombreHoja) { alert('No encontré hoja con "BASE" en el nombre.\nHojas disponibles: ' + wb.SheetNames.join(', ')); return; }
       const wsB = wb.Sheets[nombreHoja];
-      const data = XLSX.utils.sheet_to_json(wsB, { header:1, raw:false, dateNF:'yyyy-mm-dd' });
-      const hdrRow = data[0] || [];
-      let colHoy = hdrRow.findIndex(v => toDateStr(v) === hoyStr);
+      // raw:true para detectar fechas en el formato original
+      const dataRaw = XLSX.utils.sheet_to_json(wsB, { header:1, raw:true });
+      const dataFmt = XLSX.utils.sheet_to_json(wsB, { header:1, raw:false, dateNF:'yyyy-mm-dd' });
+      // Buscar colHoy en filas 0-4
+      let colHoy = -1, filaHdr = 0;
+      for (let ri = 0; ri <= 4 && colHoy < 0; ri++) {
+        const ci = (dataRaw[ri]||[]).findIndex(v => toDateStr(v) === hoyStr);
+        if (ci >= 0) { colHoy = ci; filaHdr = ri; }
+      }
       if (colHoy < 0) {
-        // Buscar la columna más cercana a hoy para mostrar diagnóstico
-        const fechas = hdrRow.map(v => toDateStr(v)).filter(Boolean);
-        alert(`No encontré columna para hoy (${hoyStr}) en la hoja "${nombreHoja}".\nFechas disponibles: ${fechas.slice(-5).join(', ')}`);
+        const todas = (dataRaw[0]||[]).map(v => toDateStr(v)).filter(Boolean);
+        alert(`No encontré columna para hoy (${hoyStr}) en "${nombreHoja}".\nFechas disponibles: ${todas.slice(-5).join(', ')}`);
         return;
       }
+      const dataRowStart = Math.max(filaHdr + 1, 3);
       _excelBasesRaw = [];
       const resultado = _excelPlanCargado ? {..._excelPlanCargado} : {};
-      for (let r = 3; r < data.length; r++) {
-        const row = data[r];
+      for (let r = dataRowStart; r < dataFmt.length; r++) {
+        const row = dataFmt[r];
         if (!row || !row[4]) continue;
         const moldes = parseFloat(row[colHoy])   || 0;
         const piezas = parseFloat(row[colHoy+1]) || 0;
@@ -1288,7 +1349,7 @@ function cargarExcelSoloBases(inputEl) {
         resultado[fk].piezas += piezas;
         _excelBasesRaw.push({ odoo, cliente, medida, modelo, compromiso, color, acabado, total, moldes, piezas });
       }
-      if (!_excelBasesRaw.length) { alert(`Hoja "${nombreHoja}" no tiene filas con datos para hoy (${hoyStr}).`); return; }
+      if (!_excelBasesRaw.length) { alert(`"${nombreHoja}": no hay filas con moldes/piezas para hoy (${hoyStr}).`); return; }
       _excelPlanCargado = resultado;
       if (!_excelPlanFecha) _excelPlanFecha = file.name.replace(/\.xlsx?$/i,'');
       renderComparaPlan();
