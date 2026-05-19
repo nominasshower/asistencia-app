@@ -314,6 +314,78 @@ const EXCLUIR_DEFAULT = [
   "Piezas de Muestra de Laboratorio",
 ];
 
+// ── Tablas para formación de SKU (FORMACION DE SKU.xlsx) ─────
+// SKU = TipoCod(2) + MedidaCod(4) + ARCod(2) + LadoCod(1) + AcabadoCod(1) + ColorCod(2)
+// Ej: WALL + 39X86 + (VT) + LEFT + MATTE + PEWTER → "WA3986VT2M02"
+const SKU_TIPO_MAP = {
+  'WALL':'WA','BASE':'BA','ACCESORY':'AC','ACCESSORY':'AC',
+  'MOLD':'ML','SLABS':'SL','BACKSPLASH':'BK','SIDE SPLASH':'SS',
+  'UNDERMOUNT':'UN','RAMP':'RM','METAL COVER':'MC',
+  'FIBERGLASS':'FG','SAMPLES CUT':'SA','BOWLS':'MX'
+};
+const SKU_LADO_MAP = {
+  '0':'0','CENTER':'1','CENTRO':'1','CENTAR':'1','N/A':'0','':'0',
+  'LEFT':'2','IZQ':'2','IZQUIERDA':'2',
+  'RIGHT':'3','DER':'3','DERECHA':'3',
+  'LOWER':'7','UPPER':'8','CUSTOM R':'9'
+};
+const SKU_ACABADO_MAP = {'GLOSS':'B','MATTE':'M','N/A':'N','':'N'};
+const SKU_COLOR_MAP = {
+  'SOLID WHITE':'01','PEWTER':'02','WHITE ON WHITE':'03','CAPPUCCINO':'04',
+  'DUNE':'05','GRAY MIST':'06','NATURAL CARRARA':'07','ROCKY TRAIL':'08',
+  'MOON SCAPE':'09','ARCTIC STONE':'10','ITALIAN WHITE':'11','MOONSTONE':'12',
+  'WHITE BONE':'13','DOVE GRAY':'14','FROST':'15','MEXICAN SAND':'16',
+  'SNOW DRIFT':'17','SANDY BEACH':'19','NAPOLI':'21','BLACK SEIRL':'22',
+  'GALAXY BLACK':'24','MAIZE':'25','ESPRESSO':'26','CASHMERE':'27',
+  'AGGREGATE':'28','BEIGE':'29','CARAMEL CORN':'30','PEBBLE BEACH':'31',
+  'STEEL GRAY':'32','AURORA':'33','SPECKLED TAUPE':'36','BOULDER':'37',
+  'SAND':'38','GALAXY BRONCE':'40','REAL QUARTZ':'41','ALMOND':'42',
+  'CHOCOLATE FUDGE':'43','SANDY COAST':'44','ARCTIC WHITE':'45','LINEN':'46',
+  'CHAMPAGNE':'47','PEACH FREEZE':'48','MOCHA GOLD':'49',
+  'GRAY GALAXY QUARTZ':'50','MIDNIGHT':'51','MILKY WAY':'52','NO APLICA':'53',
+  'CALACATTA BLACK QUARTZ':'54','GALAXY WHITE QUARTZ':'56',
+  'CARRARA MARBLE':'57','GALAXY BLACK QUARTZ':'58','CARRARA PROCESADO':'59',
+  'CARRARA PROCESADO (MAGICK)':'60','MANHATTAN GRAY QUARTZ':'61',
+  'ICEBERG WHITE QUARTZ':'63','ICED WHITE QUARTZ':'64','PURE WHITE QUARTZ':'65',
+  'FROST WHITE QUARTZ':'66','DARK GRAY QUARTZ':'67','CALACATTA ROYAL QUARTZ':'68',
+  'CALACATTA LUNA ROYAL':'69','CALACATTA PEARL QUARTZ':'70','GALENA QUARTZ':'71',
+  'SHOREBROOK QUARTZ':'72','LYRA QUARTZ':'73','OCEAN GRAY QUARTZ':'74',
+  'GALAXY SAND QUARTZ':'75','TITANIUM GRAY QUARTZ':'76','CONCRETTE GRAY QUARTZ':'77',
+  'CURAVA 1 QUARTZ':'78','CURAVA 2 QUARTZ':'79','SOPRANO QUARTZ':'80',
+  'GIALLO QUARTZ':'81','KOHLER WHITE':'82','SILVER WHITE':'83',
+  'SOLID CREAM':'84','LINEM':'85','CRYSTAL ALMOND':'86','SOLID IVORY':'89',
+  'LIGHT GRAY':'90','BRIGHT WHITE':'91','METAL':'00','ITALIAN ICED':'92',
+  'CAMEO WHITE':'93','CRYSTAL CREAM':'94','FAIRFAX BEIGE':'A4','GRAY':'A5'
+};
+
+// Construye el SKU de producto desde los campos del plan
+// Retorna "" si faltan datos esenciales (AR code o color)
+function buildSKU(modelo, medida, lado, acabado, color) {
+  const m  = (modelo||"").toUpperCase().trim();
+  const med = (medida||"").replace(/"/g,'').toUpperCase().trim();
+  // Tipo
+  let tipoCod = 'WA';
+  for (const [k,v] of Object.entries(SKU_TIPO_MAP)) {
+    if (m.startsWith(k)) { tipoCod = v; break; }
+  }
+  // Medida: "39X86" → "3986" (cada lado 2 dígitos con cero si falta)
+  const parts = med.split('X');
+  const w = String(parseInt(parts[0])||0).padStart(2,'0');
+  const h = String(parseInt(parts[1])||0).padStart(2,'0');
+  const medCod = w + h;
+  // AR (abreviatura en paréntesis)
+  const ar = (m.match(/\(([A-Z0-9]{1,4})\)/)||[])[1] || '';
+  if (!ar) return ''; // no se puede formar SKU sin AR
+  // Lado
+  const ladoCod = SKU_LADO_MAP[(lado||'').toUpperCase().trim()] ?? '0';
+  // Acabado
+  const acabadoCod = SKU_ACABADO_MAP[(acabado||'').toUpperCase().trim()] || 'N';
+  // Color
+  const colorCod = SKU_COLOR_MAP[(color||'').toUpperCase().trim()] || '';
+  if (!colorCod) return ''; // no se puede formar SKU sin color
+  return `${tipoCod}${medCod}${ar}${ladoCod}${acabadoCod}${colorCod}`;
+}
+
 // Clasificación
 const GELCOAT_KEYS = ["rechazo de gelcoat","gelcoat delgado","gelcoat levantado","gelcoat estrellado","gelcoat reventado","gelcoat poroso","gelcoat tierno","gelcoat contaminado","gelcoat"];
 const MOLDE_KEYS   = ["marca de molde","fallo de máquina","despostillado en desmolde","quebrado en desmolde","rayas por manejo","grumos"];
@@ -1080,12 +1152,15 @@ function renderGantt() {
   }
   const hoy = new Date().toISOString().slice(0,10);
 
-  // ── Vaciado por fecha+patron+medida ──
+  // ── Vaciado por fecha+SKU (si hay) o fecha+patron+medida (fallback) ──
   const vacMap = {};
   VAC_RAW.forEach(r => {
-    const f = (r["Fecha"]||"").slice(0,10);
-    const k = `${f}||${normKey(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
-    vacMap[k] = (vacMap[k]||0) + 1;
+    const f    = (r["Fecha"]||"").slice(0,10);
+    const sku  = (r["SKU"]||"").trim().toUpperCase();
+    const kSKU = sku ? `${f}||${sku}` : null;
+    const kNorm= `${f}||${normKey(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
+    if (kSKU) vacMap[kSKU] = (vacMap[kSKU]||0) + 1;
+    vacMap[kNorm] = (vacMap[kNorm]||0) + 1; // también por normKey para compatibilidad
   });
 
   // ── Moldes disponibles por base de patrón (de VAC_RAW por TAG) ──
@@ -1127,6 +1202,7 @@ function renderGantt() {
       odoo: r["Odoo"]||"", cliente: r["Cliente"]||"",
       modelo: r["PATRON"]||r["Modelo"]||"",
       medida: r["Medida"]||"", lado: r["Lado"]||"",
+      color: r["Color"]||"", acabado: r["Acabado"]||"",
       total: parseInt(r["Total"]||0)||0, dias:{},
     };
     if (!filasMap[key].dias[fecha]) filasMap[key].dias[fecha] = {moldes:0, piezas:0};
@@ -1198,8 +1274,11 @@ function renderGantt() {
     const d=fila.dias[fecha]||{};
     const piezas=d.piezas||0; const moldesPlan=d.moldes||0;
     if(!piezas && !moldesPlan) return `<td style="background:transparent"></td>`;
-    const k=`${fecha}||${normKey(fila.modelo)}||${normMedida(fila.medida)}`;
-    const realPiezas=vacMap[k]||0;
+    // Busca vaciado real: primero por SKU exacto, si no por normKey+medida
+    const skuFila = buildSKU(fila.modelo, fila.medida, fila.lado, fila.acabado, fila.color);
+    const kSKU  = skuFila ? `${fecha}||${skuFila}` : null;
+    const kNorm = `${fecha}||${normKey(fila.modelo)}||${normMedida(fila.medida)}`;
+    const realPiezas = (kSKU ? (vacMap[kSKU]||0) : 0) || (vacMap[kNorm]||0);
     const moldisDisp=moldisMap[normKey(fila.modelo)]||0;
     let cls;
     if(realPiezas>=piezas && piezas>0) cls='gc-done';
@@ -1774,16 +1853,21 @@ function renderPlan() {
     return f >= desde && f <= hasta;
   });
 
-  // Grupos de vaciado: fecha+patron+medida (normalizados)
+  // ── Vaciado agrupado por fecha+SKU (clave exacta del producto) ──
+  // Si el VAC tiene SKU formado, úsalo; si no, fallback a patron+medida normalizados
   const vacGrupos = {};
   vacPeriodo.forEach(r => {
     const fechaVac = (r["Fecha"]||"").slice(0,10);
-    const key = `${fechaVac}||${normKey(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
-    if (!vacGrupos[key]) vacGrupos[key] = { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
+    const vacSKU   = (r["SKU"]||"").trim().toUpperCase();
+    const key = vacSKU
+      ? `${fechaVac}||${vacSKU}`
+      : `${fechaVac}||${normKey(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
+    if (!vacGrupos[key]) vacGrupos[key] = {
+      vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0,
+      patron: r["Patron"]||"", medida: r["Medida"]||"", sku: vacSKU
+    };
     vacGrupos[key].vaciado++;
-
-    const sku = (r["SKU"]||"").trim().toUpperCase();
-    const insp = SKU_INSP[sku];
+    const insp = SKU_INSP[vacSKU];
     if (!insp || !insp.grade) {
       vacGrupos[key].sinInsp++;
     } else if (insp.grade === "C") {
@@ -1794,46 +1878,26 @@ function renderPlan() {
     }
   });
 
-  // Vaciado agrupado SOLO por fecha+abreviatura (todos los lados y medidas juntos)
-  // Sirve para que plan "VT CENTER" cuente también LEFT y RIGHT vaciados
-  const vacAbrevMap = {};
-  vacPeriodo.forEach(r => {
-    const fechaVac = (r["Fecha"]||"").slice(0,10);
-    const abrev = normAbrev(r["Patron"]||"");
-    const ak = `${fechaVac}||${abrev}`;
-    if (!vacAbrevMap[ak]) vacAbrevMap[ak] = { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
-    vacAbrevMap[ak].vaciado++;
-    const sku = (r["SKU"]||"").trim().toUpperCase();
-    const insp = SKU_INSP[sku];
-    if (!insp || !insp.grade) {
-      vacAbrevMap[ak].sinInsp++;
-    } else if (insp.grade === "C") {
-      if (insp.fechaInsp === fechaVac) vacAbrevMap[ak].cMismo++;
-      else                             vacAbrevMap[ak].cOtro++;
-    } else {
-      vacAbrevMap[ak].ab++;
-    }
-  });
-
-  // ── Plan agrupado por fecha+patron+medida (normalizados) ──
+  // ── Plan agrupado por fecha+SKU (construido desde campos del plan) ──
   const planGrupos = {};
-  // Set de abreviaturas planificadas: fecha||abrev → para filtrar sinPlan
-  const planAbrevSet = new Set();
   PLAN.forEach(r => {
     const fecha = parsePlanFecha(r["Fecha"]);
     if (!fecha || fecha < desde || fecha > hasta) return;
-    const patronNorm = normKey(r["PATRON"] || r["Modelo"] || "");
-    const medidaNorm = normMedida(r["Medida"] || "");
-    const key = `${fecha}||${patronNorm}||${medidaNorm}`;
-    planAbrevSet.add(`${fecha}||${normAbrev(r["PATRON"]||r["Modelo"]||"")}`);
+    const modelo = r["PATRON"] || r["Modelo"] || "";
+    const planSKU = buildSKU(modelo, r["Medida"]||"", r["Lado"]||"", r["Acabado"]||"", r["Color"]||"");
+    // Clave: SKU si se pudo construir, si no fallback a normKey+medida
+    const key = planSKU
+      ? `${fecha}||${planSKU}`
+      : `${fecha}||${normKey(modelo)}||${normMedida(r["Medida"]||"")}`;
     if (!planGrupos[key]) planGrupos[key] = {
       fecha,
-      patron:  r["PATRON"] || r["Modelo"] || "",
+      patron:  modelo,
       medida:  r["Medida"] || "",
       cliente: r["Cliente"] || "",
       odoo:    r["Odoo"] || "",
-      total:   0,   // total de la orden completa
-      aProducir: 0, // lo que toca producir este día
+      sku:     planSKU,
+      total:   0,
+      aProducir: 0,
       moldes:  0,
     };
     planGrupos[key].total     += parseInt(r["Total"]||0) || 0;
@@ -1841,27 +1905,24 @@ function renderPlan() {
     planGrupos[key].moldes    += parseInt(r["Moldes"]||r["MOLDES"]||0) || 0;
   });
 
-  // ── Unir plan + real ──
-  // Usamos vacAbrevMap para que VT_CENTER cuente TAMBIÉN LEFT y RIGHT del mismo modelo
+  // ── Unir plan + real por clave SKU exacta ──
   const filas = Object.entries(planGrupos).map(([key, p]) => {
-    const abrevKey = `${p.fecha}||${normAbrev(p.patron)}`;
-    const v = vacAbrevMap[abrevKey] || vacGrupos[key] || { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
+    const v = vacGrupos[key] || { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
     const buenos = v.ab;
     const delta  = buenos - p.aProducir;
     const pct    = p.aProducir > 0 ? Math.round(buenos * 100 / p.aProducir) : 0;
     return { ...p, ...v, buenos, delta, pct, key };
   }).sort((a,b) => a.fecha.localeCompare(b.fecha) || b.aProducir - a.aProducir);
 
-  // ── Vaciado sin plan ──
-  // Excluye también los que tienen match por abreviatura (LEFT/RIGHT de un modelo planificado)
+  // ── Vaciado sin plan (SKU de VAC no encontrado en ningún plan del período) ──
   const keysConPlan = new Set(Object.keys(planGrupos));
   const sinPlan = [];
   Object.entries(vacGrupos).forEach(([key, v]) => {
-    if (keysConPlan.has(key)) return; // match exacto
-    const [fecha, patron, medida] = key.split("||");
-    // Si la abreviatura base (antes del _) tiene plan en ese día → no es "sin plan"
-    const abrevBase = normAbrev(patron);
-    if (planAbrevSet.has(`${fecha}||${abrevBase}`)) return;
+    if (keysConPlan.has(key)) return;
+    const [fecha, ...rest] = key.split("||");
+    // Mostrar SKU o patron legible
+    const patron = v.sku || rest.join("||");
+    const medida = v.medida || '';
     sinPlan.push({ fecha, patron, medida, ...v });
   });
   sinPlan.sort((a,b)=>a.fecha.localeCompare(b.fecha));
