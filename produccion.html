@@ -362,39 +362,63 @@ const SKU_COLOR_MAP = {
   'CAMEO WHITE':'93','CRYSTAL CREAM':'94','FAIRFAX BEIGE':'A4','GRAY':'A5'
 };
 
-// Construye el SKU de producto desde los campos del plan
+// Construye el SKU de referencia del producto
+// Funciona para plan (lado explícito) y para vaciado (lado extraído del patron)
+// tipoExplicito: "Pared"/"Piso" — se usa si el modelo no empieza con tipo conocido
 // Retorna "" si faltan datos esenciales (AR code o color)
-function buildSKU(modelo, medida, lado, acabado, color) {
-  const m  = (modelo||"").toUpperCase().trim();
+function buildSKU(modelo, medida, lado, acabado, color, tipoExplicito) {
+  const m   = (modelo||"").toUpperCase().trim();
   const med = (medida||"").replace(/"/g,'').toUpperCase().trim();
-  // Tipo
-  let tipoCod = 'WA';
+
+  // ── Tipo ──────────────────────────────────────────────────
+  let tipoCod = '';
   for (const [k,v] of Object.entries(SKU_TIPO_MAP)) {
     if (m.startsWith(k)) { tipoCod = v; break; }
   }
-  // Medida: "39X86" → "3986" (cada lado 2 dígitos con cero si falta)
+  if (!tipoCod) {
+    const te = (tipoExplicito||'').toUpperCase().trim();
+    tipoCod = te === 'PISO' ? 'BA' : 'WA'; // Pared o default → WA
+  }
+
+  // ── Medida: "39X86" → "3986" ──────────────────────────────
   const parts = med.split('X');
   const w = String(parseInt(parts[0])||0).padStart(2,'0');
   const h = String(parseInt(parts[1])||0).padStart(2,'0');
   const medCod = w + h;
-  // AR (abreviatura en paréntesis)
+
+  // ── AR (abreviatura entre paréntesis) ──────────────────────
   const ar = (m.match(/\(([A-Z0-9]{1,4})\)/)||[])[1] || '';
-  if (!ar) return ''; // no se puede formar SKU sin AR
-  // Lado
-  const ladoCod = SKU_LADO_MAP[(lado||'').toUpperCase().trim()] ?? '0';
-  // Acabado
+  if (!ar) return '';
+
+  // ── Lado ───────────────────────────────────────────────────
+  // Si viene explícito (del plan) lo usa; si no, lo extrae del patron (vaciado)
+  let ladoCod;
+  const ladoExpl = (lado||'').toUpperCase().trim();
+  if (ladoExpl && SKU_LADO_MAP[ladoExpl] !== undefined) {
+    ladoCod = SKU_LADO_MAP[ladoExpl];
+  } else {
+    // Extraer del texto del patron: busca LEFT/RIGHT/CENTER/IZQ/DER
+    let ladoTexto = '';
+    if (/\bLEFT\b|LEFT[,\/]|\/IZQ|\bIZQ\b/i.test(m))        ladoTexto = 'LEFT';
+    else if (/\bRIGHT\b|RIGHT[,\/]|\/DER|\bDER\b/i.test(m))  ladoTexto = 'RIGHT';
+    else if (/\bCENT(ER|RO|AR)\b/i.test(m))                   ladoTexto = 'CENTER';
+    else if (/\bUNI\b|\bSIDE\b/i.test(m))                     ladoTexto = 'N/A';
+    ladoCod = SKU_LADO_MAP[ladoTexto] ?? '0';
+  }
+
+  // ── Acabado ────────────────────────────────────────────────
   const acabadoCod = SKU_ACABADO_MAP[(acabado||'').toUpperCase().trim()] || 'N';
-  // Color — busca match exacto primero, si no intenta prefijo
-  // (por si viene "SOLID IVORY MA" en lugar de "SOLID IVORY")
+
+  // ── Color (exacto o por prefijo si viene truncado) ─────────
   const colorNorm = (color||'').toUpperCase().trim();
   let colorCod = SKU_COLOR_MAP[colorNorm] || '';
   if (!colorCod) {
-    // Busca si alguna clave del mapa es prefijo del valor que llegó (o al revés)
-    for (const [k, v] of Object.entries(SKU_COLOR_MAP)) {
+    for (const [k,v] of Object.entries(SKU_COLOR_MAP)) {
       if (colorNorm.startsWith(k) || k.startsWith(colorNorm)) { colorCod = v; break; }
     }
   }
-  if (!colorCod) return ''; // no se puede formar SKU sin color
+  if (!colorCod) return '';
+
   return `${tipoCod}${medCod}${ar}${ladoCod}${acabadoCod}${colorCod}`;
 }
 
@@ -1164,15 +1188,18 @@ function renderGantt() {
   }
   const hoy = new Date().toISOString().slice(0,10);
 
-  // ── Vaciado por fecha+SKU (si hay) o fecha+patron+medida (fallback) ──
+  // ── vacMap: fecha+SKU-producto → conteo ────────────────────────
+  // Construye SKU-producto desde los campos del vaciado (igual que Plan vs Real)
   const vacMap = {};
   VAC_RAW.forEach(r => {
-    const f    = (r["Fecha"]||"").slice(0,10);
-    const sku  = (r["SKU"]||"").trim().toUpperCase();
-    const kSKU = sku ? `${f}||${sku}` : null;
-    const kNorm= `${f}||${normKey(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
-    if (kSKU) vacMap[kSKU] = (vacMap[kSKU]||0) + 1;
-    vacMap[kNorm] = (vacMap[kNorm]||0) + 1; // también por normKey para compatibilidad
+    const f       = (r["Fecha"]||"").slice(0,10);
+    const prodSKU = buildSKU(
+      r["Patron"]||"", r["Medida"]||"", "",
+      r["Acabado"]||"", r["Color"]||"", r["Tipo"]||""
+    );
+    const kNorm = `${f}||${normKey(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
+    if (prodSKU) vacMap[`${f}||${prodSKU}`] = (vacMap[`${f}||${prodSKU}`]||0) + 1;
+    vacMap[kNorm] = (vacMap[kNorm]||0) + 1; // fallback para compatibilidad
   });
 
   // ── Moldes disponibles por base de patrón (de VAC_RAW por TAG) ──
@@ -1865,21 +1892,27 @@ function renderPlan() {
     return f >= desde && f <= hasta;
   });
 
-  // ── Vaciado agrupado por fecha+SKU (clave exacta del producto) ──
-  // Si el VAC tiene SKU formado, úsalo; si no, fallback a patron+medida normalizados
+  // ── Vaciado agrupado por fecha + SKU-producto construido ──────
+  // El SKU del etiqueta (r["SKU"]) es el de RFID — no sirve para matching.
+  // Construimos el SKU del producto desde Patron+Medida+Lado+Acabado+Color+Tipo.
   const vacGrupos = {};
   vacPeriodo.forEach(r => {
-    const fechaVac = (r["Fecha"]||"").slice(0,10);
-    const vacSKU   = (r["SKU"]||"").trim().toUpperCase();
-    const key = vacSKU
-      ? `${fechaVac}||${vacSKU}`
+    const fechaVac   = (r["Fecha"]||"").slice(0,10);
+    const tagSKU     = (r["SKU"]||"").trim().toUpperCase(); // SKU etiqueta (para grado)
+    // Construir SKU de referencia del producto
+    const prodSKU = buildSKU(
+      r["Patron"]||"", r["Medida"]||"", /*lado vacío → extrae del patron*/ "",
+      r["Acabado"]||"", r["Color"]||"", r["Tipo"]||""
+    );
+    const key = prodSKU
+      ? `${fechaVac}||${prodSKU}`
       : `${fechaVac}||${normKey(r["Patron"]||"")}||${normMedida(r["Medida"]||"")}`;
     if (!vacGrupos[key]) vacGrupos[key] = {
       vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0,
-      patron: r["Patron"]||"", medida: r["Medida"]||"", sku: vacSKU
+      patron: r["Patron"]||"", medida: r["Medida"]||"", sku: prodSKU
     };
     vacGrupos[key].vaciado++;
-    const insp = SKU_INSP[vacSKU];
+    const insp = SKU_INSP[tagSKU]; // grado sigue usando SKU etiqueta
     if (!insp || !insp.grade) {
       vacGrupos[key].sinInsp++;
     } else if (insp.grade === "C") {
