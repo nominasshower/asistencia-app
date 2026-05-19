@@ -487,15 +487,26 @@ function clasif(d) {
   return "o";
 }
 
-// ── Fetch sheet ──────────────────────────────────────────
-async function fetchSheet(name) {
+// ── Fetch sheet (con retry automático) ───────────────────
+async function fetchSheet(name, retries = 3) {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(name)}?key=${API_KEY}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`HTTP ${r.status} (${name})`);
-  const j = await r.json();
-  const [hdrs, ...rows] = j.values || [];
-  if (!hdrs) return [];
-  return rows.map(r => { const o={}; hdrs.forEach((h,i)=>o[h]=r[i]??""); return o; });
+  for (let intento = 1; intento <= retries; intento++) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status} (${name})`);
+      const j = await r.json();
+      const [hdrs, ...rows] = j.values || [];
+      if (!hdrs) return [];
+      return rows.map(r => { const o={}; hdrs.forEach((h,i)=>o[h]=r[i]??""); return o; });
+    } catch(err) {
+      if (intento < retries) {
+        console.warn(`[fetchSheet] Intento ${intento} fallido para ${name}, reintentando…`, err.message);
+        await new Promise(r => setTimeout(r, 1200 * intento)); // espera 1.2s, 2.4s
+      } else {
+        throw new Error(`No se pudo cargar "${name}" después de ${retries} intentos: ${err.message}`);
+      }
+    }
+  }
 }
 
 // ── Cargar datos ─────────────────────────────────────────
@@ -1107,51 +1118,77 @@ function cargarExcelPlan(inputEl) {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
       const resultado = {};
-      // Procesar GANTT PAREDES L1-2 y GANTT BASES
-      ['GANTT PAREDES L1-2', 'GANTT BASES'].forEach(shName => {
-        const ws = wb.Sheets[shName];
-        if (!ws) return;
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
-        if (!data || data.length < 5) return;
-        // Row index 3 = row 4 (0-indexed) → header row con fechas
-        const headerRow = data[3] || [];
-        const hoyStr = new Date().toISOString().slice(0,10);
-        // Encontrar columna de hoy (valor = fecha tipo "2026-05-19")
-        let colHoy = -1;
-        headerRow.forEach((v, i) => {
-          if (!v) return;
-          // SheetJS puede devolver "5/19/2026" o "2026-05-19" etc.
-          let d = null;
-          if (typeof v === 'string') {
-            // intenta parsear
-            const parsed = new Date(v);
-            if (!isNaN(parsed)) d = parsed.toISOString().slice(0,10);
-          } else if (v instanceof Date) {
-            d = v.toISOString().slice(0,10);
-          }
-          if (d === hoyStr && colHoy < 0) colHoy = i;
-        });
-        if (colHoy < 0) { console.warn(`[ExcelPlan] No se encontró columna de hoy (${hoyStr}) en ${shName}`); return; }
-        // Leer filas de datos (desde row 4, index 4)
-        for (let r = 4; r < data.length; r++) {
-          const row = data[r];
-          if (!row || !row[4]) continue; // sin modelo → saltar
-          const odoo    = (row[0]||'').toString().trim();
-          const medida  = (row[3]||'').toString().trim();
-          const modelo  = (row[4]||'').toString().trim();
-          const lado    = (row[5]||'').toString().trim();
-          const moldes  = parseFloat(row[colHoy]) || 0;
-          const piezas  = parseFloat(row[colHoy+1]) || 0;
-          if (!moldes && !piezas) continue;
-          const ar  = normAbrev(modelo);
-          const med = normMedida(medida);
-          if (!ar || !med) continue;
-          const fk = `${ar}||${med}`;
-          if (!resultado[fk]) resultado[fk] = { moldes:0, piezas:0, odoo, patron:modelo, medida, lado };
-          resultado[fk].moldes += moldes;
-          resultado[fk].piezas += piezas;
+      const hoyStr = new Date().toISOString().slice(0,10);
+
+      // Helper: normaliza un valor de celda a "yyyy-mm-dd" si es fecha, sino null
+      function toDateStr(v) {
+        if (!v) return null;
+        if (typeof v === 'string') {
+          const p = new Date(v);
+          return isNaN(p) ? null : p.toISOString().slice(0,10);
         }
-      });
+        if (v instanceof Date) return v.toISOString().slice(0,10);
+        return null;
+      }
+
+      // ── GANTT PAREDES L1-2 ──
+      // Estructura: fila 4 (idx 3) = fechas, fila 5+ = datos
+      // Cols: 0=Odoo, 3=Medida, 4=Modelo, 5=Lado, colHoy=moldes, colHoy+1=piezas
+      const wsP = wb.Sheets['GANTT PAREDES L1-2'];
+      if (wsP) {
+        const data = XLSX.utils.sheet_to_json(wsP, { header:1, raw:false, dateNF:'yyyy-mm-dd' });
+        const hdrRow = data[3] || [];
+        let colHoy = hdrRow.findIndex((v,i) => toDateStr(v) === hoyStr);
+        if (colHoy < 0) console.warn('[ExcelPlan] PAREDES: no encontré col de hoy', hoyStr);
+        else {
+          for (let r = 4; r < data.length; r++) {
+            const row = data[r];
+            if (!row || !row[4]) continue;
+            const moldes = parseFloat(row[colHoy])   || 0;
+            const piezas = parseFloat(row[colHoy+1]) || 0;
+            if (!moldes && !piezas) continue;
+            const odoo   = (row[0]||'').toString().trim();
+            const medida = (row[3]||'').toString().trim();
+            const modelo = (row[4]||'').toString().trim();
+            const lado   = (row[5]||'').toString().trim();
+            const ar = normAbrev(modelo), med = normMedida(medida);
+            if (!ar || !med) continue;
+            const fk = `${ar}||${med}`;
+            if (!resultado[fk]) resultado[fk] = { moldes:0, piezas:0, odoo, patron:modelo, medida, lado };
+            resultado[fk].moldes += moldes;
+            resultado[fk].piezas += piezas;
+          }
+        }
+      }
+
+      // ── GANTT BASES ──
+      // Estructura DIFERENTE: fila 1 (idx 0) = fechas, fila 4+ = datos
+      // Cols: 0=Odoo, 3=Medida, 4=Modelo, 6=Compromiso, colHoy=moldes, colHoy+1=piezas
+      const wsB = wb.Sheets['GANTT BASES'];
+      if (wsB) {
+        const data = XLSX.utils.sheet_to_json(wsB, { header:1, raw:false, dateNF:'yyyy-mm-dd' });
+        const hdrRow = data[0] || []; // fila 1 = índice 0
+        let colHoy = hdrRow.findIndex(v => toDateStr(v) === hoyStr);
+        if (colHoy < 0) console.warn('[ExcelPlan] BASES: no encontré col de hoy', hoyStr);
+        else {
+          for (let r = 3; r < data.length; r++) { // datos desde fila 4 = índice 3
+            const row = data[r];
+            if (!row || !row[4]) continue;
+            const moldes = parseFloat(row[colHoy])   || 0;
+            const piezas = parseFloat(row[colHoy+1]) || 0;
+            if (!moldes && !piezas) continue;
+            const odoo   = (row[0]||'').toString().trim();
+            const medida = (row[3]||'').toString().trim();
+            const modelo = (row[4]||'').toString().trim();
+            const ar = normAbrev(modelo), med = normMedida(medida);
+            if (!ar || !med) continue;
+            const fk = `${ar}||${med}`;
+            if (!resultado[fk]) resultado[fk] = { moldes:0, piezas:0, odoo, patron:modelo, medida, lado:'' };
+            resultado[fk].moldes += moldes;
+            resultado[fk].piezas += piezas;
+          }
+        }
+      }
       _excelPlanCargado = resultado;
       renderComparaPlan(); // re-renderizar con datos
     } catch(err) {
