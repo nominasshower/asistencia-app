@@ -1997,21 +1997,30 @@ function verDetalleCeldaGantt(el) {
   const modelo = el.dataset.modelo;
   const medida = el.dataset.medida;
   const k = `${fecha}||${normKey(modelo)}||${medida}`;
+  // ── Buscar vaciados: coincidencia exacta de normKey, o misma abreviatura (ignora lado) ──
+  const arModelo = normAbrev(modelo); // ej: "VT" de "WALL 4X12 VERTICAL (VT) SIDE"
+  const nkModelo = normKey(modelo);   // ej: "VT" (sin lado si el nombre no lo incluye)
   const piezas = VAC_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
-    return f === fecha
-      && normKey(r["Patron"]||"") === normKey(modelo)
-      && normMedida(r["Medida"]||"") === medida;
+    if (f !== fecha) return false;
+    if (normMedida(r["Medida"]||"") !== medida) return false;
+    const nkVac = normKey(r["Patron"]||"");
+    // Coincidencia exacta
+    if (nkVac === nkModelo) return true;
+    // Misma abreviatura base, ignorando diferencia de lado (VT_LEFT == VT, VT_RIGHT == VT)
+    if (arModelo && normAbrev(r["Patron"]||"") === arModelo) return true;
+    return false;
   });
 
-  const planRow = PLAN.find(r => {
+  // ── Plan: sumar TODAS las filas que coincidan (puede haber LEFT + RIGHT por separado) ──
+  const planRows = PLAN.filter(r => {
     const f = normFechaGantt(r["Fecha"]);
     return f === fecha
-      && normKey(r["PATRON"]||r["Modelo"]||"") === normKey(modelo)
+      && normKey(r["PATRON"]||r["Modelo"]||"") === nkModelo
       && normMedida(r["Medida"]||"") === medida;
   });
-  const planPiezas = planRow ? (parseInt(planRow["A Producir"]||planRow["A PRODUCIR"]||0)||0) : 0;
-  const planMoldes = planRow ? (parseInt(planRow["Moldes"]||planRow["MOLDES"]||0)||0) : 0;
+  const planPiezas = planRows.reduce((s,r)=>s+(parseInt(r["A Producir"]||r["A PRODUCIR"]||0)||0), 0);
+  const planMoldes = planRows.reduce((s,r)=>s+(parseInt(r["Moldes"]||r["MOLDES"]||0)||0), 0);
 
   const tagsFecha = [...new Set(piezas.map(r=>(r["TAG"]||r["Tag"]||"").trim().toUpperCase()).filter(Boolean))];
   const moldisDisp = moldisMap ? (moldisMap[normKey(modelo)]||0) : 0;
