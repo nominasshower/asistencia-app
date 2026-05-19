@@ -2148,6 +2148,54 @@ function renderPlan() {
   const hoyStr  = new Date().toISOString().slice(0,10);
   const ayerStr = new Date(Date.now() - 864e5).toISOString().slice(0,10);
 
+  // ── Cruce ADELANTADO: vaciado del período seleccionado vs plan de HOY ──
+  // Solo se calcula cuando el período seleccionado NO incluye hoy (es pasado)
+  const periodoEsPasado = hasta < hoyStr;
+  const cruceAdelantado = []; // {patron, medida, vacPeriodo, planHoy, odoo, lado}
+  if (periodoEsPasado) {
+    // Plan de hoy agrupado por AR||medida (lado-agnostico)
+    const planHoyMap = {}; // AR||med → {aProducir, odoo, patron, medida, lado}
+    PLAN.forEach(r => {
+      const f = parsePlanFecha(r["Fecha"]);
+      if (f !== hoyStr) return;
+      const mod = r["PATRON"]||r["Modelo"]||"";
+      const ar  = normAbrev(mod);
+      const med = normMedida(r["Medida"]||"");
+      if (!ar || !med) return;
+      const fk = `${ar}||${med}`;
+      if (!planHoyMap[fk]) planHoyMap[fk] = {
+        aProducir:0, odoo: r["Odoo"]||"", patron: mod,
+        medida: r["Medida"]||"", lado: r["Lado"]||""
+      };
+      planHoyMap[fk].aProducir += parseInt(r["A Producir"]||r["A PRODUCIR"]||0)||0;
+    });
+    // Vaciado del período agrupado por AR||medida
+    const vacPeriodoMap = {};
+    Object.entries(vacGrupos).forEach(([key, v]) => {
+      const ar  = normAbrev(v.patron||'');
+      const med = normMedida(v.medida||'');
+      if (!ar || !med) return;
+      const fk = `${ar}||${med}`;
+      if (!vacPeriodoMap[fk]) vacPeriodoMap[fk] = {vaciado:0, patron:v.patron, medida:v.medida};
+      vacPeriodoMap[fk].vaciado += v.vaciado;
+    });
+    // Cruce: modelos que tienen vaciado en el período Y plan hoy
+    Object.entries(vacPeriodoMap).forEach(([fk, vd]) => {
+      const ph = planHoyMap[fk];
+      if (!ph) return; // sin plan hoy para este modelo → no es adelantado
+      cruceAdelantado.push({
+        patron:    vd.patron,
+        medida:    vd.medida,
+        vacPer:    vd.vaciado,
+        planHoy:   ph.aProducir,
+        odoo:      ph.odoo,
+        lado:      ph.lado,
+        cubre:     vd.vaciado >= ph.aProducir,
+      });
+    });
+    cruceAdelantado.sort((a,b)=> b.vacPer - a.vacPer);
+  }
+
   // Mapa: key(patron+medida) → vaciado del día anterior
   const vacAyer = {};
   vacPeriodo.forEach(r => {
@@ -2196,6 +2244,40 @@ function renderPlan() {
   });
 
   document.getElementById("main-content").innerHTML = `
+  ${periodoEsPasado && cruceAdelantado.length > 0 ? `
+  <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:14px 18px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:18px">📊</span>
+      <span style="font-weight:700;color:var(--accent2);font-size:14px">Vaciado ${desde===hasta?desde:'del período'} vs Plan de hoy ${hoyStr} (${cruceAdelantado.length} modelos)</span>
+      <span style="font-size:11px;color:var(--muted);margin-left:auto">Producción adelantada · solo informativo</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="color:var(--muted);border-bottom:1px solid rgba(255,255,255,0.08)">
+          <th style="text-align:left;padding:4px 8px">Patrón</th>
+          <th style="text-align:left;padding:4px 8px">Medida</th>
+          <th style="text-align:center;padding:4px 8px">Vaciado ${desde===hasta?desde:'período'}</th>
+          <th style="text-align:center;padding:4px 8px">Plan hoy</th>
+          <th style="text-align:center;padding:4px 8px">Diferencia</th>
+          <th style="text-align:left;padding:4px 8px">Orden · Lado</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${cruceAdelantado.map(r => {
+          const diff  = r.vacPer - r.planHoy;
+          const color = r.cubre ? 'var(--accent)' : diff < 0 ? 'var(--warn)' : 'var(--muted)';
+          return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
+            <td style="padding:4px 8px;max-width:200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${r.patron}</td>
+            <td style="padding:4px 8px;font-family:'DM Mono',monospace">${r.medida}</td>
+            <td style="padding:4px 8px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:var(--accent2)">${r.vacPer}</td>
+            <td style="padding:4px 8px;text-align:center;font-family:'DM Mono',monospace;font-weight:700">${r.planHoy}</td>
+            <td style="padding:4px 8px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${color}">${diff>=0?'+':''}${diff}</td>
+            <td style="padding:4px 8px;font-size:11px;color:var(--muted)">${r.odoo}${r.lado?' · '+r.lado:''}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>` : ''}
   ${alertas.length > 0 ? `
   <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);border-radius:10px;padding:14px 18px;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
