@@ -1612,10 +1612,12 @@ function editarCeldaPopup(td) {
   popup.style.cssText = `position:fixed;top:${top}px;left:${left}px;z-index:9999;
     background:var(--bg2);border:1px solid var(--accent);border-radius:8px;
     padding:12px;width:210px;box-shadow:0 4px 20px rgba(0,0,0,.5)`;
+  const hoyGantt = new Date().toISOString().slice(0,10);
+  const esFuturo = fecha > hoyGantt;
   popup.innerHTML = `
-    <div style="font-size:11px;font-weight:600;margin-bottom:8px;color:var(--accent)">${fecha}</div>
+    <div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--accent)">${fecha}${esFuturo?' <span style="color:var(--warn);font-size:10px">futuro</span>':''}</div>
     <div style="font-size:10px;color:var(--muted);margin-bottom:8px">${odoo} · ${medida}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:3px">Moldes</div>
         <input id="pe-moldes" type="number" min="0" value="${moldes}"
@@ -1627,9 +1629,17 @@ function editarCeldaPopup(td) {
           style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-size:13px;font-weight:700;text-align:center;outline:none">
       </div>
     </div>
-    <div style="display:flex;gap:6px">
+    ${esFuturo ? `
+    <div style="margin-bottom:8px;padding:6px 8px;background:rgba(251,191,36,.1);border-radius:6px;border:1px solid rgba(251,191,36,.3)">
+      <div style="font-size:10px;color:var(--warn);margin-bottom:4px">📅 Mover a otra fecha</div>
+      <input id="pe-fecha-nueva" type="date" value="${fecha}"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 7px;color:var(--text);font-size:12px;outline:none">
+    </div>` : ''}
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button onclick="confirmarEditCelda('${fecha}','${odoo}','${medida.replace(/'/g,"\\'")}','${modelo.replace(/'/g,"\\'")}',this)"
-        style="flex:1;background:var(--accent);border:none;border-radius:5px;padding:6px;color:#000;font-weight:700;cursor:pointer;font-size:11px">Guardar</button>
+        style="flex:1;min-width:60px;background:var(--accent);border:none;border-radius:5px;padding:6px;color:#000;font-weight:700;cursor:pointer;font-size:11px">💾 Guardar</button>
+      ${esFuturo ? `<button onclick="moverFechaOrden('${fecha}','${odoo}','${medida.replace(/'/g,"\\'")}','${modelo.replace(/'/g,"\\'")}',this)"
+        style="flex:1;min-width:60px;background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.4);border-radius:5px;padding:6px;color:var(--accent2);font-weight:700;cursor:pointer;font-size:11px">📌 Mover</button>` : ''}
       <button onclick="document.getElementById('popup-celda-edit').remove()"
         style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--muted);cursor:pointer;font-size:11px">✕</button>
     </div>`;
@@ -1686,6 +1696,50 @@ function confirmarEditCelda(fecha, odoo, medida, modelo, btn) {
   planDirty = true;
   document.getElementById('popup-celda-edit')?.remove();
   renderGantt();
+}
+
+// ── Mover fecha de una entrada del plan ─────────────────────
+// Cambia la Fecha de todas las entradas de odoo+medida que estaban en fechaOrig
+// a la fecha seleccionada en el input #pe-fecha-nueva
+function moverFechaOrden(fechaOrig, odoo, medida, modelo, btn) {
+  const nuevaFecha = document.getElementById('pe-fecha-nueva')?.value;
+  if (!nuevaFecha || nuevaFecha === fechaOrig) {
+    alert('Selecciona una fecha diferente'); return;
+  }
+  const odooU = odoo.trim().toUpperCase();
+  let movidos = 0;
+  PLAN.forEach(r => {
+    if (normFechaGantt(r["Fecha"]) === fechaOrig &&
+        (r["Odoo"]||"").trim().toUpperCase() === odooU &&
+        normMedida(r["Medida"]) === medida) {
+      r["Fecha"] = nuevaFecha;
+      movidos++;
+    }
+  });
+  if (movidos > 0) {
+    planDirty = true;
+    document.getElementById('popup-celda-edit')?.remove();
+    renderGantt();
+  } else {
+    alert('No se encontró la entrada del plan');
+  }
+}
+
+// ── Navegar a Gantt filtrando por orden ─────────────────────
+function irAGanttOrden(odoo) {
+  // Cambiar a la vista Gantt y filtrar por el número de orden
+  _ganttFiltro.texto = odoo;
+  renderGantt();
+  // Activar nav item
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const ganttNav = [...document.querySelectorAll('.nav-item')]
+    .find(n => n.textContent.includes('Gantt'));
+  if (ganttNav) ganttNav.classList.add('active');
+  // Poner el texto en el buscador del Gantt (se aplica al próximo render)
+  setTimeout(() => {
+    const inp = document.getElementById('gantt-search');
+    if (inp) { inp.value = odoo; inp.dispatchEvent(new Event('input')); }
+  }, 100);
 }
 
 // ── Eliminar todas las fechas de una orden+medida ──────────
@@ -1965,16 +2019,31 @@ function renderPlan() {
     return { ...p, ...v, buenos, delta, pct, key };
   }).sort((a,b) => a.fecha.localeCompare(b.fecha) || b.aProducir - a.aProducir);
 
+  // ── Mapa SKU → entradas del plan en CUALQUIER fecha (para detectar órdenes futuras) ──
+  const planTodoMap = {}; // prodSKU → [{fecha, odoo, cliente}]
+  PLAN.forEach(r => {
+    const f = parsePlanFecha(r["Fecha"]);
+    if (!f) return;
+    const sk = buildSKU(r["PATRON"]||r["Modelo"]||"", r["Medida"]||"", r["Lado"]||"", r["Acabado"]||"", r["Color"]||"");
+    if (!sk) return;
+    if (!planTodoMap[sk]) planTodoMap[sk] = [];
+    planTodoMap[sk].push({ fecha: f, odoo: r["Odoo"]||"", cliente: r["Cliente"]||"" });
+  });
+
   // ── Vaciado sin plan (SKU de VAC no encontrado en ningún plan del período) ──
   const keysConPlan = new Set(Object.keys(planGrupos));
   const sinPlan = [];
   Object.entries(vacGrupos).forEach(([key, v]) => {
     if (keysConPlan.has(key)) return;
     const [fecha, ...rest] = key.split("||");
-    // Mostrar SKU o patron legible
     const patron = v.sku || rest.join("||");
     const medida = v.medida || '';
-    sinPlan.push({ fecha, patron, medida, ...v });
+    // ¿Hay orden futura para este mismo SKU?
+    const futuros = (planTodoMap[v.sku]||[])
+      .filter(p => p.fecha > fecha)
+      .sort((a,b) => a.fecha.localeCompare(b.fecha));
+    const proximoPlan = futuros[0] || null;
+    sinPlan.push({ fecha, patron, medida, ...v, proximoPlan });
   });
   sinPlan.sort((a,b)=>a.fecha.localeCompare(b.fecha));
 
@@ -2144,17 +2213,37 @@ function renderPlan() {
         <th style="text-align:center">A+B</th>
         <th style="text-align:center">C mismo día</th>
         <th style="text-align:center">C otro día</th>
+        <th>¿Hay orden futura?</th>
       </tr></thead>
       <tbody>
-        ${sinPlan.map(f=>`<tr>
-          <td class="mono">${f.fecha}</td>
-          <td>${f.patron||"—"}</td>
-          <td class="mono">${f.medida||"—"}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace">${f.vaciado}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--accent)">${f.ab||"—"}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cMismo>0?"var(--danger)":"var(--muted)"}">${f.cMismo||"—"}</td>
-          <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cOtro>0?"var(--warn)":"var(--muted)"}">${f.cOtro||"—"}</td>
-        </tr>`).join("")}
+        ${sinPlan.map(f => {
+          const pp = f.proximoPlan;
+          // Formatear fecha próxima legible: "2026-05-20" → "20-may"
+          const fmtProx = pp ? (() => {
+            const d = new Date(pp.fecha+'T12:00:00');
+            const mes = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()];
+            return `${d.getDate()}-${mes}`;
+          })() : null;
+          const ordenTag = pp
+            ? `<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--warn)">
+                📅 ${fmtProx} · ${pp.odoo}
+                <button onclick="irAGanttOrden('${pp.odoo}')"
+                  style="background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.4);border-radius:4px;color:var(--accent2);cursor:pointer;padding:1px 6px;font-size:10px;font-family:'DM Sans',sans-serif">
+                  Ver Gantt →
+                </button>
+              </span>`
+            : `<span style="color:var(--muted);font-size:11px">Sin orden</span>`;
+          return `<tr style="${pp?'background:rgba(251,191,36,.04)':''}">
+            <td class="mono">${f.fecha}</td>
+            <td style="max-width:200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${f.patron||''}">${f.patron||"—"}</td>
+            <td class="mono">${f.medida||"—"}</td>
+            <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700">${f.vaciado}</td>
+            <td style="text-align:center;font-family:'DM Mono',monospace;color:var(--accent)">${f.ab||"—"}</td>
+            <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cMismo>0?"var(--danger)":"var(--muted)"}">${f.cMismo||"—"}</td>
+            <td style="text-align:center;font-family:'DM Mono',monospace;color:${f.cOtro>0?"var(--warn)":"var(--muted)"}">${f.cOtro||"—"}</td>
+            <td style="padding:4px 8px">${ordenTag}</td>
+          </tr>`;
+        }).join("")}
       </tbody>
     </table>
   </div>` : ""}`;
