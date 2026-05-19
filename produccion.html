@@ -2026,6 +2026,15 @@ function renderPlan() {
     planGrupos[key].moldes    += parseInt(r["Moldes"]||r["MOLDES"]||0) || 0;
   });
 
+  // ── Índice lado-agnostico: fecha||AR||medida → para absorber vaciados con lado distinto al plan ──
+  // Ej: vaciado IA RIGHT 36x96 es absorbido por plan IA LEFT 36x96 del mismo día
+  const planSinLadoKeys = new Set();
+  Object.values(planGrupos).forEach(p => {
+    const ar  = normAbrev(p.patron);
+    const med = normMedida(p.medida);
+    if (ar && med) planSinLadoKeys.add(`${p.fecha}||${ar}||${med}`);
+  });
+
   // ── Unir plan + real por clave SKU exacta ──
   const filas = Object.entries(planGrupos).map(([key, p]) => {
     const v = vacGrupos[key] || { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
@@ -2056,6 +2065,12 @@ function renderPlan() {
   const sinPlan = [];
   Object.entries(vacGrupos).forEach(([key, v]) => {
     if (keysConPlan.has(key)) return;
+    // Segunda oportunidad: mismo día, mismo AR, misma medida, lado diferente
+    // (ej: vaciado RIGHT vs plan LEFT, o vaciado sin lado vs plan CENTER)
+    const [fechaVac2] = key.split("||");
+    const ar2  = normAbrev(v.patron || '');
+    const med2 = normMedida(v.medida || '');
+    if (ar2 && med2 && planSinLadoKeys.has(`${fechaVac2}||${ar2}||${med2}`)) return;
     const [fecha, ...rest] = key.split("||");
     const patron = v.sku || rest.join("||");
     const medida = v.medida || '';
