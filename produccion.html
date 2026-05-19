@@ -1741,6 +1741,22 @@ function normKey(s) {
   return normPatron(str);
 }
 
+// Extrae SOLO la abreviatura base, sin lado ni medida.
+// "WALL 4X12 VERTICAL (VT) CENTER" → "VT"
+// "VT_LEFT" (ya procesado por normKey)  → "VT"
+// "SMOOTH"  (sin paréntesis)            → "SMOOTH"
+function normAbrev(s) {
+  const str = (s||"").toUpperCase().trim();
+  // 1. Si tiene siglas entre paréntesis → esas son la abreviatura
+  const m = str.match(/\(([A-Z0-9]{1,4})\)/);
+  if (m) return m[1];
+  // 2. Si ya es un normKey output tipo "VT_LEFT" → tomar parte antes del _
+  const u = str.indexOf('_');
+  if (u > 0) return str.slice(0, u);
+  // 3. Sin siglas: normPatron completo
+  return normPatron(str);
+}
+
 // Normaliza medida: quita comillas, unifica separador
 function normMedida(s) {
   return (s||"").replace(/"/g,'').replace(/X/gi,'X').trim().toUpperCase();
@@ -1778,14 +1794,38 @@ function renderPlan() {
     }
   });
 
+  // Vaciado agrupado SOLO por fecha+abreviatura (todos los lados y medidas juntos)
+  // Sirve para que plan "VT CENTER" cuente también LEFT y RIGHT vaciados
+  const vacAbrevMap = {};
+  vacPeriodo.forEach(r => {
+    const fechaVac = (r["Fecha"]||"").slice(0,10);
+    const abrev = normAbrev(r["Patron"]||"");
+    const ak = `${fechaVac}||${abrev}`;
+    if (!vacAbrevMap[ak]) vacAbrevMap[ak] = { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
+    vacAbrevMap[ak].vaciado++;
+    const sku = (r["SKU"]||"").trim().toUpperCase();
+    const insp = SKU_INSP[sku];
+    if (!insp || !insp.grade) {
+      vacAbrevMap[ak].sinInsp++;
+    } else if (insp.grade === "C") {
+      if (insp.fechaInsp === fechaVac) vacAbrevMap[ak].cMismo++;
+      else                             vacAbrevMap[ak].cOtro++;
+    } else {
+      vacAbrevMap[ak].ab++;
+    }
+  });
+
   // ── Plan agrupado por fecha+patron+medida (normalizados) ──
   const planGrupos = {};
+  // Set de abreviaturas planificadas: fecha||abrev → para filtrar sinPlan
+  const planAbrevSet = new Set();
   PLAN.forEach(r => {
     const fecha = parsePlanFecha(r["Fecha"]);
     if (!fecha || fecha < desde || fecha > hasta) return;
     const patronNorm = normKey(r["PATRON"] || r["Modelo"] || "");
     const medidaNorm = normMedida(r["Medida"] || "");
     const key = `${fecha}||${patronNorm}||${medidaNorm}`;
+    planAbrevSet.add(`${fecha}||${normAbrev(r["PATRON"]||r["Modelo"]||"")}`);
     if (!planGrupos[key]) planGrupos[key] = {
       fecha,
       patron:  r["PATRON"] || r["Modelo"] || "",
@@ -1802,8 +1842,10 @@ function renderPlan() {
   });
 
   // ── Unir plan + real ──
+  // Usamos vacAbrevMap para que VT_CENTER cuente TAMBIÉN LEFT y RIGHT del mismo modelo
   const filas = Object.entries(planGrupos).map(([key, p]) => {
-    const v = vacGrupos[key] || { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
+    const abrevKey = `${p.fecha}||${normAbrev(p.patron)}`;
+    const v = vacAbrevMap[abrevKey] || vacGrupos[key] || { vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0 };
     const buenos = v.ab;
     const delta  = buenos - p.aProducir;
     const pct    = p.aProducir > 0 ? Math.round(buenos * 100 / p.aProducir) : 0;
@@ -1811,11 +1853,15 @@ function renderPlan() {
   }).sort((a,b) => a.fecha.localeCompare(b.fecha) || b.aProducir - a.aProducir);
 
   // ── Vaciado sin plan ──
+  // Excluye también los que tienen match por abreviatura (LEFT/RIGHT de un modelo planificado)
   const keysConPlan = new Set(Object.keys(planGrupos));
   const sinPlan = [];
   Object.entries(vacGrupos).forEach(([key, v]) => {
-    if (keysConPlan.has(key)) return;
+    if (keysConPlan.has(key)) return; // match exacto
     const [fecha, patron, medida] = key.split("||");
+    // Si la abreviatura base (antes del _) tiene plan en ese día → no es "sin plan"
+    const abrevBase = normAbrev(patron);
+    if (planAbrevSet.has(`${fecha}||${abrevBase}`)) return;
     sinPlan.push({ fecha, patron, medida, ...v });
   });
   sinPlan.sort((a,b)=>a.fecha.localeCompare(b.fecha));
