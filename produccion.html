@@ -167,6 +167,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       Plan vs Real
     </div>
+    <div class="nav-item" id="nav-comparaplanes" onclick="navegar('comparaplanes',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="9" height="18" rx="1"/><rect x="13" y="3" width="9" height="18" rx="1"/></svg>
+      Comparar Planes
+    </div>
     <div class="nav-item" id="nav-moldes" onclick="navegar('moldes',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
       Inventario Moldes
@@ -586,7 +590,8 @@ function renderVista(data) {
   if      (VISTA === "dash")     renderDash(dataLimpia);
   else if (VISTA === "alertas")  renderAlertas(dataLimpia);
   else if (VISTA === "tabla")    renderTabla(dataLimpia);
-  else if (VISTA === "plan")     renderPlan();
+  else if (VISTA === "plan")          renderPlan();
+  else if (VISTA === "comparaplanes") renderComparaPlan();
   else if (VISTA === "ventas")   renderVentas();
   else if (VISTA === "gantt")    renderGantt();
   else if (VISTA === "liberado") renderLiberado();
@@ -917,6 +922,173 @@ function parsePlanFecha(s) {
       return new Date(new Date().getFullYear(), mes, day).toISOString().slice(0,10);
   }
   return null;
+}
+
+// ── Comparar Planes: plan de ayer vs plan de hoy + sistema ───────────────
+function renderComparaPlan() {
+  document.getElementById("topbar-title").textContent = "Comparar Planes";
+  document.getElementById("topbar-sub").textContent   = "Plan ayer · Plan hoy · Sistema";
+  const topRight = document.getElementById("topbar-right-extra");
+  if (topRight) {
+    topRight.innerHTML = `<button onclick="renderComparaPlan()" class="btn"
+      style="font-size:11px;padding:5px 10px;border-color:rgba(59,130,246,.4);color:var(--accent2)">
+      ↺ Refrescar</button>`;
+  }
+
+  const hoyStr  = new Date().toISOString().slice(0,10);
+  const ayerStr = new Date(Date.now() - 864e5).toISOString().slice(0,10);
+
+  // ── Agrupar PLAN por fecha, usando AR||medida como clave ──
+  function agruparPlan(fechaFiltro) {
+    const mapa = {}; // "AR||med" → {aProducir, total, moldes, odoo, patron, medida, lado}
+    PLAN.forEach(r => {
+      const f = parsePlanFecha(r["Fecha"]);
+      if (f !== fechaFiltro) return;
+      const mod = r["PATRON"] || r["Modelo"] || "";
+      const ar  = normAbrev(mod);
+      const med = normMedida(r["Medida"] || "");
+      if (!ar || !med) return;
+      const fk = `${ar}||${med}`;
+      if (!mapa[fk]) mapa[fk] = {
+        aProducir: 0, total: 0, moldes: 0,
+        odoo: r["Odoo"]||"", patron: mod,
+        medida: r["Medida"]||"", lado: r["Lado"]||"", ar
+      };
+      mapa[fk].aProducir += parseInt(r["A Producir"]||r["A PRODUCIR"]||0)||0;
+      mapa[fk].total     += parseInt(r["Total"]||0)||0;
+      mapa[fk].moldes    += parseInt(r["Moldes"]||r["MOLDES"]||0)||0;
+    });
+    return mapa;
+  }
+
+  const planAyer = agruparPlan(ayerStr);
+  const planHoy  = agruparPlan(hoyStr);
+
+  // ── Sistema: total de la orden - suma de A Producir ya planificados en días ≤ hoy ──
+  // Representa el backlog restante según el plan general
+  const sistemaMap = {}; // "AR||med" → {pendiente, odoo, patron, medida}
+  PLAN.forEach(r => {
+    const mod = r["PATRON"] || r["Modelo"] || "";
+    const ar  = normAbrev(mod);
+    const med = normMedida(r["Medida"] || "");
+    if (!ar || !med) return;
+    const fk = `${ar}||${med}`;
+    const total     = parseInt(r["Total"]||0)||0;
+    const aProducir = parseInt(r["A Producir"]||r["A PRODUCIR"]||0)||0;
+    if (!sistemaMap[fk]) sistemaMap[fk] = {
+      total: 0, planificado: 0,
+      odoo: r["Odoo"]||"", patron: mod, medida: r["Medida"]||""
+    };
+    // total puede repetirse en múltiples filas del mismo order; tomamos el mayor
+    if (total > sistemaMap[fk].total) sistemaMap[fk].total = total;
+    sistemaMap[fk].planificado += aProducir;
+  });
+
+  // ── Unir todas las claves de ayer y hoy ──
+  const todasClaves = new Set([...Object.keys(planAyer), ...Object.keys(planHoy)]);
+  const filas = [];
+  todasClaves.forEach(fk => {
+    const a = planAyer[fk];
+    const h = planHoy[fk];
+    const s = sistemaMap[fk];
+    const patron  = (h||a||s)?.patron  || fk;
+    const medida  = (h||a||s)?.medida  || '';
+    const odoo    = (h||a||s)?.odoo    || '';
+    const ap_ayer = a?.aProducir || 0;
+    const ap_hoy  = h?.aProducir || 0;
+    const sistema = s?.planificado || 0;
+    const delta   = ap_hoy - ap_ayer;
+    filas.push({ fk, patron, medida, odoo, ap_ayer, ap_hoy, delta, sistema,
+                 soloAyer: !!a && !h, soloHoy: !a && !!h });
+  });
+  filas.sort((a,b) => {
+    // Primero los que cambiaron, luego por patrón
+    const chA = Math.abs(a.delta), chB = Math.abs(b.delta);
+    return chB - chA || a.patron.localeCompare(b.patron);
+  });
+
+  const totalAyer = filas.reduce((s,f)=>s+f.ap_ayer,0);
+  const totalHoy  = filas.reduce((s,f)=>s+f.ap_hoy, 0);
+  const totalDelta= totalHoy - totalAyer;
+  const addedRows = filas.filter(f=>f.soloHoy).length;
+  const dropRows  = filas.filter(f=>f.soloAyer).length;
+  const changedRows = filas.filter(f=>!f.soloAyer&&!f.soloHoy&&f.delta!==0).length;
+
+  document.getElementById("main-content").innerHTML = `
+  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:120px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">PLAN AYER (${ayerStr})</div>
+      <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace">${totalAyer}</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:120px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">PLAN HOY (${hoyStr})</div>
+      <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace">${totalHoy}</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid ${totalDelta>=0?'rgba(34,197,94,.3)':'rgba(239,68,68,.3)'};border-radius:8px;padding:12px 18px;min-width:120px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">DIFERENCIA</div>
+      <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:${totalDelta>=0?'var(--accent)':'var(--danger)'}">${totalDelta>=0?'+':''}${totalDelta}</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:80px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Nuevos hoy</div>
+      <div style="font-size:18px;font-weight:700;color:var(--accent)">${addedRows}</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:80px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Quitados</div>
+      <div style="font-size:18px;font-weight:700;color:var(--danger)">${dropRows}</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:80px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Cambiaron</div>
+      <div style="font-size:18px;font-weight:700;color:var(--warn)">${changedRows}</div>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="background:var(--bg2);color:var(--muted);font-size:11px">
+        <th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)">Patrón</th>
+        <th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)">Medida</th>
+        <th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)">Orden</th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Plan ayer<br><span style="font-size:9px;color:var(--muted)">${ayerStr}</span></th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Plan hoy<br><span style="font-size:9px;color:var(--muted)">${hoyStr}</span></th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Δ Cambio</th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Sistema<br><span style="font-size:9px;color:var(--muted)">(total planeado)</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${filas.map(f => {
+        const rowBg = f.soloHoy  ? 'rgba(34,197,94,.07)'
+                    : f.soloAyer ? 'rgba(239,68,68,.07)'
+                    : f.delta!==0 ? 'rgba(251,191,36,.05)' : '';
+        const badge = f.soloHoy  ? `<span style="font-size:9px;background:rgba(34,197,94,.2);color:var(--accent);padding:1px 5px;border-radius:3px;margin-left:4px">NUEVO</span>`
+                    : f.soloAyer ? `<span style="font-size:9px;background:rgba(239,68,68,.2);color:var(--danger);padding:1px 5px;border-radius:3px;margin-left:4px">QUITADO</span>`
+                    : '';
+        const deltaColor = f.delta > 0 ? 'var(--accent)' : f.delta < 0 ? 'var(--danger)' : 'var(--muted)';
+        const deltaStr   = f.delta === 0 ? '—' : (f.delta > 0 ? '+' : '') + f.delta;
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);${rowBg?'background:'+rowBg:''}">
+          <td style="padding:6px 10px;max-width:220px">
+            <span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block">${f.patron||'—'}</span>${badge}
+          </td>
+          <td style="padding:6px 10px;font-family:'DM Mono',monospace">${f.medida||'—'}</td>
+          <td style="padding:6px 10px;font-size:11px;color:var(--muted)">${f.odoo||'—'}</td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${f.soloAyer?'var(--danger)':'var(--text)'}">${f.ap_ayer||'—'}</td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${f.soloHoy?'var(--accent)':'var(--text)'}">${f.ap_hoy||'—'}</td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${deltaColor}">${deltaStr}</td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--accent2)">${f.sistema||'—'}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+    <tfoot>
+      <tr style="background:var(--bg2);font-weight:700;border-top:2px solid var(--border)">
+        <td colspan="3" style="padding:7px 10px;color:var(--muted)">TOTAL</td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace">${totalAyer}</td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace">${totalHoy}</td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace;color:${totalDelta>=0?'var(--accent)':'var(--danger)'}">${totalDelta>=0?'+':''}${totalDelta}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+  </div>`;
 }
 
 // ── Pedidos Odoo ──────────────────────────────────────────
