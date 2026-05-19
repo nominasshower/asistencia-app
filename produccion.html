@@ -940,6 +940,7 @@ function parsePlanFecha(s) {
 // Plan externo cargado desde Excel (persiste mientras no se recargue la página)
 let _excelPlanCargado = null; // null = no cargado, {} = datos parseados
 let _excelPlanFecha   = null; // fecha del Excel cargado
+let _excelBasesRaw    = null; // filas crudas de GANTT BASES (para importar al plan)
 
 function renderComparaPlan() {
   document.getElementById("topbar-title").textContent = "Comparar Planes";
@@ -981,20 +982,27 @@ function renderComparaPlan() {
     document.getElementById("main-content").innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:60px 20px;text-align:center">
       <div style="font-size:48px">📂</div>
-      <div style="font-size:16px;font-weight:600;color:var(--text)">Sube el Reporte Diario (Excel) para comparar</div>
-      <div style="font-size:12px;color:var(--muted);max-width:420px">
-        El archivo Excel debe tener las hojas <b>GANTT PAREDES L1-2</b> y/o <b>GANTT BASES</b>
-        con las columnas de fecha. Se detecta automáticamente la columna de hoy.
-      </div>
-      <label style="cursor:pointer">
-        <input type="file" id="input-excel-plan" accept=".xlsx,.xls" style="display:none"
-          onchange="cargarExcelPlan(this)">
-        <div class="btn btn-green" style="font-size:13px;padding:10px 24px">
-          📤 Cargar Excel del día
+      <div style="font-size:16px;font-weight:600;color:var(--text)">Sube los archivos de Gantt para comparar</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center">
+        <div style="background:var(--bg2);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:18px 24px;min-width:200px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--accent2)">📋 PAREDES</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Archivo con hoja<br><b>GANTT PAREDES L1-2</b></div>
+          <label style="cursor:pointer">
+            <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarExcelPlan(this)">
+            <div class="btn btn-green" style="font-size:12px;padding:8px 18px">📤 Cargar PAREDES</div>
+          </label>
         </div>
-      </label>
+        <div style="background:var(--bg2);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:18px 24px;min-width:200px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--warn)">🧱 BASES</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Archivo con hoja<br><b>GANTT BASES</b></div>
+          <label style="cursor:pointer">
+            <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarExcelSoloBases(this)">
+            <div class="btn" style="font-size:12px;padding:8px 18px;border-color:rgba(251,191,36,.4);color:var(--warn)">📤 Cargar BASES</div>
+          </label>
+        </div>
+      </div>
       <div style="font-size:11px;color:var(--muted)">
-        App (PLAN_DIARIO) ya tiene ${Object.keys(planApp).length} modelos para hoy (${hoyStr})
+        Puedes cargar uno o ambos archivos · App tiene ${Object.keys(planApp).length} modelos para hoy
       </div>
     </div>`;
     return;
@@ -1050,12 +1058,25 @@ function renderComparaPlan() {
       <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Solo en App</div>
       <div style="font-size:18px;font-weight:700;color:var(--danger)">${filas.filter(f=>f.soloApp).length}</div>
     </div>
-    <label style="cursor:pointer;margin-left:auto">
-      <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarExcelPlan(this)">
-      <div class="btn" style="font-size:11px;padding:6px 12px;border-color:rgba(59,130,246,.4);color:var(--accent2)">
-        📤 Cambiar Excel
-      </div>
-    </label>
+    <div style="display:flex;gap:8px;margin-left:auto;align-items:center;flex-wrap:wrap">
+      ${_excelBasesRaw && _excelBasesRaw.length ? `
+      <button onclick="importarBasesAlPlan()" class="btn btn-green"
+        style="font-size:11px;padding:6px 12px">
+        📥 Importar ${_excelBasesRaw.length} bases al plan de hoy
+      </button>` : `
+      <label style="cursor:pointer" title="Cargar archivo con hoja GANTT BASES">
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarExcelSoloBases(this)">
+        <div class="btn" style="font-size:11px;padding:6px 12px;border-color:rgba(251,191,36,.4);color:var(--warn)">
+          🧱 Cargar BASES
+        </div>
+      </label>`}
+      <label style="cursor:pointer" title="Cambiar archivo de PAREDES">
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarExcelPlan(this)">
+        <div class="btn" style="font-size:11px;padding:6px 12px;border-color:rgba(59,130,246,.4);color:var(--accent2)">
+          📋 Cambiar PAREDES
+        </div>
+      </label>
+    </div>
   </div>
 
   <div style="overflow-x:auto">
@@ -1163,13 +1184,21 @@ function cargarExcelPlan(inputEl) {
 
       // ── GANTT BASES ──
       // Estructura DIFERENTE: fila 1 (idx 0) = fechas, fila 4+ = datos
-      // Cols: 0=Odoo, 3=Medida, 4=Modelo, 6=Compromiso, colHoy=moldes, colHoy+1=piezas
-      const wsB = wb.Sheets['GANTT BASES'];
+      // Cols: 0=Odoo, 1=Cliente, 3=Medida, 4=Modelo, 6=Compromiso, 7=Color, 8=Acabado, 9=Total
+      //       colHoy=moldes, colHoy+1=piezas
+      _excelBasesRaw = [];
+      const nombreHojaB = wb.SheetNames.find(n => n.toUpperCase().includes('BASE')) || null;
+      const wsB = nombreHojaB ? wb.Sheets[nombreHojaB] : null;
       if (wsB) {
         const data = XLSX.utils.sheet_to_json(wsB, { header:1, raw:false, dateNF:'yyyy-mm-dd' });
         const hdrRow = data[0] || []; // fila 1 = índice 0
         let colHoy = hdrRow.findIndex(v => toDateStr(v) === hoyStr);
-        if (colHoy < 0) console.warn('[ExcelPlan] BASES: no encontré col de hoy', hoyStr);
+        if (colHoy < 0) {
+          const fechas = hdrRow.map(v => toDateStr(v)).filter(Boolean);
+          const ultimas = fechas.slice(-5).join(', ');
+          console.warn('[ExcelPlan] BASES: no encontré col de hoy', hoyStr);
+          alert(`⚠️ BASES: no encontré columna para hoy (${hoyStr}) en la hoja "${nombreHojaB}".\n\nÚltimas fechas disponibles: ${ultimas||'ninguna'}`);
+        }
         else {
           for (let r = 3; r < data.length; r++) { // datos desde fila 4 = índice 3
             const row = data[r];
@@ -1177,15 +1206,23 @@ function cargarExcelPlan(inputEl) {
             const moldes = parseFloat(row[colHoy])   || 0;
             const piezas = parseFloat(row[colHoy+1]) || 0;
             if (!moldes && !piezas) continue;
-            const odoo   = (row[0]||'').toString().trim();
-            const medida = (row[3]||'').toString().trim();
-            const modelo = (row[4]||'').toString().trim();
+            const odoo       = (row[0]||'').toString().trim();
+            const cliente    = (row[1]||'').toString().trim();
+            const medida     = (row[3]||'').toString().trim();
+            const modelo     = (row[4]||'').toString().trim();
+            const compromiso = (row[6]||'').toString().trim();
+            const color      = (row[7]||'').toString().trim();
+            const acabado    = (row[8]||'').toString().trim();
+            const total      = parseFloat(row[9])||0;
             const ar = normAbrev(modelo), med = normMedida(medida);
             if (!ar || !med) continue;
+            // Acumular en resultado para la tabla comparativa
             const fk = `${ar}||${med}`;
             if (!resultado[fk]) resultado[fk] = { moldes:0, piezas:0, odoo, patron:modelo, medida, lado:'' };
             resultado[fk].moldes += moldes;
             resultado[fk].piezas += piezas;
+            // Guardar fila cruda para importación posterior
+            _excelBasesRaw.push({ odoo, cliente, medida, modelo, compromiso, color, acabado, total, moldes, piezas });
           }
         }
       }
@@ -1197,6 +1234,147 @@ function cargarExcelPlan(inputEl) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+// ── Cargar solo GANTT BASES desde un archivo separado ─────
+function cargarExcelSoloBases(inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const hoyStr = new Date().toISOString().slice(0,10);
+      function toDateStr(v) {
+        if (!v) return null;
+        if (typeof v === 'string') { const p = new Date(v); return isNaN(p)?null:p.toISOString().slice(0,10); }
+        if (v instanceof Date) return v.toISOString().slice(0,10);
+        return null;
+      }
+      // Buscar la hoja GANTT BASES (o cualquier hoja con "BASE" en el nombre)
+      const nombreHoja = wb.SheetNames.find(n => n.toUpperCase().includes('BASE')) || null;
+      if (!nombreHoja) { alert('No encontré hoja con "BASE" en el nombre en este archivo.\nHojas disponibles: ' + wb.SheetNames.join(', ')); return; }
+      const wsB = wb.Sheets[nombreHoja];
+      const data = XLSX.utils.sheet_to_json(wsB, { header:1, raw:false, dateNF:'yyyy-mm-dd' });
+      const hdrRow = data[0] || [];
+      let colHoy = hdrRow.findIndex(v => toDateStr(v) === hoyStr);
+      if (colHoy < 0) {
+        // Buscar la columna más cercana a hoy para mostrar diagnóstico
+        const fechas = hdrRow.map(v => toDateStr(v)).filter(Boolean);
+        alert(`No encontré columna para hoy (${hoyStr}) en la hoja "${nombreHoja}".\nFechas disponibles: ${fechas.slice(-5).join(', ')}`);
+        return;
+      }
+      _excelBasesRaw = [];
+      const resultado = _excelPlanCargado ? {..._excelPlanCargado} : {};
+      for (let r = 3; r < data.length; r++) {
+        const row = data[r];
+        if (!row || !row[4]) continue;
+        const moldes = parseFloat(row[colHoy])   || 0;
+        const piezas = parseFloat(row[colHoy+1]) || 0;
+        if (!moldes && !piezas) continue;
+        const odoo       = (row[0]||'').toString().trim();
+        const cliente    = (row[1]||'').toString().trim();
+        const medida     = (row[3]||'').toString().trim();
+        const modelo     = (row[4]||'').toString().trim();
+        const compromiso = (row[6]||'').toString().trim();
+        const color      = (row[7]||'').toString().trim();
+        const acabado    = (row[8]||'').toString().trim();
+        const total      = parseFloat(row[9])||0;
+        const ar = normAbrev(modelo), med = normMedida(medida);
+        if (!ar || !med) continue;
+        const fk = `${ar}||${med}`;
+        if (!resultado[fk]) resultado[fk] = { moldes:0, piezas:0, odoo, patron:modelo, medida, lado:'' };
+        resultado[fk].moldes += moldes;
+        resultado[fk].piezas += piezas;
+        _excelBasesRaw.push({ odoo, cliente, medida, modelo, compromiso, color, acabado, total, moldes, piezas });
+      }
+      if (!_excelBasesRaw.length) { alert(`Hoja "${nombreHoja}" no tiene filas con datos para hoy (${hoyStr}).`); return; }
+      _excelPlanCargado = resultado;
+      if (!_excelPlanFecha) _excelPlanFecha = file.name.replace(/\.xlsx?$/i,'');
+      renderComparaPlan();
+    } catch(err) {
+      alert('Error leyendo BASES: ' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Importar BASES del Excel al PLAN_DIARIO de hoy ────────
+async function importarBasesAlPlan() {
+  if (!_excelBasesRaw || !_excelBasesRaw.length) {
+    alert('No hay datos de BASES cargados desde Excel.');
+    return;
+  }
+  const hoyStr = new Date().toISOString().slice(0,10);
+
+  // Detectar duplicados: bases que ya están en plan de hoy con mismo odoo+medida
+  const yaEnPlan = new Set(
+    PLAN
+      .filter(r => parsePlanFecha(r["Fecha"]) === hoyStr)
+      .map(r => `${(r["Odoo"]||'').trim()}||${normMedida(r["Medida"]||'')}`)
+  );
+
+  let agregados = 0, omitidos = 0;
+  _excelBasesRaw.forEach(b => {
+    const dupKey = `${b.odoo}||${normMedida(b.medida)}`;
+    if (yaEnPlan.has(dupKey)) { omitidos++; return; }
+    PLAN.push({
+      "Fecha":      hoyStr,
+      "Odoo":       b.odoo,
+      "Cliente":    b.cliente,
+      "Compromiso": b.compromiso,
+      "Medida":     b.medida,
+      "Modelo":     b.modelo,
+      "Lado":       '',
+      "Color":      b.color,
+      "Acabado":    b.acabado,
+      "Total":      b.total || 0,
+      "Moldes":     b.moldes,
+      "A Producir": b.piezas,
+    });
+    agregados++;
+  });
+
+  if (!agregados) {
+    alert(`Todas las bases del Excel ya están en el plan de hoy (${omitidos} omitidas).`);
+    return;
+  }
+
+  // Mostrar estado en botón
+  const btn = document.querySelector('[onclick="importarBasesAlPlan()"]');
+  if (btn) { btn.textContent = '⏳ Guardando…'; btn.disabled = true; }
+
+  try {
+    await savePlanDirecto();
+    const msg = `✅ ${agregados} base${agregados>1?'s':''} importada${agregados>1?'s':''} al plan de hoy` +
+                (omitidos ? ` (${omitidos} ya existían)` : '');
+    // Pequeño banner de confirmación
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#166534;color:#d1fae5;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.4)';
+    banner.textContent = msg;
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove(), 3500);
+    // Actualizar _excelBasesRaw para no reimportar lo mismo
+    _excelBasesRaw = [];
+    renderComparaPlan();
+  } catch(err) {
+    alert('Error guardando: ' + err.message);
+    if (btn) { btn.textContent = '📥 Importar bases'; btn.disabled = false; }
+  }
+}
+
+// ── Guardar PLAN sin navegar ni requerir planDirty ─────────
+async function savePlanDirecto() {
+  const CABECERA_PLAN = ['Fecha','Odoo','Cliente','Compromiso','Medida','Modelo','Lado','Color','Acabado','Total','Moldes','A Producir'];
+  const rows = PLAN.map(r => CABECERA_PLAN.map(k => r[k] ?? ''));
+  const res = await fetch(GAS_WRITE_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'save_all', rows }),
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Error desconocido en GAS');
+  planDirty = false;
 }
 
 // ── Pedidos Odoo ──────────────────────────────────────────
