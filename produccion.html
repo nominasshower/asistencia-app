@@ -283,6 +283,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
   </div>
 </div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
 // ── Config ──────────────────────────────────────────────
 const API_KEY       = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
@@ -925,9 +926,13 @@ function parsePlanFecha(s) {
 }
 
 // ── Comparar Planes: plan de ayer vs plan de hoy + sistema ───────────────
+// Plan externo cargado desde Excel (persiste mientras no se recargue la página)
+let _excelPlanCargado = null; // null = no cargado, {} = datos parseados
+let _excelPlanFecha   = null; // fecha del Excel cargado
+
 function renderComparaPlan() {
   document.getElementById("topbar-title").textContent = "Comparar Planes";
-  document.getElementById("topbar-sub").textContent   = "Plan ayer · Plan hoy · Sistema";
+  document.getElementById("topbar-sub").textContent   = "Excel (plan físico) vs App (PLAN_DIARIO)";
   const topRight = document.getElementById("topbar-right-extra");
   if (topRight) {
     topRight.innerHTML = `<button onclick="renderComparaPlan()" class="btn"
@@ -936,11 +941,10 @@ function renderComparaPlan() {
   }
 
   const hoyStr  = new Date().toISOString().slice(0,10);
-  const ayerStr = new Date(Date.now() - 864e5).toISOString().slice(0,10);
 
-  // ── Agrupar PLAN por fecha, usando AR||medida como clave ──
-  function agruparPlan(fechaFiltro) {
-    const mapa = {}; // "AR||med" → {aProducir, total, moldes, odoo, patron, medida, lado}
+  // ── App plan hoy agrupado por AR||medida ──
+  function agruparPlanApp(fechaFiltro) {
+    const mapa = {};
     PLAN.forEach(r => {
       const f = parsePlanFecha(r["Fecha"]);
       if (f !== fechaFiltro) return;
@@ -950,96 +954,97 @@ function renderComparaPlan() {
       if (!ar || !med) return;
       const fk = `${ar}||${med}`;
       if (!mapa[fk]) mapa[fk] = {
-        aProducir: 0, total: 0, moldes: 0,
-        odoo: r["Odoo"]||"", patron: mod,
-        medida: r["Medida"]||"", lado: r["Lado"]||"", ar
+        aProducir: 0, moldes: 0,
+        odoo: r["Odoo"]||"", patron: mod, medida: r["Medida"]||"", lado: r["Lado"]||""
       };
       mapa[fk].aProducir += parseInt(r["A Producir"]||r["A PRODUCIR"]||0)||0;
-      mapa[fk].total     += parseInt(r["Total"]||0)||0;
       mapa[fk].moldes    += parseInt(r["Moldes"]||r["MOLDES"]||0)||0;
     });
     return mapa;
   }
 
-  const planAyer = agruparPlan(ayerStr);
-  const planHoy  = agruparPlan(hoyStr);
+  const planApp = agruparPlanApp(hoyStr);
 
-  // ── Sistema: total de la orden - suma de A Producir ya planificados en días ≤ hoy ──
-  // Representa el backlog restante según el plan general
-  const sistemaMap = {}; // "AR||med" → {pendiente, odoo, patron, medida}
-  PLAN.forEach(r => {
-    const mod = r["PATRON"] || r["Modelo"] || "";
-    const ar  = normAbrev(mod);
-    const med = normMedida(r["Medida"] || "");
-    if (!ar || !med) return;
-    const fk = `${ar}||${med}`;
-    const total     = parseInt(r["Total"]||0)||0;
-    const aProducir = parseInt(r["A Producir"]||r["A PRODUCIR"]||0)||0;
-    if (!sistemaMap[fk]) sistemaMap[fk] = {
-      total: 0, planificado: 0,
-      odoo: r["Odoo"]||"", patron: mod, medida: r["Medida"]||""
-    };
-    // total puede repetirse en múltiples filas del mismo order; tomamos el mayor
-    if (total > sistemaMap[fk].total) sistemaMap[fk].total = total;
-    sistemaMap[fk].planificado += aProducir;
-  });
+  // ── Si no hay Excel cargado → mostrar pantalla de carga ──
+  if (!_excelPlanCargado) {
+    document.getElementById("main-content").innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:60px 20px;text-align:center">
+      <div style="font-size:48px">📂</div>
+      <div style="font-size:16px;font-weight:600;color:var(--text)">Sube el Reporte Diario (Excel) para comparar</div>
+      <div style="font-size:12px;color:var(--muted);max-width:420px">
+        El archivo Excel debe tener las hojas <b>GANTT PAREDES L1-2</b> y/o <b>GANTT BASES</b>
+        con las columnas de fecha. Se detecta automáticamente la columna de hoy.
+      </div>
+      <label style="cursor:pointer">
+        <input type="file" id="input-excel-plan" accept=".xlsx,.xls" style="display:none"
+          onchange="cargarExcelPlan(this)">
+        <div class="btn btn-green" style="font-size:13px;padding:10px 24px">
+          📤 Cargar Excel del día
+        </div>
+      </label>
+      <div style="font-size:11px;color:var(--muted)">
+        App (PLAN_DIARIO) ya tiene ${Object.keys(planApp).length} modelos para hoy (${hoyStr})
+      </div>
+    </div>`;
+    return;
+  }
 
-  // ── Unir todas las claves de ayer y hoy ──
-  const todasClaves = new Set([...Object.keys(planAyer), ...Object.keys(planHoy)]);
+  // ── Hay Excel cargado → mostrar comparación ──
+  const planExcel = _excelPlanCargado;
+  const todasClaves = new Set([...Object.keys(planExcel), ...Object.keys(planApp)]);
   const filas = [];
   todasClaves.forEach(fk => {
-    const a = planAyer[fk];
-    const h = planHoy[fk];
-    const s = sistemaMap[fk];
-    const patron  = (h||a||s)?.patron  || fk;
-    const medida  = (h||a||s)?.medida  || '';
-    const odoo    = (h||a||s)?.odoo    || '';
-    const ap_ayer = a?.aProducir || 0;
-    const ap_hoy  = h?.aProducir || 0;
-    const sistema = s?.planificado || 0;
-    const delta   = ap_hoy - ap_ayer;
-    filas.push({ fk, patron, medida, odoo, ap_ayer, ap_hoy, delta, sistema,
-                 soloAyer: !!a && !h, soloHoy: !a && !!h });
+    const ex = planExcel[fk];
+    const ap = planApp[fk];
+    const patron  = (ex||ap)?.patron  || fk;
+    const medida  = (ex||ap)?.medida  || '';
+    const odoo    = (ex||ap)?.odoo    || ap?.odoo || '';
+    const exPzas  = ex?.piezas  || 0;
+    const exMoldes= ex?.moldes  || 0;
+    const apPzas  = ap?.aProducir || 0;
+    const apMoldes= ap?.moldes  || 0;
+    const deltaPzas = exPzas - apPzas;
+    filas.push({ fk, patron, medida, odoo, exPzas, exMoldes, apPzas, apMoldes, deltaPzas,
+      soloExcel: !!ex && !ap,
+      soloApp:   !ex && !!ap });
   });
-  filas.sort((a,b) => {
-    // Primero los que cambiaron, luego por patrón
-    const chA = Math.abs(a.delta), chB = Math.abs(b.delta);
-    return chB - chA || a.patron.localeCompare(b.patron);
-  });
+  filas.sort((a,b) => Math.abs(b.deltaPzas) - Math.abs(a.deltaPzas) || a.patron.localeCompare(b.patron));
 
-  const totalAyer = filas.reduce((s,f)=>s+f.ap_ayer,0);
-  const totalHoy  = filas.reduce((s,f)=>s+f.ap_hoy, 0);
-  const totalDelta= totalHoy - totalAyer;
-  const addedRows = filas.filter(f=>f.soloHoy).length;
-  const dropRows  = filas.filter(f=>f.soloAyer).length;
-  const changedRows = filas.filter(f=>!f.soloAyer&&!f.soloHoy&&f.delta!==0).length;
+  const totExcel = filas.reduce((s,f)=>s+f.exPzas, 0);
+  const totApp   = filas.reduce((s,f)=>s+f.apPzas, 0);
+  const totDelta = totExcel - totApp;
 
   document.getElementById("main-content").innerHTML = `
-  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:120px">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">PLAN AYER (${ayerStr})</div>
-      <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace">${totalAyer}</div>
+  <!-- Barra superior: resumen + botón cambiar archivo -->
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+    <div style="background:var(--bg2);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:10px 16px;min-width:130px">
+      <div style="font-size:10px;color:var(--accent2);margin-bottom:3px">📂 EXCEL (plan físico)</div>
+      <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace">${totExcel} pzas</div>
+      <div style="font-size:10px;color:var(--muted)">${_excelPlanFecha||''}</div>
     </div>
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:120px">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">PLAN HOY (${hoyStr})</div>
-      <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace">${totalHoy}</div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:130px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:3px">🖥 APP (PLAN_DIARIO)</div>
+      <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace">${totApp} pzas</div>
+      <div style="font-size:10px;color:var(--muted)">${hoyStr}</div>
     </div>
-    <div style="background:var(--bg2);border:1px solid ${totalDelta>=0?'rgba(34,197,94,.3)':'rgba(239,68,68,.3)'};border-radius:8px;padding:12px 18px;min-width:120px">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:4px">DIFERENCIA</div>
-      <div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:${totalDelta>=0?'var(--accent)':'var(--danger)'}">${totalDelta>=0?'+':''}${totalDelta}</div>
+    <div style="background:var(--bg2);border:1px solid ${totDelta===0?'var(--border)':totDelta>0?'rgba(251,191,36,.4)':'rgba(239,68,68,.4)'};border-radius:8px;padding:10px 16px;min-width:100px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:3px">Δ DIFERENCIA</div>
+      <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:${totDelta===0?'var(--accent)':totDelta>0?'var(--warn)':'var(--danger)'}">${totDelta>=0?'+':''}${totDelta}</div>
     </div>
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:80px">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Nuevos hoy</div>
-      <div style="font-size:18px;font-weight:700;color:var(--accent)">${addedRows}</div>
+    <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:10px 16px;min-width:80px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Solo en Excel</div>
+      <div style="font-size:18px;font-weight:700;color:var(--accent)">${filas.filter(f=>f.soloExcel).length}</div>
     </div>
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:80px">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Quitados</div>
-      <div style="font-size:18px;font-weight:700;color:var(--danger)">${dropRows}</div>
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:10px 16px;min-width:80px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Solo en App</div>
+      <div style="font-size:18px;font-weight:700;color:var(--danger)">${filas.filter(f=>f.soloApp).length}</div>
     </div>
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:80px">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Cambiaron</div>
-      <div style="font-size:18px;font-weight:700;color:var(--warn)">${changedRows}</div>
-    </div>
+    <label style="cursor:pointer;margin-left:auto">
+      <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarExcelPlan(this)">
+      <div class="btn" style="font-size:11px;padding:6px 12px;border-color:rgba(59,130,246,.4);color:var(--accent2)">
+        📤 Cambiar Excel
+      </div>
+    </label>
   </div>
 
   <div style="overflow-x:auto">
@@ -1048,47 +1053,113 @@ function renderComparaPlan() {
       <tr style="background:var(--bg2);color:var(--muted);font-size:11px">
         <th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)">Patrón</th>
         <th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)">Medida</th>
-        <th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)">Orden</th>
-        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Plan ayer<br><span style="font-size:9px;color:var(--muted)">${ayerStr}</span></th>
-        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Plan hoy<br><span style="font-size:9px;color:var(--muted)">${hoyStr}</span></th>
-        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Δ Cambio</th>
-        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Sistema<br><span style="font-size:9px;color:var(--muted)">(total planeado)</span></th>
+        <th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)">Orden App</th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">📂 Excel<br><span style="font-size:9px">Moldes · Pzas</span></th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">🖥 App<br><span style="font-size:9px">Moldes · Pzas</span></th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Δ Piezas</th>
       </tr>
     </thead>
     <tbody>
       ${filas.map(f => {
-        const rowBg = f.soloHoy  ? 'rgba(34,197,94,.07)'
-                    : f.soloAyer ? 'rgba(239,68,68,.07)'
-                    : f.delta!==0 ? 'rgba(251,191,36,.05)' : '';
-        const badge = f.soloHoy  ? `<span style="font-size:9px;background:rgba(34,197,94,.2);color:var(--accent);padding:1px 5px;border-radius:3px;margin-left:4px">NUEVO</span>`
-                    : f.soloAyer ? `<span style="font-size:9px;background:rgba(239,68,68,.2);color:var(--danger);padding:1px 5px;border-radius:3px;margin-left:4px">QUITADO</span>`
+        const rowBg = f.soloExcel ? 'rgba(59,130,246,.07)'
+                    : f.soloApp   ? 'rgba(239,68,68,.07)'
+                    : f.deltaPzas !== 0 ? 'rgba(251,191,36,.04)' : '';
+        const badge = f.soloExcel ? `<span style="font-size:9px;background:rgba(59,130,246,.2);color:var(--accent2);padding:1px 5px;border-radius:3px;margin-left:4px">SOLO EXCEL</span>`
+                    : f.soloApp   ? `<span style="font-size:9px;background:rgba(239,68,68,.2);color:var(--danger);padding:1px 5px;border-radius:3px;margin-left:4px">SOLO APP</span>`
                     : '';
-        const deltaColor = f.delta > 0 ? 'var(--accent)' : f.delta < 0 ? 'var(--danger)' : 'var(--muted)';
-        const deltaStr   = f.delta === 0 ? '—' : (f.delta > 0 ? '+' : '') + f.delta;
+        const dc = f.deltaPzas > 0 ? 'var(--warn)' : f.deltaPzas < 0 ? 'var(--danger)' : 'var(--accent)';
+        const ds = f.deltaPzas === 0 ? '✓' : (f.deltaPzas > 0 ? '+' : '') + f.deltaPzas;
         return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);${rowBg?'background:'+rowBg:''}">
           <td style="padding:6px 10px;max-width:220px">
             <span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block">${f.patron||'—'}</span>${badge}
           </td>
           <td style="padding:6px 10px;font-family:'DM Mono',monospace">${f.medida||'—'}</td>
           <td style="padding:6px 10px;font-size:11px;color:var(--muted)">${f.odoo||'—'}</td>
-          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${f.soloAyer?'var(--danger)':'var(--text)'}">${f.ap_ayer||'—'}</td>
-          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${f.soloHoy?'var(--accent)':'var(--text)'}">${f.ap_hoy||'—'}</td>
-          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${deltaColor}">${deltaStr}</td>
-          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--accent2)">${f.sistema||'—'}</td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--accent2)">
+            ${f.exMoldes||'—'} · <b>${f.exPzas||'—'}</b>
+          </td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace">
+            ${f.apMoldes||'—'} · <b>${f.apPzas||'—'}</b>
+          </td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${dc}">${ds}</td>
         </tr>`;
       }).join('')}
     </tbody>
     <tfoot>
       <tr style="background:var(--bg2);font-weight:700;border-top:2px solid var(--border)">
         <td colspan="3" style="padding:7px 10px;color:var(--muted)">TOTAL</td>
-        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace">${totalAyer}</td>
-        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace">${totalHoy}</td>
-        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace;color:${totalDelta>=0?'var(--accent)':'var(--danger)'}">${totalDelta>=0?'+':''}${totalDelta}</td>
-        <td></td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--accent2)"><b>${totExcel}</b></td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace"><b>${totApp}</b></td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace;color:${totDelta===0?'var(--accent)':totDelta>0?'var(--warn)':'var(--danger)'}"><b>${totDelta>=0?'+':''}${totDelta}</b></td>
       </tr>
     </tfoot>
   </table>
   </div>`;
+}
+
+// ── Parsear Excel cargado con SheetJS ─────────────────────
+function cargarExcelPlan(inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return;
+  _excelPlanFecha = file.name.replace(/\.xlsx?$/i,'');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const resultado = {};
+      // Procesar GANTT PAREDES L1-2 y GANTT BASES
+      ['GANTT PAREDES L1-2', 'GANTT BASES'].forEach(shName => {
+        const ws = wb.Sheets[shName];
+        if (!ws) return;
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+        if (!data || data.length < 5) return;
+        // Row index 3 = row 4 (0-indexed) → header row con fechas
+        const headerRow = data[3] || [];
+        const hoyStr = new Date().toISOString().slice(0,10);
+        // Encontrar columna de hoy (valor = fecha tipo "2026-05-19")
+        let colHoy = -1;
+        headerRow.forEach((v, i) => {
+          if (!v) return;
+          // SheetJS puede devolver "5/19/2026" o "2026-05-19" etc.
+          let d = null;
+          if (typeof v === 'string') {
+            // intenta parsear
+            const parsed = new Date(v);
+            if (!isNaN(parsed)) d = parsed.toISOString().slice(0,10);
+          } else if (v instanceof Date) {
+            d = v.toISOString().slice(0,10);
+          }
+          if (d === hoyStr && colHoy < 0) colHoy = i;
+        });
+        if (colHoy < 0) { console.warn(`[ExcelPlan] No se encontró columna de hoy (${hoyStr}) en ${shName}`); return; }
+        // Leer filas de datos (desde row 4, index 4)
+        for (let r = 4; r < data.length; r++) {
+          const row = data[r];
+          if (!row || !row[4]) continue; // sin modelo → saltar
+          const odoo    = (row[0]||'').toString().trim();
+          const medida  = (row[3]||'').toString().trim();
+          const modelo  = (row[4]||'').toString().trim();
+          const lado    = (row[5]||'').toString().trim();
+          const moldes  = parseFloat(row[colHoy]) || 0;
+          const piezas  = parseFloat(row[colHoy+1]) || 0;
+          if (!moldes && !piezas) continue;
+          const ar  = normAbrev(modelo);
+          const med = normMedida(medida);
+          if (!ar || !med) continue;
+          const fk = `${ar}||${med}`;
+          if (!resultado[fk]) resultado[fk] = { moldes:0, piezas:0, odoo, patron:modelo, medida, lado };
+          resultado[fk].moldes += moldes;
+          resultado[fk].piezas += piezas;
+        }
+      });
+      _excelPlanCargado = resultado;
+      renderComparaPlan(); // re-renderizar con datos
+    } catch(err) {
+      alert('Error leyendo Excel: ' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 // ── Pedidos Odoo ──────────────────────────────────────────
