@@ -329,7 +329,11 @@ const SKU_LADO_MAP = {
   'RIGHT':'3','DER':'3','DERECHA':'3',
   'LOWER':'7','UPPER':'8','CUSTOM R':'9'
 };
-const SKU_ACABADO_MAP = {'GLOSS':'B','MATTE':'M','N/A':'N','':'N'};
+const SKU_ACABADO_MAP = {
+  'GLOSS':'B','BRILLO':'B','BRILLOSO':'B','SHINE':'B',   // brilloso / gloss
+  'MATTE':'M','MATE':'M','MATO':'M','MAT':'M',           // mate / matte
+  'N/A':'N','NA':'N','':'N'
+};
 const SKU_COLOR_MAP = {
   'SOLID WHITE':'01','PEWTER':'02','WHITE ON WHITE':'03','CAPPUCCINO':'04',
   'DUNE':'05','GRAY MIST':'06','NATURAL CARRARA':'07','ROCKY TRAIL':'08',
@@ -380,8 +384,16 @@ function buildSKU(modelo, medida, lado, acabado, color) {
   const ladoCod = SKU_LADO_MAP[(lado||'').toUpperCase().trim()] ?? '0';
   // Acabado
   const acabadoCod = SKU_ACABADO_MAP[(acabado||'').toUpperCase().trim()] || 'N';
-  // Color
-  const colorCod = SKU_COLOR_MAP[(color||'').toUpperCase().trim()] || '';
+  // Color — busca match exacto primero, si no intenta prefijo
+  // (por si viene "SOLID IVORY MA" en lugar de "SOLID IVORY")
+  const colorNorm = (color||'').toUpperCase().trim();
+  let colorCod = SKU_COLOR_MAP[colorNorm] || '';
+  if (!colorCod) {
+    // Busca si alguna clave del mapa es prefijo del valor que llegó (o al revés)
+    for (const [k, v] of Object.entries(SKU_COLOR_MAP)) {
+      if (colorNorm.startsWith(k) || k.startsWith(colorNorm)) { colorCod = v; break; }
+    }
+  }
   if (!colorCod) return ''; // no se puede formar SKU sin color
   return `${tipoCod}${medCod}${ar}${ladoCod}${acabadoCod}${colorCod}`;
 }
