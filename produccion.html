@@ -1251,8 +1251,10 @@ function renderGantt() {
 
   // Calcular real hoy y estado por fila
   let todasFilas = Object.values(filasMap).map(fila => {
-    const kHoy = `${hoy}||${normKey(fila.modelo)}||${normMedida(fila.medida)}`;
-    fila.realHoy  = vacMap[kHoy]||0;
+    const _skuHoy  = buildSKU(fila.modelo, fila.medida, fila.lado, fila.acabado, fila.color);
+    const _kSkuHoy = _skuHoy ? `${hoy}||${_skuHoy}` : null;
+    const _kNormHoy= `${hoy}||${normKey(fila.modelo)}||${normMedida(fila.medida)}`;
+    fila.realHoy   = (_kSkuHoy ? (vacMap[_kSkuHoy]||0) : 0) || (vacMap[_kNormHoy]||0);
     fila.planHoy  = (fila.dias[hoy]||{}).piezas||0;
     fila.moldesHoy= (fila.dias[hoy]||{}).moldes||0;
     fila.produciendo = fila.planHoy > 0 && fila.realHoy > 0;
@@ -1286,7 +1288,11 @@ function renderGantt() {
   todasFilas.forEach(fila => fechas.forEach(f => {
     const d=fila.dias[f]||{}; const plan=d.piezas||0; const moldes=d.moldes||0;
     totPlan[f]+=plan; totMoldes[f]+=moldes;
-    if(plan>0){ const k=`${f}||${normKey(fila.modelo)}||${normMedida(fila.medida)}`; totReal[f]+=vacMap[k]||0; }
+    if(plan>0){
+      const _skuT = buildSKU(fila.modelo, fila.medida, fila.lado, fila.acabado, fila.color);
+      const _kT   = _skuT ? `${f}||${_skuT}` : `${f}||${normKey(fila.modelo)}||${normMedida(fila.medida)}`;
+      totReal[f] += vacMap[_kT]||0;
+    }
   }));
   // Sumar también vaciados sin plan para el total real del día
   VAC_RAW.forEach(r => {
