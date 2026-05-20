@@ -179,6 +179,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 const API_KEY       = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
 const SHEET_ID      = "1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c";
 const KPIS_SHEET_ID = "1tr8iCcA9SL2U4i-a1U7LC_Fd5EnQe1krAyPMA599D-o";
+const GAS_INV_URL   = "https://script.google.com/macros/s/AKfycbxk5nKkN1Dq0HGz99OU2VqXYqD7UOOa4qG_XvySvgmlSeOucTQhKUbyE1tpwROJmjIR/exec";
 
 let VISTA="resumen", LINEA="";
 let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[];
@@ -648,14 +649,16 @@ function renderCorte() {
     return;
   }
 
-  // Agrupar por semana
+  // Agrupar por semana y por Línea (""=total, "L1", "L2")
   const semanas = {};
   INVENTARIOS_RAW.forEach(r => {
     const sem = r["Semana"] || "";
     if (!sem || sem === "Semana") return;
-    if (!semanas[sem]) semanas[sem] = { label:sem, inicio:r["Fecha Inicio"]||"", fin:r["Fecha Fin"]||"", materiales:{} };
+    const linea = r["Línea"] || "";   // "" para filas del script Python, "L1"/"L2" de la app web
+    if (!semanas[sem]) semanas[sem] = { label:sem, inicio:r["Fecha Inicio"]||"", fin:r["Fecha Fin"]||"", lineas:{} };
+    if (!semanas[sem].lineas[linea]) semanas[sem].lineas[linea] = {};
     const mat = r["Material"] || "";
-    if (mat) semanas[sem].materiales[mat] = r;
+    if (mat) semanas[sem].lineas[linea][mat] = r;
   });
 
   const semList = Object.values(semanas).sort((a,b)=>a.label.localeCompare(b.label));
@@ -679,6 +682,13 @@ function renderCorte() {
   const MAT_COLOR = {Gelcoat:"#3b82f6",Butanox:"#8b5cf6",Resina:"#f59e0b",Norox:"#06b6d4",Marmolina:"#22c55e"};
   const linLbl = LINEA ? `Línea ${LINEA}` : "Todas las líneas";
 
+  // Seleccionar datos de inventario según filtro de línea
+  // LINEA="" → usar filas del script (Línea=""), LINEA="1"→"L1", LINEA="2"→"L2"
+  const lineaKey  = LINEA==="1" ? "L1" : LINEA==="2" ? "L2" : "";
+  const matsLinea = (sem.lineas && (sem.lineas[lineaKey] || sem.lineas[""])) || {};
+  const matsL1    = (sem.lineas && sem.lineas["L1"]) || {};
+  const matsL2    = (sem.lineas && sem.lineas["L2"]) || {};
+
   // ── Consumo real desde KPIS para este rango ─────────────
   const kpisReal = calcFisicoRango(sem.inicio, sem.fin);
 
@@ -696,7 +706,7 @@ function renderCorte() {
 
   // ── KPIs de la semana ───────────────────────────────────
   const kpiMats = MATS.map(m => {
-    const r      = sem.materiales[m] || {};
+    const r      = matsLinea[m] || {};
     const key    = MAT_TO_KEY[m];
     const teo    = parseFloat(r["Teórico (kg)"]||"") || 0;
     const invIni = parseFloat(r["Inv. Inicial (kg)"]||"") || null;
@@ -930,7 +940,141 @@ function renderCorte() {
     </table>
   </div>`;
 
+  // ── Formulario captura de inventario por Línea ─────────
+  const invInputStyle = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;text-align:right;outline:none;`;
+
+  function invRows(linea, mats) {
+    const pfx = linea === 'L1' ? 'l1' : 'l2';
+    return MATS.map(m => {
+      const row = mats[m] || {};
+      const ini = row["Inv. Inicial (kg)"] || '';
+      const fin = row["Inv. Final (kg)"]   || '';
+      return `<tr>
+        <td style="font-size:12px;font-weight:500;color:${MAT_COLOR[m]};padding:6px 8px">${m}</td>
+        <td style="padding:4px 6px">
+          <input type="number" step="0.01" id="inv_${pfx}_ini_${m}" value="${ini}"
+            style="${invInputStyle}" placeholder="—" oninput="recalcInvRow('${pfx}','${m}')">
+        </td>
+        <td style="padding:4px 6px">
+          <input type="number" step="0.01" id="inv_${pfx}_fin_${m}" value="${fin}"
+            style="${invInputStyle}" placeholder="—" oninput="recalcInvRow('${pfx}','${m}')">
+        </td>
+        <td class="mono" id="inv_${pfx}_cons_${m}" style="padding:6px 8px;text-align:right;font-size:11px;color:var(--muted)">
+          ${ini !== '' && fin !== '' ? fmtN(parseFloat(ini||0) - parseFloat(fin||0)) : '—'}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  const showL1 = LINEA === '' || LINEA === '1';
+  const showL2 = LINEA === '' || LINEA === '2';
+
+  html += `
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title" style="margin-bottom:16px">
+      📋 Captura de Inventario
+      <span>${sem.label} · ${sem.inicio} → ${sem.fin}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:${showL1&&showL2?'1fr 1fr':'1fr'};gap:20px">
+      ${showL1 ? `
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span class="badge b-l1" style="font-size:11px;padding:3px 10px">L1</span>
+          <span style="font-size:12px;font-weight:600;color:#60a5fa">Línea 1</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th style="text-align:left;font-size:10px;color:var(--muted);padding:4px 8px 8px">Material</th>
+            <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 8px 8px">Inv. Inicial (kg)</th>
+            <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 8px 8px">Inv. Final (kg)</th>
+            <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 8px 8px">Consumo</th>
+          </tr></thead>
+          <tbody>${invRows('L1', matsL1)}</tbody>
+        </table>
+      </div>` : ''}
+      ${showL2 ? `
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span class="badge b-l2" style="font-size:11px;padding:3px 10px">L2</span>
+          <span style="font-size:12px;font-weight:600;color:#a78bfa">Línea 2</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th style="text-align:left;font-size:10px;color:var(--muted);padding:4px 8px 8px">Material</th>
+            <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 8px 8px">Inv. Inicial (kg)</th>
+            <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 8px 8px">Inv. Final (kg)</th>
+            <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 8px 8px">Consumo</th>
+          </tr></thead>
+          <tbody>${invRows('L2', matsL2)}</tbody>
+        </table>
+      </div>` : ''}
+    </div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div style="font-size:11px;color:var(--muted)">
+        💡 Los campos en blanco no se guardan. Entradas Odoo las actualiza el script <code style="color:var(--accent)">sync_inventarios.py</code>.
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:11px;color:var(--muted)" id="inv-save-status"></span>
+        <button class="btn btn-green" onclick="guardarInventario('${sem.label}','${sem.inicio}','${sem.fin}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Guardar Inventario
+        </button>
+      </div>
+    </div>
+  </div>`;
+
   document.getElementById("main-content").innerHTML = html;
+}
+
+// ── Recalcular consumo al escribir en el form ─────────────
+function recalcInvRow(pfx, mat) {
+  const ini = parseFloat(document.getElementById(`inv_${pfx}_ini_${mat}`)?.value) || 0;
+  const fin = parseFloat(document.getElementById(`inv_${pfx}_fin_${mat}`)?.value) || 0;
+  const el  = document.getElementById(`inv_${pfx}_cons_${mat}`);
+  if (!el) return;
+  const iniEl = document.getElementById(`inv_${pfx}_ini_${mat}`);
+  const finEl = document.getElementById(`inv_${pfx}_fin_${mat}`);
+  el.textContent = (iniEl?.value !== '' || finEl?.value !== '') ? ((ini - fin).toFixed(1)) + ' kg' : '—';
+}
+
+// ── Guardar inventario via GAS ────────────────────────────
+async function guardarInventario(semana, fechaIni, fechaFin) {
+  const MATS_INV = ['Gelcoat','Butanox','Resina','Norox','Marmolina'];
+  const status   = document.getElementById('inv-save-status');
+  if (status) status.textContent = '⏳ Guardando…';
+
+  const rows = [];
+  ['L1','L2'].forEach(linea => {
+    const pfx = linea === 'L1' ? 'l1' : 'l2';
+    MATS_INV.forEach(m => {
+      const iniEl = document.getElementById(`inv_${pfx}_ini_${m}`);
+      const finEl = document.getElementById(`inv_${pfx}_fin_${m}`);
+      if (!iniEl && !finEl) return;  // esta línea no se muestra
+      const ini = iniEl && iniEl.value !== '' ? parseFloat(iniEl.value) : '';
+      const fin = finEl && finEl.value !== '' ? parseFloat(finEl.value) : '';
+      if (ini === '' && fin === '') return;  // nada que guardar
+      rows.push({ semana, fechaIni, fechaFin, material: m, linea, invIni: ini, invFin: fin });
+    });
+  });
+
+  if (rows.length === 0) {
+    if (status) status.textContent = '⚠ Sin datos para guardar';
+    return;
+  }
+
+  try {
+    const res  = await fetch(GAS_INV_URL, { method:'POST', body: JSON.stringify({ action:'upsert_inv', rows }) });
+    const data = await res.json();
+    if (data.ok) {
+      if (status) status.textContent = `✅ Guardado (${data.updated} registros) — ${new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}`;
+      // Recargar datos para reflejar los cambios
+      await cargar();
+    } else {
+      if (status) status.textContent = `❌ Error: ${data.error}`;
+    }
+  } catch(e) {
+    if (status) status.textContent = `❌ Error de red: ${e.message}`;
+  }
 }
 
 // ── (Ventas movida a produccion.html) ─────────────────────
