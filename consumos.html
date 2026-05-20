@@ -682,18 +682,32 @@ function renderCorte() {
   // ── Consumo real desde KPIS para este rango ─────────────
   const kpisReal = calcFisicoRango(sem.inicio, sem.fin);
 
+  // ── Salidas a Fabricación para este rango (de FAB_RAW) ───
+  const MAT_TO_KEY = {Gelcoat:"gelcoat",Butanox:"butanox",Resina:"resina",Norox:"norox",Marmolina:"marmolina"};
+  const salFabSem = {gelcoat:0,butanox:0,resina:0,norox:0,marmolina:0};
+  FAB_RAW.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (!f || f < sem.inicio || f > sem.fin) return;
+    if (LINEA && String(r["Linea"]||"").trim() !== LINEA) return;
+    const mat = LABEL_MAT[r["Material"]] || null;
+    if (!mat) return;
+    salFabSem[mat] += parseFloat((r["Cantidad (kg)"]||"").replace(",","."))||0;
+  });
+
   // ── KPIs de la semana ───────────────────────────────────
   const kpiMats = MATS.map(m => {
     const r      = sem.materiales[m] || {};
+    const key    = MAT_TO_KEY[m];
     const teo    = parseFloat(r["Teórico (kg)"]||"") || 0;
     const invIni = parseFloat(r["Inv. Inicial (kg)"]||"") || null;
     const entOdo = parseFloat(r["Entradas Odoo (kg)"]||"") || 0;
     const invFin = parseFloat(r["Inv. Final (kg)"]||"") || null;
+    const salFab = round2(salFabSem[key] || 0);
     // Consumo real: preferir KPIS físico, fallback a hoja INVENTARIOS
     const consReal = kpisReal[m] > 0 ? kpisReal[m] : (parseFloat(r["Consumo Real (kg)"]||"")||null);
     const diff     = consReal !== null ? round2(consReal - teo) : null;
     const pct      = consReal !== null && teo ? round2((consReal-teo)/teo*100) : null;
-    return { m, consReal, teo, invIni, entOdo, invFin, diff, pct };
+    return { m, consReal, teo, invIni, entOdo, invFin, salFab, diff, pct };
   });
 
   const totalReal  = kpiMats.reduce((s,k)=>s+(k.consReal||0),0);
@@ -741,14 +755,15 @@ function renderCorte() {
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">Corte de Inventario — ${sem.label} <span>${sem.inicio} → ${sem.fin}</span></div>
     <div style="overflow-x:auto">
-    <table style="min-width:700px">
+    <table style="min-width:860px">
       <thead><tr>
         <th>Material</th>
         <th style="text-align:right">Inv. Inicial</th>
-        <th style="text-align:right">Entradas Odoo</th>
+        <th style="text-align:right;color:#6b7280">Entradas Odoo</th>
+        <th style="text-align:right;color:#f59e0b">Salidas Fabricación</th>
         <th style="text-align:right">Inv. Final</th>
-        <th style="text-align:right">Consumo Real</th>
-        <th style="text-align:right">Teórico</th>
+        <th style="text-align:right;color:#22c55e">Consumo Real</th>
+        <th style="text-align:right;color:#3b82f6">Teórico</th>
         <th style="text-align:right">Diferencia kg</th>
         <th style="text-align:right">Diff %</th>
         <th>Estado</th>
@@ -756,10 +771,13 @@ function renderCorte() {
       <tbody>
       ${kpiMats.map(k=>{
         const ok = k.consReal !== null;
+        const totalFab = kpiMats.reduce((s,x)=>s+x.salFab,0);
+        const diffFab  = ok ? round2(k.consReal - k.salFab) : null;
         return `<tr>
           <td style="font-weight:600;color:${MAT_COLOR[k.m]}">${k.m}</td>
           <td class="mono" style="text-align:right;color:${k.invIni!==null?"var(--text)":"var(--muted)"}">${k.invIni!==null?fmtN(k.invIni):"📝"}</td>
           <td class="mono" style="text-align:right;color:#6b7280">${fmtN(k.entOdo)}</td>
+          <td class="mono" style="text-align:right;color:${k.salFab>0?"#f59e0b":"var(--muted)"}">${k.salFab>0?fmtN(k.salFab):"—"}</td>
           <td class="mono" style="text-align:right;color:${k.invFin!==null?"var(--text)":"var(--muted)"}">${k.invFin!==null?fmtN(k.invFin):"📝"}</td>
           <td class="mono" style="text-align:right;color:${ok?clrP(k.pct||0):"var(--muted)"}">${ok?fmtN(k.consReal):"—"}</td>
           <td class="mono" style="text-align:right;color:#3b82f6">${fmtN(k.teo)}</td>
@@ -768,15 +786,22 @@ function renderCorte() {
           <td>${ok?estadoBadge(k.pct||0):'<span style="color:var(--muted);font-size:11px">⏳ Pendiente</span>'}</td>
         </tr>`;
       }).join("")}
-      <tr style="font-weight:700;border-top:2px solid var(--border)">
-        <td>TOTAL</td>
-        <td colspan="3"></td>
-        <td class="mono" style="text-align:right;color:${pendientes>0?"var(--muted)":clrP(totalPct)}">${pendientes>0?"—":fmtN(totalReal)}</td>
-        <td class="mono" style="text-align:right;color:#3b82f6">${fmtN(totalTeo)}</td>
-        <td class="mono" style="text-align:right;color:${clrP(totalPct)}">${pendientes>0?"—":(totalReal-totalTeo>=0?"+":"")+fmtN(totalReal-totalTeo)}</td>
-        <td class="mono" style="text-align:right;color:${clrP(totalPct)}">${pendientes>0?"—":fmtP(totalPct)}</td>
-        <td>${pendientes>0?'<span style="color:var(--muted);font-size:11px">⏳</span>':estadoBadge(totalPct)}</td>
-      </tr>
+      ${(()=>{
+        const totalFab = kpiMats.reduce((s,k)=>s+k.salFab,0);
+        const totalEntOdo = kpiMats.reduce((s,k)=>s+k.entOdo,0);
+        return `<tr style="font-weight:700;border-top:2px solid var(--border)">
+          <td>TOTAL</td>
+          <td></td>
+          <td class="mono" style="text-align:right;color:#6b7280">${fmtN(totalEntOdo)}</td>
+          <td class="mono" style="text-align:right;color:${totalFab>0?"#f59e0b":"var(--muted)"}">${totalFab>0?fmtN(totalFab):"—"}</td>
+          <td></td>
+          <td class="mono" style="text-align:right;color:${pendientes>0?"var(--muted)":clrP(totalPct)}">${pendientes>0?"—":fmtN(totalReal)}</td>
+          <td class="mono" style="text-align:right;color:#3b82f6">${fmtN(totalTeo)}</td>
+          <td class="mono" style="text-align:right;color:${clrP(totalPct)}">${pendientes>0?"—":(totalReal-totalTeo>=0?"+":"")+fmtN(totalReal-totalTeo)}</td>
+          <td class="mono" style="text-align:right;color:${clrP(totalPct)}">${pendientes>0?"—":fmtP(totalPct)}</td>
+          <td>${pendientes>0?'<span style="color:var(--muted);font-size:11px">⏳</span>':estadoBadge(totalPct)}</td>
+        </tr>`;
+      })()}
       </tbody>
     </table>
     </div>
