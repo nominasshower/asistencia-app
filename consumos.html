@@ -98,6 +98,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
       Llegadas Almacén
     </div>
+    <div class="nav-item" onclick="setVista('fisico_vs_salidas',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Físico vs Salidas Almacén
+    </div>
     <div class="nav-item" onclick="setVista('corte',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Corte Semanal
@@ -336,6 +340,7 @@ function render(){
 
   if(VISTA==="resumen") renderResumen(teo,fab,alm,fis,paredes);
   else if(VISTA==="fabricacion") renderMovimientos(movsFab,fab,teo,"Salidas hacia Fabricación");
+  else if(VISTA==="fisico_vs_salidas") renderFisicoVsSalidas(fis,fab,paredes);
   else if(VISTA==="corte") renderCorte();
   else renderMovimientos(movsAlm,alm,teo,"Llegadas al Almacén",true);
 }
@@ -466,6 +471,78 @@ function renderResumen(teo,fab,alm,fis,paredes){
         </div>`;
       }).join("")}
     </div>
+  </div>`;
+
+  document.getElementById("main-content").innerHTML=html;
+}
+
+// ── Físico vs Salidas ────────────────────────────────────
+function renderFisicoVsSalidas(fis,fab,paredes){
+  const{tot:teo}=calcTeorico(TEORICO_RAW);
+  const sumTeo=MATERIALES.reduce((s,m)=>s+teo[m.key],0);
+  const sumFis=MATERIALES.reduce((s,m)=>s+fis[m.key],0);
+  const sumFab=MATERIALES.reduce((s,m)=>s+fab[m.key],0);
+  const linLbl=LINEA?`Línea ${LINEA}`:"Todas las líneas";
+
+  // KPIs top
+  let html=`<div class="metrics" style="grid-template-columns:repeat(5,1fr)">
+    <div class="metric"><div class="metric-label">Paredes Producidas</div><div class="metric-val white">${paredes.toLocaleString()}</div><div class="metric-sub">${linLbl}</div></div>
+    <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#3b82f6"></span>Teórico Calculado</div><div class="metric-val" style="color:#3b82f6">${fmtN(sumTeo)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">Base de producción</div></div>
+    <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#22c55e"></span>Físico Registrado</div><div class="metric-val" style="color:${clrP(sumTeo?(sumFis-sumTeo)/sumTeo*100:0)}">${fmtN(sumFis)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">${fmtP(sumTeo?(sumFis-sumTeo)/sumTeo*100:0)} vs teórico</div></div>
+    <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#f59e0b"></span>Salidas Odoo</div><div class="metric-val" style="color:${clrP(sumTeo?(sumFab-sumTeo)/sumTeo*100:0)}">${fmtN(sumFab)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">${fmtP(sumTeo?(sumFab-sumTeo)/sumTeo*100:0)} vs teórico</div></div>
+    <div class="metric"><div class="metric-label">Diferencia Físico-Odoo</div><div class="metric-val" style="color:${clrP(sumFis?(sumFab-sumFis)/sumFis*100:0)}">${sumFab>=sumFis?"+":""}${fmtN(sumFab-sumFis)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">${badge(sumFis?(sumFab-sumFis)/sumFis*100:0)}</div></div>
+  </div>`;
+
+  // Tabla comparativa Teórico vs Físico vs Odoo
+  const maxVal=Math.max(...MATERIALES.map(m=>Math.max(teo[m.key],fis[m.key],fab[m.key])));
+  html+=`<div class="card">
+    <div class="card-title">Comparativo Teórico vs Físico vs Odoo <span>${linLbl}</span></div>
+    <div style="display:grid;grid-template-columns:155px 1fr 95px 95px 95px 90px;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:2px">
+      ${["Material","Barras","Teórico","Físico","Odoo","Estado"].map((h,i)=>`<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:${i<2?'left':'right'}">${h}</div>`).join("")}
+    </div>`;
+
+  MATERIALES.forEach(m=>{
+    const t=teo[m.key],f=fis[m.key],o=fab[m.key];
+    const pFis=t?((f-t)/t*100):0;
+    const pOdo=t?((o-t)/t*100):0;
+    const bars=[["Teórico","#3b82f6",t],["Físico","#22c55e",f],["Odoo","#f59e0b",o]];
+    html+=`<div style="display:grid;grid-template-columns:155px 1fr 95px 95px 95px 90px;gap:6px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:500">${m.label}</div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        ${bars.map(([lbl,clr,v])=>`<div style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:10px;color:var(--muted);width:45px">${lbl}</span>
+          <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden"><div style="width:${maxVal?Math.round(v/maxVal*100):0}%;height:100%;background:${clr};border-radius:2px"></div></div>
+        </div>`).join("")}
+      </div>
+      <div class="mono" style="text-align:right;color:#3b82f6">${fmtN(t)}</div>
+      <div class="mono" style="text-align:right;color:${clrP(pFis)}">${fmtN(f)}</div>
+      <div class="mono" style="text-align:right;color:${clrP(pOdo)}">${fmtN(o)}</div>
+      <div style="text-align:right">${badge(pFis)}</div>
+    </div>`;
+  });
+  html+=`</div>`;
+
+  // 2 cards de diferencias
+  const cardDiff=(titulo,getV,clr)=>`<div class="card" style="margin:0">
+    <div class="card-title" style="margin-bottom:10px"><span class="fuente-dot" style="background:${clr}"></span>${titulo} <span>vs Teórico</span></div>
+    ${MATERIALES.map(m=>{
+      const t=teo[m.key],v=getV(m.key),p=t?((v-t)/t*100):0,diff=v-t;
+      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px">${m.label}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="mono" style="color:var(--muted)">Teórico: ${fmtN(t)} kg</span>
+          <span class="mono" style="color:${clr}">${titulo.split(' ')[0]}: ${fmtN(v)} kg</span>
+          <span class="mono" style="color:${clrP(p)}">${diff>=0?"+":""}${fmtN(diff)} kg</span>
+          <span class="mono" style="color:${clrP(p)};width:50px;text-align:right">${fmtP(p)}</span>
+          ${badge(p)}
+        </div>
+      </div>`;
+    }).join("")}
+  </div>`;
+
+  html+=`<div class="grid2">
+    ${cardDiff("Físico Registrado",k=>fis[k],"#22c55e")}
+    ${cardDiff("Salidas Odoo",k=>fab[k],"#f59e0b")}
   </div>`;
 
   document.getElementById("main-content").innerHTML=html;
