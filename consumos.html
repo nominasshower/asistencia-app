@@ -194,6 +194,7 @@ const GAS_INV_URL   = "https://script.google.com/macros/s/AKfycbxk5nKkN1Dq0HGz99
 let VISTA="resumen", LINEA="";
 let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[];
 let KPIS_L1=[], KPIS_L2=[], PRECIOS_RAW=[];
+let BASES_RAW=[], REF_BASES_RAW=[];
 
 const MATERIALES = [
   {key:"gelcoat",   label:"Gel Coat",        col_teo:"Gelcoat",      color:"#3b82f6"},
@@ -490,6 +491,9 @@ function renderResumen(teo,fab,alm,fis,paredes){
       }).join("")}
     </div>
   </div>`;
+
+  // Bases (Línea 2 o Todas)
+  if (!LINEA || LINEA === "2") html += renderBasesCard();
 
   document.getElementById("main-content").innerHTML=html;
 }
@@ -802,6 +806,140 @@ function initChartSW(datos) {
   });
 }
 
+// ── Bases Línea 2 ─────────────────────────────────────────
+function calcBases() {
+  const grupos = {};
+  BASES_RAW.forEach(r => {
+    if (!enPeriodo(r["Fecha"])) return;
+    if (!esMismaLinea(r["Linea"] || "2")) return;
+    const modelo = String(r["Modelo"] || "").trim();
+    const medida = String(r["Medida"] || "").trim();
+    const peso   = parseFloat(String(r["Peso Kg"] || "0").replace(",",".")) || 0;
+    if (!peso || !modelo) return;
+    const key = modelo + " | " + medida;
+    if (!grupos[key]) grupos[key] = { modelo, medida, count:0, pesoTotal:0, pesos:[] };
+    grupos[key].count++;
+    grupos[key].pesoTotal += peso;
+    grupos[key].pesos.push(peso);
+  });
+  const lista = Object.values(grupos).sort((a,b) => b.count - a.count);
+  const totCount = lista.reduce((s,g) => s + g.count, 0);
+  const totKg    = lista.reduce((s,g) => s + g.pesoTotal, 0);
+  return { lista, totCount, totKg };
+}
+
+function renderBasesCard() {
+  const { lista, totCount, totKg } = calcBases();
+  if (!totCount && BASES_RAW.length === 0) return "";
+
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const fmtN2 = (n) => Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  // Calcular costo estimado con los mismos factores que paredes
+  function costoPorKg(pesoKg, am) {
+    const gc  = r2(pesoKg * 0.06);
+    const but = r2(gc * 0.025);
+    const resto = pesoKg - gc;
+    const res = r2(resto * 0.18);
+    const nor = r2(res * 0.025);
+    const mar = r2(resto * 0.82);
+    return r2(
+      gc  * getPrecioMesSW(am,'gelcoat') +
+      but * getPrecioMesSW(am,'butanox') +
+      res * getPrecioMesSW(am,'resina')  +
+      nor * getPrecioMesSW(am,'norox')   +
+      mar * getPrecioMesSW(am,'marmolina')
+    );
+  }
+
+  // Usar el mes del rango "desde" como referencia de precios
+  const { desde } = getFechas();
+  const amRef = desde ? (desde.slice(0,7)) : (new Date().getFullYear()+"-"+String(new Date().getMonth()+1).padStart(2,"0"));
+
+  const hayPrecios = PRECIOS_RAW.length > 0;
+  let rows = "";
+  let totCosto = 0;
+  lista.forEach(g => {
+    const pesoProm = r2(g.pesoTotal / g.count);
+    const costo    = hayPrecios ? costoPorKg(pesoProm, amRef) : 0;
+    const costoTotal = r2(costo * g.count);
+    totCosto += costoTotal;
+    rows += `<tr>
+      <td style="font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.modelo}</td>
+      <td class="mono" style="text-align:center">${g.medida}</td>
+      <td class="mono" style="text-align:right">${g.count.toLocaleString()}</td>
+      <td class="mono" style="text-align:right;color:var(--muted)">${fmtN2(pesoProm)}</td>
+      <td class="mono" style="text-align:right;color:var(--muted)">${fmtN2(g.pesoTotal)}</td>
+      ${hayPrecios
+        ? `<td class="mono" style="text-align:right;color:#22c55e;font-weight:600">${costo>0?"$"+fmtN2(costo):"—"}</td>
+           <td class="mono" style="text-align:right;color:var(--accent2)">${costoTotal>0?"$"+fmtN2(costoTotal):"—"}</td>`
+        : `<td colspan="2" style="text-align:center;color:var(--muted);font-size:11px">Sin precios — ejecutar sync_precios_shower.py</td>`
+      }
+    </tr>`;
+  });
+
+  // Totales
+  rows += `<tr style="border-top:2px solid var(--border);font-weight:600">
+    <td colspan="2" style="font-size:12px;color:var(--muted)">TOTAL</td>
+    <td class="mono" style="text-align:right">${totCount.toLocaleString()}</td>
+    <td class="mono" style="text-align:right;color:var(--muted)">—</td>
+    <td class="mono" style="text-align:right;color:var(--muted)">${fmtN2(totKg)}</td>
+    ${hayPrecios
+      ? `<td></td><td class="mono" style="text-align:right;color:var(--accent)">$${fmtN2(totCosto)}</td>`
+      : `<td colspan="2"></td>`
+    }
+  </tr>`;
+
+  const costoPromBase = totCount > 0 && totCosto > 0 ? r2(totCosto / totCount) : 0;
+
+  return `
+  <div class="section-title" style="margin-top:18px">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    Bases — Línea 2
+  </div>
+  <div class="grid4" style="margin-bottom:10px">
+    <div class="metric">
+      <div class="metric-label">Bases producidas</div>
+      <div class="metric-val" style="color:#a78bfa">${totCount.toLocaleString()}</div>
+      <div class="metric-sub">${lista.length} modelos distintos</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Total kg</div>
+      <div class="metric-val">${fmtN2(totKg)}</div>
+      <div class="metric-sub">peso total bases</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Peso promedio</div>
+      <div class="metric-val">${totCount>0?fmtN2(r2(totKg/totCount)):"—"} <span style="font-size:13px;color:var(--muted)">kg</span></div>
+      <div class="metric-sub">por base</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Costo prom/base</div>
+      <div class="metric-val" style="color:#22c55e">${costoPromBase>0?"$"+fmtN2(costoPromBase):"—"}</div>
+      <div class="metric-sub">USD estimado</div>
+    </div>
+  </div>
+  <div class="table-wrap" style="margin-bottom:12px">
+    <div class="table-header">
+      <div class="table-header-title">Producción de Bases por Modelo</div>
+      <span style="font-size:11px;color:var(--muted)">Período seleccionado · Línea 2 · pesos tomados en planta</span>
+    </div>
+    <div style="max-height:320px;overflow-y:auto">
+      <table style="min-width:600px"><thead>
+        <tr style="position:sticky;top:0;background:var(--bg3);z-index:1">
+          <th>Modelo</th><th style="text-align:center">Medida</th>
+          <th style="text-align:right">Bases</th>
+          <th style="text-align:right">Peso Prom (kg)</th>
+          <th style="text-align:right">Total kg</th>
+          ${hayPrecios
+            ? `<th style="text-align:right">Costo USD/base</th><th style="text-align:right">Total USD</th>`
+            : `<th colspan="2" style="text-align:center">Costo USD</th>`}
+        </tr>
+      </thead><tbody>${rows}</tbody></table>
+    </div>
+  </div>`;
+}
+
 // ── renderCostos Shower ───────────────────────────────────
 function renderCostos() {
   const _banner = `<div class="info-banner" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3);margin-bottom:14px">
@@ -997,7 +1135,10 @@ function renderCostos() {
   }
   costoProdHtml += `</tbody></table></div></div>`;
 
-  document.getElementById("main-content").innerHTML = _banner + graficaHtml + preciosHtml + costoProdHtml;
+  // Bases Línea 2
+  const basesHtml = (!LINEA || LINEA === "2") ? renderBasesCard() : "";
+
+  document.getElementById("main-content").innerHTML = _banner + graficaHtml + preciosHtml + costoProdHtml + basesHtml;
   setTimeout(() => initChartSW(modelosCost), 0);
 }
 
@@ -1005,7 +1146,7 @@ function renderCostos() {
 async function cargar(){
   document.getElementById("main-content").innerHTML=`<div class="loading"><div class="spinner"></div><div>Conectando con Google Sheets…</div></div>`;
   try{
-    const [r0,r1,r2,r3,r4,r5,r6] = await Promise.allSettled([
+    const [r0,r1,r2,r3,r4,r5,r6,r7,r8] = await Promise.allSettled([
       fetchSheet(SHEET_ID,"CONSUMOS_DIARIOS"),
       fetchSheet(SHEET_ID,"SALIDAS_FABRICACION"),
       fetchSheet(SHEET_ID,"LLEGADAS_ALMACEN"),
@@ -1013,6 +1154,8 @@ async function cargar(){
       fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L1"),
       fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L2"),
       fetchSheet(SHEET_ID,"PRECIOS_SW"),
+      fetchSheet(SHEET_ID,"CONSUMOS_BASES"),
+      fetchSheet(SHEET_ID,"REF_PESO_BASES"),
     ]);
     TEORICO_RAW    = r0.status==="fulfilled" ? r0.value : [];
     FAB_RAW        = r1.status==="fulfilled" ? r1.value : [];
@@ -1021,6 +1164,8 @@ async function cargar(){
     KPIS_L1        = r4.status==="fulfilled" ? r4.value : [];
     KPIS_L2        = r5.status==="fulfilled" ? r5.value : [];
     PRECIOS_RAW    = r6.status==="fulfilled" ? r6.value : [];
+    BASES_RAW      = r7.status==="fulfilled" ? r7.value : [];
+    REF_BASES_RAW  = r8.status==="fulfilled" ? r8.value : [];
     document.getElementById("sidebar-update").textContent=
       `Actualizado ${new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}`;
     render();
