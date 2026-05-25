@@ -1144,22 +1144,24 @@ async function cargar() {
 // añoMes: 'YYYY-MM', matKey: 'gelcoat'|'cat_gc'|'resina'|'cat_res'|'marmolina'
 // cat_res usa el mismo precio que cat_gc
 function getPrecioMes(añoMes, matKey) {
-  // Nombres en PRECIOS_MVT (columna Material)
   const DISP = {
     gelcoat   : 'Gel Coat',
     cat_gc    : 'Catalizador Gelcoat',
-    cat_res   : 'Catalizador Gelcoat',  // mismo producto físico
+    cat_res   : 'Catalizador Gelcoat',
     resina    : 'Resina',
     marmolina : 'Marmolina Estens',
   };
   const displayName = DISP[matKey];
   if (!displayName) return 0;
-  const row = PRECIOS_RAW.find(r =>
-    String(r["Año-Mes"] || "").slice(0,7) === añoMes &&
-    String(r["Material"] || "") === displayName
-  );
-  if (!row) return 0;
-  return parseFloat(String(row["Precio USD/kg"] || "0").replace(",", ".")) || 0;
+  const candidatos = PRECIOS_RAW
+    .filter(r => String(r["Material"] || "").trim() === displayName)
+    .sort((a, b) => String(b["Año-Mes"] || "").localeCompare(String(a["Año-Mes"] || "")));
+  if (!candidatos.length) return 0;
+  const exacto = candidatos.find(r => String(r["Año-Mes"] || "").slice(0,7) === añoMes);
+  if (exacto) return parseFloat(String(exacto["Precio USD/kg"] || "0").replace(",", ".")) || 0;
+  const anterior = candidatos.find(r => String(r["Año-Mes"] || "").slice(0,7) <= añoMes);
+  if (anterior) return parseFloat(String(anterior["Precio USD/kg"] || "0").replace(",", ".")) || 0;
+  return parseFloat(String(candidatos[candidatos.length-1]["Precio USD/kg"] || "0").replace(",", ".")) || 0;
 }
 
 // ── Chart: Costo por modelo ───────────────────────────────────

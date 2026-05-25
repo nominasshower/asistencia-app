@@ -727,12 +727,19 @@ function fechaAM(s) {
 function getPrecioMesSW(añoMes, matKey) {
   const label = SW_MAT_LABELS[matKey];
   if (!label) return 0;
-  const row = PRECIOS_RAW.find(r =>
-    String(r["Año-Mes"] || "").slice(0,7) === añoMes &&
-    String(r["Material"] || "").trim() === label
-  );
-  if (!row) return 0;
-  return parseFloat(String(row["Precio USD/kg"] || "0").replace(",", ".")) || 0;
+  // Filtrar registros del material y ordenar por mes desc
+  const candidatos = PRECIOS_RAW
+    .filter(r => String(r["Material"] || "").trim() === label)
+    .sort((a, b) => String(b["Año-Mes"] || "").localeCompare(String(a["Año-Mes"] || "")));
+  if (!candidatos.length) return 0;
+  // Buscar precio exacto del mes
+  const exacto = candidatos.find(r => String(r["Año-Mes"] || "").slice(0,7) === añoMes);
+  if (exacto) return parseFloat(String(exacto["Precio USD/kg"] || "0").replace(",", ".")) || 0;
+  // Fallback: precio del mes más reciente anterior al mes buscado
+  const anterior = candidatos.find(r => String(r["Año-Mes"] || "").slice(0,7) <= añoMes);
+  if (anterior) return parseFloat(String(anterior["Precio USD/kg"] || "0").replace(",", ".")) || 0;
+  // Si todo lo disponible es posterior, usar el más antiguo disponible
+  return parseFloat(String(candidatos[candidatos.length-1]["Precio USD/kg"] || "0").replace(",", ".")) || 0;
 }
 
 // ── Chart costos Shower ───────────────────────────────────
