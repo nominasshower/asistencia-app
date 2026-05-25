@@ -1239,16 +1239,9 @@ function initChartModelos(datos) {
 
 // ── Costos ────────────────────────────────────────────────────
 function renderCostos() {
-  document.getElementById("main-content").innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:340px;gap:18px;text-align:center">
-      <div style="font-size:48px">🚧</div>
-      <div style="font-size:18px;font-weight:600;color:var(--warn)">En construcción</div>
-      <div style="font-size:13px;color:var(--muted);max-width:380px;line-height:1.6">
-        El módulo de costos está en desarrollo.<br>
-        Ejecutar <code style="background:var(--bg3);padding:2px 6px;border-radius:4px">sync_consumos_modular.py</code> cuando esté listo.
-      </div>
-    </div>`;
-  return;
+  const _banner = `<div class="info-banner" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3);margin-bottom:14px">
+    🚧 <strong>En construcción</strong> — módulo en desarrollo, los datos mostrados son preliminares.
+  </div>`;
   const { desde, hasta } = getFechas();
   // Determine year range for prices (full year from fDesde year)
   const añoFiltro = desde ? desde.slice(0,4) : new Date().getFullYear().toString();
@@ -1551,7 +1544,7 @@ function renderCostos() {
   mermaHtml += `</div>`;
 
   document.getElementById("main-content").innerHTML =
-    graficaHtml + preciosHtml + costoProdHtml + gradocHtml + mermaHtml;
+    _banner + graficaHtml + preciosHtml + costoProdHtml + gradocHtml + mermaHtml;
   setTimeout(() => initChartModelos(modelosCost), 0);
 }
 
