@@ -1570,7 +1570,7 @@ async function guardarMerma() {
 // ── Inicializar ───────────────────────────────────────────────
 (function init() {
   const hoy = new Date();
-  const ini = hoy.getFullYear() + "-01-01";
+  const ini = hoy.toISOString().slice(0,10);
   const fin = hoy.toISOString().slice(0,10);
   document.getElementById("fDesde").value = ini;
   document.getElementById("fHasta").value = fin;
