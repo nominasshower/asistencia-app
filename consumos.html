@@ -965,7 +965,25 @@ function renderCostos() {
   }
   costoProdHtml += `</tbody></table></div></div>`;
 
-  document.getElementById("main-content").innerHTML = _banner + graficaHtml + preciosHtml + costoProdHtml;
+  // ── DEBUG TEMPORAL ───────────────────────────────────────
+  const _dbg = (() => {
+    const p0 = PRECIOS_RAW[0];
+    const t0 = TEORICO_RAW.find(r => enPeriodo(r["Fecha"]));
+    const am0 = t0 ? fechaAM(t0["Fecha"]) : "n/a";
+    const precio0 = p0 ? `${p0["Año-Mes"]} | ${p0["Material"]} | ${p0["Precio USD/kg"]}` : "vacío";
+    const kg0 = t0 ? `GC=${t0["Gelcoat (kg)"]} BUT=${t0["Butanox M-50 (kg)"]} RES=${t0["Resina (kg)"]}` : "n/a";
+    const lookup0 = t0 ? getPrecioMesSW(am0, "gelcoat").toFixed(6) : "n/a";
+    return `<div class="card" style="border-color:#ef4444;margin-bottom:14px;font-size:11px;font-family:'DM Mono',monospace;color:#f87171">
+      <div style="font-weight:700;margin-bottom:8px;color:#ef4444">🔍 DEBUG (eliminar cuando funcione)</div>
+      <div>PRECIOS_RAW.length = ${PRECIOS_RAW.length}</div>
+      <div>PRECIOS_RAW[0]: ${precio0}</div>
+      <div>Fecha prod[0]: ${t0?.["Fecha"]} → am=${am0}</div>
+      <div>Kg prod[0]: ${kg0}</div>
+      <div>getPrecioMesSW("${am0}","gelcoat") = ${lookup0}</div>
+      <div>costoPza muestra[0]: ${modelosCost[0] ? modelosCost[0].costoPza : "n/a"}</div>
+    </div>`;
+  })();
+  document.getElementById("main-content").innerHTML = _banner + _dbg + graficaHtml + preciosHtml + costoProdHtml;
   setTimeout(() => initChartSW(modelosCost), 0);
 }
 
