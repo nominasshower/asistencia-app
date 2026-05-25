@@ -1021,7 +1021,7 @@ function renderFisico() {
   html += `
   <div class="card" style="margin-bottom:14px;border-top:2px solid #f59e0b">
     <div class="card-title" style="color:#f59e0b">Registrar Merma</div>
-    <div style="display:grid;grid-template-columns:160px 160px 1fr;gap:16px;align-items:start;margin-bottom:14px">
+    <div style="display:grid;grid-template-columns:160px 160px 160px 1fr;gap:16px;align-items:end;margin-bottom:14px">
       <div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Fecha</div>
         <input type="date" id="mer-fecha" value="${hoy}" style="${inpStyle}text-align:left;">
@@ -1033,20 +1033,16 @@ function renderFisico() {
         </select>
       </div>
       <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">kg Merma</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="number" id="mer-kg" placeholder="0.000" min="0" step="0.001" style="${inpStyle}">
+          <span style="font-size:10px;color:var(--muted)">kg</span>
+        </div>
+      </div>
+      <div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Observaciones</div>
         <input type="text" id="mer-obs" placeholder="Opcional…" style="${inpStyle}text-align:left;">
       </div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px">
-      ${MATS_F.map(m=>`
-      <div>
-        <div style="font-size:11px;color:${MAT_COLOR_F[m]};font-weight:600;margin-bottom:5px">${m}</div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <input type="number" id="mer-${ids[m]}" placeholder="0.000" min="0" step="0.001"
-            style="${inpStyle}">
-          <span style="font-size:10px;color:var(--muted)">kg</span>
-        </div>
-      </div>`).join("")}
     </div>
     <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px">
       <span style="font-size:11px;color:var(--muted)" id="mer-status"></span>
@@ -1064,31 +1060,19 @@ function renderFisico() {
     </div>
     <table><thead><tr>
       <th>Fecha</th><th>Línea</th>
-      <th style="text-align:right;color:#3b82f6">Gelcoat kg</th>
-      <th style="text-align:right;color:#8b5cf6">Cat.GC kg</th>
-      <th style="text-align:right;color:#f59e0b">Resina kg</th>
-      <th style="text-align:right;color:#06b6d4">Cat.Res kg</th>
-      <th style="text-align:right;color:#22c55e">Marmolina kg</th>
-      <th style="text-align:right">Total kg</th>
+      <th style="text-align:right;color:#f59e0b">kg Merma</th>
       <th>Observaciones</th>
     </tr></thead><tbody>
     ${histMer.length===0
-      ? `<tr><td colspan="9" class="empty">Sin registros de merma</td></tr>`
+      ? `<tr><td colspan="4" class="empty">Sin registros de merma</td></tr>`
       : histMer.map(r=>{
-          const gc=parseFloat(r["Gelcoat (kg)"]||0), cg=parseFloat(r["Cat. Gelcoat (kg)"]||0),
-                re=parseFloat(r["Resina (kg)"]||0), cr=parseFloat(r["Cat. Resina (kg)"]||0), ma=parseFloat(r["Marmolina (kg)"]||0);
-          const tot=round2(gc+cg+re+cr+ma);
+          const kg=parseFloat(r["kg Merma"]||0);
           const ln=String(r["Linea"]||r["Línea"]||"");
           const cls=ln==="L1"?"b-l1":ln==="L2"?"b-l2":ln==="L3"?"b-l3":ln==="L4"?"b-l4":"";
           return `<tr>
             <td class="mono">${String(r["Fecha"]||"").slice(0,10)}</td>
             <td><span class="badge ${cls}">${ln||"—"}</span></td>
-            <td class="mono" style="text-align:right;color:#3b82f6">${gc?fmtN(gc):"—"}</td>
-            <td class="mono" style="text-align:right;color:#8b5cf6">${cg?fmtN(cg):"—"}</td>
-            <td class="mono" style="text-align:right;color:#f59e0b">${re?fmtN(re):"—"}</td>
-            <td class="mono" style="text-align:right;color:#06b6d4">${cr?fmtN(cr):"—"}</td>
-            <td class="mono" style="text-align:right;color:#22c55e">${ma?fmtN(ma):"—"}</td>
-            <td class="mono" style="text-align:right;font-weight:600">${fmtN(tot)}</td>
+            <td class="mono" style="text-align:right;color:#f59e0b;font-weight:600">${kg?fmtN(kg):"—"}</td>
             <td style="color:var(--muted);font-size:11px">${r["Observaciones"]||""}</td>
           </tr>`;
         }).join("")}
@@ -1096,30 +1080,6 @@ function renderFisico() {
   </div>`;
 
   document.getElementById("main-content").innerHTML = html;
-}
-
-async function guardarMerma() {
-  const status = document.getElementById("mer-status");
-  if (!GAS_INV_URL) { if(status) status.textContent="⚠ GAS_INV_URL no configurado"; return; }
-  const fecha = document.getElementById("mer-fecha")?.value || "";
-  const linea = document.getElementById("mer-linea")?.value || "";
-  const obs   = document.getElementById("mer-obs")?.value   || "";
-  if (!fecha || !linea) { if(status) status.textContent="⚠ Fecha y línea requeridas"; return; }
-  const MATS_F = ["Gelcoat","Cat. Gelcoat","Resina","Cat. Resina","Marmolina"];
-  const ids    = {"Gelcoat":"gelcoat","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Marmolina":"marmolina"};
-  const vals = {};
-  MATS_F.forEach(m => { vals[m] = parseFloat(document.getElementById(`mer-${ids[m]}`)?.value||"") || 0; });
-  if (!Object.values(vals).some(v=>v>0)) { if(status) status.textContent="⚠ Ingresa al menos un valor"; return; }
-  if(status) status.textContent="⏳ Guardando…";
-  try {
-    const res  = await fetch(GAS_INV_URL, { method:"POST", body: JSON.stringify({ action:"upsert_merma", fecha, linea, obs, ...vals }) });
-    const data = await res.json();
-    if (data.ok) {
-      if(status) status.textContent=`✅ Guardado — ${new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}`;
-      MATS_F.forEach(m => { const el=document.getElementById(`mer-${ids[m]}`); if(el) el.value=""; });
-      await cargar();
-    } else { if(status) status.textContent=`❌ ${data.error}`; }
-  } catch(e) { if(status) status.textContent=`❌ Error de red: ${e.message}`; }
 }
 
 async function guardarFisico() {
@@ -1404,37 +1364,23 @@ function renderCostos() {
   mermaFilt.forEach(r => {
     const am = String(r["Fecha"] || "").slice(0,7);
     if (!am) return;
-    const gc    = parseFloat(String(r["Gelcoat (kg)"]      || "0").replace(",",".")) || 0;
-    const catGc = parseFloat(String(r["Cat. Gelcoat (kg)"] || "0").replace(",",".")) || 0;
-    const res   = parseFloat(String(r["Resina (kg)"]       || "0").replace(",",".")) || 0;
-    const catRes= parseFloat(String(r["Cat. Resina (kg)"]  || "0").replace(",",".")) || 0;
-    const mar   = parseFloat(String(r["Marmolina (kg)"]    || "0").replace(",",".")) || 0;
-    const pgc   = getPrecioMes(am, 'gelcoat');
-    const pcgc  = getPrecioMes(am, 'cat_gc');
-    const pres  = getPrecioMes(am, 'resina');
-    const pcres = getPrecioMes(am, 'cat_res');
-    const pmar  = getPrecioMes(am, 'marmolina');
-    const costo = round2(gc*pgc + catGc*pcgc + res*pres + catRes*pcres + mar*pmar);
-    const kgTot = round2(gc+catGc+res+catRes+mar);
-    if (!mermaMeses[am]) mermaMeses[am] = { kg: 0, costoUSD: 0 };
-    mermaMeses[am].kg = round2(mermaMeses[am].kg + kgTot);
-    mermaMeses[am].costoUSD = round2(mermaMeses[am].costoUSD + costo);
+    const kg = parseFloat(String(r["kg Merma"] || "0").replace(",",".")) || 0;
+    if (!mermaMeses[am]) mermaMeses[am] = { kg: 0 };
+    mermaMeses[am].kg = round2(mermaMeses[am].kg + kg);
   });
 
-  const totMermaKg  = round2(Object.values(mermaMeses).reduce((s,v)=>s+v.kg,0));
-  const totMermaCosto = round2(Object.values(mermaMeses).reduce((s,v)=>s+v.costoUSD,0));
+  const totMermaKg = round2(Object.values(mermaMeses).reduce((s,v)=>s+v.kg,0));
 
   let mermaHtml = `<div class="card" style="margin-bottom:14px">
-    <div class="card-title">Merma <span>material descartado en producción</span></div>
-    <div class="metrics" style="grid-template-columns:repeat(2,1fr);margin-bottom:14px">
-      <div class="metric"><div class="metric-label">Total Merma kg</div><div class="metric-val" style="color:var(--warn)">${fmtN(totMermaKg)}</div><div class="metric-sub">en el período</div></div>
-      <div class="metric"><div class="metric-label">Costo USD</div><div class="metric-val" style="color:var(--warn)">${totMermaCosto > 0 ? "$"+fmtN(totMermaCosto) : "—"}</div><div class="metric-sub">${totMermaCosto===0?"sin precios cargados":"costo materia prima"}</div></div>
+    <div class="card-title">Merma <span>material descartado en producción — captura en pestaña Físico</span></div>
+    <div class="metrics" style="grid-template-columns:1fr;margin-bottom:14px">
+      <div class="metric"><div class="metric-label">Total Merma</div><div class="metric-val" style="color:var(--warn)">${fmtN(totMermaKg)} kg</div><div class="metric-sub">en el período</div></div>
     </div>`;
 
   const mermaMesesList = Object.keys(mermaMeses).sort();
   if (mermaMesesList.length > 0) {
     mermaHtml += `<div style="overflow-x:auto"><table><thead><tr>
-      <th>Mes</th><th style="text-align:right">Merma kg</th><th style="text-align:right">Costo USD</th>
+      <th>Mes</th><th style="text-align:right">Merma (kg)</th>
     </tr></thead><tbody>`;
     mermaMesesList.forEach(am => {
       const d = mermaMeses[am];
@@ -1442,126 +1388,35 @@ function renderCostos() {
       mermaHtml += `<tr>
         <td class="mono">${mes}</td>
         <td class="mono" style="text-align:right;color:var(--warn)">${fmtN(d.kg)}</td>
-        <td class="mono" style="text-align:right;color:var(--warn)">${d.costoUSD > 0 ? "$"+fmtN(d.costoUSD) : "—"}</td>
       </tr>`;
     });
     mermaHtml += `</tbody></table></div>`;
   } else {
-    mermaHtml += `<div class="empty">Sin registros de merma en el período</div>`;
+    mermaHtml += `<div class="empty">Sin registros de merma en el período — captura en pestaña Físico</div>`;
   }
   mermaHtml += `</div>`;
 
-  // ── 5. Formulario captura merma ───────────────────────────
-  const hoy = new Date().toISOString().slice(0,10);
-  const lineas = ["L1","L2","L3","L4"];
-  const MATS_M = ["Gelcoat","Cat. Gelcoat","Resina","Cat. Resina","Marmolina"];
-  const MAT_COLOR_M = {Gelcoat:"#3b82f6","Cat. Gelcoat":"#8b5cf6",Resina:"#f59e0b","Cat. Resina":"#06b6d4",Marmolina:"#22c55e"};
-  const merIds = {"Gelcoat":"gelcoat","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Marmolina":"marmolina"};
-  const inpStyle = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;text-align:right;outline:none;`;
-
-  const mermaHist = [...MERMA_RAW].sort((a,b)=>String(b["Fecha"]||"").localeCompare(String(a["Fecha"]||"")));
-
-  let capturaHtml = `
-  <div class="card" style="margin-bottom:14px">
-    <div class="card-title">Registrar Merma</div>
-    <div style="display:grid;grid-template-columns:160px 160px 1fr;gap:16px;align-items:start;margin-bottom:14px">
-      <div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Fecha</div>
-        <input type="date" id="mer-fecha" value="${hoy}" style="${inpStyle}text-align:left;">
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Línea</div>
-        <select id="mer-linea" style="${inpStyle}text-align:left;cursor:pointer">
-          ${lineas.map(l=>`<option value="${l}">${l}</option>`).join("")}
-        </select>
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Observaciones</div>
-        <input type="text" id="mer-obs" placeholder="Opcional…" style="${inpStyle}text-align:left;">
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px">
-      ${MATS_M.map(m=>`
-      <div>
-        <div style="font-size:11px;color:${MAT_COLOR_M[m]};font-weight:600;margin-bottom:5px">${m}</div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <input type="number" id="mer-${merIds[m]}" placeholder="0.000" min="0" step="0.001"
-            style="${inpStyle}">
-          <span style="font-size:10px;color:var(--muted)">kg</span>
-        </div>
-      </div>`).join("")}
-    </div>
-    <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px">
-      <span style="font-size:11px;color:var(--muted)" id="mer-status"></span>
-      <button class="btn btn-green" onclick="guardarMerma()">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Guardar
-      </button>
-    </div>
-  </div>
-
-  <div class="table-wrap">
-    <div class="table-header">
-      <div class="table-header-title">Historial de Merma</div>
-      <span style="font-size:11px;color:var(--muted)">${mermaHist.length} registros</span>
-    </div>
-    <table><thead><tr>
-      <th>Fecha</th><th>Línea</th>
-      <th style="text-align:right;color:#3b82f6">Gelcoat kg</th>
-      <th style="text-align:right;color:#8b5cf6">Cat.GC kg</th>
-      <th style="text-align:right;color:#f59e0b">Resina kg</th>
-      <th style="text-align:right;color:#06b6d4">Cat.Res kg</th>
-      <th style="text-align:right;color:#22c55e">Marmolina kg</th>
-      <th style="text-align:right">Total kg</th>
-      <th>Observaciones</th>
-    </tr></thead><tbody>
-    ${mermaHist.length===0
-      ? `<tr><td colspan="9" class="empty">Sin registros — captura la primera merma arriba</td></tr>`
-      : mermaHist.map(r=>{
-          const gc=parseFloat(r["Gelcoat (kg)"]||0), cg=parseFloat(r["Cat. Gelcoat (kg)"]||0),
-                re=parseFloat(r["Resina (kg)"]||0), cr=parseFloat(r["Cat. Resina (kg)"]||0), ma=parseFloat(r["Marmolina (kg)"]||0);
-          const tot=round2(gc+cg+re+cr+ma);
-          const ln=String(r["Linea"]||r["Línea"]||"");
-          const cls=ln==="L1"?"b-l1":ln==="L2"?"b-l2":ln==="L3"?"b-l3":ln==="L4"?"b-l4":"";
-          return `<tr>
-            <td class="mono">${String(r["Fecha"]||"").slice(0,10)}</td>
-            <td><span class="badge ${cls}">${ln||"—"}</span></td>
-            <td class="mono" style="text-align:right;color:#3b82f6">${gc?fmtN(gc):"—"}</td>
-            <td class="mono" style="text-align:right;color:#8b5cf6">${cg?fmtN(cg):"—"}</td>
-            <td class="mono" style="text-align:right;color:#f59e0b">${re?fmtN(re):"—"}</td>
-            <td class="mono" style="text-align:right;color:#06b6d4">${cr?fmtN(cr):"—"}</td>
-            <td class="mono" style="text-align:right;color:#22c55e">${ma?fmtN(ma):"—"}</td>
-            <td class="mono" style="text-align:right;font-weight:600">${fmtN(tot)}</td>
-            <td style="color:var(--muted);font-size:11px">${r["Observaciones"]||""}</td>
-          </tr>`;
-        }).join("")}
-    </tbody></table>
-  </div>`;
-
   document.getElementById("main-content").innerHTML =
-    preciosHtml + costoProdHtml + gradocHtml + mermaHtml + capturaHtml;
+    preciosHtml + costoProdHtml + gradocHtml + mermaHtml;
 }
 
 async function guardarMerma() {
   const status = document.getElementById("mer-status");
   if (!GAS_INV_URL) { if(status) status.textContent="⚠ GAS_INV_URL no configurado"; return; }
-  const fecha  = document.getElementById("mer-fecha")?.value || "";
-  const linea  = document.getElementById("mer-linea")?.value || "";
-  const obs    = document.getElementById("mer-obs")?.value   || "";
+  const fecha = document.getElementById("mer-fecha")?.value || "";
+  const linea = document.getElementById("mer-linea")?.value || "";
+  const obs   = document.getElementById("mer-obs")?.value   || "";
+  const kg    = parseFloat(document.getElementById("mer-kg")?.value || "") || 0;
   if (!fecha || !linea) { if(status) status.textContent="⚠ Fecha y línea requeridas"; return; }
-  const MATS_M = ["Gelcoat","Cat. Gelcoat","Resina","Cat. Resina","Marmolina"];
-  const merIds = {"Gelcoat":"gelcoat","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Marmolina":"marmolina"};
-  const vals = {};
-  MATS_M.forEach(m => { vals[m] = parseFloat(document.getElementById(`mer-${merIds[m]}`)?.value||"") || 0; });
-  if (!Object.values(vals).some(v=>v>0)) { if(status) status.textContent="⚠ Ingresa al menos un valor"; return; }
+  if (!kg) { if(status) status.textContent="⚠ Ingresa los kg de merma"; return; }
   if(status) status.textContent="⏳ Guardando…";
   try {
-    const res  = await fetch(GAS_INV_URL, { method:"POST", body: JSON.stringify({ action:"upsert_merma", fecha, linea, obs, ...vals }) });
+    const res  = await fetch(GAS_INV_URL, { method:"POST", body: JSON.stringify({ action:"upsert_merma", fecha, linea, kg, obs }) });
     const data = await res.json();
     if (data.ok) {
       if(status) status.textContent=`✅ Guardado — ${new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}`;
-      MATS_M.forEach(m => { const el=document.getElementById(`mer-${merIds[m]}`); if(el) el.value=""; });
-      document.getElementById("mer-obs").value="";
+      const el = document.getElementById("mer-kg"); if(el) el.value="";
+      const eo = document.getElementById("mer-obs"); if(eo) eo.value="";
       await cargar();
     } else { if(status) status.textContent=`❌ ${data.error}`; }
   } catch(e) { if(status) status.textContent=`❌ ${e.message}`; }
