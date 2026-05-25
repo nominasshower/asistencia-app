@@ -1293,7 +1293,8 @@ function renderCostos() {
     ${modelosCost.length === 0
       ? `<div class="empty">Sin producción en el período — verifica las fechas o que haya precios cargados (sync_consumos_modular.py)</div>`
       : `<div style="position:relative;height:${chartH}px"><canvas id="chart-modelos"></canvas></div>
-         <div style="margin-top:10px;overflow-x:auto"><table style="min-width:500px"><thead><tr>
+         <div style="margin-top:10px;max-height:280px;overflow-y:auto;overflow-x:auto;border:1px solid var(--border);border-radius:6px">
+         <table style="min-width:500px"><thead><tr style="position:sticky;top:0;background:var(--bg3);z-index:1">
            <th>Modelo</th><th style="text-align:right">Piezas</th>
            <th style="text-align:right">Peso prom (kg)</th>
            <th style="text-align:right">Costo USD/pza</th>
