@@ -247,6 +247,17 @@ function parseDate(s){
   return null;
 }
 
+// Compara el valor de la columna Linea con el filtro LINEA activo.
+// Acepta: "1","2","L1","L2","Linea 1","Linea 2","Línea 1", etc.
+function esMismaLinea(valor){
+  if(!LINEA) return true;
+  const v = String(valor||"").trim();
+  if(!v) return false;
+  // Extraer solo el dígito final para comparar
+  const num = v.replace(/[^0-9]/g,"");
+  return num === LINEA;
+}
+
 function enPeriodo(s){
   const d=parseDate(s); if(!d) return false;
   const{desde,hasta}=getFechas();
@@ -266,7 +277,7 @@ function calcTeorico(rows){
   rows.forEach(r=>{
     if(!enPeriodo(r["Fecha"]))return;
     if((r["Fecha"]||"").toUpperCase().includes("TOTAL"))return;
-    if(LINEA&&String(r["Linea"]||"").trim()!==LINEA)return;
+    if(!esMismaLinea(r["Linea"]))return;
     paredes++;
     MATERIALES.forEach(m=>{tot[m.key]+=parseFloat((r[m.col_teo]||"").replace(",","."))||0;});
   });
@@ -323,7 +334,7 @@ function calcMovimientos(rows, sinFiltroLinea=false){
   const tot={};MATERIALES.forEach(m=>tot[m.key]=0);const movs=[];
   rows.forEach(r=>{
     if(!enPeriodo(r["Fecha"]))return;
-    if(!sinFiltroLinea&&LINEA&&String(r["Linea"]||"").trim()!==LINEA)return;
+    if(!sinFiltroLinea&&!esMismaLinea(r["Linea"]))return;
     const mat=LABEL_MAT[r["Material"]]||r["Material"];
     const qty=parseFloat((r["Cantidad (kg)"]||"").replace(",","."))||0;
     if(tot[mat]!==undefined)tot[mat]+=qty;
@@ -806,6 +817,7 @@ function renderCostos() {
   const modelosMap = {};
   TEORICO_RAW.forEach(r => {
     if (!enPeriodo(r["Fecha"])) return;
+    if (!esMismaLinea(r["Linea"])) return;
     const patron = String(r["Patron"] || r["patron"] || "").trim();
     const medida = String(r["Medida"] || r["medida"] || "").trim();
     const desc   = patron ? (medida ? `${patron} ${medida}` : patron) : (medida || "Sin modelo");
@@ -907,6 +919,7 @@ function renderCostos() {
   const prodMeses = {};
   TEORICO_RAW.forEach(r => {
     if (!enPeriodo(r["Fecha"])) return;
+    if (!esMismaLinea(r["Linea"])) return;
     const am = fechaAM(r["Fecha"]); if (!am) return;
     const kilosP = parseFloat(String(r["Kilos"] || r["kilos"] || "0").replace(",",".")) || 0;
     if (!kilosP) return;
@@ -1077,7 +1090,7 @@ function renderCorte() {
   FAB_RAW.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (!f || f < sem.inicio || f > sem.fin) return;
-    if (LINEA && String(r["Linea"]||"").trim() !== LINEA) return;
+    if (!esMismaLinea(r["Linea"])) return;
     const mat = LABEL_MAT[r["Material"]] || null;
     if (!mat) return;
     salFabSem[mat] += parseFloat((r["Cantidad (kg)"]||"").replace(",","."))||0;
@@ -1106,7 +1119,7 @@ function renderCorte() {
   const totalParedes = TEORICO_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (f < sem.inicio || f > sem.fin) return false;
-    if (LINEA && String(r["Linea"]||"").trim() !== LINEA) return false;
+    if (!esMismaLinea(r["Linea"])) return false;
     return true;
   }).length;
 
@@ -1203,7 +1216,7 @@ function renderCorte() {
   TEORICO_RAW.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (!f || f < sem.inicio || f > sem.fin) return;
-    if (LINEA && String(r["Linea"]||"").trim() !== LINEA) return;
+    if (!esMismaLinea(r["Linea"])) return;
     if (!diasMap[f]) diasMap[f] = { paredes:0, lineas:new Set(), teoGelcoat:0, teoButanox:0, teoResina:0, teoNorox:0, teoMarmolina:0, teoTotal:0 };
     const d = diasMap[f];
     d.paredes++;
