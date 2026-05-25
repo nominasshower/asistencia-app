@@ -76,6 +76,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 .modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
 .modal-head h3{font-size:14px;font-weight:600;}
 .modal-body{padding:16px 20px;overflow-y:auto;flex:1;}
+.info-banner{padding:10px 14px;border-radius:8px;border:1px solid var(--border);font-size:12px;display:flex;align-items:center;gap:8px;}
 </style>
 </head>
 <body>
@@ -810,12 +811,21 @@ function renderCostos() {
     const desc   = patron ? (medida ? `${patron} ${medida}` : patron) : (medida || "Sin modelo");
     const am = fechaAM(r["Fecha"]); if (!am) return;
     const kilos = parseFloat(String(r["Kilos"] || r["kilos"] || "0").replace(",",".")) || 0;
-    const gc  = parseFloat(String(r[SW_MAT_COLS.gelcoat]   || "0").replace(",",".")) || 0;
-    const but = parseFloat(String(r[SW_MAT_COLS.butanox]   || "0").replace(",",".")) || 0;
-    const res = parseFloat(String(r[SW_MAT_COLS.resina]    || "0").replace(",",".")) || 0;
-    const nor = parseFloat(String(r[SW_MAT_COLS.norox]     || "0").replace(",",".")) || 0;
-    const mar = parseFloat(String(r[SW_MAT_COLS.marmolina] || "0").replace(",",".")) || 0;
-    if (!kilos && !gc) return;
+    if (!kilos) return;
+    // Leer kg pre-calculados; si no existen calcular desde Kilos con factores
+    let gc  = parseFloat(String(r[SW_MAT_COLS.gelcoat]   || "").replace(",",".")) || 0;
+    let but = parseFloat(String(r[SW_MAT_COLS.butanox]   || "").replace(",",".")) || 0;
+    let res = parseFloat(String(r[SW_MAT_COLS.resina]    || "").replace(",",".")) || 0;
+    let nor = parseFloat(String(r[SW_MAT_COLS.norox]     || "").replace(",",".")) || 0;
+    let mar = parseFloat(String(r[SW_MAT_COLS.marmolina] || "").replace(",",".")) || 0;
+    if (!gc && kilos) { // fallback: calcular desde Kilos
+      gc  = r2(kilos * 0.06);
+      but = r2(gc * 0.025);
+      const resto = kilos - gc;
+      res = r2(resto * 0.18);
+      nor = r2(res * 0.025);
+      mar = r2(resto * 0.82);
+    }
     if (!modelosMap[desc]) modelosMap[desc] = { count:0, kilos:0, gc:0, but:0, res:0, nor:0, mar:0, am };
     const d = modelosMap[desc];
     d.count++; d.kilos+=kilos; d.gc+=gc; d.but+=but; d.res+=res; d.nor+=nor; d.mar+=mar;
@@ -864,15 +874,15 @@ function renderCostos() {
   const mesesSet = new Set();
   PRECIOS_RAW.forEach(r => {
     const am = String(r["Año-Mes"] || "").slice(0,7);
-    if (am && am.startsWith(añoFiltro)) mesesSet.add(am);
+    if (am) mesesSet.add(am);
   });
-  const mesesPrecio = Array.from(mesesSet).sort();
+  const mesesPrecio = Array.from(mesesSet).sort().slice(-13); // últimos 13 meses
   const matCols = Object.entries(SW_MAT_LABELS).map(([key, label]) => ({
     key, label: label + ' $/kg', color: SW_MAT_COLORS[key]
   }));
 
   let preciosHtml = `<div class="card" style="margin-bottom:14px">
-    <div class="card-title">Precios de Compra por Mes <span>${añoFiltro} · Promedio ponderado USD/kg — ejecutar sync_precios_shower.py</span></div>
+    <div class="card-title">Precios de Compra por Mes <span>Últimos 13 meses · Promedio ponderado USD/kg · sync_precios_shower.py</span></div>
     <div style="overflow-x:auto"><table style="min-width:600px"><thead><tr>
       <th>Mes</th>
       ${matCols.map(m=>`<th style="text-align:right;color:${m.color}">${m.label}</th>`).join("")}
@@ -898,12 +908,21 @@ function renderCostos() {
   TEORICO_RAW.forEach(r => {
     if (!enPeriodo(r["Fecha"])) return;
     const am = fechaAM(r["Fecha"]); if (!am) return;
-    const gc  = parseFloat(String(r[SW_MAT_COLS.gelcoat]   || "0").replace(",",".")) || 0;
-    const but = parseFloat(String(r[SW_MAT_COLS.butanox]   || "0").replace(",",".")) || 0;
-    const res = parseFloat(String(r[SW_MAT_COLS.resina]    || "0").replace(",",".")) || 0;
-    const nor = parseFloat(String(r[SW_MAT_COLS.norox]     || "0").replace(",",".")) || 0;
-    const mar = parseFloat(String(r[SW_MAT_COLS.marmolina] || "0").replace(",",".")) || 0;
-    if (!gc && !res) return;
+    const kilosP = parseFloat(String(r["Kilos"] || r["kilos"] || "0").replace(",",".")) || 0;
+    if (!kilosP) return;
+    let gc  = parseFloat(String(r[SW_MAT_COLS.gelcoat]   || "").replace(",",".")) || 0;
+    let but = parseFloat(String(r[SW_MAT_COLS.butanox]   || "").replace(",",".")) || 0;
+    let res = parseFloat(String(r[SW_MAT_COLS.resina]    || "").replace(",",".")) || 0;
+    let nor = parseFloat(String(r[SW_MAT_COLS.norox]     || "").replace(",",".")) || 0;
+    let mar = parseFloat(String(r[SW_MAT_COLS.marmolina] || "").replace(",",".")) || 0;
+    if (!gc) { // fallback: calcular desde Kilos con factores
+      gc  = r2(kilosP * 0.06);
+      but = r2(gc * 0.025);
+      const resto = kilosP - gc;
+      res = r2(resto * 0.18);
+      nor = r2(res * 0.025);
+      mar = r2(resto * 0.82);
+    }
     if (!prodMeses[am]) prodMeses[am] = { paredes:0, gc:0, but:0, res:0, nor:0, mar:0 };
     const d = prodMeses[am];
     d.paredes++; d.gc=r2(d.gc+gc); d.but=r2(d.but+but);
@@ -965,25 +984,7 @@ function renderCostos() {
   }
   costoProdHtml += `</tbody></table></div></div>`;
 
-  // ── DEBUG TEMPORAL ───────────────────────────────────────
-  const _dbg = (() => {
-    const p0 = PRECIOS_RAW[0];
-    const t0 = TEORICO_RAW.find(r => enPeriodo(r["Fecha"]));
-    const am0 = t0 ? fechaAM(t0["Fecha"]) : "n/a";
-    const precio0 = p0 ? `${p0["Año-Mes"]} | ${p0["Material"]} | ${p0["Precio USD/kg"]}` : "vacío";
-    const kg0 = t0 ? `GC=${t0["Gelcoat (kg)"]} BUT=${t0["Butanox M-50 (kg)"]} RES=${t0["Resina (kg)"]}` : "n/a";
-    const lookup0 = t0 ? getPrecioMesSW(am0, "gelcoat").toFixed(6) : "n/a";
-    return `<div class="card" style="border-color:#ef4444;margin-bottom:14px;font-size:11px;font-family:'DM Mono',monospace;color:#f87171">
-      <div style="font-weight:700;margin-bottom:8px;color:#ef4444">🔍 DEBUG (eliminar cuando funcione)</div>
-      <div>PRECIOS_RAW.length = ${PRECIOS_RAW.length}</div>
-      <div>PRECIOS_RAW[0]: ${precio0}</div>
-      <div>Fecha prod[0]: ${t0?.["Fecha"]} → am=${am0}</div>
-      <div>Kg prod[0]: ${kg0}</div>
-      <div>getPrecioMesSW("${am0}","gelcoat") = ${lookup0}</div>
-      <div>costoPza muestra[0]: ${modelosCost[0] ? modelosCost[0].costoPza : "n/a"}</div>
-    </div>`;
-  })();
-  document.getElementById("main-content").innerHTML = _banner + _dbg + graficaHtml + preciosHtml + costoProdHtml;
+  document.getElementById("main-content").innerHTML = _banner + graficaHtml + preciosHtml + costoProdHtml;
   setTimeout(() => initChartSW(modelosCost), 0);
 }
 
