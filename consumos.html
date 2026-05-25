@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Consumos Materiales — Shower Walls</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
 :root{--bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--border:rgba(255,255,255,0.07);--text:#e8eaf0;--muted:#6b7280;--accent:#22c55e;--accent2:#3b82f6;--warn:#f59e0b;--danger:#ef4444;--ga:#22c55e;--gb:#f59e0b;--gc:#ef4444;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -106,6 +107,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Corte Semanal
     </div>
+    <div class="nav-item" onclick="setVista('costos',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      Costos
+    </div>
   </div>
   <div class="nav-group">
     <div class="nav-label">Leyenda</div>
@@ -187,7 +192,7 @@ const GAS_INV_URL   = "https://script.google.com/macros/s/AKfycbxk5nKkN1Dq0HGz99
 
 let VISTA="resumen", LINEA="";
 let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[];
-let KPIS_L1=[], KPIS_L2=[];
+let KPIS_L1=[], KPIS_L2=[], PRECIOS_RAW=[];
 
 const MATERIALES = [
   {key:"gelcoat",   label:"Gel Coat",        col_teo:"Gelcoat",      color:"#3b82f6"},
@@ -329,6 +334,7 @@ function calcMovimientos(rows, sinFiltroLinea=false){
 // ── Render ───────────────────────────────────────────────
 function render(){
   document.getElementById("main-content").innerHTML="";
+  if(VISTA==="costos"){renderCostos();return;}
   const{tot:teo,paredes}=calcTeorico(TEORICO_RAW);
   const{tot:fab,movs:movsFab}=calcMovimientos(FAB_RAW);
   const{tot:alm,movs:movsAlm}=calcMovimientos(ALM_RAW,true); // almacén sin filtro línea
@@ -693,19 +699,283 @@ function setVista(v,el){
   render();
 }
 
+// ── Precios Shower ────────────────────────────────────────
+const SW_MAT_LABELS = {
+  gelcoat:   'Gel Coat',
+  butanox:   'Butanox M-50',
+  resina:    'Resina PMS 7103',
+  norox:     'Norox 900',
+  marmolina: 'Marmolina Estens',
+};
+const SW_MAT_COLS = {
+  gelcoat:   'Gelcoat (kg)',
+  butanox:   'Butanox M-50 (kg)',
+  resina:    'Resina (kg)',
+  norox:     'Norox (kg)',
+  marmolina: 'Marmolina (kg)',
+};
+const SW_MAT_COLORS = {
+  gelcoat:'#3b82f6', butanox:'#8b5cf6', resina:'#f59e0b', norox:'#06b6d4', marmolina:'#22c55e'
+};
+
+function getPrecioMesSW(añoMes, matKey) {
+  const label = SW_MAT_LABELS[matKey];
+  if (!label) return 0;
+  const row = PRECIOS_RAW.find(r =>
+    String(r["Año-Mes"] || "").slice(0,7) === añoMes &&
+    String(r["Material"] || "").trim() === label
+  );
+  if (!row) return 0;
+  return parseFloat(String(row["Precio USD/kg"] || "0").replace(",", ".")) || 0;
+}
+
+// ── Chart costos Shower ───────────────────────────────────
+let _chartSW = null;
+function initChartSW(datos) {
+  const canvas = document.getElementById("chart-sw-costos");
+  if (!canvas || !datos.length) return;
+  if (_chartSW) { _chartSW.destroy(); _chartSW = null; }
+  const labels = datos.map(d => d.desc);
+  const costos = datos.map(d => d.costoPza);
+  const maxC   = Math.max(...costos);
+  const colors = costos.map(c => {
+    const p = maxC > 0 ? c / maxC : 0;
+    return p < 0.4 ? 'rgba(34,197,94,0.75)' : p < 0.7 ? 'rgba(245,158,11,0.75)' : 'rgba(59,130,246,0.75)';
+  });
+  _chartSW = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets: [{ label:'Costo USD/pared', data:costos,
+      backgroundColor:colors, borderColor:colors.map(c=>c.replace('0.75','1')),
+      borderWidth:1, borderRadius:4 }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const i = ctx.dataIndex;
+              return [
+                ` Costo: $${costos[i].toFixed(2)} USD/pared`,
+                ` Paredes: ${datos[i].count.toLocaleString()}`,
+                ` Kilos prom: ${datos[i].kilosProm.toFixed(2)} kg`,
+              ];
+            }
+          },
+          backgroundColor:'#1e2535', borderColor:'rgba(255,255,255,0.1)', borderWidth:1,
+          titleColor:'#e8eaf0', bodyColor:'#9ca3af', padding:10,
+        }
+      },
+      scales: {
+        x: { grid:{color:'rgba(255,255,255,0.05)'},
+             ticks:{color:'#6b7280',font:{family:'DM Mono',size:11},callback:v=>'$'+v.toFixed(2)},
+             title:{display:true,text:'USD / pared',color:'#6b7280',font:{size:11}} },
+        y: { grid:{display:false},
+             ticks:{color:'#e8eaf0',font:{family:'DM Sans',size:11},maxTicksLimit:30} }
+      }
+    }
+  });
+}
+
+// ── renderCostos Shower ───────────────────────────────────
+function renderCostos() {
+  const { desde, hasta } = getFechas();
+  const añoFiltro = desde ? desde.slice(0,4) : new Date().getFullYear().toString();
+
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const fmtN2 = (n) => Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  // ── 0. Gráfica costo por patrón ────────────────────────
+  const modelosMap = {};
+  TEORICO_RAW.forEach(r => {
+    if (!enPeriodo(r["Fecha"])) return;
+    const patron = String(r["Patron"] || r["patron"] || "").trim();
+    const medida = String(r["Medida"] || r["medida"] || "").trim();
+    const desc   = patron ? (medida ? `${patron} ${medida}` : patron) : (medida || "Sin modelo");
+    const fecha  = String(r["Fecha"] || "").slice(0, 10);
+    if (!fecha) return;
+    const am = fecha.slice(0, 7);
+    const kilos = parseFloat(String(r["Kilos"] || r["kilos"] || "0").replace(",",".")) || 0;
+    const gc  = parseFloat(String(r[SW_MAT_COLS.gelcoat]   || "0").replace(",",".")) || 0;
+    const but = parseFloat(String(r[SW_MAT_COLS.butanox]   || "0").replace(",",".")) || 0;
+    const res = parseFloat(String(r[SW_MAT_COLS.resina]    || "0").replace(",",".")) || 0;
+    const nor = parseFloat(String(r[SW_MAT_COLS.norox]     || "0").replace(",",".")) || 0;
+    const mar = parseFloat(String(r[SW_MAT_COLS.marmolina] || "0").replace(",",".")) || 0;
+    if (!kilos && !gc) return;
+    if (!modelosMap[desc]) modelosMap[desc] = { count:0, kilos:0, gc:0, but:0, res:0, nor:0, mar:0, am };
+    const d = modelosMap[desc];
+    d.count++; d.kilos+=kilos; d.gc+=gc; d.but+=but; d.res+=res; d.nor+=nor; d.mar+=mar;
+    d.am = am;
+  });
+
+  const modelosCost = Object.entries(modelosMap).map(([desc, d]) => {
+    const am = d.am;
+    const pgc  = getPrecioMesSW(am, 'gelcoat');
+    const pbut = getPrecioMesSW(am, 'butanox');
+    const pres = getPrecioMesSW(am, 'resina');
+    const pnor = getPrecioMesSW(am, 'norox');
+    const pmar = getPrecioMesSW(am, 'marmolina');
+    const n    = d.count || 1;
+    const costoPza = r2(
+      (d.gc/n)*pgc + (d.but/n)*pbut + (d.res/n)*pres + (d.nor/n)*pnor + (d.mar/n)*pmar
+    );
+    return { desc, count:d.count, kilosProm:r2(d.kilos/n), costoPza };
+  }).filter(m => m.count > 0).sort((a,b) => b.costoPza - a.costoPza);
+
+  const chartH = Math.max(200, Math.min(modelosCost.length * 28 + 60, 520));
+  let graficaHtml = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">Costo por Patrón/Medida <span>${modelosCost.length} modelos en el período · USD/pared · mayor → menor</span></div>
+    ${modelosCost.length === 0
+      ? `<div class="empty">Sin producción en el período — verifica fechas o ejecuta sync_precios_shower.py</div>`
+      : `<div style="position:relative;height:${chartH}px"><canvas id="chart-sw-costos"></canvas></div>
+         <div style="margin-top:10px;max-height:280px;overflow-y:auto;overflow-x:auto;border:1px solid var(--border);border-radius:6px">
+         <table style="min-width:500px"><thead><tr style="position:sticky;top:0;background:var(--bg3);z-index:1">
+           <th>Patrón / Medida</th><th style="text-align:right">Paredes</th>
+           <th style="text-align:right">Kilos prom</th>
+           <th style="text-align:right">Costo USD/pared</th>
+           <th style="text-align:right">Total período USD</th>
+         </tr></thead><tbody>
+         ${modelosCost.map(m=>`<tr>
+           <td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.desc}</td>
+           <td class="mono" style="text-align:right">${m.count.toLocaleString()}</td>
+           <td class="mono" style="text-align:right;color:var(--muted)">${fmtN(m.kilosProm)}</td>
+           <td class="mono" style="text-align:right;color:#22c55e;font-weight:600">${m.costoPza>0?"$"+fmtN2(m.costoPza):"—"}</td>
+           <td class="mono" style="text-align:right;color:var(--accent2)">${m.costoPza>0?"$"+fmtN2(r2(m.costoPza*m.count)):"—"}</td>
+         </tr>`).join("")}
+         </tbody></table></div>`
+    }
+  </div>`;
+
+  // ── 1. Tabla de precios por mes ────────────────────────
+  const mesesSet = new Set();
+  PRECIOS_RAW.forEach(r => {
+    const am = String(r["Año-Mes"] || "").slice(0,7);
+    if (am && am.startsWith(añoFiltro)) mesesSet.add(am);
+  });
+  const mesesPrecio = Array.from(mesesSet).sort();
+  const matCols = Object.entries(SW_MAT_LABELS).map(([key, label]) => ({
+    key, label: label + ' $/kg', color: SW_MAT_COLORS[key]
+  }));
+
+  let preciosHtml = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">Precios de Compra por Mes <span>${añoFiltro} · Promedio ponderado USD/kg — ejecutar sync_precios_shower.py</span></div>
+    <div style="overflow-x:auto"><table style="min-width:600px"><thead><tr>
+      <th>Mes</th>
+      ${matCols.map(m=>`<th style="text-align:right;color:${m.color}">${m.label}</th>`).join("")}
+    </tr></thead><tbody>`;
+
+  if (mesesPrecio.length === 0) {
+    preciosHtml += `<tr><td colspan="${matCols.length+1}" class="empty">Sin datos en PRECIOS_SW — ejecutar sync_precios_shower.py</td></tr>`;
+  } else {
+    mesesPrecio.forEach(am => {
+      const mes = new Date(am+"-15").toLocaleDateString("es-MX",{month:"short",year:"numeric"});
+      preciosHtml += `<tr><td class="mono">${mes}</td>
+        ${matCols.map(m => {
+          const p = getPrecioMesSW(am, m.key);
+          return `<td class="mono" style="text-align:right;color:${p>0?m.color:"var(--muted)"}">${p>0?"$"+p.toFixed(4):"—"}</td>`;
+        }).join("")}
+      </tr>`;
+    });
+  }
+  preciosHtml += `</tbody></table></div></div>`;
+
+  // ── 2. Costo de producción por mes ─────────────────────
+  const prodMeses = {};
+  TEORICO_RAW.forEach(r => {
+    if (!enPeriodo(r["Fecha"])) return;
+    const fecha = String(r["Fecha"] || "").slice(0,10); if (!fecha) return;
+    const am = fecha.slice(0,7);
+    const gc  = parseFloat(String(r[SW_MAT_COLS.gelcoat]   || "0").replace(",",".")) || 0;
+    const but = parseFloat(String(r[SW_MAT_COLS.butanox]   || "0").replace(",",".")) || 0;
+    const res = parseFloat(String(r[SW_MAT_COLS.resina]    || "0").replace(",",".")) || 0;
+    const nor = parseFloat(String(r[SW_MAT_COLS.norox]     || "0").replace(",",".")) || 0;
+    const mar = parseFloat(String(r[SW_MAT_COLS.marmolina] || "0").replace(",",".")) || 0;
+    if (!gc && !res) return;
+    if (!prodMeses[am]) prodMeses[am] = { paredes:0, gc:0, but:0, res:0, nor:0, mar:0 };
+    const d = prodMeses[am];
+    d.paredes++; d.gc=r2(d.gc+gc); d.but=r2(d.but+but);
+    d.res=r2(d.res+res); d.nor=r2(d.nor+nor); d.mar=r2(d.mar+mar);
+  });
+
+  const prodList = Object.keys(prodMeses).sort();
+  let costoProdHtml = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">Costo de Producción por Mes <span>USD · precio promedio ponderado</span></div>
+    <div style="overflow-x:auto"><table style="min-width:700px"><thead><tr>
+      <th>Mes</th><th style="text-align:right">Paredes</th>
+      <th style="text-align:right;color:#3b82f6">GC $/pared</th>
+      <th style="text-align:right;color:#8b5cf6">But $/pared</th>
+      <th style="text-align:right;color:#f59e0b">Res $/pared</th>
+      <th style="text-align:right;color:#22c55e">Mar $/pared</th>
+      <th style="text-align:right">Total $/pared</th>
+      <th style="text-align:right">Total $ Mes</th>
+    </tr></thead><tbody>`;
+
+  if (prodList.length === 0) {
+    costoProdHtml += `<tr><td colspan="8" class="empty">Sin producción en el período</td></tr>`;
+  } else {
+    let totParedes=0, totMes=0;
+    prodList.forEach(am => {
+      const d = prodMeses[am]; if (!d.paredes) return;
+      const pgc  = getPrecioMesSW(am,'gelcoat');
+      const pbut = getPrecioMesSW(am,'butanox');
+      const pres = getPrecioMesSW(am,'resina');
+      const pnor = getPrecioMesSW(am,'norox');
+      const pmar = getPrecioMesSW(am,'marmolina');
+      const n = d.paredes;
+      const gcP  = r2((d.gc/n)*pgc);
+      const butP = r2((d.but/n)*pbut);
+      const resP = r2((d.res/n)*pres);
+      const norP = r2((d.nor/n)*pnor);
+      const marP = r2((d.mar/n)*pmar);
+      const totP = r2(gcP+butP+resP+norP+marP);
+      const totM = r2(totP*n);
+      totParedes += n; totMes = r2(totMes + totM);
+      const has = pgc>0||pres>0||pmar>0;
+      const mes = new Date(am+"-15").toLocaleDateString("es-MX",{month:"short",year:"numeric"});
+      costoProdHtml += `<tr>
+        <td class="mono">${mes}</td>
+        <td class="mono" style="text-align:right">${n.toLocaleString()}</td>
+        <td class="mono" style="text-align:right;color:${has?"#3b82f6":"var(--muted)"}">${gcP>0?"$"+fmtN2(gcP):"—"}</td>
+        <td class="mono" style="text-align:right;color:${has?"#8b5cf6":"var(--muted)"}">${butP>0?"$"+fmtN2(butP):"—"}</td>
+        <td class="mono" style="text-align:right;color:${has?"#f59e0b":"var(--muted)"}">${resP>0?"$"+fmtN2(resP):"—"}</td>
+        <td class="mono" style="text-align:right;color:${has?"#22c55e":"var(--muted)"}">${marP>0?"$"+fmtN2(marP):"—"}</td>
+        <td class="mono" style="text-align:right;font-weight:600">${totP>0?"$"+fmtN2(totP):"—"}</td>
+        <td class="mono" style="text-align:right;font-weight:600;color:var(--accent)">${totM>0?"$"+fmtN2(totM):"—"}</td>
+      </tr>`;
+    });
+    costoProdHtml += `<tr style="font-weight:700;border-top:2px solid var(--border);background:rgba(255,255,255,.03)">
+      <td>TOTAL</td>
+      <td class="mono" style="text-align:right">${totParedes.toLocaleString()}</td>
+      <td colspan="5"></td>
+      <td class="mono" style="text-align:right;color:var(--accent)">$${fmtN2(totMes)}</td>
+    </tr>`;
+  }
+  costoProdHtml += `</tbody></table></div></div>`;
+
+  document.getElementById("main-content").innerHTML = graficaHtml + preciosHtml + costoProdHtml;
+  setTimeout(() => initChartSW(modelosCost), 0);
+}
+
 // ── Cargar ────────────────────────────────────────────────
 async function cargar(){
   document.getElementById("main-content").innerHTML=`<div class="loading"><div class="spinner"></div><div>Conectando con Google Sheets…</div></div>`;
   try{
-    [TEORICO_RAW, FAB_RAW, ALM_RAW, INVENTARIOS_RAW,
-     KPIS_L1, KPIS_L2] = await Promise.all([
+    const [r0,r1,r2,r3,r4,r5,r6] = await Promise.allSettled([
       fetchSheet(SHEET_ID,"CONSUMOS_DIARIOS"),
       fetchSheet(SHEET_ID,"SALIDAS_FABRICACION"),
       fetchSheet(SHEET_ID,"LLEGADAS_ALMACEN"),
       fetchSheet(SHEET_ID,"INVENTARIOS"),
       fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L1"),
       fetchSheetRaw(KPIS_SHEET_ID,"PRODUCCION L2"),
+      fetchSheet(SHEET_ID,"PRECIOS_SW"),
     ]);
+    TEORICO_RAW    = r0.status==="fulfilled" ? r0.value : [];
+    FAB_RAW        = r1.status==="fulfilled" ? r1.value : [];
+    ALM_RAW        = r2.status==="fulfilled" ? r2.value : [];
+    INVENTARIOS_RAW= r3.status==="fulfilled" ? r3.value : [];
+    KPIS_L1        = r4.status==="fulfilled" ? r4.value : [];
+    KPIS_L2        = r5.status==="fulfilled" ? r5.value : [];
+    PRECIOS_RAW    = r6.status==="fulfilled" ? r6.value : [];
     document.getElementById("sidebar-update").textContent=
       `Actualizado ${new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}`;
     render();
@@ -1327,10 +1597,9 @@ function estadoBadge(pct){
 
 // ── Init ──────────────────────────────────────────────────
 (function(){
-  const hoy=new Date(), hace30=new Date();
-  hace30.setDate(hoy.getDate()-30);
+  const hoy=new Date();
   const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  document.getElementById("fDesde").value=fmt(hace30);
+  document.getElementById("fDesde").value=fmt(hoy);
   document.getElementById("fHasta").value=fmt(hoy);
   document.getElementById("fDesde").addEventListener("change",render);
   document.getElementById("fHasta").addEventListener("change",render);
