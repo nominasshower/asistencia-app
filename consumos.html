@@ -718,6 +718,12 @@ const SW_MAT_COLORS = {
   gelcoat:'#3b82f6', butanox:'#8b5cf6', resina:'#f59e0b', norox:'#06b6d4', marmolina:'#22c55e'
 };
 
+// Convierte cualquier fecha (DD/MM/YYYY o YYYY-MM-DD) a "YYYY-MM"
+function fechaAM(s) {
+  const d = parseDate(s); if (!d) return "";
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+}
+
 function getPrecioMesSW(añoMes, matKey) {
   const label = SW_MAT_LABELS[matKey];
   if (!label) return 0;
@@ -795,9 +801,7 @@ function renderCostos() {
     const patron = String(r["Patron"] || r["patron"] || "").trim();
     const medida = String(r["Medida"] || r["medida"] || "").trim();
     const desc   = patron ? (medida ? `${patron} ${medida}` : patron) : (medida || "Sin modelo");
-    const fecha  = String(r["Fecha"] || "").slice(0, 10);
-    if (!fecha) return;
-    const am = fecha.slice(0, 7);
+    const am = fechaAM(r["Fecha"]); if (!am) return;
     const kilos = parseFloat(String(r["Kilos"] || r["kilos"] || "0").replace(",",".")) || 0;
     const gc  = parseFloat(String(r[SW_MAT_COLS.gelcoat]   || "0").replace(",",".")) || 0;
     const but = parseFloat(String(r[SW_MAT_COLS.butanox]   || "0").replace(",",".")) || 0;
@@ -886,8 +890,7 @@ function renderCostos() {
   const prodMeses = {};
   TEORICO_RAW.forEach(r => {
     if (!enPeriodo(r["Fecha"])) return;
-    const fecha = String(r["Fecha"] || "").slice(0,10); if (!fecha) return;
-    const am = fecha.slice(0,7);
+    const am = fechaAM(r["Fecha"]); if (!am) return;
     const gc  = parseFloat(String(r[SW_MAT_COLS.gelcoat]   || "0").replace(",",".")) || 0;
     const but = parseFloat(String(r[SW_MAT_COLS.butanox]   || "0").replace(",",".")) || 0;
     const res = parseFloat(String(r[SW_MAT_COLS.resina]    || "0").replace(",",".")) || 0;
