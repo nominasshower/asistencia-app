@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Consumos Materiales — Modular Vanity Tops</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
 :root{--bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--border:rgba(255,255,255,0.07);--text:#e8eaf0;--muted:#6b7280;--accent:#22c55e;--accent2:#3b82f6;--warn:#f59e0b;--danger:#ef4444;--ga:#22c55e;--gb:#f59e0b;--gc:#ef4444;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -1161,11 +1162,153 @@ function getPrecioMes(añoMes, matKey) {
   return parseFloat(String(row["Precio USD/kg"] || "0").replace(",", ".")) || 0;
 }
 
+// ── Chart: Costo por modelo ───────────────────────────────────
+let _chartModelos = null;
+function initChartModelos(datos) {
+  const canvas = document.getElementById("chart-modelos");
+  if (!canvas || !datos.length) return;
+  if (_chartModelos) { _chartModelos.destroy(); _chartModelos = null; }
+
+  const labels  = datos.map(d => d.desc);
+  const costos  = datos.map(d => d.costoPza);
+  const cantArr = datos.map(d => d.cant);
+  const pesoArr = datos.map(d => d.pesoProm);
+  const maxCosto = Math.max(...costos);
+
+  // Color por rango de costo: verde→amarillo→rojo
+  const colors = costos.map(c => {
+    const pct = maxCosto > 0 ? c / maxCosto : 0;
+    if (pct < 0.4) return 'rgba(34,197,94,0.75)';
+    if (pct < 0.7) return 'rgba(245,158,11,0.75)';
+    return 'rgba(59,130,246,0.75)';
+  });
+
+  _chartModelos = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Costo USD/pieza',
+        data: costos,
+        backgroundColor: colors,
+        borderColor: colors.map(c => c.replace('0.75','1')),
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const i = ctx.dataIndex;
+              return [
+                ` Costo: $${costos[i].toFixed(2)} USD/pza`,
+                ` Cantidad: ${cantArr[i].toLocaleString()} piezas`,
+                ` Peso prom: ${pesoArr[i].toFixed(2)} kg/pza`,
+              ];
+            }
+          },
+          backgroundColor: '#1e2535',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleColor: '#e8eaf0',
+          bodyColor: '#9ca3af',
+          padding: 10,
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#6b7280', font: { family: 'DM Mono', size: 11 },
+            callback: v => '$' + v.toFixed(2) },
+          title: { display: true, text: 'USD / pieza', color: '#6b7280', font: { size: 11 } }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: '#e8eaf0', font: { family: 'DM Sans', size: 11 }, maxTicksLimit: 30 }
+        }
+      }
+    }
+  });
+}
+
 // ── Costos ────────────────────────────────────────────────────
 function renderCostos() {
   const { desde, hasta } = getFechas();
   // Determine year range for prices (full year from fDesde year)
   const añoFiltro = desde ? desde.slice(0,4) : new Date().getFullYear().toString();
+
+  // ── 0. Gráfica costo por modelo ───────────────────────────
+  // Agrupar producción por modelo (descripción o ID_CONECT como fallback)
+  const modelosMap = {};
+  TEORICO_RAW.forEach(r => {
+    if (!enPeriodo(r["FECHA"])) return;
+    if ((r["ESTATUS"] || "") !== "Fabricado") return;
+    const linNum = String(r["LINEA"] || "").replace(/[^0-9]/g, "").trim();
+    if (LINEA && linNum !== LINEA) return;
+    const peso = parseFloat(String(r["PESO"] || "0").replace(",", ".")) || 0;
+    if (!peso) return;
+    const cant = parseFloat(String(r["CANTIDAD"] || "1")) || 1;
+    const fISO = fechaISO(r["FECHA"]); if (!fISO) return;
+    const am   = fISO.slice(0, 7);
+    // Intentar múltiples nombres de columna para el modelo
+    const desc = (String(r["DESCRIPCION"] || r["MODELO"] || r["DESCRIPCION_MODELO"] || r["DESCRIPCION_PRODUCTO"] || r["PRODUCTO"] || "").trim()) ||
+                 String(r["ID_CONECT"] || "Sin modelo").trim();
+    if (!modelosMap[desc]) modelosMap[desc] = { cant: 0, pesoTotal: 0, am };
+    const d = modelosMap[desc];
+    d.cant += cant;
+    d.pesoTotal = round2(d.pesoTotal + peso * cant);
+    d.am = am; // último mes visto para precio
+  });
+
+  const modelosCost = Object.entries(modelosMap).map(([desc, d]) => {
+    const am       = d.am;
+    const pesoProm = d.cant > 0 ? d.pesoTotal / d.cant : 0;
+    const gc    = round2(pesoProm * F_GEL);
+    const catGc = round2(gc * F_CAT);
+    const resto = pesoProm - gc - catGc;
+    const res   = round2(resto * F_RES);
+    const catRes= round2(res * F_CAT);
+    const mar   = round2(resto * F_MAR);
+    const costoPza = round2(
+      gc    * getPrecioMes(am, 'gelcoat') +
+      catGc * getPrecioMes(am, 'cat_gc') +
+      res   * getPrecioMes(am, 'resina') +
+      catRes* getPrecioMes(am, 'cat_res') +
+      mar   * getPrecioMes(am, 'marmolina')
+    );
+    return { desc, cant: d.cant, pesoProm: round2(pesoProm), costoPza };
+  })
+  .filter(m => m.cant > 0)
+  .sort((a, b) => b.costoPza - a.costoPza);
+
+  const chartH = Math.max(200, Math.min(modelosCost.length * 28 + 60, 520));
+  let graficaHtml = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">Costo por Modelo <span>${modelosCost.length} modelos fabricados en el período · USD/pieza · mayor → menor</span></div>
+    ${modelosCost.length === 0
+      ? `<div class="empty">Sin producción en el período — verifica las fechas o que haya precios cargados (sync_consumos_modular.py)</div>`
+      : `<div style="position:relative;height:${chartH}px"><canvas id="chart-modelos"></canvas></div>
+         <div style="margin-top:10px;overflow-x:auto"><table style="min-width:500px"><thead><tr>
+           <th>Modelo</th><th style="text-align:right">Piezas</th>
+           <th style="text-align:right">Peso prom (kg)</th>
+           <th style="text-align:right">Costo USD/pza</th>
+           <th style="text-align:right">Total período USD</th>
+         </tr></thead><tbody>
+         ${modelosCost.map(m => `<tr>
+           <td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.desc}</td>
+           <td class="mono" style="text-align:right">${m.cant.toLocaleString()}</td>
+           <td class="mono" style="text-align:right;color:var(--muted)">${fmtN(m.pesoProm)}</td>
+           <td class="mono" style="text-align:right;color:#22c55e;font-weight:600">${m.costoPza > 0 ? "$"+fmtN(m.costoPza) : "—"}</td>
+           <td class="mono" style="text-align:right;color:var(--accent2)">${m.costoPza > 0 ? "$"+fmtN(round2(m.costoPza * m.cant)) : "—"}</td>
+         </tr>`).join("")}
+         </tbody></table></div>`
+    }
+  </div>`;
 
   // ── 1. Tabla de precios por mes ───────────────────────────
   const mesesSet = new Set();
@@ -1397,7 +1540,8 @@ function renderCostos() {
   mermaHtml += `</div>`;
 
   document.getElementById("main-content").innerHTML =
-    preciosHtml + costoProdHtml + gradocHtml + mermaHtml;
+    graficaHtml + preciosHtml + costoProdHtml + gradocHtml + mermaHtml;
+  setTimeout(() => initChartModelos(modelosCost), 0);
 }
 
 async function guardarMerma() {
