@@ -109,6 +109,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
       Consumo Físico
     </div>
+    <div class="nav-item" onclick="setVista('costos',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Costos
+    </div>
   </div>
   <div class="nav-group">
     <div class="nav-label">Leyenda</div>
@@ -200,6 +204,7 @@ const F_MAR = 0.82;   // marmolina sobre (PESO - gelcoat - cat_gc)
 
 let VISTA = "resumen", LINEA = "";
 let TEORICO_RAW = [], FAB_RAW = [], ALM_RAW = [], INVENTARIOS_RAW = [], FISICO_RAW = [];
+let PRECIOS_RAW = [], GRADOC_RAW = [], MERMA_RAW = [];
 
 const MATERIALES = [
   {key:"gelcoat",  label:"Gel Coat",         color:"#3b82f6"},
@@ -380,6 +385,7 @@ function render() {
   else if (VISTA === "almacen")     renderMovimientos(movsAlm, alm, teo, "Llegadas al Almacén", true);
   else if (VISTA === "corte")       renderCorte();
   else if (VISTA === "fisico")      renderFisico();
+  else if (VISTA === "costos")      renderCostos();
 }
 
 // ── Resumen ──────────────────────────────────────────────────
@@ -1043,18 +1049,24 @@ async function cargar() {
   document.getElementById("main-content").innerHTML =
     `<div class="loading"><div class="spinner"></div><div>Conectando con Google Sheets…</div></div>`;
   try {
-    const [r0, r1, r2, r3, r4] = await Promise.allSettled([
+    const [r0, r1, r2, r3, r4, r5, r6, r7] = await Promise.allSettled([
       fetchSheet(FAB_SHEET_ID, "Sistema fabricacion"),
       fetchSheet(SHEET_ID, "SALIDAS_MVT"),
       fetchSheet(SHEET_ID, "LLEGADAS_MVT"),
       fetchSheet(SHEET_ID, "INVENTARIOS_MVT"),
       fetchSheet(SHEET_ID, "FISICO_MVT"),
+      fetchSheet(SHEET_ID, "PRECIOS_MVT"),
+      fetchSheet(SHEET_ID, "GRADOC_MVT"),
+      fetchSheet(SHEET_ID, "MERMA_MVT"),
     ]);
     TEORICO_RAW     = r0.status === "fulfilled" ? r0.value : [];
     FAB_RAW         = r1.status === "fulfilled" ? r1.value : [];
     ALM_RAW         = r2.status === "fulfilled" ? r2.value : [];
     INVENTARIOS_RAW = r3.status === "fulfilled" ? r3.value : [];
     FISICO_RAW      = r4.status === "fulfilled" ? r4.value : [];
+    PRECIOS_RAW     = r5.status === "fulfilled" ? r5.value : [];
+    GRADOC_RAW      = r6.status === "fulfilled" ? r6.value : [];
+    MERMA_RAW       = r7.status === "fulfilled" ? r7.value : [];
     document.getElementById("sidebar-update").textContent =
       `Actualizado ${new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}`;
     render();
@@ -1062,6 +1074,394 @@ async function cargar() {
     document.getElementById("main-content").innerHTML =
       `<div class="loading"><div style="color:var(--danger)">❌ Error: ${e.message}</div></div>`;
   }
+}
+
+// ── Precios: lookup por año-mes y material ────────────────────
+// añoMes: 'YYYY-MM', matKey: 'gelcoat'|'cat_gc'|'resina'|'cat_res'|'marmolina'
+// cat_res usa el mismo precio que cat_gc
+function getPrecioMes(añoMes, matKey) {
+  // Nombres en PRECIOS_MVT (columna Material)
+  const DISP = {
+    gelcoat   : 'Gel Coat',
+    cat_gc    : 'Catalizador Gelcoat',
+    cat_res   : 'Catalizador Gelcoat',  // mismo producto físico
+    resina    : 'Resina',
+    marmolina : 'Marmolina Estens',
+  };
+  const displayName = DISP[matKey];
+  if (!displayName) return 0;
+  const row = PRECIOS_RAW.find(r =>
+    String(r["Año-Mes"] || "").slice(0,7) === añoMes &&
+    String(r["Material"] || "") === displayName
+  );
+  if (!row) return 0;
+  return parseFloat(String(row["Precio USD/kg"] || "0").replace(",", ".")) || 0;
+}
+
+// ── Costos ────────────────────────────────────────────────────
+function renderCostos() {
+  const { desde, hasta } = getFechas();
+  // Determine year range for prices (full year from fDesde year)
+  const añoFiltro = desde ? desde.slice(0,4) : new Date().getFullYear().toString();
+
+  // ── 1. Tabla de precios por mes ───────────────────────────
+  const mesesSet = new Set();
+  PRECIOS_RAW.forEach(r => {
+    const am = String(r["Año-Mes"] || "").slice(0,7);
+    if (am && am.startsWith(añoFiltro)) mesesSet.add(am);
+  });
+  const mesesPrecio = Array.from(mesesSet).sort();
+
+  const matCols = [
+    { key: 'gelcoat',   label: 'Gel Coat $/kg',        color: '#3b82f6' },
+    { key: 'cat_gc',    label: 'Cat. GC $/kg',          color: '#8b5cf6' },
+    { key: 'resina',    label: 'Resina $/kg',           color: '#f59e0b' },
+    { key: 'marmolina', label: 'Marmolina $/kg',        color: '#22c55e' },
+  ];
+
+  let preciosHtml = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">Precios de Compra por Mes <span>${añoFiltro} · Promedio ponderado USD/kg</span></div>
+    <div style="overflow-x:auto"><table style="min-width:500px"><thead><tr>
+      <th>Mes</th>
+      ${matCols.map(m => `<th style="text-align:right;color:${m.color}">${m.label}</th>`).join("")}
+    </tr></thead><tbody>`;
+
+  if (mesesPrecio.length === 0) {
+    preciosHtml += `<tr><td colspan="${matCols.length+1}" class="empty">Sin datos en PRECIOS_MVT — ejecutar sync_consumos_modular.py</td></tr>`;
+  } else {
+    mesesPrecio.forEach(am => {
+      const mes = new Date(am + "-15").toLocaleDateString("es-MX", { month: "short", year: "numeric" });
+      preciosHtml += `<tr>
+        <td class="mono">${mes}</td>
+        ${matCols.map(m => {
+          const p = getPrecioMes(am, m.key);
+          return `<td class="mono" style="text-align:right;color:${p > 0 ? m.color : "var(--muted)"}">${p > 0 ? "$" + p.toFixed(4) : "—"}</td>`;
+        }).join("")}
+      </tr>`;
+    });
+  }
+  preciosHtml += `</tbody></table></div></div>`;
+
+  // ── 2. Costo de producción teórico por mes ────────────────
+  // Agrupar TEORICO_RAW fabricados en el rango por mes
+  const prodMeses = {}; // { 'YYYY-MM': { piezas, totalPeso, gc, catGc, res, catRes, mar } }
+  TEORICO_RAW.forEach(r => {
+    if (!enPeriodo(r["FECHA"])) return;
+    if ((r["ESTATUS"] || "") !== "Fabricado") return;
+    const linNum = String(r["LINEA"] || "").replace(/[^0-9]/g, "").trim();
+    if (LINEA && linNum !== LINEA) return;
+    const peso = parseFloat(String(r["PESO"] || "0").replace(",", ".")) || 0;
+    if (!peso) return;
+    const cant = parseFloat(String(r["CANTIDAD"] || "1")) || 1;
+    const p = peso * cant;
+    const gc    = round2(p * F_GEL);
+    const catGc = round2(gc * F_CAT);
+    const resto = p - gc - catGc;
+    const res   = round2(resto * F_RES);
+    const catRes = round2(res * F_CAT);
+    const mar   = round2(resto * F_MAR);
+    const fISO  = fechaISO(r["FECHA"]);
+    if (!fISO) return;
+    const am = fISO.slice(0,7);
+    if (!prodMeses[am]) prodMeses[am] = { piezas: 0, gc: 0, catGc: 0, res: 0, catRes: 0, mar: 0 };
+    const d = prodMeses[am];
+    d.piezas++;
+    d.gc    = round2(d.gc    + gc);
+    d.catGc = round2(d.catGc + catGc);
+    d.res   = round2(d.res   + res);
+    d.catRes= round2(d.catRes+ catRes);
+    d.mar   = round2(d.mar   + mar);
+  });
+
+  const prodMesesList = Object.keys(prodMeses).sort();
+
+  let costoProdHtml = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">Costo de Producción Teórico por Mes <span>USD · desde precio promedio ponderado</span></div>
+    <div style="overflow-x:auto"><table style="min-width:700px"><thead><tr>
+      <th>Mes</th>
+      <th style="text-align:right">Piezas</th>
+      <th style="text-align:right;color:#3b82f6">Gelcoat $/pza</th>
+      <th style="text-align:right;color:#8b5cf6">Cat.GC $/pza</th>
+      <th style="text-align:right;color:#f59e0b">Resina $/pza</th>
+      <th style="text-align:right;color:#22c55e">Marmolina $/pza</th>
+      <th style="text-align:right">Total $/pza</th>
+      <th style="text-align:right">Total $ Mes</th>
+    </tr></thead><tbody>`;
+
+  if (prodMesesList.length === 0) {
+    costoProdHtml += `<tr><td colspan="8" class="empty">Sin producción en el período seleccionado</td></tr>`;
+  } else {
+    let totPiezas=0, totMes=0;
+    prodMesesList.forEach(am => {
+      const d = prodMeses[am];
+      if (!d.piezas) return;
+      const pgc  = getPrecioMes(am, 'gelcoat');
+      const pcgc = getPrecioMes(am, 'cat_gc');
+      const pres = getPrecioMes(am, 'resina');
+      const pmar = getPrecioMes(am, 'marmolina');
+      const pcres= getPrecioMes(am, 'cat_res');
+      const gcPza  = round2((d.gc    / d.piezas) * pgc);
+      const cgcPza = round2((d.catGc / d.piezas) * pcgc);
+      const resPza = round2((d.res   / d.piezas) * pres);
+      const cresPza= round2((d.catRes/ d.piezas) * pcres);
+      const marPza = round2((d.mar   / d.piezas) * pmar);
+      const totPza = round2(gcPza + cgcPza + resPza + cresPza + marPza);
+      const totalMes = round2(totPza * d.piezas);
+      totPiezas += d.piezas;
+      totMes = round2(totMes + totalMes);
+      const mes = new Date(am + "-15").toLocaleDateString("es-MX", { month: "short", year: "numeric" });
+      const hasPrices = pgc > 0 || pres > 0 || pmar > 0;
+      costoProdHtml += `<tr>
+        <td class="mono">${mes}</td>
+        <td class="mono" style="text-align:right">${d.piezas.toLocaleString()}</td>
+        <td class="mono" style="text-align:right;color:${hasPrices?"#3b82f6":"var(--muted)"}">${gcPza > 0 ? "$"+fmtN(gcPza) : "—"}</td>
+        <td class="mono" style="text-align:right;color:${hasPrices?"#8b5cf6":"var(--muted)"}">${cgcPza > 0 ? "$"+fmtN(cgcPza) : "—"}</td>
+        <td class="mono" style="text-align:right;color:${hasPrices?"#f59e0b":"var(--muted)"}">${resPza > 0 ? "$"+fmtN(resPza) : "—"}</td>
+        <td class="mono" style="text-align:right;color:${hasPrices?"#22c55e":"var(--muted)"}">${marPza > 0 ? "$"+fmtN(marPza) : "—"}</td>
+        <td class="mono" style="text-align:right;font-weight:600">${totPza > 0 ? "$"+fmtN(totPza) : "—"}</td>
+        <td class="mono" style="text-align:right;font-weight:600;color:var(--accent)">${totalMes > 0 ? "$"+fmtN(totalMes) : "—"}</td>
+      </tr>`;
+    });
+    costoProdHtml += `<tr style="font-weight:700;border-top:2px solid var(--border);background:rgba(255,255,255,.03)">
+      <td>TOTAL</td>
+      <td class="mono" style="text-align:right">${totPiezas.toLocaleString()}</td>
+      <td colspan="5"></td>
+      <td class="mono" style="text-align:right;color:var(--accent)">$${fmtN(totMes)}</td>
+    </tr>`;
+  }
+  costoProdHtml += `</tbody></table></div></div>`;
+
+  // ── 3. Costo Grado C ──────────────────────────────────────
+  const gradocFilt = GRADOC_RAW.filter(r => enPeriodo(r["Fecha"]));
+  // Calcular costo total por mes
+  const gcMeses = {};
+  gradocFilt.forEach(r => {
+    const am = String(r["Fecha"] || "").slice(0,7);
+    if (!am) return;
+    const peso = parseFloat(String(r["Peso Total (kg)"] || "0").replace(",", ".")) || 0;
+    const cant = parseFloat(String(r["Cantidad"] || "1").replace(",", ".")) || 1;
+    // Descomponer peso en materiales usando los factores
+    const gc    = round2(peso * F_GEL);
+    const catGc = round2(gc * F_CAT);
+    const resto = peso - gc - catGc;
+    const res   = round2(resto * F_RES);
+    const catRes= round2(res * F_CAT);
+    const mar   = round2(resto * F_MAR);
+    const pgc   = getPrecioMes(am, 'gelcoat');
+    const pcgc  = getPrecioMes(am, 'cat_gc');
+    const pres  = getPrecioMes(am, 'resina');
+    const pcres = getPrecioMes(am, 'cat_res');
+    const pmar  = getPrecioMes(am, 'marmolina');
+    const costo = round2(gc*pgc + catGc*pcgc + res*pres + catRes*pcres + mar*pmar);
+    if (!gcMeses[am]) gcMeses[am] = { piezas: 0, pesoKg: 0, costoUSD: 0 };
+    gcMeses[am].piezas += cant;
+    gcMeses[am].pesoKg = round2(gcMeses[am].pesoKg + peso);
+    gcMeses[am].costoUSD = round2(gcMeses[am].costoUSD + costo);
+  });
+
+  const totGcPiezas = Object.values(gcMeses).reduce((s,v)=>s+v.piezas,0);
+  const totGcKg = round2(Object.values(gcMeses).reduce((s,v)=>s+v.pesoKg,0));
+  const totGcCosto = round2(Object.values(gcMeses).reduce((s,v)=>s+v.costoUSD,0));
+
+  let gradocHtml = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">Grado C <span>piezas rechazadas con costo de material</span></div>
+    <div class="metrics" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+      <div class="metric"><div class="metric-label">Piezas Grado C</div><div class="metric-val" style="color:var(--danger)">${totGcPiezas.toLocaleString()}</div><div class="metric-sub">en el período</div></div>
+      <div class="metric"><div class="metric-label">Peso total kg</div><div class="metric-val" style="color:var(--warn)">${fmtN(totGcKg)}</div><div class="metric-sub">material perdido</div></div>
+      <div class="metric"><div class="metric-label">Costo USD</div><div class="metric-val" style="color:var(--danger)">${totGcCosto > 0 ? "$"+fmtN(totGcCosto) : "—"}</div><div class="metric-sub">${totGcCosto===0?"sin precios cargados":"costo materia prima"}</div></div>
+    </div>`;
+
+  const gcMesesList = Object.keys(gcMeses).sort();
+  if (gcMesesList.length > 0) {
+    gradocHtml += `<div style="overflow-x:auto"><table><thead><tr>
+      <th>Mes</th>
+      <th style="text-align:right">Piezas GC</th>
+      <th style="text-align:right">Peso kg</th>
+      <th style="text-align:right">Costo USD</th>
+    </tr></thead><tbody>`;
+    gcMesesList.forEach(am => {
+      const d = gcMeses[am];
+      const mes = new Date(am + "-15").toLocaleDateString("es-MX", { month: "short", year: "numeric" });
+      gradocHtml += `<tr>
+        <td class="mono">${mes}</td>
+        <td class="mono" style="text-align:right;color:var(--danger)">${d.piezas.toLocaleString()}</td>
+        <td class="mono" style="text-align:right;color:var(--warn)">${fmtN(d.pesoKg)}</td>
+        <td class="mono" style="text-align:right;color:var(--danger)">${d.costoUSD > 0 ? "$"+fmtN(d.costoUSD) : "—"}</td>
+      </tr>`;
+    });
+    gradocHtml += `</tbody></table></div>`;
+  } else {
+    gradocHtml += `<div class="empty">Sin registros Grado C en el período — ejecutar sync_consumos_modular.py</div>`;
+  }
+  gradocHtml += `</div>`;
+
+  // ── 4. Costo Merma ────────────────────────────────────────
+  const mermaFilt = MERMA_RAW.filter(r => enPeriodo(r["Fecha"]));
+  const mermaMeses = {};
+  mermaFilt.forEach(r => {
+    const am = String(r["Fecha"] || "").slice(0,7);
+    if (!am) return;
+    const gc    = parseFloat(String(r["Gelcoat (kg)"]      || "0").replace(",",".")) || 0;
+    const catGc = parseFloat(String(r["Cat. Gelcoat (kg)"] || "0").replace(",",".")) || 0;
+    const res   = parseFloat(String(r["Resina (kg)"]       || "0").replace(",",".")) || 0;
+    const catRes= parseFloat(String(r["Cat. Resina (kg)"]  || "0").replace(",",".")) || 0;
+    const mar   = parseFloat(String(r["Marmolina (kg)"]    || "0").replace(",",".")) || 0;
+    const pgc   = getPrecioMes(am, 'gelcoat');
+    const pcgc  = getPrecioMes(am, 'cat_gc');
+    const pres  = getPrecioMes(am, 'resina');
+    const pcres = getPrecioMes(am, 'cat_res');
+    const pmar  = getPrecioMes(am, 'marmolina');
+    const costo = round2(gc*pgc + catGc*pcgc + res*pres + catRes*pcres + mar*pmar);
+    const kgTot = round2(gc+catGc+res+catRes+mar);
+    if (!mermaMeses[am]) mermaMeses[am] = { kg: 0, costoUSD: 0 };
+    mermaMeses[am].kg = round2(mermaMeses[am].kg + kgTot);
+    mermaMeses[am].costoUSD = round2(mermaMeses[am].costoUSD + costo);
+  });
+
+  const totMermaKg  = round2(Object.values(mermaMeses).reduce((s,v)=>s+v.kg,0));
+  const totMermaCosto = round2(Object.values(mermaMeses).reduce((s,v)=>s+v.costoUSD,0));
+
+  let mermaHtml = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">Merma <span>material descartado en producción</span></div>
+    <div class="metrics" style="grid-template-columns:repeat(2,1fr);margin-bottom:14px">
+      <div class="metric"><div class="metric-label">Total Merma kg</div><div class="metric-val" style="color:var(--warn)">${fmtN(totMermaKg)}</div><div class="metric-sub">en el período</div></div>
+      <div class="metric"><div class="metric-label">Costo USD</div><div class="metric-val" style="color:var(--warn)">${totMermaCosto > 0 ? "$"+fmtN(totMermaCosto) : "—"}</div><div class="metric-sub">${totMermaCosto===0?"sin precios cargados":"costo materia prima"}</div></div>
+    </div>`;
+
+  const mermaMesesList = Object.keys(mermaMeses).sort();
+  if (mermaMesesList.length > 0) {
+    mermaHtml += `<div style="overflow-x:auto"><table><thead><tr>
+      <th>Mes</th><th style="text-align:right">Merma kg</th><th style="text-align:right">Costo USD</th>
+    </tr></thead><tbody>`;
+    mermaMesesList.forEach(am => {
+      const d = mermaMeses[am];
+      const mes = new Date(am + "-15").toLocaleDateString("es-MX", { month: "short", year: "numeric" });
+      mermaHtml += `<tr>
+        <td class="mono">${mes}</td>
+        <td class="mono" style="text-align:right;color:var(--warn)">${fmtN(d.kg)}</td>
+        <td class="mono" style="text-align:right;color:var(--warn)">${d.costoUSD > 0 ? "$"+fmtN(d.costoUSD) : "—"}</td>
+      </tr>`;
+    });
+    mermaHtml += `</tbody></table></div>`;
+  } else {
+    mermaHtml += `<div class="empty">Sin registros de merma en el período</div>`;
+  }
+  mermaHtml += `</div>`;
+
+  // ── 5. Formulario captura merma ───────────────────────────
+  const hoy = new Date().toISOString().slice(0,10);
+  const lineas = ["L1","L2","L3","L4"];
+  const MATS_M = ["Gelcoat","Cat. Gelcoat","Resina","Cat. Resina","Marmolina"];
+  const MAT_COLOR_M = {Gelcoat:"#3b82f6","Cat. Gelcoat":"#8b5cf6",Resina:"#f59e0b","Cat. Resina":"#06b6d4",Marmolina:"#22c55e"};
+  const merIds = {"Gelcoat":"gelcoat","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Marmolina":"marmolina"};
+  const inpStyle = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;text-align:right;outline:none;`;
+
+  const mermaHist = [...MERMA_RAW].sort((a,b)=>String(b["Fecha"]||"").localeCompare(String(a["Fecha"]||"")));
+
+  let capturaHtml = `
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Registrar Merma</div>
+    <div style="display:grid;grid-template-columns:160px 160px 1fr;gap:16px;align-items:start;margin-bottom:14px">
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Fecha</div>
+        <input type="date" id="mer-fecha" value="${hoy}" style="${inpStyle}text-align:left;">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Línea</div>
+        <select id="mer-linea" style="${inpStyle}text-align:left;cursor:pointer">
+          ${lineas.map(l=>`<option value="${l}">${l}</option>`).join("")}
+        </select>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Observaciones</div>
+        <input type="text" id="mer-obs" placeholder="Opcional…" style="${inpStyle}text-align:left;">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px">
+      ${MATS_M.map(m=>`
+      <div>
+        <div style="font-size:11px;color:${MAT_COLOR_M[m]};font-weight:600;margin-bottom:5px">${m}</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="number" id="mer-${merIds[m]}" placeholder="0.000" min="0" step="0.001"
+            style="${inpStyle}">
+          <span style="font-size:10px;color:var(--muted)">kg</span>
+        </div>
+      </div>`).join("")}
+    </div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px">
+      <span style="font-size:11px;color:var(--muted)" id="mer-status"></span>
+      <button class="btn btn-green" onclick="guardarMerma()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Guardar
+      </button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="table-header-title">Historial de Merma</div>
+      <span style="font-size:11px;color:var(--muted)">${mermaHist.length} registros</span>
+    </div>
+    <table><thead><tr>
+      <th>Fecha</th><th>Línea</th>
+      <th style="text-align:right;color:#3b82f6">Gelcoat kg</th>
+      <th style="text-align:right;color:#8b5cf6">Cat.GC kg</th>
+      <th style="text-align:right;color:#f59e0b">Resina kg</th>
+      <th style="text-align:right;color:#06b6d4">Cat.Res kg</th>
+      <th style="text-align:right;color:#22c55e">Marmolina kg</th>
+      <th style="text-align:right">Total kg</th>
+      <th>Observaciones</th>
+    </tr></thead><tbody>
+    ${mermaHist.length===0
+      ? `<tr><td colspan="9" class="empty">Sin registros — captura la primera merma arriba</td></tr>`
+      : mermaHist.map(r=>{
+          const gc=parseFloat(r["Gelcoat (kg)"]||0), cg=parseFloat(r["Cat. Gelcoat (kg)"]||0),
+                re=parseFloat(r["Resina (kg)"]||0), cr=parseFloat(r["Cat. Resina (kg)"]||0), ma=parseFloat(r["Marmolina (kg)"]||0);
+          const tot=round2(gc+cg+re+cr+ma);
+          const ln=String(r["Linea"]||r["Línea"]||"");
+          const cls=ln==="L1"?"b-l1":ln==="L2"?"b-l2":ln==="L3"?"b-l3":ln==="L4"?"b-l4":"";
+          return `<tr>
+            <td class="mono">${String(r["Fecha"]||"").slice(0,10)}</td>
+            <td><span class="badge ${cls}">${ln||"—"}</span></td>
+            <td class="mono" style="text-align:right;color:#3b82f6">${gc?fmtN(gc):"—"}</td>
+            <td class="mono" style="text-align:right;color:#8b5cf6">${cg?fmtN(cg):"—"}</td>
+            <td class="mono" style="text-align:right;color:#f59e0b">${re?fmtN(re):"—"}</td>
+            <td class="mono" style="text-align:right;color:#06b6d4">${cr?fmtN(cr):"—"}</td>
+            <td class="mono" style="text-align:right;color:#22c55e">${ma?fmtN(ma):"—"}</td>
+            <td class="mono" style="text-align:right;font-weight:600">${fmtN(tot)}</td>
+            <td style="color:var(--muted);font-size:11px">${r["Observaciones"]||""}</td>
+          </tr>`;
+        }).join("")}
+    </tbody></table>
+  </div>`;
+
+  document.getElementById("main-content").innerHTML =
+    preciosHtml + costoProdHtml + gradocHtml + mermaHtml + capturaHtml;
+}
+
+async function guardarMerma() {
+  const status = document.getElementById("mer-status");
+  if (!GAS_INV_URL) { if(status) status.textContent="⚠ GAS_INV_URL no configurado"; return; }
+  const fecha  = document.getElementById("mer-fecha")?.value || "";
+  const linea  = document.getElementById("mer-linea")?.value || "";
+  const obs    = document.getElementById("mer-obs")?.value   || "";
+  if (!fecha || !linea) { if(status) status.textContent="⚠ Fecha y línea requeridas"; return; }
+  const MATS_M = ["Gelcoat","Cat. Gelcoat","Resina","Cat. Resina","Marmolina"];
+  const merIds = {"Gelcoat":"gelcoat","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Marmolina":"marmolina"};
+  const vals = {};
+  MATS_M.forEach(m => { vals[m] = parseFloat(document.getElementById(`mer-${merIds[m]}`)?.value||"") || 0; });
+  if (!Object.values(vals).some(v=>v>0)) { if(status) status.textContent="⚠ Ingresa al menos un valor"; return; }
+  if(status) status.textContent="⏳ Guardando…";
+  try {
+    const res  = await fetch(GAS_INV_URL, { method:"POST", body: JSON.stringify({ action:"upsert_merma", fecha, linea, obs, ...vals }) });
+    const data = await res.json();
+    if (data.ok) {
+      if(status) status.textContent=`✅ Guardado — ${new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}`;
+      MATS_M.forEach(m => { const el=document.getElementById(`mer-${merIds[m]}`); if(el) el.value=""; });
+      document.getElementById("mer-obs").value="";
+      await cargar();
+    } else { if(status) status.textContent=`❌ ${data.error}`; }
+  } catch(e) { if(status) status.textContent=`❌ ${e.message}`; }
 }
 
 // ── Inicializar ───────────────────────────────────────────────
