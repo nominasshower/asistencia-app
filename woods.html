@@ -2017,16 +2017,16 @@ function generarZPL(gabinetes){
       '^LL600',
       '^CI28',
       '^MMT',
-      // Ref pequeña arriba
-      `^FO20,6^A0N,38,38^FD${ref}^FS`,
-      // ID MUY GRANDE
-      `^FO20,50^A0N,260,190^FD${gabId}^FS`,
+      // Encabezado — mediano
+      `^FO20,6^A0N,52,30^FD${ref}^FS`,
+      // ID (C02) — mismo tamaño que encabezado
+      `^FO20,62^A0N,68,55^FD${gabId}^FS`,
+      // NOMBRE — lo más grande, protagonista
+      `^FO20,140^A0N,165,50^FD${nombre}^FS`,
       // Barcode
-      `^FO20,318^BY4,3,130^BCN,,,N^FD${bcVal}^FS`,
-      // Nombre
-      `^FO20,458^A0N,68,68^FD${nombre}^FS`,
+      `^FO20,318^BY4,3,155^BCN,,,N^FD${bcVal}^FS`,
       // Código texto
-      `^FO20,534^A0N,42,42^FD${bcVal}^FS`,
+      `^FO20,486^A0N,55,44^FD${bcVal}^FS`,
       '^XZ'
     ].join('\n');
   }).join('\n');
