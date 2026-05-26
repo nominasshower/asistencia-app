@@ -2440,6 +2440,13 @@ let _prodFiltro = 'todas';
 
 function showProduccion(){
   _prodFiltro = 'todas';
+  // Colapsar sidebar automáticamente en vista producción
+  const sb = document.getElementById('sidebar');
+  const btn = document.getElementById('sidebar-toggle');
+  if(sb && !sb.classList.contains('collapsed')){
+    sb.classList.add('collapsed');
+    if(btn){ btn.textContent = '▶'; btn.style.left = '12px'; }
+  }
   showView('produccion');
   renderProduccion();
   updateBreadcrumb();
