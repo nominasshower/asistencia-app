@@ -1,0 +1,2004 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Woods — Sistema de Producción Torres 1000</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0f0f10;
+    --surface: #1a1a1c;
+    --surface2: #242428;
+    --border: #2e2e34;
+    --accent: #e8c84a;
+    --accent2: #4a8fe8;
+    --accent3: #4ae8a8;
+    --accent4: #e84a6f;
+    --text: #f0f0f2;
+    --muted: #7a7a8a;
+    --cocina: #e8834a;
+    --closet: #4a8fe8;
+    --bano: #4ae8d4;
+    --puerta: #c44ae8;
+
+    --etapa-corte: #e8c84a;
+    --etapa-armado: #4a8fe8;
+    --etapa-empaque: #4ae8a8;
+    --etapa-embarque: #e8834a;
+    --etapa-sitio: #c44ae8;
+    --etapa-lista: #4ae84a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 3px; color: var(--accent); }
+  .logo span { color: var(--muted); font-size: 14px; letter-spacing: 2px; display: block; margin-top: -4px; }
+  .header-stats { display: flex; gap: 32px; }
+  .hstat { text-align: center; }
+  .hstat-num { font-family: 'Bebas Neue'; font-size: 26px; color: var(--accent); }
+  .hstat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); font-family: 'DM Mono'; }
+  .breadcrumb span { color: var(--accent); cursor: pointer; }
+  .breadcrumb span:hover { text-decoration: underline; }
+
+  /* ── LAYOUT ── */
+  .app { display: flex; height: calc(100vh - 64px); }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 260px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 16px;
+    overflow-y: auto;
+  }
+  .sidebar-title { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 12px; padding-left: 4px; }
+
+  .torre-item {
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;
+    cursor: pointer; transition: all .2s;
+    border: 1px solid transparent;
+  }
+  .torre-item:hover { background: var(--surface2); border-color: var(--border); }
+  .torre-item.active { background: var(--surface2); border-color: var(--accent); }
+  .torre-item-name { font-size: 13px; font-weight: 600; }
+  .torre-item-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .piso-item {
+    padding: 7px 12px; margin-bottom: 3px;
+    cursor: pointer; border-radius: 6px;
+    font-size: 12px; color: var(--muted);
+    display: flex; justify-content: space-between; align-items: center;
+    transition: all .15s;
+    margin-left: 8px;
+  }
+  .piso-item:hover { color: var(--text); background: var(--surface2); }
+  .piso-item.active { color: var(--accent); font-weight: 600; }
+  .piso-badge { font-size: 10px; background: var(--surface2); padding: 2px 6px; border-radius: 10px; }
+
+  .sidebar-sep { height: 1px; background: var(--border); margin: 16px 0; }
+
+  /* ── MAIN ── */
+  .main { flex: 1; overflow-y: auto; padding: 28px 32px; }
+
+  /* ── VISTA: SELECCIONAR TORRE/PISO ── */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Vista 0: Welcome */
+  .welcome-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 20px;
+  }
+  .torre-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 28px; cursor: pointer;
+    transition: all .25s; position: relative; overflow: hidden;
+  }
+  .torre-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--accent);
+  }
+  .torre-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(232,200,74,.12); }
+  .torre-card h2 { font-family: 'Bebas Neue'; font-size: 32px; letter-spacing: 2px; color: var(--accent); }
+  .torre-card p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .torre-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+  .tc-stat { background: var(--surface2); border-radius: 6px; padding: 8px 10px; }
+  .tc-stat-n { font-family: 'Bebas Neue'; font-size: 22px; }
+  .tc-stat-l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Vista 1: Piso (departamentos) */
+  .section-title { font-family: 'Bebas Neue'; font-size: 22px; letter-spacing: 2px; color: var(--muted); margin-bottom: 4px; }
+  .section-desc { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+
+  .depto-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .depto-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; cursor: pointer;
+    transition: all .2s; position: relative;
+  }
+  .depto-card:hover { border-color: var(--accent2); transform: translateY(-1px); }
+  .depto-card.plus { border-left: 3px solid var(--accent); }
+  .depto-card.eco { border-left: 3px solid var(--accent2); }
+  .depto-type { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 4px; }
+  .depto-name { font-size: 16px; font-weight: 600; }
+  .depto-areas { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .area-chip {
+    font-size: 10px; padding: 3px 8px; border-radius: 20px;
+    font-family: 'DM Mono'; font-weight: 500; letter-spacing: .5px;
+  }
+  .chip-cocina { background: rgba(232,131,74,.15); color: var(--cocina); border: 1px solid rgba(232,131,74,.3); }
+  .chip-closet { background: rgba(74,143,232,.15); color: var(--closet); border: 1px solid rgba(74,143,232,.3); }
+  .chip-bano { background: rgba(74,232,212,.15); color: var(--bano); border: 1px solid rgba(74,232,212,.3); }
+  .chip-puerta { background: rgba(196,74,232,.15); color: var(--puerta); border: 1px solid rgba(196,74,232,.3); }
+
+  .progress-bar { height: 4px; background: var(--surface2); border-radius: 2px; margin-top: 14px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent3), var(--accent)); transition: width .5s ease; }
+
+  /* Vista 2: Áreas del departamento */
+  .areas-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .area-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 22px; cursor: pointer; transition: all .2s;
+  }
+  .area-card:hover { transform: translateY(-2px); }
+  .area-card.cocina { border-top: 3px solid var(--cocina); }
+  .area-card.cocina:hover { border-color: var(--cocina); box-shadow: 0 8px 24px rgba(232,131,74,.12); }
+  .area-card.closet { border-top: 3px solid var(--closet); }
+  .area-card.closet:hover { border-color: var(--closet); box-shadow: 0 8px 24px rgba(74,143,232,.12); }
+  .area-card.bano { border-top: 3px solid var(--bano); }
+  .area-card.bano:hover { border-color: var(--bano); box-shadow: 0 8px 24px rgba(74,232,212,.12); }
+  .area-card.puerta { border-top: 3px solid var(--puerta); }
+  .area-card.puerta:hover { border-color: var(--puerta); box-shadow: 0 8px 24px rgba(196,74,232,.12); }
+
+  .area-icon { font-size: 32px; margin-bottom: 10px; }
+  .area-name { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .area-sub { font-size: 12px; color: var(--muted); }
+  .etapas-mini { display: flex; gap: 4px; margin-top: 14px; }
+  .etapa-dot {
+    flex: 1; height: 6px; border-radius: 3px; background: var(--surface2);
+    position: relative;
+  }
+  .etapa-dot.done { background: var(--accent3); }
+  .etapa-dot.active { background: var(--accent); }
+  .area-stats-row { display: flex; gap: 12px; margin-top: 12px; }
+  .astat { flex: 1; background: var(--surface2); border-radius: 6px; padding: 6px 10px; }
+  .astat-n { font-family: 'DM Mono'; font-size: 13px; font-weight: 500; }
+  .astat-l { font-size: 10px; color: var(--muted); }
+
+  /* Vista 3: Detalle área */
+  .detail-header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 28px; }
+  .detail-icon { font-size: 48px; }
+  .detail-title { font-family: 'Bebas Neue'; font-size: 36px; letter-spacing: 2px; }
+  .detail-meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* Etapas */
+  .etapas-bar {
+    display: flex; gap: 8px; margin-bottom: 28px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px;
+  }
+  .etapa-btn {
+    flex: 1; padding: 10px 6px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--muted); font-size: 11px; text-align: center;
+    cursor: pointer; transition: all .2s; font-family: 'DM Sans';
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .etapa-btn:hover { color: var(--text); border-color: #555; }
+  .etapa-btn.active { color: #000; font-weight: 600; }
+  .etapa-btn[data-etapa="corte"].active { background: var(--etapa-corte); border-color: var(--etapa-corte); }
+  .etapa-btn[data-etapa="armado"].active { background: var(--etapa-armado); border-color: var(--etapa-armado); }
+  .etapa-btn[data-etapa="empaque"].active { background: var(--etapa-empaque); border-color: var(--etapa-empaque); }
+  .etapa-btn[data-etapa="embarque"].active { background: var(--etapa-embarque); border-color: var(--etapa-embarque); }
+  .etapa-btn[data-etapa="sitio"].active { background: var(--etapa-sitio); border-color: var(--etapa-sitio); color: #fff; }
+  .etapa-btn[data-etapa="lista"].active { background: var(--etapa-lista); border-color: var(--etapa-lista); }
+  .etapa-num { font-family: 'Bebas Neue'; font-size: 20px; display: block; }
+
+  /* Tabs del detalle */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tab {
+    padding: 10px 18px; font-size: 13px; cursor: pointer; color: var(--muted);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Plano */
+  .plano-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 24px; text-align: center; min-height: 340px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .plano-img-container { width: 100%; max-height: 500px; overflow: hidden; border-radius: 8px; }
+  .plano-img-container img { width: 100%; height: auto; border-radius: 8px; }
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: 10px; padding: 48px 24px;
+    text-align: center; cursor: pointer; transition: all .2s;
+    background: var(--surface2);
+  }
+  .upload-zone:hover { border-color: var(--accent); }
+  .upload-zone-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-zone p { color: var(--muted); font-size: 13px; }
+  .upload-zone strong { color: var(--accent); }
+
+  /* Tabla de piezas */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th {
+    background: var(--surface2); color: var(--muted); text-transform: uppercase;
+    font-size: 10px; letter-spacing: 1px; padding: 10px 12px; text-align: left;
+    font-family: 'DM Mono'; position: sticky; top: 0;
+  }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-family: 'DM Mono'; font-size: 12px; }
+  tr:hover td { background: var(--surface2); }
+  .badge-mat {
+    display: inline-block; padding: 2px 7px; border-radius: 4px;
+    font-size: 9px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600;
+  }
+  .mat-precompuesto { background: rgba(232,200,74,.15); color: var(--accent); }
+  .mat-mdf { background: rgba(74,143,232,.15); color: var(--closet); }
+  .mat-triplay { background: rgba(74,232,168,.15); color: var(--accent3); }
+  .mat-madera { background: rgba(232,131,74,.15); color: var(--cocina); }
+
+  /* Resumen materiales */
+  .mat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .mat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px;
+  }
+  .mat-card-name { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .mat-card-value { font-family: 'Bebas Neue'; font-size: 28px; color: var(--accent); }
+  .mat-card-unit { font-size: 11px; color: var(--muted); }
+
+  /* Status selector */
+  .status-row { display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--surface); border-radius: 10px; border: 1px solid var(--border); margin-bottom: 20px; }
+  .status-label { font-size: 13px; color: var(--muted); }
+  .status-select {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 14px; border-radius: 6px; font-family: 'DM Sans'; font-size: 13px; cursor: pointer;
+  }
+  .btn {
+    padding: 9px 18px; border-radius: 7px; font-family: 'DM Sans'; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all .2s; border: none;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #f0d660; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .btn-ghost:hover { color: var(--text); border-color: #555; }
+
+  /* Upload file button */
+  .upload-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 13px; cursor: pointer;
+    transition: all .2s;
+  }
+  .upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* GABINETES */
+  .gabinetes-list { display: flex; flex-direction: column; gap: 8px; }
+  .gab-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; transition: all .15s;
+  }
+  .gab-item:hover { border-color: var(--border); background: var(--surface2); }
+  .gab-item.selected { border-color: var(--accent); }
+  .gab-name { font-size: 14px; font-weight: 500; }
+  .gab-dims { font-size: 11px; color: var(--muted); font-family: 'DM Mono'; margin-top: 3px; }
+  .gab-right { display: flex; align-items: center; gap: 10px; }
+  .gab-count { font-family: 'Bebas Neue'; font-size: 20px; color: var(--accent); }
+  .gab-count-label { font-size: 10px; color: var(--muted); }
+
+  /* Resumen total */
+  .resumen-box {
+    background: linear-gradient(135deg, var(--surface) 0%, rgba(232,200,74,.04) 100%);
+    border: 1px solid var(--accent); border-radius: 12px; padding: 24px; margin-top: 20px;
+  }
+  .resumen-title { font-family: 'Bebas Neue'; font-size: 20px; letter-spacing: 2px; color: var(--accent); margin-bottom: 16px; }
+  .resumen-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .resumen-item { text-align: center; }
+  .resumen-num { font-family: 'Bebas Neue'; font-size: 32px; color: var(--text); }
+  .resumen-unit { font-size: 11px; color: var(--muted); }
+
+  /* Hidden file input */
+  input[type="file"] { display: none; }
+
+  /* Notifications */
+  .notif {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface2); border: 1px solid var(--accent);
+    border-radius: 8px; padding: 12px 18px; font-size: 13px;
+    display: none; z-index: 9999; animation: slideUp .3s ease;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Scroll */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Responsive tweaks */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .full-col { grid-column: 1 / -1; }
+
+  .tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { padding: 4px 10px; border-radius: 20px; font-size: 11px; border: 1px solid var(--border); color: var(--muted); }
+
+  .info-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
+  .info-value { font-size: 14px; }
+
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+  }
+  .section-header h3 { font-size: 15px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">Torres 1000 <span>Sistema de Producción</span></div>
+  </div>
+  <div class="breadcrumb" id="breadcrumb">
+    <span onclick="goHome()">Torres</span>
+  </div>
+  <div class="header-stats">
+    <div class="hstat"><div class="hstat-num">3</div><div class="hstat-label">Torres</div></div>
+    <div class="hstat"><div class="hstat-num">5</div><div class="hstat-label">Niveles</div></div>
+    <div class="hstat"><div class="hstat-num">65</div><div class="hstat-label">Deptos</div></div>
+    <div class="hstat"><div class="hstat-num" id="global-pct">0%</div><div class="hstat-label">Avance</div></div>
+    <button onclick="showDashboard()" style="padding:8px 18px;border-radius:8px;border:1px solid var(--accent);background:rgba(232,200,74,.1);color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;font-family:DM Sans">📊 Dashboard</button>
+  </div>
+</header>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-title">Estructura</div>
+    <div id="sidebar-content"></div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- VISTA 0: HOME -->
+    <div class="view active" id="view-home">
+      <div style="margin-bottom:8px">
+        <div class="section-title">Desarrollo Torres 1000</div>
+        <div class="section-desc">3 Torres · 5 Niveles por Torre · 13 Departamentos por Piso</div>
+      </div>
+      <div class="welcome-grid" id="torres-grid"></div>
+    </div>
+
+    <!-- VISTA 1: PISOS DE UNA TORRE -->
+    <div class="view" id="view-pisos">
+      <div class="section-title" id="torre-title"></div>
+      <div class="section-desc" id="torre-desc"></div>
+      <div class="depto-grid" id="pisos-grid"></div>
+    </div>
+
+    <!-- VISTA 2: DEPARTAMENTOS DE UN PISO -->
+    <div class="view" id="view-deptos">
+      <div class="section-title" id="piso-title"></div>
+      <div class="section-desc">Selecciona un departamento para ver sus áreas</div>
+      <div class="depto-grid" id="deptos-grid"></div>
+    </div>
+
+    <!-- VISTA 3: ÁREAS DEL DEPTO -->
+    <div class="view" id="view-areas">
+      <div class="section-title" id="areas-depto-title"></div>
+      <div class="section-desc" id="areas-depto-desc"></div>
+      <div class="areas-grid" id="areas-grid"></div>
+    </div>
+
+    <!-- VISTA 4: DETALLE ÁREA -->
+    <div class="view" id="view-detalle">
+      <div class="detail-header">
+        <div class="detail-icon" id="det-icon"></div>
+        <div>
+          <div class="detail-title" id="det-title"></div>
+          <div class="detail-meta" id="det-meta"></div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:10px">
+          <button class="btn btn-ghost" onclick="goBack('areas')">← Volver</button>
+        </div>
+      </div>
+
+      <!-- ETAPAS -->
+      <div class="etapas-bar">
+        <button class="etapa-btn" data-etapa="corte" onclick="setEtapa('corte')"><span class="etapa-num">1</span>Corte</button>
+        <button class="etapa-btn" data-etapa="armado" onclick="setEtapa('armado')"><span class="etapa-num">2</span>Armado</button>
+        <button class="etapa-btn" data-etapa="empaque" onclick="setEtapa('empaque')"><span class="etapa-num">3</span>Empaque</button>
+        <button class="etapa-btn" data-etapa="embarque" onclick="setEtapa('embarque')"><span class="etapa-num">4</span>Embarque</button>
+        <button class="etapa-btn" data-etapa="sitio" onclick="setEtapa('sitio')"><span class="etapa-num">5</span>En Sitio</button>
+        <button class="etapa-btn" data-etapa="lista" onclick="setEtapa('lista')"><span class="etapa-num">✓</span>Lista</button>
+      </div>
+
+      <!-- TABS -->
+      <div class="tabs">
+        <div class="tab active" onclick="setTab('plano')">📐 Plano</div>
+        <div class="tab" onclick="setTab('gabinetes')">🗂 Gabinetes</div>
+        <div class="tab" onclick="setTab('corte')">✂️ Hoja de Corte</div>
+        <div class="tab" onclick="setTab('materiales')">📦 Materiales</div>
+        <div class="tab" onclick="setTab('resumen')">📊 Resumen</div>
+      </div>
+
+      <!-- TAB: PLANO -->
+      <div class="tab-content active" id="tc-plano">
+        <div style="display:flex;gap:12px;margin-bottom:16px">
+          <label class="upload-btn">
+            ⬆️ Subir Plano PDF/IMG
+            <input type="file" accept=".pdf,.png,.jpg,.jpeg" onchange="handlePlanoUpload(event)">
+          </label>
+          <button class="btn btn-ghost" onclick="clearPlano()">Limpiar</button>
+        </div>
+        <div class="plano-box" id="plano-container">
+          <div class="upload-zone" onclick="document.querySelector('input[type=file]').click()">
+            <div class="upload-zone-icon">📐</div>
+            <p>Arrastra o da click para subir el <strong>plano de este módulo</strong></p>
+            <p style="margin-top:8px;font-size:11px">PDF · PNG · JPG</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: GABINETES -->
+      <div class="tab-content" id="tc-gabinetes">
+        <div class="section-header">
+          <h3 id="gab-tab-title">Gabinetes / Módulos</h3>
+        </div>
+        <div class="gabinetes-list" id="gabinetes-list"></div>
+        <div style="margin-top:16px;padding:14px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--muted)" id="gab-empty"></div>
+      </div>
+
+      <!-- TAB: CORTE -->
+      <div class="tab-content" id="tc-corte">
+        <div class="section-header">
+          <h3>Hoja de Corte — Piezas</h3>
+        </div>
+        <div id="corte-table-wrap">
+          <div style="padding:32px;text-align:center;color:var(--muted);font-size:13px">
+            Cargando piezas...
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: MATERIALES -->
+      <div class="tab-content" id="tc-materiales">
+        <div class="section-header">
+          <h3>Desglose de Materiales</h3>
+        </div>
+        <div class="mat-grid" id="materiales-grid"></div>
+        <div style="margin-top:20px" id="mat-detail-wrap"></div>
+        <!-- Botón de acción según etapa activa -->
+        <div id="etapa-accion-wrap" style="margin-top:24px"></div>
+      </div>
+
+      <!-- TAB: RESUMEN -->
+      <div class="tab-content" id="tc-resumen">
+        <div class="resumen-box">
+          <div class="resumen-title">Resumen del Área</div>
+          <div class="resumen-grid" id="resumen-content"></div>
+        </div>
+        <div style="margin-top:20px">
+          <div class="section-header"><h3>Etapas completadas</h3></div>
+          <div id="etapas-log" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
+        <div style="margin-top:20px">
+          <div class="status-row">
+            <span class="status-label">Marcar etapa actual como:</span>
+            <select class="status-select" id="etapa-status-sel">
+              <option value="">— Seleccionar —</option>
+              <option value="corte">✂️ Corte</option>
+              <option value="armado">🔧 Armado</option>
+              <option value="empaque">📦 Empaque</option>
+              <option value="embarque">🚛 Embarque</option>
+              <option value="sitio">🏗️ En Sitio</option>
+              <option value="lista">✅ Lista</option>
+            </select>
+            <button class="btn btn-primary" onclick="guardarEtapa()">Guardar</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- VISTA 5: DASHBOARD GERENCIAL -->
+    <div class="view" id="view-dashboard">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+        <div>
+          <div class="section-title">Dashboard de Producción</div>
+          <div class="section-desc">Solo departamentos con movimientos registrados</div>
+        </div>
+        <button class="btn btn-ghost" onclick="goHome()">← Volver</button>
+      </div>
+      <div id="dash-kpis" style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:28px"></div>
+      <div id="dash-filtros" style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+        <button class="dash-fil" data-fil="todos" onclick="filtrarDash('todos')" style="padding:6px 14px;border-radius:20px;border:1px solid var(--accent);background:rgba(232,200,74,.15);color:var(--accent);font-size:12px;cursor:pointer;font-family:DM Sans;font-weight:600">Todos</button>
+        <button class="dash-fil" data-fil="corte"    onclick="filtrarDash('corte')"    style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-corte);background:transparent;color:var(--etapa-corte);font-size:12px;cursor:pointer;font-family:DM Sans">✂️ Corte</button>
+        <button class="dash-fil" data-fil="armado"   onclick="filtrarDash('armado')"   style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-armado);background:transparent;color:var(--etapa-armado);font-size:12px;cursor:pointer;font-family:DM Sans">🔧 Armado</button>
+        <button class="dash-fil" data-fil="empaque"  onclick="filtrarDash('empaque')"  style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-empaque);background:transparent;color:var(--etapa-empaque);font-size:12px;cursor:pointer;font-family:DM Sans">📦 Empaque</button>
+        <button class="dash-fil" data-fil="embarque" onclick="filtrarDash('embarque')" style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-embarque);background:transparent;color:var(--etapa-embarque);font-size:12px;cursor:pointer;font-family:DM Sans">🚛 Embarque</button>
+        <button class="dash-fil" data-fil="sitio"    onclick="filtrarDash('sitio')"    style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-sitio);background:transparent;color:var(--etapa-sitio);font-size:12px;cursor:pointer;font-family:DM Sans">🏗️ En Sitio</button>
+        <button class="dash-fil" data-fil="lista"    onclick="filtrarDash('lista')"    style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-lista);background:transparent;color:var(--etapa-lista);font-size:12px;cursor:pointer;font-family:DM Sans">✅ Lista</button>
+      </div>
+      <div id="dash-planner"></div>
+    </div>
+
+  </main>
+</div>
+
+<div class="notif" id="notif"></div>
+
+<!-- FILE INPUT global -->
+<input type="file" id="global-file-input" accept=".xlsx,.xls,.csv,.pdf,.png,.jpg">
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────
+const TORRES = [
+  { id: 'A', nombre: 'Torre A', niveles: 5, deptos_tipo: { plus_izq: 2, eco_izq: 4, eco_der: 5, plus_der: 2 } },
+  { id: 'B', nombre: 'Torre B', niveles: 5, deptos_tipo: { plus_izq: 2, eco_izq: 4, eco_der: 5, plus_der: 2 } },
+  { id: 'C', nombre: 'Torre C', niveles: 5, deptos_tipo: { plus_izq: 2, eco_izq: 4, eco_der: 5, plus_der: 2 } },
+];
+
+const TIPOS_DEPTO = {
+  plus_izq: {
+    nombre: 'Plus Izquierdo', tipo: 'plus', color: 'plus',
+    areas: ['Cocina Izq', 'Puertas Centro Lavado', 'Vanity Rec. Principal', 'Closets Izq Rec. Principal', 'Vanity Rec. Secundaria', 'Closets Izq Rec. Secundaria'],
+    areaCodes: ['cocina','puerta','bano','closet','bano','closet'],
+    qty_por_piso: 2
+  },
+  eco_izq: {
+    nombre: 'Eco Izquierdo', tipo: 'eco', color: 'eco',
+    areas: ['Cocina Izq', 'Puertas Centro Lavado', 'Vanity Rec. Principal', 'Closets Izq Rec. Principal'],
+    areaCodes: ['cocina','puerta','bano','closet'],
+    qty_por_piso: 4
+  },
+  eco_der: {
+    nombre: 'Eco Derecho', tipo: 'eco', color: 'eco',
+    areas: ['Cocina Der', 'Puertas Centro Lavado', 'Vanity Rec. Principal', 'Closets Der Rec. Principal'],
+    areaCodes: ['cocina','puerta','bano','closet'],
+    qty_por_piso: 5
+  },
+  plus_der: {
+    nombre: 'Plus Derecho', tipo: 'plus', color: 'plus',
+    areas: ['Cocina Der', 'Puertas Centro Lavado', 'Vanity Rec. Principal', 'Closets Der Rec. Principal', 'Vanity Rec. Secundaria', 'Closets Der Rec. Secundaria'],
+    areaCodes: ['cocina','puerta','bano','closet','bano','closet'],
+    qty_por_piso: 2
+  }
+};
+
+const AREA_META = {
+  cocina:  { icon: '🍳', label: 'Cocina', cls: 'cocina' },
+  closet:  { icon: '👔', label: 'Closet', cls: 'closet' },
+  bano:    { icon: '🚿', label: 'Baño / Vanity', cls: 'bano' },
+  puerta:  { icon: '🚪', label: 'Puertas', cls: 'puerta' },
+};
+
+// Estado
+let state = {
+  torre: null, piso: null, depto: null, area: null,
+  etapa: null, activeTab: 'plano',
+  data: {}, // torre-piso-depto-area -> { etapaActual, gabinetes, piezas, planoImg }
+};
+
+// ─── GOOGLE SHEETS API ───────────────────────────────────────────────
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbx74DbgfDiwvQHS6ZySWgzqRqVLvrq3HzWnkhIPHucaKNwB_tFYrgK5hoEYP8Sw-SInwA/exec';
+
+// Cache local para no hacer fetch en cada render
+const _cache = {};
+
+function getKey(t,p,d,a){ return `${t}-${p}-${d}-${a}`; }
+
+// Lee de cache local (se llena al cargar área)
+function getAreaData(t,p,d,a){
+  return _cache[getKey(t,p,d,a)] || {};
+}
+
+// Guarda localmente en cache Y en Google Sheets
+function saveAreaData(t,p,d,a, payload){
+  const k = getKey(t,p,d,a);
+  _cache[k] = {...(_cache[k]||{}), ...payload};
+  // También guardar en localStorage como respaldo offline
+  try {
+    const local = JSON.parse(localStorage.getItem('t1000_data')||'{}');
+    local[k] = _cache[k];
+    localStorage.setItem('t1000_data', JSON.stringify(local));
+  } catch(e){}
+}
+
+// ── Llamada GET al GAS ────────────────────────────────────────────
+async function gasGet(params){
+  const qs = new URLSearchParams(params).toString();
+  try {
+    const r = await fetch(`${GAS_URL}?${qs}`);
+    const json = await r.json();
+    return json.ok ? json.data : null;
+  } catch(e){ console.warn('GAS GET error:', e); return null; }
+}
+
+// ── Llamada POST al GAS ───────────────────────────────────────────
+async function gasPost(body){
+  try {
+    const r = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const json = await r.json();
+    return json.ok ? json.data : null;
+  } catch(e){ console.warn('GAS POST error:', e); return null; }
+}
+
+// ── Cargar avance de un área desde Sheets ────────────────────────
+async function cargarAreaDesdeSheets(t,p,d,a){
+  const [torre, nivel] = [t, p];
+  const data = await gasGet({ accion:'avance', torre, nivel });
+  if(!data) return;
+  // Buscar la fila que corresponde a este depto+área
+  const deptoKey = d; const areaKey = a.split('_')[0];
+  data.forEach(row => {
+    const k = getKey(row.TORRE, row.NIVEL, row.TIPO_DEPTO+'_'+row.DEPTO_NUM, row.AREA);
+    if(!_cache[k]) _cache[k] = {};
+    _cache[k].etapaActual = row.ETAPA;
+    _cache[k].responsable = row.RESPONSABLE;
+    _cache[k].fecha       = row.FECHA;
+    _cache[k].notas       = row.NOTAS;
+  });
+}
+
+// ── Cargar resumen global desde Sheets ───────────────────────────
+async function cargarResumenGlobal(){
+  const data = await gasGet({ accion:'resumen' });
+  if(!data) return;
+  const pct = data.avance_pct || 0;
+  document.getElementById('global-pct').textContent = pct + '%';
+  // Actualizar stats header
+  if(data.total_departamentos){
+    // opcional: actualizar más stats
+  }
+}
+
+// ─── SIDEBAR ─────────────────────────────────────────────────────────
+function renderSidebar(){
+  const sb = document.getElementById('sidebar-content');
+  let html = '';
+  TORRES.forEach(t => {
+    html += `<div class="torre-item ${state.torre===t.id?'active':''}" onclick="selectTorre('${t.id}')">
+      <div class="torre-item-name">${t.nombre}</div>
+      <div class="torre-item-sub">5 Niveles · 13 Deptos/Piso</div>
+    </div>`;
+    if(state.torre === t.id){
+      for(let p=1;p<=5;p++){
+        html += `<div class="piso-item ${state.piso===p?'active':''}" onclick="selectPiso(${p})">
+          Nivel ${p} <span class="piso-badge">13</span>
+        </div>`;
+      }
+      html += '<div class="sidebar-sep"></div>';
+    }
+  });
+  sb.innerHTML = html;
+}
+
+// ─── HOME ─────────────────────────────────────────────────────────────
+function renderHome(){
+  const g = document.getElementById('torres-grid');
+  g.innerHTML = TORRES.map(t => `
+    <div class="torre-card" onclick="selectTorre('${t.id}')">
+      <h2>${t.nombre}</h2>
+      <p>5 niveles · 13 departamentos por piso</p>
+      <div class="torre-card-stats">
+        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--cocina)">13</div><div class="tc-stat-l">Cocinas</div></div>
+        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--closet)">26</div><div class="tc-stat-l">Closets</div></div>
+        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--bano)">18</div><div class="tc-stat-l">Vanities</div></div>
+        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--puerta)">13</div><div class="tc-stat-l">Puertas</div></div>
+      </div>
+    </div>`).join('');
+}
+
+// ─── SELECCIONAR TORRE ───────────────────────────────────────────────
+function selectTorre(id){
+  state.torre = id; state.piso = null; state.depto = null; state.area = null;
+  const t = TORRES.find(x=>x.id===id);
+  document.getElementById('torre-title').textContent = t.nombre;
+  document.getElementById('torre-desc').textContent = '5 Niveles — selecciona el piso a trabajar';
+  // Generar pisos
+  const g = document.getElementById('pisos-grid');
+  g.innerHTML = '';
+  for(let p=1;p<=5;p++){
+    const div = document.createElement('div');
+    div.className = 'depto-card';
+    div.innerHTML = `
+      <div class="depto-type">Nivel</div>
+      <div class="depto-name" style="font-size:24px;font-family:'Bebas Neue';letter-spacing:2px">${p}</div>
+      <div class="depto-areas" style="margin-top:8px">
+        <span class="area-chip chip-cocina">13 Cocinas</span>
+        <span class="area-chip chip-closet">26 Closets</span>
+        <span class="area-chip chip-bano">18 Vanities</span>
+        <span class="area-chip chip-puerta">13 Puertas</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${Math.random()*60}%"></div></div>`;
+    div.onclick = ()=>selectPiso(p);
+    g.appendChild(div);
+  }
+  showView('pisos');
+  updateBreadcrumb();
+  renderSidebar();
+}
+
+// ─── SELECCIONAR PISO ────────────────────────────────────────────────
+function selectPiso(p){
+  state.piso = p; state.depto = null; state.area = null;
+  document.getElementById('piso-title').textContent = `Torre ${state.torre} — Nivel ${p}`;
+  const g = document.getElementById('deptos-grid');
+  g.innerHTML = '';
+  // Generar todos los departamentos del piso
+  let idx = 1;
+  Object.entries(TIPOS_DEPTO).forEach(([key, tipo])=>{
+    for(let i=0;i<tipo.qty_por_piso;i++){
+      const deptoId = `${key}_${i+1}`;
+      const div = document.createElement('div');
+      div.className = `depto-card ${tipo.color}`;
+      const chips = [...new Set(tipo.areaCodes)].map(c=>`<span class="area-chip chip-${c}">${AREA_META[c].label}</span>`).join('');
+      div.innerHTML = `
+        <div class="depto-type">${tipo.tipo.toUpperCase()} — Depto ${idx}</div>
+        <div class="depto-name">${tipo.nombre} #${i+1}</div>
+        <div class="depto-areas">${chips}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">${tipo.areas.length} áreas a instalar</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${Math.random()*50}%"></div></div>`;
+      div.onclick = ()=>selectDepto(deptoId, tipo, idx, i+1);
+      g.appendChild(div);
+      idx++;
+    }
+  });
+  showView('deptos');
+  updateBreadcrumb();
+  renderSidebar();
+}
+
+// ─── SELECCIONAR DEPTO ───────────────────────────────────────────────
+function selectDepto(deptoId, tipo, num, sub){
+  state.depto = deptoId;
+  document.getElementById('areas-depto-title').textContent = `${tipo.nombre} #${sub} — Nivel ${state.piso}`;
+  document.getElementById('areas-depto-desc').textContent = 'Selecciona el área para ver planos y hojas de producción';
+  const g = document.getElementById('areas-grid');
+  g.innerHTML = '';
+  tipo.areas.forEach((areaName, i)=>{
+    const code = tipo.areaCodes[i];
+    const meta = AREA_META[code];
+    const areaId = `${code}_${i}`;
+    const aData = getAreaData(state.torre, state.piso, deptoId, areaId);
+    const etapa = aData.etapaActual || null;
+    const etapas = ['corte','armado','empaque','embarque','sitio','lista'];
+    const etapaIdx = etapa ? etapas.indexOf(etapa) : -1;
+    const dots = etapas.map((e,ei)=>`<div class="etapa-dot ${ei<etapaIdx?'done':ei===etapaIdx?'active':''}"></div>`).join('');
+    const div = document.createElement('div');
+    div.className = `area-card ${meta.cls}`;
+    div.innerHTML = `
+      <div class="area-icon">${meta.icon}</div>
+      <div class="area-name">${areaName}</div>
+      <div class="area-sub">${meta.label}</div>
+      <div class="area-stats-row">
+        <div class="astat"><div class="astat-n">${etapa ? etapa.charAt(0).toUpperCase()+etapa.slice(1) : '—'}</div><div class="astat-l">Etapa</div></div>
+        <div class="astat"><div class="astat-n">${aData.piezas ? aData.piezas.length : '—'}</div><div class="astat-l">Piezas</div></div>
+      </div>
+      <div class="etapas-mini">${dots}</div>`;
+    div.onclick = ()=>selectArea(areaId, areaName, code, meta);
+    g.appendChild(div);
+  });
+  showView('areas');
+  updateBreadcrumb();
+}
+
+// ─── SELECCIONAR ÁREA ────────────────────────────────────────────────
+function selectArea(areaId, areaName, code, meta){
+  state.area = areaId;
+  const aData = getAreaData(state.torre, state.piso, state.depto, areaId);
+  
+  document.getElementById('det-icon').textContent = meta.icon;
+  document.getElementById('det-title').textContent = areaName;
+  document.getElementById('det-meta').textContent = `Torre ${state.torre} · Nivel ${state.piso} · ${meta.label}`;
+
+  // Etapas
+  const etapas = ['corte','armado','empaque','embarque','sitio','lista'];
+  const cur = aData.etapaActual || null;
+  document.querySelectorAll('.etapa-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.etapa === cur);
+  });
+
+  // Resetear tabs
+  setTab('plano');
+
+  // Cargar plano si existe
+  const pc = document.getElementById('plano-container');
+  if(aData.planoImg){
+    pc.innerHTML = `<img src="${aData.planoImg}" style="max-width:100%;border-radius:8px">`;
+  } else {
+    pc.innerHTML = `<div class="upload-zone">
+      <div class="upload-zone-icon">📐</div>
+      <p>Arrastra o da click para subir el <strong>plano de este módulo</strong></p>
+      <p style="margin-top:8px;font-size:11px">PDF · PNG · JPG</p>
+    </div>`;
+  }
+
+  // Cargar checks guardados de esta área
+  loadChecks();
+
+  // Cargar gabinetes — filtra solo los aplicados en corte
+  const gabsParaRender = code==='cocina' ? COCINA_GABINETES.map(g=>{
+    const p = COCINA_PIEZAS.find(x=>x.id===g.id);
+    return {nombre:g.nombre, tipo:g.id, ancho:p?p.ancho:0, alto:p?p.alto:0, prof:p?p.espesor:0, qty:1};
+  }) : (aData.gabinetes||[]);
+  renderGabinetes(gabsParaRender);
+
+  // Cargar piezas si existen
+  renderCorteTable(aData.piezas || []);
+  // Materiales
+  renderMateriales(aData.piezas || []);
+  // Resumen
+  renderResumen(aData);
+
+  // Precargar datos demo si es cocina o closet (desde los archivos subidos)
+  if(!aData.piezas && (code==='cocina' || code==='closet' || code==='bano')){
+    // Use real cocina data if available
+    if(code==='cocina'){
+      const gabsConDims = COCINA_GABINETES.map(g=>{
+        const p = COCINA_PIEZAS.find(x=>x.id===g.id);
+        return {nombre:g.nombre, tipo:g.id, ancho:p?p.ancho:0, alto:p?p.alto:0, prof:p?p.espesor:0, qty:1};
+      });
+      // Guardar total de gabinetes para el dashboard
+      saveAreaData(state.torre, state.piso, state.depto, state.area, {
+        gabinetes: gabsConDims, piezas: COCINA_PIEZAS, totalGabinetes: COCINA_GABINETES.length
+      });
+      renderGabinetes(gabsConDims);
+      renderCorteTable(COCINA_PIEZAS);
+      renderMateriales(COCINA_PIEZAS);
+      const aData2 = getAreaData(state.torre, state.piso, state.depto, state.area);
+      renderResumen({...aData2, gabinetes:gabsConDims, piezas:COCINA_PIEZAS});
+    } else {
+      const demo = getDemoData(code);
+      if(demo){ renderCorteTable(demo); renderMateriales(demo); renderGabinetes(getDemoGabinetes(code)); }
+    }
+  }
+
+  showView('detalle');
+  updateBreadcrumb();
+}
+
+// ─── DATOS DEMO (de los archivos analizados) ──────────────────────────
+// ─── DATOS REALES COCINA PLUS IZQUIERDO ─────────────────────────────────
+const COCINA_GABINETES = [{"id": "C01", "nombre": "WALL ENTREPAÑO 292 MM"}, {"id": "C02", "nombre": "WALL END PANEL 1"}, {"id": "C03", "nombre": "WALL 1 381 MM"}, {"id": "C04", "nombre": "WALL 3 660 MM"}, {"id": "C05", "nombre": "WALL ESQUINERO 900 MM"}, {"id": "C06", "nombre": "WALL END PANEL 2"}, {"id": "C07", "nombre": "PANTRY END PANEL"}, {"id": "C08", "nombre": "PANTRY"}, {"id": "C09", "nombre": "DRAWER BASE 850 MM"}, {"id": "C10", "nombre": "BASE PARRILLA 850 MM"}, {"id": "C11", "nombre": "BASE ESQUINERO 850 MM"}, {"id": "C12", "nombre": "DRAWER BASE 381 MM"}, {"id": "C13", "nombre": "DRAWER 3 BASE 660 MM"}, {"id": "C14", "nombre": "SINK BASE 914 MM"}, {"id": "C15", "nombre": "BASE ENTREPAÑO 660 MM"}, {"id": "C16", "nombre": "BASE END PANEL DESAYUNADOR"}, {"id": "C17", "nombre": "FONDO DESAYUNADOR"}];
+const COCINA_PIEZAS = [{"id": "C01", "partida": "1", "componente": "LATERALES", "material": "PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 414.0, "alto": 799.0, "cantidad": 2, "m2": 0.7939, "tableros": 0.2667}, {"id": "C01", "partida": "2", "componente": "PISO Y TECHO", "material": "PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 414.0, "alto": 277.1, "cantidad": 2, "m2": 0.2753, "tableros": 0.0925}, {"id": "C01", "partida": "3", "componente": "ENTREPAÑOS FIJOS", "material": "PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 381.32, "alto": 277.1, "cantidad": 2, "m2": 0.2536, "tableros": 0.0852}, {"id": "C01", "partida": "4", "componente": "FONDO", "material": "PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 276.1, "alto": 769.0, "cantidad": 1, "m2": 0.2548, "tableros": 0.0856}, {"id": "C01", "partida": "5", "componente": "CARGADOR FRANCÉS LADO MUEBLE", "material": "TRIPLAY NATURAL", "espesor": 15, "ancho": 76.2, "alto": 277.1, "cantidad": 1, "m2": 0.0253, "tableros": 0.0085}, {"id": "C01", "partida": "6", "componente": "CARGADOR FRANCÉS LADO PARED", "material": "TRIPLAY NATURAL", "espesor": 15, "ancho": 76.2, "alto": 256.3, "cantidad": 1, "m2": 0.0234, "tableros": 0.0079}, {"id": "C02", "partida": "1", "componente": "PANEL", "material": "MDF 2C GRIS CLARO", "espesor": 15, "ancho": 417.0, "alto": 799.0, "cantidad": 1, "m2": 0.3998, "tableros": 0.1343}, {"id": "C03", "partida": "1", "componente": "LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 399.0, "alto": 799.0, "cantidad": 2, "m2": 0.7651, "tableros": 0.257}, {"id": "C03", "partida": "2", "componente": "PISO Y TECHO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 399.0, "alto": 351.0, "cantidad": 2, "m2": 0.3361, "tableros": 0.1129}, {"id": "C03", "partida": "3", "componente": "FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 5.5, "ancho": 364.0, "alto": 783.0, "cantidad": 1, "m2": 0.342, "tableros": 0.1149}, {"id": "C03", "partida": "4", "componente": "ENTREPAÑOS MÓVILES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 365.82, "alto": 347.0, "cantidad": 2, "m2": 0.3047, "tableros": 0.1023}, {"id": "C03", "partida": "5", "componente": "PUERTA", "material": "MDF 2C GRIS CLARO", "espesor": 15, "ancho": 377.0, "alto": 796.0, "cantidad": 1, "m2": 0.3601, "tableros": 0.121}, {"id": "C03", "partida": "6", "componente": "CARGADOR FRANCÉS LADO MUEBLE", "material": "TRIPLAY NATURAL", "espesor": 15, "ancho": 76.2, "alto": 351.0, "cantidad": 1, "m2": 0.0321, "tableros": 0.0108}, {"id": "C03", "partida": "7", "componente": "CARGADOR FRANCÉS LADO PARED", "material": "TRIPLAY NATURAL", "espesor": 15, "ancho": 76.2, "alto": 330.2, "cantidad": 1, "m2": 0.0302, "tableros": 0.0101}, {"id": "C04", "partida": "1", "componente": "LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 399.0, "alto": 799.0, "cantidad": 2, "m2": 0.7651, "tableros": 0.257}, {"id": "C04", "partida": "2", "componente": "PISO Y TECHO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 399.0, "alto": 630.4, "cantidad": 2, "m2": 0.6037, "tableros": 0.2028}, {"id": "C04", "partida": "3", "componente": "FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 5.5, "ancho": 643.4, "alto": 783.0, "cantidad": 1, "m2": 0.6045, "tableros": 0.2031}, {"id": "C04", "partida": "4", "componente": "ENTREPAÑOS MÓVILES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 365.82, "alto": 626.4, "cantidad": 2, "m2": 0.55, "tableros": 0.1848}, {"id": "C04", "partida": "5", "componente": "PUERTAS", "material": "MDF 2C GRIS CLARO", "espesor": 15, "ancho": 326.2, "alto": 796.0, "cantidad": 2, "m2": 0.6232, "tableros": 0.2093}, {"id": "C04", "partida": "6", "componente": "CARGADOR FRANCÉS LADO MUEBLE", "material": "TRIPLAY NATURAL", "espesor": 15, "ancho": 76.2, "alto": 630.4, "cantidad": 1, "m2": 0.0576, "tableros": 0.0194}, {"id": "C04", "partida": "7", "componente": "CARGADOR FRANCÉS LADO PARED", "material": "TRIPLAY NATURAL", "espesor": 15, "ancho": 76.2, "alto": 609.6, "cantidad": 1, "m2": 0.0557, "tableros": 0.0187}, {"id": "C05", "partida": "1", "componente": "LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 399.0, "alto": 799.0, "cantidad": 2, "m2": 0.7651, "tableros": 0.257}, {"id": "C05", "partida": "2", "componente": "PISO Y TECHO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 399.0, "alto": 870.0, "cantidad": 2, "m2": 0.8331, "tableros": 0.2799}, {"id": "C05", "partida": "3", "componente": "FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 5.5, "ancho": 883.0, "alto": 783.0, "cantidad": 1, "m2": 0.8297, "tableros": 0.2787}, {"id": "C05", "partida": "4", "componente": "ENTREPAÑO FIJO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 354.5, "alto": 870.0, "cantidad": 2, "m2": 0.7402, "tableros": 0.2487}, {"id": "C05", "partida": "5", "componente": "PEINES VERTICALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 75.2, "alto": 377.5, "cantidad": 2, "m2": 0.0681, "tableros": 0.0229}, {"id": "C05", "partida": "6", "componente": "PUERTA", "material": "MDF 2C GRIS CLARO", "espesor": 15, "ancho": 426.0, "alto": 796.0, "cantidad": 1, "m2": 0.4069, "tableros": 0.1367}, {"id": "C05", "partida": "7", "componente": "PUERTA FIJA", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 469.5, "alto": 770.0, "cantidad": 1, "m2": 0.4338, "tableros": 0.1457}, {"id": "C05", "partida": "8", "componente": "CARGADOR FRANCÉS LADO MUEBLE", "material": "TRIPLAY NATURAL", "espesor": 15, "ancho": 76.2, "alto": 870.0, "cantidad": 1, "m2": 0.0796, "tableros": 0.0267}, {"id": "C05", "partida": "9", "componente": "CARGADOR FRANCÉS LADO PARED", "material": "TRIPLAY NATURAL", "espesor": 15, "ancho": 76.2, "alto": 849.2, "cantidad": 1, "m2": 0.0777, "tableros": 0.0261}, {"id": "C06", "partida": "1", "componente": "PANEL", "material": "MDF 2C GRIS CLARO", "espesor": 15, "ancho": 400.0, "alto": 800.0, "cantidad": 1, "m2": 0.384, "tableros": 0.129}, {"id": "C07", "partida": "1", "componente": "PANEL", "material": "PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 617.07, "alto": 2246.9, "cantidad": 2, "m2": 3.3276, "tableros": 1.1178}, {"id": "C08", "partida": "1", "componente": "LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 2232.4, "cantidad": 2, "m2": 0.3688, "tableros": 0.1239}, {"id": "C08", "partida": "2", "componente": "PISO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 761.0, "cantidad": 1, "m2": 0.0629, "tableros": 0.0211}, {"id": "C08", "partida": "3", "componente": "TECHO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 732.0, "cantidad": 1, "m2": 0.0605, "tableros": 0.0203}, {"id": "C08", "partida": "4", "componente": "FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 731.0, "alto": 2216.9, "cantidad": 1, "m2": 0.2234, "tableros": 0.0751}, {"id": "C08", "partida": "5", "componente": "PEINE REFUERZO PISO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 126.5, "alto": 732.0, "cantidad": 1, "m2": 0.0128, "tableros": 0.0043}, {"id": "C08", "partida": "6", "componente": "ENTREPAÑO FIJO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 569.57, "alto": 732.0, "cantidad": 1, "m2": 0.0575, "tableros": 0.0193}, {"id": "C08", "partida": "7", "componente": "ENTREPAÑOS MOVILES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 565.9, "alto": 728.0, "cantidad": 4, "m2": 0.2272, "tableros": 0.0763}, {"id": "C08", "partida": "8", "componente": "PUERTAS", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 377.0, "alto": 1102.2, "cantidad": 4, "m2": 0.2292, "tableros": 0.077}, {"id": "C08", "partida": "9", "componente": "CARGADOR FRANCÉS LADO MUEBLE", "material": "TRIPLAY NATURAL", "espesor": 15, "ancho": 76.2, "alto": 732.0, "cantidad": 1, "m2": 0.0077, "tableros": 0.0026}, {"id": "C08", "partida": "10", "componente": "CARGADOR FRANCÉS LADO PARED", "material": "TRIPLAY NATURAL", "espesor": 15, "ancho": 76.2, "alto": 681.2, "cantidad": 1, "m2": 0.0072, "tableros": 0.0024}, {"id": "C09", "partida": "1", "componente": "LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 746.5, "cantidad": 2, "m2": 0.1233, "tableros": 0.0414}, {"id": "C09", "partida": "2", "componente": "PISO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 849.0, "cantidad": 1, "m2": 0.0701, "tableros": 0.0236}, {"id": "C09", "partida": "3", "componente": "FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 819.0, "alto": 745.5, "cantidad": 1, "m2": 0.0842, "tableros": 0.0283}, {"id": "C09", "partida": "4", "componente": "PEINE SUPERIOR FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 100.6, "alto": 820.0, "cantidad": 1, "m2": 0.0114, "tableros": 0.0038}, {"id": "C09", "partida": "5", "componente": "PEINE SUPERIOR FRENTE", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 100.6, "alto": 820.0, "cantidad": 1, "m2": 0.0114, "tableros": 0.0038}, {"id": "C09", "partida": "6", "componente": "ENTREPAÑO MÓVIL", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 816.0, "alto": 557.8, "cantidad": 1, "m2": 0.0628, "tableros": 0.0211}, {"id": "C09", "partida": "7", "componente": "FRENTE CAJÓN", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 846.0, "alto": 151.4, "cantidad": 1, "m2": 0.0177, "tableros": 0.0059}, {"id": "C09", "partida": "8", "componente": "PUERTAS", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 421.0, "alto": 528.6, "cantidad": 2, "m2": 0.0614, "tableros": 0.0206}, {"id": "C09", "partida": "9", "componente": "TESTEROS LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 113.3, "alto": 500.0, "cantidad": 2, "m2": 0.0156, "tableros": 0.0052}, {"id": "C09", "partida": "10", "componente": "TESTERO FRONTAL Y POSTERIOR", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 113.3, "alto": 763.0, "cantidad": 2, "m2": 0.0238, "tableros": 0.008}, {"id": "C09", "partida": "11", "componente": "PISO CAJÓN", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 470.0, "alto": 763.0, "cantidad": 1, "m2": 0.0494, "tableros": 0.0166}, {"id": "C10", "partida": "1", "componente": "LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 746.5, "cantidad": 2, "m2": 0.1233, "tableros": 0.0414}, {"id": "C10", "partida": "2", "componente": "PISO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 849.0, "cantidad": 1, "m2": 0.0701, "tableros": 0.0236}, {"id": "C10", "partida": "3", "componente": "PEINE INFERIOR FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 126.5, "alto": 820.0, "cantidad": 1, "m2": 0.0143, "tableros": 0.0048}, {"id": "C10", "partida": "4", "componente": "PEINE SUPERIOR FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 126.0, "alto": 820.0, "cantidad": 1, "m2": 0.0142, "tableros": 0.0048}, {"id": "C10", "partida": "5", "componente": "PEINE SUPERIOR FRENTE", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 100.6, "alto": 820.0, "cantidad": 1, "m2": 0.0114, "tableros": 0.0038}, {"id": "C10", "partida": "6", "componente": "ENTREPAÑO MÓVIL", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 816.0, "alto": 557.8, "cantidad": 1, "m2": 0.0628, "tableros": 0.0211}, {"id": "C10", "partida": "7", "componente": "FRENTE FIJO", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 846.0, "alto": 151.4, "cantidad": 1, "m2": 0.0177, "tableros": 0.0059}, {"id": "C10", "partida": "8", "componente": "PUERTAS", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 421.0, "alto": 528.6, "cantidad": 2, "m2": 0.0614, "tableros": 0.0206}, {"id": "C11", "partida": "1", "componente": "LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 746.5, "cantidad": 2, "m2": 0.1233, "tableros": 0.0414}, {"id": "C11", "partida": "2", "componente": "PISO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 913.4, "cantidad": 1, "m2": 0.0754, "tableros": 0.0253}, {"id": "C11", "partida": "3", "componente": "FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 731.0, "alto": 883.4, "cantidad": 1, "m2": 0.089, "tableros": 0.0299}, {"id": "C11", "partida": "4", "componente": "PEINES SUPERIORES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 100.6, "alto": 884.4, "cantidad": 2, "m2": 0.0245, "tableros": 0.0082}, {"id": "C11", "partida": "5", "componente": "ENTREPAÑO FIJO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 569.57, "alto": 884.4, "cantidad": 1, "m2": 0.0695, "tableros": 0.0233}, {"id": "C11", "partida": "6", "componente": "DIVISORES VERTICALES", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 75.2, "alto": 358.5, "cantidad": 2, "m2": 0.0074, "tableros": 0.0025}, {"id": "C11", "partida": "7", "componente": "PANEL FIJO", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 477.9, "alto": 732.0, "cantidad": 1, "m2": 0.0482, "tableros": 0.0162}, {"id": "C11", "partida": "8", "componente": "FRENTE FIJO", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 433.5, "alto": 151.4, "cantidad": 1, "m2": 0.009, "tableros": 0.003}, {"id": "C11", "partida": "9", "componente": "PUERTA", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 433.5, "alto": 528.6, "cantidad": 1, "m2": 0.0316, "tableros": 0.0106}, {"id": "C12", "partida": "1", "componente": "LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 746.5, "cantidad": 2, "m2": 0.1233, "tableros": 0.0414}, {"id": "C12", "partida": "2", "componente": "PISO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 380.0, "cantidad": 1, "m2": 0.0314, "tableros": 0.0105}, {"id": "C12", "partida": "3", "componente": "FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 350.0, "alto": 731.0, "cantidad": 1, "m2": 0.0353, "tableros": 0.0118}, {"id": "C12", "partida": "4", "componente": "PEINE SUPERIOR FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 100.6, "alto": 351.0, "cantidad": 1, "m2": 0.0049, "tableros": 0.0016}, {"id": "C12", "partida": "5", "componente": "PEINE SUPERIOR FRENTE", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 100.6, "alto": 351.0, "cantidad": 1, "m2": 0.0049, "tableros": 0.0016}, {"id": "C12", "partida": "6", "componente": "ENTREPAÑO MÓVIL", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 347.0, "alto": 557.8, "cantidad": 1, "m2": 0.0267, "tableros": 0.009}, {"id": "C12", "partida": "7", "componente": "FRENTE CAJÓN", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 377.0, "alto": 151.4, "cantidad": 1, "m2": 0.0079, "tableros": 0.0026}, {"id": "C12", "partida": "8", "componente": "PUERTAS", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 377.0, "alto": 528.6, "cantidad": 1, "m2": 0.0275, "tableros": 0.0092}, {"id": "C12", "partida": "9", "componente": "TESTEROS LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 113.3, "alto": 500.0, "cantidad": 2, "m2": 0.0156, "tableros": 0.0052}, {"id": "C12", "partida": "10", "componente": "TESTERO FRONTAL Y POSTERIOR", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 113.3, "alto": 294.0, "cantidad": 2, "m2": 0.0092, "tableros": 0.0031}, {"id": "C12", "partida": "11", "componente": "PISO CAJÓN", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 470.0, "alto": 294.0, "cantidad": 1, "m2": 0.0191, "tableros": 0.0064}, {"id": "C13", "partida": "1", "componente": "LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 384.0, "alto": 746.5, "cantidad": 2, "m2": 0.688, "tableros": 0.2311}, {"id": "C13", "partida": "2", "componente": "PISO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 384.0, "alto": 659.0, "cantidad": 1, "m2": 0.3037, "tableros": 0.102}, {"id": "C13", "partida": "3", "componente": "TECHO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 357.0, "alto": 630.0, "cantidad": 1, "m2": 0.2699, "tableros": 0.0907}, {"id": "C13", "partida": "4", "componente": "FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 629.5, "alto": 731.5, "cantidad": 1, "m2": 0.5526, "tableros": 0.1856}, {"id": "C13", "partida": "5", "componente": "TESTEROS LATERALES CHICOS", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 100.6, "alto": 350.0, "cantidad": 2, "m2": 0.0845, "tableros": 0.0284}, {"id": "C13", "partida": "6", "componente": "TESTERO FRONTAL Y POSTERIOR CHICO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 100.6, "alto": 573.0, "cantidad": 2, "m2": 0.1383, "tableros": 0.0465}, {"id": "C13", "partida": "7", "componente": "TESTEROS LATERALES GRANDES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 176.8, "alto": 350.0, "cantidad": 4, "m2": 0.297, "tableros": 0.0998}, {"id": "C13", "partida": "8", "componente": "TESTERO FRONTAL Y POSTERIOR GRANDE", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 176.8, "alto": 573.0, "cantidad": 4, "m2": 0.4863, "tableros": 0.1634}, {"id": "C13", "partida": "9", "componente": "PISOS", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 320.0, "alto": 573.0, "cantidad": 3, "m2": 0.6601, "tableros": 0.2217}, {"id": "C13", "partida": "10", "componente": "FRENTE CAJÓN CHICO", "material": "PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 656.0, "alto": 151.4, "cantidad": 1, "m2": 0.1192, "tableros": 0.04}, {"id": "C13", "partida": "11", "componente": "FRENTE CAJÓN GRANDE", "material": "PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 656.0, "alto": 243.8, "cantidad": 2, "m2": 0.3838, "tableros": 0.1289}, {"id": "C14", "partida": "1", "componente": "LATERALES", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 746.5, "cantidad": 2, "m2": 0.1233, "tableros": 0.0414}, {"id": "C14", "partida": "2", "componente": "PISO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 599.07, "alto": 913.4, "cantidad": 1, "m2": 0.0754, "tableros": 0.0253}, {"id": "C14", "partida": "3", "componente": "PEINE INFERIOR FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 126.5, "alto": 884.4, "cantidad": 1, "m2": 0.0154, "tableros": 0.0052}, {"id": "C14", "partida": "4", "componente": "PEINE SUPERIOR FONDO", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 126.0, "alto": 884.4, "cantidad": 1, "m2": 0.0154, "tableros": 0.0052}, {"id": "C14", "partida": "5", "componente": "PEINE SUPERIOR FRENTE", "material": "MDF 2C BLANCO FROSTY", "espesor": 15, "ancho": 100.6, "alto": 884.4, "cantidad": 1, "m2": 0.0123, "tableros": 0.0041}, {"id": "C14", "partida": "6", "componente": "FRENTE FIJO", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 910.4, "alto": 151.4, "cantidad": 1, "m2": 0.019, "tableros": 0.0064}, {"id": "C14", "partida": "7", "componente": "PUERTAS", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 453.2, "alto": 528.6, "cantidad": 2, "m2": 0.0661, "tableros": 0.0222}, {"id": "C15", "partida": "1", "componente": "LATERALES", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 399.0, "alto": 746.5, "cantidad": 2, "m2": 0.0821, "tableros": 0.0276}, {"id": "C15", "partida": "2", "componente": "PISO", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 399.0, "alto": 659.4, "cantidad": 1, "m2": 0.0363, "tableros": 0.0122}, {"id": "C15", "partida": "3", "componente": "TECHO", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 399.0, "alto": 630.4, "cantidad": 1, "m2": 0.0347, "tableros": 0.0116}, {"id": "C15", "partida": "4", "componente": "FONDO", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 629.4, "alto": 731.0, "cantidad": 1, "m2": 0.0634, "tableros": 0.0213}, {"id": "C15", "partida": "5", "componente": "ENTREPAÑOS FIJOS", "material": "MDF PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 381.32, "alto": 630.4, "cantidad": 2, "m2": 0.0663, "tableros": 0.0223}, {"id": "C16", "partida": "1", "componente": "PANEL", "material": "PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 417.0, "alto": 761.0, "cantidad": 1, "m2": 0.3808, "tableros": 0.1279}, {"id": "C17", "partida": "1", "componente": "PANEL", "material": "PRECOMPUESTO CENIZA", "espesor": 15, "ancho": 761.0, "alto": 1319.0, "cantidad": 1, "m2": 1.2045, "tableros": 0.4046}];
+
+function getDemoData(code){
+  const cocina = [
+    {partida:1,componente:'LATERALES',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:449.85,alto:875.3,cantidad:2,m2:0.945},
+    {partida:2,componente:'PISO',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:449.85,alto:1662.26,cantidad:1,m2:0.897},
+    {partida:3,componente:'PEINE SUPERIOR FRONTAL',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:49.8,alto:1662.26,cantidad:1,m2:0.099},
+    {partida:4,componente:'PEINE SUPERIOR TRASERO',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:151.4,alto:1662.26,cantidad:1,m2:0.302},
+    {partida:5,componente:'ZOCLO LARGOS',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:113.8,alto:1662.26,cantidad:2,m2:0.454},
+    {partida:6,componente:'DIVISOR VERTICAL',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:434.85,alto:746.5,cantidad:2,m2:0.779},
+    {partida:7,componente:'CAJONES FRENTES GRANDES',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:185.75,alto:700.85,cantidad:2,m2:0.312},
+    {partida:8,componente:'PUERTAS',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:565.25,alto:348.42,cantidad:4,m2:0.945},
+    {partida:9,componente:'TOE KICK',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:113.8,alto:1710,cantidad:1,m2:0.234},
+  ];
+  const closet = [
+    {partida:1,componente:'LATERALES',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:557.8,alto:2084,cantidad:2,m2:11.16},
+    {partida:2,componente:'PISO Y TECHO',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:557.8,alto:808.2,cantidad:2,m2:4.33},
+    {partida:3,componente:'ENTREPAÑO CENTRAL',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:539.63,alto:808.2,cantidad:1,m2:2.09},
+    {partida:4,componente:'ZOCLO',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:113.8,alto:808.2,cantidad:1,m2:0.44},
+    {partida:5,componente:'FONDO',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:808.2,alto:464.6,cantidad:1,m2:1.80},
+    {partida:6,componente:'FRENTE CAJÓN',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:605.6,alto:240.3,cantidad:4,m2:5.59},
+    {partida:7,componente:'TOE KICK',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:113.8,alto:2437.9,cantidad:1,m2:1.33},
+    {partida:8,componente:'FILLER LATERAL',material:'MDF BLANCO FROSTY',espesor:15,ancho:101.1,alto:2437.9,cantidad:2,m2:2.37},
+  ];
+  const bano = [
+    {partida:1,componente:'LATERALES',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:449.85,alto:875.3,cantidad:2,m2:0.945},
+    {partida:2,componente:'PISO',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:449.85,alto:1662.26,cantidad:1,m2:0.897},
+    {partida:3,componente:'DIVISOR VERTICAL',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:434.85,alto:746.5,cantidad:2,m2:0.779},
+    {partida:4,componente:'PUERTAS',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:565.25,alto:348.42,cantidad:4,m2:0.945},
+    {partida:5,componente:'CAJONES EXTERIORES FRENTES',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:185.75,alto:700.85,cantidad:2,m2:0.312},
+    {partida:6,componente:'TOE KICK',material:'PRECOMPUESTO CENIZA',espesor:15,ancho:113.8,alto:1710,cantidad:1,m2:0.234},
+  ];
+  return code==='cocina'?cocina:code==='closet'?closet:bano;
+}
+
+function getDemoGabinetes(code){
+  // Cocina uses real data from COCINA_GABINETES
+  if(code==='cocina'){
+    return COCINA_GABINETES.map(g=>{
+      const p = COCINA_PIEZAS.find(x=>x.id===g.id);
+      return {nombre:g.nombre, tipo:g.id, ancho:p?p.ancho:0, alto:p?p.alto:0, prof:p?p.espesor:0, qty:1};
+    });
+  }
+  const closet = [
+    {nombre:'Colgador Izquierdo',tipo:'CLOSET',ancho:838.2,alto:2085,prof:558.8,qty:1},
+    {nombre:'Cajonera',tipo:'CLOSET',ancho:609.6,alto:2085,prof:558.8,qty:2},
+    {nombre:'Colgador Derecho',tipo:'CLOSET',ancho:838.2,alto:2085,prof:558.8,qty:1},
+    {nombre:'Filler',tipo:'ACC',ancho:101.6,alto:2085,prof:15,qty:2},
+    {nombre:'Corner Filler',tipo:'ACC',ancho:101.6,alto:2085,prof:101.6,qty:1},
+    {nombre:'Tapa Maletero',tipo:'ACC',ancho:2885,alto:558.8,prof:15,qty:1},
+  ];
+  const bano = [
+    {nombre:'Vanity Grande',tipo:'VANITY',ancho:1662,alto:875,prof:450,qty:1},
+    {nombre:'Lateral',tipo:'COMPONENTE',ancho:449.85,alto:875.3,prof:15,qty:2},
+    {nombre:'Divisor Vertical',tipo:'COMPONENTE',ancho:434.85,alto:746.5,prof:15,qty:2},
+  ];
+  return code==='closet'?closet:bano;
+}
+
+// ── Configuración de etapas para el tab Gabinetes ───────────────────
+const ETAPA_CONFIG = {
+  corte:    { sufijo:'_aplicados', anterior:null,          accion:'aplicarGabinete', btnLabel:'✓ Aplicar Corte',   color:'var(--etapa-corte)',    doneLabel:'✅ Cortado',   completar:'completarCorteDesdeGab' },
+  armado:   { sufijo:'_armados',   anterior:'_aplicados',  accion:'aplicarEtapaGab', btnLabel:'✓ Aplicar Armado',  color:'var(--etapa-armado)',   doneLabel:'✅ Armado',    completar:'completarArmado',  siguienteEtapa:'empaque',  siguienteLabel:'Empaque'  },
+  empaque:  { sufijo:'_empacados', anterior:'_armados',    accion:'aplicarEtapaGab', btnLabel:'✓ Aplicar Empaque', color:'var(--etapa-empaque)',  doneLabel:'✅ Empacado',  completar:'completarEtapaGab', siguienteEtapa:'embarque', siguienteLabel:'Embarque' },
+  embarque: { sufijo:'_embarcados',anterior:'_empacados',  accion:'aplicarEtapaGab', btnLabel:'✓ Aplicar Embarque',color:'var(--etapa-embarque)',doneLabel:'✅ Embarcado', completar:'completarEtapaGab', siguienteEtapa:'sitio',    siguienteLabel:'En Sitio' },
+  sitio:    { sufijo:'_sitio',     anterior:'_embarcados', accion:'aplicarEtapaGab', btnLabel:'✓ Instalado',       color:'var(--etapa-sitio)',    doneLabel:'✅ Instalado', completar:'completarEtapaGab', siguienteEtapa:'lista',    siguienteLabel:'Lista'    },
+};
+
+function renderGabinetes(gabinetes, etapaForzada){
+  const list   = document.getElementById('gabinetes-list');
+  const empty  = document.getElementById('gab-empty');
+  const k      = getChecksKey();
+
+  // Usar etapa forzada si se pasa, si no leer de state (más reciente que cache)
+  const etapa  = etapaForzada || state.etapa || getAreaData(state.torre,state.piso,state.depto,state.area).etapaActual || 'corte';
+  const cfg    = ETAPA_CONFIG[etapa];
+
+  // Actualizar título del tab
+  const tabTitle = document.getElementById('gab-tab-title');
+  const etapaLabels = {corte:'✂️ Corte — Aplicar gabinetes',armado:'🔧 Armado — Gabinetes cortados',empaque:'📦 Empaque — Gabinetes armados',embarque:'🚛 Embarque — Gabinetes empacados',sitio:'🏗️ En Sitio — Gabinetes embarcados',lista:'✅ Completado'};
+  if(tabTitle) tabTitle.textContent = etapaLabels[etapa] || 'Gabinetes / Módulos';
+
+  // Si no hay config para esta etapa (lista), mostrar resumen
+  if(!cfg){
+    empty.style.display='block';
+    empty.innerHTML=`<div style="text-align:center;padding:40px 20px"><div style="font-size:40px">✅</div><div style="font-size:15px;font-weight:600;margin-top:12px">Área completada</div></div>`;
+    list.innerHTML=''; return;
+  }
+
+  // Gabinetes visibles = los que ya pasaron la etapa anterior
+  const disponibles = cfg.anterior
+    ? gabinetes.filter(g => (_checks[k+cfg.anterior]||new Set()).has(g.tipo||g.id||g.nombre))
+    : gabinetes;
+
+  if(!disponibles.length){
+    list.innerHTML=''; empty.style.display='block';
+    const etapaAnteriorNombre = {
+      '_aplicados':'Corte','_armados':'Armado','_empacados':'Empaque','_embarcados':'Embarque'
+    }[cfg.anterior] || 'etapa anterior';
+    const iconos = {corte:'✂️',armado:'🔧',empaque:'📦',embarque:'🚛',sitio:'🏗️'};
+    empty.innerHTML=`
+      <div style="text-align:center;padding:40px 20px">
+        <div style="font-size:40px;margin-bottom:12px">${iconos[etapa]||'📋'}</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:6px">Sin gabinetes en esta etapa</div>
+        <div style="font-size:13px;color:var(--muted)">Aplica gabinetes en <strong style="color:var(--accent)">${etapaAnteriorNombre}</strong> para que aparezcan aquí listos.</div>
+      </div>`;
+    return;
+  }
+
+  empty.style.display='none';
+  const yaHechos = _checks[k+cfg.sufijo] || new Set();
+
+  list.innerHTML = disponibles.map((g,i)=>{
+    const gabId  = g.tipo||g.id||('G'+i);
+    const hecho  = yaHechos.has(gabId);
+    const color  = hecho ? 'var(--accent3)' : cfg.color;
+    return `
+    <div class="gab-item" id="gab-etapa-${gabId}" style="border-left:3px solid ${color}">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'Bebas Neue';font-size:18px;color:${color}">${gabId}</span>
+        <div>
+          <div class="gab-name">${g.nombre}</div>
+          <div class="gab-dims">${g.ancho} × ${g.alto} × ${g.prof} mm</div>
+        </div>
+      </div>
+      <div class="gab-right" style="gap:12px">
+        <div style="text-align:center"><div class="gab-count">×${g.qty||1}</div><div class="gab-count-label">cant.</div></div>
+        <button id="btn-etapagab-${gabId}"
+          onclick="aplicarEtapaGab('${gabId}','${g.nombre}','${etapa}')"
+          ${hecho?'disabled':''}
+          style="padding:7px 16px;border-radius:6px;border:1px solid ${color};background:${color};color:#000;font-size:12px;font-weight:700;cursor:${hecho?'default':'pointer'};font-family:DM Sans;white-space:nowrap;transition:all .3s">
+          ${hecho?cfg.doneLabel:cfg.btnLabel}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Footer con contador y botón global
+  const existingFooter = document.getElementById('gab-etapa-footer');
+  if(existingFooter) existingFooter.remove();
+
+  const total   = disponibles.length;
+  const hechos  = yaHechos.size;
+  const sigEtapa = cfg.siguienteEtapa || '';
+  const sigLabel = cfg.siguienteLabel || '';
+  const colorFooter = hechos===total&&total>0?'var(--accent3)':hechos>0?cfg.color:'var(--surface2)';
+  const colorTxt   = hechos>0?'#000':'var(--muted)';
+  const btnTxt     = hechos===total&&total>0?`✅ Todo listo — Pasar a ${sigLabel}`:hechos>0?`→ Pasar a ${sigLabel} (${hechos}/${total})`:`Aplica para continuar`;
+
+  const footer = document.createElement('div');
+  footer.id='gab-etapa-footer';
+  footer.style.cssText='margin-top:20px;padding:16px 20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;gap:20px;flex-wrap:wrap';
+  footer.innerHTML=`
+    <span style="font-family:'Bebas Neue';font-size:16px;letter-spacing:2px;color:${cfg.color}">${etapa.toUpperCase()}</span>
+    <span id="gab-etapa-contador" style="font-family:DM Mono;font-size:13px;color:var(--muted)">${hechos} de ${total} gabinetes</span>
+    <button id="btn-completar-etapa-gab" onclick="completarEtapaDesdeGab('${etapa}','${sigEtapa}','${sigLabel}')"
+      ${hechos===0?'disabled':''}
+      style="margin-left:auto;padding:8px 20px;border-radius:6px;font-weight:700;cursor:${hechos===0?'not-allowed':'pointer'};font-family:DM Sans;transition:all .3s;border:1px solid ${colorFooter};background:${colorFooter};color:${colorTxt}">
+      ${btnTxt}
+    </button>`;
+  list.parentNode.appendChild(footer);
+}
+
+function aplicarEtapaGab(id, nombre, etapa){
+  const k = getChecksKey();
+  const cfg = ETAPA_CONFIG[etapa];
+  if(!cfg) return;
+  if(!_checks[k+cfg.sufijo]) _checks[k+cfg.sufijo] = new Set();
+  _checks[k+cfg.sufijo].add(id);
+  saveChecks();
+
+  const btn  = document.getElementById('btn-etapagab-'+id);
+  const card = document.getElementById('gab-etapa-'+id);
+  if(btn){ btn.textContent=cfg.doneLabel; btn.disabled=true; btn.style.background='var(--accent3)'; btn.style.borderColor='var(--accent3)'; btn.style.cursor='default'; }
+  if(card){ card.style.borderLeftColor='var(--accent3)'; }
+
+  showNotif('✅ '+id+' — '+nombre+' '+cfg.doneLabel);
+
+  // Actualizar contador y botón global
+  const total  = document.querySelectorAll('[id^="gab-etapa-"]').length;
+  const hechos = _checks[k+cfg.sufijo].size;
+  const contador = document.getElementById('gab-etapa-contador');
+  const btnC     = document.getElementById('btn-completar-etapa-gab');
+  if(contador) contador.textContent = hechos+' de '+total+' gabinetes';
+  if(btnC){
+    btnC.disabled=false; btnC.style.color='#000'; btnC.style.cursor='pointer';
+    if(hechos===total){
+      btnC.style.background='var(--accent3)'; btnC.style.borderColor='var(--accent3)';
+      btnC.textContent='✅ Todo listo — Pasar a '+(cfg.siguienteLabel||'siguiente');
+    } else {
+      btnC.style.background=cfg.color; btnC.style.borderColor=cfg.color;
+      btnC.textContent='→ Pasar a '+(cfg.siguienteLabel||'siguiente')+' ('+hechos+'/'+total+')';
+    }
+  }
+}
+
+async function completarEtapaDesdeGab(etapaActual, etapaSig, etapaSigLabel){
+  const btn = document.getElementById('btn-completar-etapa-gab');
+  if(btn){ btn.textContent='Guardando...'; btn.disabled=true; }
+  const parts=(state.depto||'').split('_');
+  const deptoNum=parts[parts.length-1];
+  const tipoDepto=parts.slice(0,-1).join('_');
+  const areaCode=(state.area||'').split('_')[0];
+
+  // Actualizar state ANTES de renderizar
+  state.etapa = etapaSig;
+  saveAreaData(state.torre,state.piso,state.depto,state.area,{etapaActual:etapaSig});
+
+  await gasPost({accion:'set_etapa',torre:state.torre,nivel:state.piso,
+    tipo_depto:tipoDepto,depto_num:deptoNum,area:areaCode,
+    etapa:etapaSigLabel,responsable:'',notas:etapaActual+' completado'});
+
+  showNotif('✅ '+etapaActual+' completo — pasó a '+etapaSigLabel);
+  cargarResumenGlobal();
+
+  // Actualizar barra de etapas visualmente
+  document.querySelectorAll('.etapa-btn').forEach(b=>b.classList.toggle('active', b.dataset.etapa===etapaSig));
+
+  if(btn){ btn.textContent='✓ En '+etapaSigLabel; btn.style.background='var(--accent3)'; btn.style.color='#000'; }
+  renderResumen(getAreaData(state.torre,state.piso,state.depto,state.area));
+
+  // Re-render gabinetes con la etapa nueva explícita
+  const gabsParaRender = typeof COCINA_GABINETES!=='undefined' ? COCINA_GABINETES.map(g=>{
+    const p=COCINA_PIEZAS.find(x=>x.id===g.id);
+    return {nombre:g.nombre,tipo:g.id,ancho:p?p.ancho:0,alto:p?p.alto:0,prof:p?p.espesor:0,qty:1};
+  }) : [];
+  setTab('gabinetes');
+  renderGabinetes(gabsParaRender, etapaSig);
+}
+
+function aplicarArmado(id, nombre){ aplicarEtapaGab(id, nombre, 'armado'); }
+
+async function completarArmado(){
+  const btn = document.getElementById('btn-completar-etapa-gab');
+  if(btn){ btn.textContent='Guardando...'; btn.disabled=true; }
+  const parts = (state.depto||'').split('_');
+  const deptoNum = parts[parts.length-1];
+  const tipoDepto = parts.slice(0,-1).join('_');
+  const areaCode = (state.area||'').split('_')[0];
+
+  state.etapa = 'empaque';
+  saveAreaData(state.torre, state.piso, state.depto, state.area, {etapaActual:'empaque'});
+
+  await gasPost({accion:'set_etapa', torre:state.torre, nivel:state.piso,
+    tipo_depto:tipoDepto, depto_num:deptoNum, area:areaCode,
+    etapa:'Empaque', responsable:'', notas:'Armado completado'});
+
+  document.querySelectorAll('.etapa-btn').forEach(b=>b.classList.toggle('active', b.dataset.etapa==='empaque'));
+  showNotif('✅ Armado completo — área pasó a EMPAQUE');
+  cargarResumenGlobal();
+  if(btn){ btn.textContent='✓ En Empaque'; btn.style.background='var(--etapa-empaque)'; btn.style.color='#000'; }
+  renderResumen(getAreaData(state.torre, state.piso, state.depto, state.area));
+
+  const gabsParaRender = typeof COCINA_GABINETES!=='undefined' ? COCINA_GABINETES.map(g=>{
+    const p=COCINA_PIEZAS.find(x=>x.id===g.id);
+    return {nombre:g.nombre,tipo:g.id,ancho:p?p.ancho:0,alto:p?p.alto:0,prof:p?p.espesor:0,qty:1};
+  }) : [];
+  setTab('gabinetes');
+  renderGabinetes(gabsParaRender, 'empaque');
+}
+
+// ── Función genérica para avanzar etapa ─────────────────────────────
+async function avanzarEtapa(etapaActual, etapaSiguiente, etapaSiguienteLabel, notaTexto){
+  const btn = document.getElementById('btn-etapa-accion');
+  if(btn){ btn.textContent='Guardando...'; btn.disabled=true; }
+  const parts = (state.depto||'').split('_');
+  const deptoNum = parts[parts.length-1];
+  const tipoDepto = parts.slice(0,-1).join('_');
+  const areaCode = (state.area||'').split('_')[0];
+  saveAreaData(state.torre, state.piso, state.depto, state.area, {etapaActual: etapaSiguiente});
+  setEtapa(etapaSiguiente);
+  await gasPost({accion:'set_etapa', torre:state.torre, nivel:state.piso,
+    tipo_depto:tipoDepto, depto_num:deptoNum, area:areaCode,
+    etapa:etapaSiguienteLabel, responsable:'', notas:notaTexto});
+  showNotif('✅ ' + notaTexto);
+  cargarResumenGlobal();
+  renderResumen(getAreaData(state.torre, state.piso, state.depto, state.area));
+  renderEtapaAccion();
+}
+
+// ── Render botón de acción según etapa activa ────────────────────────
+function renderEtapaAccion(){
+  const wrap = document.getElementById('etapa-accion-wrap');
+  if(!wrap) return;
+  const etapa = state.etapa || (getAreaData(state.torre, state.piso, state.depto, state.area).etapaActual) || '';
+
+  const FLUJO = [
+    { id:'empaque',  label:'📦 Empaque',  sig:'embarque', sigLabel:'Embarque', sigColor:'var(--etapa-embarque)', texto:'Empaque completado — área pasó a EMBARQUE' },
+    { id:'embarque', label:'🚛 Embarque', sig:'sitio',    sigLabel:'En_Sitio', sigColor:'var(--etapa-sitio)',    texto:'Embarque completado — área pasó a EN SITIO' },
+    { id:'sitio',    label:'🏗️ En Sitio', sig:'lista',   sigLabel:'Lista',    sigColor:'var(--etapa-lista)',    texto:'Instalación completa — área marcada como LISTA' },
+  ];
+
+  const step = FLUJO.find(f=>f.id===etapa);
+  if(!step){ wrap.innerHTML=''; return; }
+
+  wrap.innerHTML = `
+    <div style="background:linear-gradient(135deg,var(--surface),rgba(74,232,168,.04));border:1px solid var(--border);border-radius:10px;padding:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <div>
+        <div style="font-family:'Bebas Neue';font-size:16px;letter-spacing:2px;color:var(--accent)">${step.label} EN PROCESO</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Cuando esté listo, aplica para pasar a la siguiente etapa</div>
+      </div>
+      <button id="btn-etapa-accion" onclick="avanzarEtapa('${step.id}','${step.sig}','${step.sigLabel}','${step.texto}')"
+        style="margin-left:auto;padding:10px 24px;border-radius:8px;border:none;background:${step.sigColor};color:#000;font-weight:700;font-size:14px;cursor:pointer;font-family:DM Sans;transition:all .3s">
+        ✓ Aplicar — Pasar a ${step.sigLabel === 'En_Sitio' ? 'En Sitio' : step.sigLabel}
+      </button>
+    </div>`;
+}
+
+function getMat(m){
+  if(m&&m.includes('PRECOMPUESTO')) return 'mat-precompuesto';
+  if(m&&m.includes('MDF')) return 'mat-mdf';
+  if(m&&m.includes('TRIPLAY')) return 'mat-triplay';
+  return 'mat-madera';
+}
+
+function matAbrev(m){
+  return (m||'')
+    .replace('MDF PRECOMPUESTO CENIZA','PRECOMP.')
+    .replace('PRECOMPUESTO CENIZA','PRECOMP.')
+    .replace('MDF 2C BLANCO FROSTY','MDF BLANCO')
+    .replace('MDF 2C GRIS CLARO','MDF GRIS')
+    .replace('TRIPLAY NATURAL','TRIPLAY')
+    .replace('MADERA SÓLIDA','MADERA');
+}
+
+function renderCorteTable(piezas){
+  const wrap = document.getElementById('corte-table-wrap');
+  if(!piezas.length){
+    wrap.innerHTML='<div style="padding:32px;text-align:center;color:var(--muted);font-size:13px">Sube la hoja de corte Excel para ver las piezas detalladas.</div>';
+    return;
+  }
+
+  // Agrupar por gabinete (id)
+  const grupos = {};
+  piezas.forEach(p=>{
+    if(!grupos[p.id]) grupos[p.id] = { nombre: p.id, piezas: [] };
+    grupos[p.id].piezas.push(p);
+  });
+
+  // Buscar nombre del gabinete desde COCINA_GABINETES si existe
+  if(typeof COCINA_GABINETES !== 'undefined'){
+    COCINA_GABINETES.forEach(g=>{ if(grupos[g.id]) grupos[g.id].nombre = g.nombre; });
+  }
+
+  // Totales globales
+  const totalPzas = piezas.reduce((s,p)=>s+(p.cantidad||0),0);
+  const totalM2   = piezas.reduce((s,p)=>s+(p.m2||0),0);
+  const totalGabs = Object.keys(grupos).length;
+
+  // Filtro activo
+  const filtroActivo = wrap.dataset.filtro || 'todos';
+
+  // Resumen top
+  let html = `
+  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="filtrarCorte('todos')" class="btn-filtro ${filtroActivo==='todos'?'activo':''}" style="padding:6px 14px;border-radius:6px;border:1px solid ${filtroActivo==='todos'?'var(--accent)':'var(--border)'};background:${filtroActivo==='todos'?'var(--accent)':'var(--surface2)'};color:${filtroActivo==='todos'?'#000':'var(--muted)'};font-size:12px;cursor:pointer;font-family:DM Sans">Todos</button>`;
+
+  // Botones por material
+  const mats = [...new Set(piezas.map(p=>p.material).filter(Boolean))];
+  mats.forEach(m=>{
+    const act = filtroActivo===m;
+    const mEsc = m.replace(/['"]/g,'');
+    html += '<button onclick="filtrarCorte(\'' + mEsc + '\')" style="padding:6px 14px;border-radius:6px;border:1px solid ' + (act?'var(--accent)':'var(--border)') + ';background:' + (act?'var(--accent)':'var(--surface2)') + ';color:' + (act?'#000':'var(--muted)') + ';font-size:11px;cursor:pointer;font-family:DM Sans">' + matAbrev(m) + '</button>';
+  });
+
+  html += `</div>
+    <div style="margin-left:auto;display:flex;gap:16px;font-family:DM Mono;font-size:12px">
+      <span style="color:var(--muted)">${totalGabs} gabinetes</span>
+      <span style="color:var(--muted)">${totalPzas} piezas</span>
+      <span style="color:var(--accent)">${totalM2.toFixed(2)} m²</span>
+    </div>
+  </div>`;
+
+  // Tabla por gabinete
+  Object.entries(grupos).forEach(([id, g])=>{
+    const pFiltradas = filtroActivo==='todos' ? g.piezas : g.piezas.filter(p=>p.material===filtroActivo);
+    if(!pFiltradas.length) return;
+
+    const subtotalM2  = pFiltradas.reduce((s,p)=>s+(p.m2||0),0);
+    const subtotalPzas = pFiltradas.reduce((s,p)=>s+(p.cantidad||0),0);
+
+    html += `
+    <div style="margin-bottom:20px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="background:var(--surface2);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-family:'Bebas Neue';font-size:18px;color:var(--accent)">${id}</span>
+          <span style="font-size:13px;font-weight:600">${g.nombre}</span>
+        </div>
+        <div style="display:flex;gap:16px;font-family:DM Mono;font-size:11px;color:var(--muted)">
+          <span>${subtotalPzas} pzas</span>
+          <span style="color:var(--accent3)">${subtotalM2.toFixed(3)} m²</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+      <table style="width:100%">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Componente</th>
+            <th>Material</th>
+            <th>Esp. mm</th>
+            <th>Ancho mm</th>
+            <th>Alto mm</th>
+            <th>Cant.</th>
+            <th>M²</th>
+            <th>Tableros</th>
+            <th style="text-align:center">✓</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pFiltradas.map((p,i)=>`
+          <tr id="pieza-${id}-${i}" onclick="togglePiezaCheck('${id}',${i},this)">
+            <td style="font-family:DM Mono;color:var(--muted)">${p.partida}</td>
+            <td style="font-weight:500">${p.componente}</td>
+            <td><span class="badge-mat ${getMat(p.material)}">${matAbrev(p.material)}</span></td>
+            <td style="font-family:DM Mono;text-align:right">${p.espesor}</td>
+            <td style="font-family:DM Mono;text-align:right;color:var(--accent2)">${(p.ancho||0).toFixed(1)}</td>
+            <td style="font-family:DM Mono;text-align:right;color:var(--accent2)">${(p.alto||0).toFixed(1)}</td>
+            <td style="font-family:DM Mono;text-align:center;font-weight:700;color:var(--accent)">${p.cantidad}</td>
+            <td style="font-family:DM Mono;text-align:right">${(p.m2||0).toFixed(4)}</td>
+            <td style="font-family:DM Mono;text-align:right;color:var(--muted)">${(p.tableros||0).toFixed(4)}</td>
+            <td style="text-align:center">
+              <div style="width:18px;height:18px;border:2px solid var(--border);border-radius:4px;margin:auto;display:flex;align-items:center;justify-content:center;cursor:pointer" class="check-box">
+              </div>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background:var(--surface2)">
+            <td colspan="6" style="padding:8px 12px;font-size:11px;color:var(--muted)">SUBTOTAL ${id}</td>
+            <td style="font-family:DM Mono;text-align:center;font-weight:700;color:var(--accent)">${subtotalPzas}</td>
+            <td style="font-family:DM Mono;text-align:right;font-weight:700;color:var(--accent3)">${subtotalM2.toFixed(3)}</td>
+            <td colspan="2">
+              <button 
+                id="btn-aplicar-${id}" 
+                onclick="aplicarGabinete('${id}', '${g.nombre}')" 
+                style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#000;font-size:11px;font-weight:700;cursor:pointer;font-family:DM Sans;transition:all .3s;white-space:nowrap">
+                ✓ Aplicar
+              </button>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+    </div>`;
+  });
+
+  // Totales finales + barra de progreso
+  html += `
+  <div id="corte-progreso-wrap" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:12px;color:var(--muted);font-family:DM Mono">PROGRESO DE CORTE</span>
+      <span id="corte-pct-label" style="font-family:'Bebas Neue';font-size:20px;color:var(--accent)">0%</span>
+    </div>
+    <div style="height:8px;background:var(--surface2);border-radius:4px;overflow:hidden">
+      <div id="corte-pct-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent3),var(--accent));border-radius:4px;transition:width .4s ease"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:4px">
+      <span id="corte-checked-label" style="font-size:11px;color:var(--muted)">0 de ${totalPzas} piezas cortadas</span>
+      <span id="corte-gab-label" style="font-size:11px;color:var(--muted)">0 de ${totalGabs} gabinetes completos</span>
+    </div>
+  </div>
+  <div style="background:linear-gradient(135deg,var(--surface),rgba(232,200,74,.06));border:1px solid var(--accent);border-radius:10px;padding:16px 20px;display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+    <span style="font-family:'Bebas Neue';font-size:16px;letter-spacing:2px;color:var(--accent)">TOTAL GENERAL</span>
+    <span style="font-family:DM Mono;font-size:13px">${totalGabs} gabinetes</span>
+    <span style="font-family:DM Mono;font-size:13px">${totalPzas} piezas</span>
+    <span style="font-family:DM Mono;font-size:15px;color:var(--accent3);font-weight:600">${totalM2.toFixed(3)} m²</span>
+    <div style="margin-left:auto;display:flex;gap:10px">
+      <button onclick="imprimirCorte()" style="padding:8px 16px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;font-weight:600;cursor:pointer;font-family:DM Sans">🖨️ Imprimir</button>
+      <button onclick="completarCorte()" id="btn-completar-corte" style="padding:8px 20px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:6px;font-weight:700;cursor:pointer;font-family:DM Sans;transition:all .3s" disabled>
+        ✓ Corte Completo → Armado
+      </button>
+    </div>
+  </div>`;
+
+  wrap.innerHTML = html;
+  // Restaurar checks guardados
+  restaurarChecks();
+}
+
+// ── Guardar estado de checks en memoria ──────────────────────────────
+const _checks = {}; // key -> Set de indices chequeados
+
+function getChecksKey(){
+  return (state.torre||'')+'_'+(state.piso||'')+'_'+(state.depto||'')+'_'+(state.area||'');
+}
+
+// ── Persistir checks en localStorage ────────────────────────────────
+function saveChecks(){
+  try {
+    const k = getChecksKey();
+    const toSave = {};
+    // Solo guardar claves que pertenecen al área actual (prefix k)
+    Object.keys(_checks).forEach(key => {
+      if(key.startsWith(k) && _checks[key] instanceof Set){
+        toSave[key] = [..._checks[key]];
+      }
+    });
+    const all = JSON.parse(localStorage.getItem('t1000_checks')||'{}');
+    all[k] = toSave;
+    localStorage.setItem('t1000_checks', JSON.stringify(all));
+  } catch(e){}
+}
+
+function loadChecks(){
+  try {
+    const k = getChecksKey();
+    const all = JSON.parse(localStorage.getItem('t1000_checks')||'{}');
+    const saved = all[k] || {};
+    Object.keys(saved).forEach(key => {
+      _checks[key] = new Set(saved[key]);
+    });
+  } catch(e){}
+}
+
+// Lee cuántos gabinetes hay en cada etapa para un área (desde localStorage)
+function getConteoArea(checksKey){
+  try {
+    const all = JSON.parse(localStorage.getItem('t1000_checks')||'{}');
+    const saved = all[checksKey] || {};
+    return {
+      cortados:   (saved[checksKey+'_aplicados']  ||[]).length,
+      armados:    (saved[checksKey+'_armados']     ||[]).length,
+      empacados:  (saved[checksKey+'_empacados']   ||[]).length,
+      embarcados: (saved[checksKey+'_embarcados']  ||[]).length,
+      sitio:      (saved[checksKey+'_sitio']       ||[]).length,
+    };
+  } catch(e){ return {cortados:0,armados:0,empacados:0,embarcados:0,sitio:0}; }
+}
+
+function restaurarChecks(){
+  const k = getChecksKey();
+  if(!_checks[k]) return;
+  _checks[k].forEach(rowId => {
+    const row = document.getElementById(rowId);
+    if(row) togglePiezaCheck('','', row, true); // silent restore
+  });
+  actualizarProgreso();
+}
+
+function togglePiezaCheck(id, idx, row, silent){
+  const box = row.querySelector('.check-box');
+  if(!box) return;
+  const checked = box.dataset.checked === '1';
+  const k = getChecksKey();
+  if(!_checks[k]) _checks[k] = new Set();
+
+  if(checked){
+    box.dataset.checked = '0';
+    box.innerHTML = '';
+    box.style.cssText = 'width:18px;height:18px;border:2px solid var(--border);border-radius:4px;margin:auto;display:flex;align-items:center;justify-content:center;cursor:pointer';
+    row.style.background = '';
+    row.style.opacity = '1';
+    _checks[k].delete(row.id);
+  } else {
+    box.dataset.checked = '1';
+    box.innerHTML = '✓';
+    box.style.cssText = 'width:18px;height:18px;border:2px solid var(--accent3);border-radius:4px;margin:auto;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--accent3);font-weight:700;font-size:13px';
+    row.style.background = 'rgba(74,232,168,.06)';
+    row.style.opacity = '.65';
+    _checks[k].add(row.id);
+  }
+  if(!silent) actualizarProgreso();
+}
+
+function actualizarProgreso(){
+  const k = getChecksKey();
+  const checks = _checks[k] ? _checks[k].size : 0;
+  const todasLasFilas = document.querySelectorAll('tr[id^="pieza-"]');
+  const total = todasLasFilas.length;
+  const pct = total > 0 ? Math.round((checks / total) * 100) : 0;
+
+  const bar = document.getElementById('corte-pct-bar');
+  const lbl = document.getElementById('corte-pct-label');
+  const checkedLbl = document.getElementById('corte-checked-label');
+  const gabLbl = document.getElementById('corte-gab-label');
+
+  if(bar) bar.style.width = pct + '%';
+  if(lbl) lbl.textContent = pct + '%';
+  if(checkedLbl) checkedLbl.textContent = checks + ' de ' + total + ' piezas palomeadas';
+
+  // Contar gabinetes aplicados
+  const totalGabs = [...new Set([...todasLasFilas].map(r=>r.id.split('-')[1]))].length;
+  const gabsAplicados = document.querySelectorAll('[data-aplicado="1"]').length;
+  if(gabLbl) gabLbl.textContent = gabsAplicados + ' de ' + totalGabs + ' gabinetes aplicados';
+
+  // Botón global — activo cuando hay al menos 1 aplicado; verde cuando todos aplicados
+  const btnCompletar = document.getElementById('btn-completar-corte');
+  if(btnCompletar){
+    if(gabsAplicados === totalGabs && totalGabs > 0){
+      btnCompletar.disabled = false;
+      btnCompletar.style.background = 'var(--accent3)';
+      btnCompletar.style.color = '#000';
+      btnCompletar.style.borderColor = 'var(--accent3)';
+      btnCompletar.textContent = '✅ Todo Cortado — Pasar a Armado';
+    } else if(gabsAplicados > 0){
+      btnCompletar.disabled = false;
+      btnCompletar.style.background = 'var(--accent)';
+      btnCompletar.style.color = '#000';
+      btnCompletar.style.borderColor = 'var(--accent)';
+      btnCompletar.textContent = '→ Pasar a Armado (' + gabsAplicados + '/' + totalGabs + ' gabinetes)';
+    } else {
+      btnCompletar.disabled = true;
+      btnCompletar.style.background = 'var(--surface2)';
+      btnCompletar.style.color = 'var(--muted)';
+      btnCompletar.style.borderColor = 'var(--border)';
+      btnCompletar.textContent = 'Aplica gabinetes para continuar';
+    }
+  }
+}
+
+function contarGabineteCompletos(){
+  const filas = document.querySelectorAll('tr[id^="pieza-"]');
+  const porGab = {};
+  filas.forEach(r => {
+    const gid = r.id.split('-')[1];
+    if(!porGab[gid]) porGab[gid] = {total:0, checked:0};
+    porGab[gid].total++;
+    const box = r.querySelector('.check-box');
+    if(box && box.dataset.checked === '1') porGab[gid].checked++;
+  });
+  return Object.values(porGab).filter(g => g.total > 0 && g.total === g.checked).length;
+}
+
+function aplicarGabinete(id, nombre){
+  const btn = document.getElementById('btn-aplicar-' + id);
+  if(!btn) return;
+
+  // Marcar como aplicado visualmente
+  btn.dataset.aplicado = '1';
+  btn.textContent = '✅ Aplicado';
+  btn.disabled = true;
+  btn.style.background = 'var(--accent3)';
+  btn.style.color = '#000';
+  btn.style.borderColor = 'var(--accent3)';
+  btn.style.cursor = 'default';
+
+  // Marcar el encabezado del gabinete como completo
+  const header = document.getElementById('gab-header-' + id);
+  if(header){
+    header.style.borderLeft = '4px solid var(--accent3)';
+    header.innerHTML += ' <span style="color:var(--accent3);font-size:12px;margin-left:8px">✅ CORTADO</span>';
+  }
+
+  // Guardar en cache local y localStorage
+  const k = getChecksKey();
+  if(!_checks[k+'_aplicados']) _checks[k+'_aplicados'] = new Set();
+  _checks[k+'_aplicados'].add(id);
+  saveChecks();
+
+  showNotif('✅ ' + id + ' — ' + nombre + ' marcado como CORTADO');
+  actualizarProgreso();
+
+  // Actualizar tab Armado en tiempo real
+  const gabsParaRender2 = typeof COCINA_GABINETES !== 'undefined' ? COCINA_GABINETES.map(g=>{
+    const p = COCINA_PIEZAS.find(x=>x.id===g.id);
+    return {nombre:g.nombre, tipo:g.id, ancho:p?p.ancho:0, alto:p?p.alto:0, prof:p?p.espesor:0, qty:1};
+  }) : [];
+  renderGabinetes(gabsParaRender2);
+}
+
+async function completarCorte(){
+  const btn = document.getElementById('btn-completar-corte');
+  btn.textContent = 'Guardando...'; btn.disabled = true;
+
+  const parts = (state.depto || '').split('_');
+  const deptoNum = parts[parts.length-1];
+  const tipoDepto = parts.slice(0,-1).join('_');
+  const areaCode = (state.area || '').split('_')[0];
+
+  saveAreaData(state.torre, state.piso, state.depto, state.area, { etapaActual: 'armado' });
+  setEtapa('armado');
+
+  const resp = await gasPost({
+    accion: 'set_etapa',
+    torre: state.torre, nivel: state.piso,
+    tipo_depto: tipoDepto, depto_num: deptoNum,
+    area: areaCode, etapa: 'Armado',
+    responsable: '', notas: 'Corte completado — todos los gabinetes aplicados'
+  });
+
+  if(resp && resp.ok !== false){
+    showNotif('✅ Todos los gabinetes cortados — área pasó a ARMADO en Sheets');
+    cargarResumenGlobal();
+  } else {
+    showNotif('✅ Corte completo — guardado local');
+  }
+
+  btn.textContent = '✓ En Armado';
+  btn.style.background = 'var(--etapa-armado)';
+  renderResumen(getAreaData(state.torre, state.piso, state.depto, state.area));
+}
+
+function filtrarCorte(material){
+  const wrap = document.getElementById('corte-table-wrap');
+  wrap.dataset.filtro = material;
+  const code = (state.area||'').split('_')[0];
+  const aData = getAreaData(state.torre, state.piso, state.depto, state.area);
+  const piezas = code==='cocina' ? COCINA_PIEZAS : (aData.piezas||[]);
+  renderCorteTable(piezas);
+}
+
+function imprimirCorte(){
+  window.print();
+}
+
+function renderMateriales(piezas){
+  const grid = document.getElementById('materiales-grid');
+  if(!piezas.length){ grid.innerHTML='<div style="color:var(--muted);font-size:13px">Sube la hoja de corte para calcular materiales.</div>'; return; }
+  // Agrupar por material
+  const mats = {};
+  piezas.forEach(p=>{ if(!mats[p.material]) mats[p.material]={m2:0,piezas:0}; mats[p.material].m2+=p.m2||0; mats[p.material].piezas+=p.cantidad||0; });
+  grid.innerHTML = Object.entries(mats).map(([mat,v])=>`
+    <div class="mat-card">
+      <div class="mat-card-name">${mat}</div>
+      <div class="mat-card-value">${v.m2.toFixed(2)}</div>
+      <div class="mat-card-unit">m² · ${v.piezas} piezas</div>
+    </div>`).join('');
+}
+
+function renderResumen(aData){
+  const g = document.getElementById('resumen-content');
+  const piezas = aData.piezas || [];
+  const totalM2 = piezas.reduce((s,p)=>s+(p.m2||0),0);
+  const totalPzas = piezas.reduce((s,p)=>s+(p.cantidad||0),0);
+  const gabs = aData.gabinetes || [];
+  g.innerHTML = `
+    <div class="resumen-item"><div class="resumen-num">${gabs.length}</div><div class="resumen-unit">Gabinetes</div></div>
+    <div class="resumen-item"><div class="resumen-num">${piezas.length}</div><div class="resumen-unit">Tipos de pieza</div></div>
+    <div class="resumen-item"><div class="resumen-num">${totalPzas}</div><div class="resumen-unit">Piezas totales</div></div>
+    <div class="resumen-item"><div class="resumen-num">${totalM2.toFixed(1)}</div><div class="resumen-unit">m² Material</div></div>`;
+
+  const log = document.getElementById('etapas-log');
+  const etapas = ['corte','armado','empaque','embarque','sitio','lista'];
+  const cur = aData.etapaActual||'';
+  const curIdx = etapas.indexOf(cur);
+  log.innerHTML = etapas.map((e,i)=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface);border-radius:8px;border:1px solid ${i===curIdx?'var(--accent)':'var(--border)'}">
+      <div style="width:8px;height:8px;border-radius:50%;background:${i<curIdx?'var(--accent3)':i===curIdx?'var(--accent)':'var(--surface2)'}"></div>
+      <span style="font-size:13px;${i===curIdx?'color:var(--accent);font-weight:600':'color:var(--muted)'}">${e.charAt(0).toUpperCase()+e.slice(1)}</span>
+      ${i===curIdx?'<span style="margin-left:auto;font-size:11px;background:rgba(232,200,74,.15);color:var(--accent);padding:2px 8px;border-radius:10px">ACTUAL</span>':''}
+      ${i<curIdx?'<span style="margin-left:auto;font-size:11px;color:var(--accent3)">✓ Completo</span>':''}
+    </div>`).join('');
+}
+
+// ─── ETAPA ───────────────────────────────────────────────────────────
+function setEtapa(e){
+  state.etapa = e;
+  document.querySelectorAll('.etapa-btn').forEach(b=>b.classList.toggle('active', b.dataset.etapa===e));
+  const tabMap = { corte:'corte', armado:'gabinetes', empaque:'gabinetes', embarque:'gabinetes', sitio:'gabinetes', lista:'resumen' };
+  if(tabMap[e]) setTab(tabMap[e]);
+  if(['armado','empaque','embarque','sitio'].includes(e)){
+    const gabsParaRender = typeof COCINA_GABINETES!=='undefined' ? COCINA_GABINETES.map(g=>{
+      const p=COCINA_PIEZAS.find(x=>x.id===g.id);
+      return {nombre:g.nombre,tipo:g.id,ancho:p?p.ancho:0,alto:p?p.alto:0,prof:p?p.espesor:0,qty:1};
+    }) : [];
+    setTimeout(()=>renderGabinetes(gabsParaRender, e), 50);
+  }
+}
+
+async function guardarEtapa(){
+  const sel = document.getElementById('etapa-status-sel').value;
+  if(!sel){ showNotif('Selecciona una etapa primero'); return; }
+  const btn = document.querySelector('.btn-primary');
+  btn.textContent = 'Guardando...'; btn.disabled = true;
+  const parts = (state.depto || '').split('_');
+  const deptoNum = parts[parts.length - 1];
+  const tipoDepto = parts.slice(0, -1).join('_');
+  const areaCode = (state.area || '').split('_')[0];
+  saveAreaData(state.torre, state.piso, state.depto, state.area, { etapaActual: sel });
+  setEtapa(sel);
+  const resp = await gasPost({
+    accion: 'set_etapa',
+    torre: state.torre,
+    nivel: state.piso,
+    tipo_depto: tipoDepto,
+    depto_num: deptoNum,
+    area: areaCode,
+    etapa: sel,
+    responsable: '',
+    notas: ''
+  });
+  btn.textContent = 'Guardar'; btn.disabled = false;
+  if(resp && resp.ok !== false){
+    showNotif('✅ Etapa "' + sel + '" guardada en Google Sheets');
+    cargarResumenGlobal();
+  } else {
+    showNotif('⚠️ Guardado local OK — sin conexión a Sheets');
+  }
+  renderResumen(getAreaData(state.torre, state.piso, state.depto, state.area));
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────
+function setTab(tab){
+  state.activeTab = tab;
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    const tabs=['plano','gabinetes','corte','materiales','resumen'];
+    t.classList.toggle('active', tabs[i]===tab);
+  });
+  document.querySelectorAll('.tab-content').forEach(tc=>tc.classList.remove('active'));
+  document.getElementById('tc-'+tab).classList.add('active');
+  if(tab==='materiales') renderEtapaAccion();
+}
+
+// ─── UPLOADS ─────────────────────────────────────────────────────────
+function handlePlanoUpload(e){
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const src = ev.target.result;
+    saveAreaData(state.torre, state.piso, state.depto, state.area, { planoImg: src });
+    document.getElementById('plano-container').innerHTML = `<img src="${src}" style="max-width:100%;border-radius:8px">`;
+    showNotif('📐 Plano cargado');
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearPlano(){
+  saveAreaData(state.torre, state.piso, state.depto, state.area, { planoImg: null });
+  document.getElementById('plano-container').innerHTML = `<div class="upload-zone">
+    <div class="upload-zone-icon">📐</div>
+    <p>Arrastra o da click para subir el <strong>plano de este módulo</strong></p>
+    <p style="margin-top:8px;font-size:11px">PDF · PNG · JPG</p>
+  </div>`;
+}
+
+function handleExcelUpload(e, tipo){
+  const file = e.target.files[0]; if(!file) return;
+  // Aquí simulamos parseo — en producción se usaría SheetJS
+  showNotif(`📊 Procesando ${file.name}...`);
+  setTimeout(()=>{
+    const code = state.area ? state.area.split('_')[0] : 'cocina';
+    if(tipo==='gabinetes'){
+      const gabs = getDemoGabinetes(code);
+      saveAreaData(state.torre, state.piso, state.depto, state.area, { gabinetes: gabs });
+      renderGabinetes(gabs);
+      showNotif(`✅ ${file.name} cargado — ${gabs.length} gabinetes`);
+    } else {
+      const piezas = getDemoData(code);
+      saveAreaData(state.torre, state.piso, state.depto, state.area, { piezas });
+      renderCorteTable(piezas);
+      renderMateriales(piezas);
+      const aData = getAreaData(state.torre, state.piso, state.depto, state.area);
+      renderResumen(aData);
+      showNotif(`✅ ${file.name} — ${piezas.length} tipos de pieza`);
+    }
+  }, 800);
+}
+
+// ─── DASHBOARD GERENCIAL ─────────────────────────────────────────────
+let _dashFiltro = 'todos';
+
+function showDashboard(){
+  showView('dashboard');
+  renderDashboard();
+  updateBreadcrumb();
+}
+
+function filtrarDash(fil){
+  _dashFiltro = fil;
+  document.querySelectorAll('.dash-fil').forEach(b=>{
+    const activo = b.dataset.fil === fil;
+    b.style.fontWeight = activo ? '700' : '400';
+    b.style.opacity = activo ? '1' : '0.6';
+  });
+  renderDashboard();
+}
+
+function renderDashboard(){
+  // Leer todo el localStorage
+  let checksAll = {};
+  let dataAll   = {};
+  try { checksAll = JSON.parse(localStorage.getItem('t1000_checks')||'{}'); } catch(e){}
+  try { dataAll   = JSON.parse(localStorage.getItem('t1000_data')  ||'{}'); } catch(e){}
+
+  // Colores e iconos por etapa
+  const ETAPA_COLOR = {corte:'var(--etapa-corte)',armado:'var(--etapa-armado)',empaque:'var(--etapa-empaque)',embarque:'var(--etapa-embarque)',sitio:'var(--etapa-sitio)',lista:'var(--etapa-lista)'};
+  const ETAPA_ICON  = {corte:'✂️',armado:'🔧',empaque:'📦',embarque:'🚛',sitio:'🏗️',lista:'✅'};
+
+  // Construir lista de áreas activas desde t1000_checks
+  // Cada key en checksAll es: "Torre_Piso_deptoKey_areaType_areaIdx"
+  // donde torre=1char, piso=1char, area siempre termina en "_<número>"
+  const areas = [];
+  Object.keys(checksAll).forEach(ck => {
+    const partes = ck.split('_');
+    if(partes.length < 4) return;
+    // Torre y piso son siempre los primeros dos segmentos
+    const torre = partes[0];
+    const piso  = partes[1];
+    // El área siempre termina en "_<índice_numérico>", ej. "cocina_0"
+    const areaCode = partes.slice(-2).join('_');       // ej. "cocina_0"
+    const deptoKey = partes.slice(2, -2).join('_');   // ej. "plus_izq_1"
+    if(!deptoKey) return;
+    // La clave de t1000_data usa guiones entre los 4 segmentos principales
+    const dataKeyAlt = `${torre}-${piso}-${deptoKey}-${areaCode}`;
+    const aData = dataAll[dataKeyAlt] || {};
+    const conteo = getConteoArea(ck);
+    const totalGabs = aData.totalGabinetes || '?';
+    const etapaActual = aData.etapaActual || (conteo.cortados > 0 ? 'corte' : null);
+    if(!etapaActual && conteo.cortados === 0) return; // sin movimiento real
+    areas.push({ ck, torre, piso, deptoKey, areaCode, conteo, totalGabs, etapaActual });
+  });
+
+  // KPIs globales
+  const kpiCount = {corte:0,armado:0,empaque:0,embarque:0,sitio:0,lista:0};
+  areas.forEach(a => { if(a.etapaActual && kpiCount[a.etapaActual]!==undefined) kpiCount[a.etapaActual]++; });
+  const kpis = [
+    {e:'corte',    label:'En Corte'},
+    {e:'armado',   label:'En Armado'},
+    {e:'empaque',  label:'En Empaque'},
+    {e:'embarque', label:'En Embarque'},
+    {e:'sitio',    label:'En Sitio'},
+    {e:'lista',    label:'Listas'},
+  ];
+  document.getElementById('dash-kpis').innerHTML = kpis.map(k=>`
+    <div onclick="filtrarDash('${k.e}')" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 12px;text-align:center;cursor:pointer;transition:all .2s"
+         onmouseover="this.style.borderColor='${ETAPA_COLOR[k.e]}'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="font-size:20px;margin-bottom:4px">${ETAPA_ICON[k.e]}</div>
+      <div style="font-family:'Bebas Neue';font-size:28px;color:${ETAPA_COLOR[k.e]}">${kpiCount[k.e]}</div>
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">${k.label}</div>
+    </div>`).join('');
+
+  // Filtrar áreas según filtro activo
+  const filtradas = _dashFiltro==='todos' ? areas : areas.filter(a=>a.etapaActual===_dashFiltro);
+
+  if(!filtradas.length){
+    document.getElementById('dash-planner').innerHTML=`
+      <div style="text-align:center;padding:60px;color:var(--muted)">
+        <div style="font-size:40px;margin-bottom:12px">📭</div>
+        <div style="font-size:15px;font-weight:600">Sin áreas activas${_dashFiltro!=='todos'?' en '+_dashFiltro:''}</div>
+        <div style="font-size:12px;margin-top:6px">Entra a un área, aplica gabinetes y aparecerá aquí.</div>
+      </div>`;
+    return;
+  }
+
+  // Agrupar por Torre-Piso-Depto
+  const grupos = {};
+  filtradas.forEach(a => {
+    const gk = `${a.torre}_${a.piso}_${a.deptoKey}`;
+    if(!grupos[gk]) grupos[gk] = { torre:a.torre, piso:a.piso, deptoKey:a.deptoKey, areas:[] };
+    grupos[gk].areas.push(a);
+  });
+
+  const etapas = ['corte','armado','empaque','embarque','sitio','lista'];
+
+  document.getElementById('dash-planner').innerHTML = Object.values(grupos).map(g=>{
+    const areaRows = g.areas.map(a=>{
+      const c = a.conteo;
+      const tot = a.totalGabs === '?' ? '?' : a.totalGabs;
+      const etapaIdx = etapas.indexOf(a.etapaActual);
+      const bloques = etapas.map((e,i)=>{
+        const col = i < etapaIdx ? 'var(--accent3)' : i===etapaIdx ? ETAPA_COLOR[e] : 'var(--surface2)';
+        return `<div style="flex:1;height:6px;background:${col};border-radius:2px" title="${e}"></div>`;
+      }).join('');
+
+      // Tarjetas de progreso por etapa
+      const cards = [
+        {label:'✂️ Cortados', val:c.cortados, tab:'corte'},
+        {label:'🔧 Armados',  val:c.armados,  tab:'gabinetes'},
+        {label:'📦 Empacados',val:c.empacados, tab:'gabinetes'},
+        {label:'🚛 Embarcados',val:c.embarcados,tab:'gabinetes'},
+      ].map(card=>`
+        <div onclick="irAArea('${a.torre}','${a.piso}','${a.deptoKey}','${a.areaCode}','${card.tab}')"
+             style="background:var(--surface2);border-radius:8px;padding:8px 12px;text-align:center;cursor:pointer;min-width:90px;transition:all .2s;border:1px solid var(--border)"
+             onmouseover="this.style.borderColor='${ETAPA_COLOR[a.etapaActual]||'var(--accent)'}'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:2px">${card.label}</div>
+          <div style="font-family:'Bebas Neue';font-size:20px;color:var(--text)">${card.val}<span style="font-size:12px;color:var(--muted)">/${tot}</span></div>
+        </div>`).join('');
+
+      const areaLabel = a.areaCode.split('_')[0];
+      const areaMeta = AREA_META[areaLabel] || {icon:'📦',label:areaLabel};
+      return `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+            <span style="font-size:18px">${areaMeta.icon}</span>
+            <span style="font-weight:600;font-size:14px">${areaMeta.label}</span>
+            <span style="font-size:11px;background:${ETAPA_COLOR[a.etapaActual]||'var(--surface2)'};color:#000;padding:2px 8px;border-radius:10px;font-weight:700">${(a.etapaActual||'—').toUpperCase()}</span>
+            <div style="flex:1;display:flex;gap:4px;align-items:center;min-width:120px">${bloques}</div>
+            <button onclick="irAArea('${a.torre}','${a.piso}','${a.deptoKey}','${a.areaCode}','plano')"
+              style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;font-family:DM Sans">Abrir →</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">${cards}</div>
+        </div>`;
+    }).join('');
+
+    const deptoLabel = g.deptoKey.replace(/_/g,' ');
+    return `
+      <div style="margin-bottom:24px">
+        <div style="font-family:'Bebas Neue';font-size:16px;letter-spacing:2px;color:var(--accent);margin-bottom:10px">
+          Torre ${g.torre} — Nivel ${g.piso} — ${deptoLabel}
+        </div>
+        ${areaRows}
+      </div>`;
+  }).join('');
+}
+
+// Navega desde el dashboard directo a una área y su tab
+function irAArea(torre, piso, deptoKey, areaCode, tab){
+  // Reconstruir el estado
+  state.torre  = torre;
+  state.piso   = parseInt(piso) || piso;
+  state.depto  = deptoKey;
+  state.area   = areaCode;
+
+  // Buscar el tipo de depto para reconstituir el contexto
+  const pisoN = parseInt(piso);
+  let tipo = null;
+  Object.entries(TIPOS_DEPTO).forEach(([key,t])=>{
+    if(deptoKey.startsWith(key)) tipo = t;
+  });
+
+  const code = areaCode.split('_')[0];
+  const meta = AREA_META[code] || {icon:'📦',label:code,cls:code};
+  const areaIdx = parseInt(areaCode.split('_')[1]) || 0;
+  const areaName = tipo ? (tipo.areas[areaIdx]||meta.label) : meta.label;
+
+  // Poblar el detalle
+  document.getElementById('det-icon').textContent  = meta.icon;
+  document.getElementById('det-title').textContent = areaName;
+  document.getElementById('det-meta').textContent  = `Torre ${torre} · Nivel ${piso} · ${meta.label}`;
+
+  // Etapas
+  const aData = getAreaData(torre, pisoN, deptoKey, areaCode);
+  const cur   = aData.etapaActual || null;
+  document.querySelectorAll('.etapa-btn').forEach(b=>b.classList.toggle('active', b.dataset.etapa===cur));
+  state.etapa = cur;
+
+  // Cargar datos de cocina si aplica
+  if(code==='cocina' && typeof COCINA_GABINETES!=='undefined'){
+    const piezas = COCINA_PIEZAS;
+    const gabs   = COCINA_GABINETES.map(g=>{
+      const p = COCINA_PIEZAS.find(x=>x.id===g.id);
+      return {nombre:g.nombre,tipo:g.id,ancho:p?p.ancho:0,alto:p?p.alto:0,prof:p?p.espesor:0,qty:1};
+    });
+    if(!aData.gabinetes) saveAreaData(torre,pisoN,deptoKey,areaCode,{gabinetes:gabs,piezas,totalGabinetes:gabs.length});
+  }
+
+  loadChecks();
+  showView('detalle');
+  updateBreadcrumb();
+  setTab(tab||'plano');
+
+  // Si el tab es corte, renderizar tabla
+  if(tab==='corte'){
+    const piezas2 = code==='cocina' ? COCINA_PIEZAS : (getAreaData(torre,pisoN,deptoKey,areaCode).piezas||[]);
+    renderCorteTable(piezas2);
+  }
+  // Si el tab es gabinetes, renderizar gabinetes con etapa actual
+  if(tab==='gabinetes'){
+    const gabs2 = typeof COCINA_GABINETES!=='undefined' ? COCINA_GABINETES.map(g=>{
+      const p=COCINA_PIEZAS.find(x=>x.id===g.id);
+      return {nombre:g.nombre,tipo:g.id,ancho:p?p.ancho:0,alto:p?p.alto:0,prof:p?p.espesor:0,qty:1};
+    }) : [];
+    renderGabinetes(gabs2, cur);
+  }
+}
+
+// ─── NAVEGACIÓN ──────────────────────────────────────────────────────
+function showView(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(`view-${name}`).classList.add('active');
+}
+
+function goHome(){
+  state = {...state, torre:null, piso:null, depto:null, area:null};
+  showView('home');
+  updateBreadcrumb();
+  renderSidebar();
+}
+
+function goBack(target){
+  if(target==='areas'){
+    state.area = null;
+    showView('areas');
+    updateBreadcrumb();
+  }
+}
+
+function updateBreadcrumb(){
+  const bc = document.getElementById('breadcrumb');
+  let parts = ['<span onclick="goHome()">Torres</span>'];
+  if(state.torre) parts.push(`<span onclick="selectTorre('${state.torre}')">Torre ${state.torre}</span>`);
+  if(state.piso) parts.push(`<span onclick="selectPiso(${state.piso})">Nivel ${state.piso}</span>`);
+  if(state.depto) parts.push(`<span>Departamento</span>`);
+  if(state.area) parts.push(`<span>Área</span>`);
+  bc.innerHTML = parts.join(' <span style="color:var(--border)">›</span> ');
+}
+
+function showNotif(msg){
+  const n = document.getElementById('notif');
+  n.textContent = msg; n.style.display='block';
+  setTimeout(()=>n.style.display='none', 3000);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────
+renderHome();
+renderSidebar();
+
+// Cargar resumen global desde Sheets al arrancar
+cargarResumenGlobal().then(()=>{
+  // Restaurar cache desde localStorage como respaldo offline
+  try {
+    const local = JSON.parse(localStorage.getItem('t1000_data')||'{}');
+    Object.assign(_cache, local);
+  } catch(e){}
+  showNotif('🔗 Conectado a Google Sheets');
+}).catch(()=>{
+  showNotif('⚠️ Modo offline — sin conexión a Sheets');
+});
+</script>
+</body>
+</html>
