@@ -794,20 +794,44 @@ async function gasPost(body){
   } catch(e){ console.warn('GAS POST error:', e); return null; }
 }
 
-// ── Cargar avance de un área desde Sheets ────────────────────────
-async function cargarAreaDesdeSheets(t,p,d,a){
-  const [torre, nivel] = [t, p];
-  const data = await gasGet({ accion:'avance', torre, nivel });
-  if(!data) return;
-  // Buscar la fila que corresponde a este depto+área
-  const deptoKey = d; const areaKey = a.split('_')[0];
+// ── Cargar avance de un nivel desde Sheets y poblar _cache correctamente ─
+async function cargarAreaDesdeSheets(t, p, _d, _a){
+  const data = await gasGet({ accion:'avance', torre: t, nivel: p });
+  if(!data || !Array.isArray(data)) return;
+
   data.forEach(row => {
-    const k = getKey(row.TORRE, row.NIVEL, row.TIPO_DEPTO+'_'+row.DEPTO_NUM, row.AREA);
-    if(!_cache[k]) _cache[k] = {};
-    _cache[k].etapaActual = row.ETAPA;
-    _cache[k].responsable = row.RESPONSABLE;
-    _cache[k].fecha       = row.FECHA;
-    _cache[k].notas       = row.NOTAS;
+    if(!row.TIPO_DEPTO || !row.DEPTO_NUM) return;
+    const tipoKey  = String(row.TIPO_DEPTO);
+    const deptoNum = String(row.DEPTO_NUM);
+    const deptoId  = `${tipoKey}_${deptoNum}`;
+    const torre    = String(row.TORRE);
+    const nivel    = String(row.NIVEL);
+    // Normalizar etapa a minúsculas (Sheets guarda 'Armado', app usa 'armado')
+    const etapa    = (row.ETAPA || '').toLowerCase();
+    // AREA en Sheets puede ser 'cocina' (sin índice) o 'cocina_0' (con índice)
+    const areaRaw  = (row.AREA || '').toLowerCase();
+    const baseCode = areaRaw.includes('_') && !isNaN(areaRaw.split('_').pop())
+                       ? areaRaw.split('_').slice(0,-1).join('_')  // 'cocina_0' → 'cocina'
+                       : areaRaw;                                   // 'cocina'   → 'cocina'
+    const specIdx  = areaRaw.includes('_') && !isNaN(areaRaw.split('_').pop())
+                       ? parseInt(areaRaw.split('_').pop())        // 'cocina_0' → 0
+                       : null;                                     // 'cocina'   → null (todas)
+
+    const tipo = TIPOS_DEPTO[tipoKey];
+    if(tipo) {
+      // Mapear a TODOS los índices que coincidan (maneja 'bano_2' y 'bano_4' por separado)
+      tipo.areaCodes.forEach((code, ai) => {
+        if(code === baseCode && (specIdx === null || specIdx === ai)) {
+          const k = getKey(torre, nivel, deptoId, `${code}_${ai}`);
+          _cache[k] = {...(_cache[k]||{}), etapaActual: etapa,
+            responsable: row.RESPONSABLE||'', fecha: row.FECHA||'', notas: row.NOTAS||''};
+        }
+      });
+    } else {
+      // Fallback si el tipo no existe en el catálogo
+      const k = getKey(torre, nivel, deptoId, areaRaw);
+      _cache[k] = {...(_cache[k]||{}), etapaActual: etapa};
+    }
   });
 }
 
@@ -1414,14 +1438,13 @@ async function completarEtapaDesdeGab(etapaActual, etapaSig, etapaSigLabel){
   const parts=(state.depto||'').split('_');
   const deptoNum=parts[parts.length-1];
   const tipoDepto=parts.slice(0,-1).join('_');
-  const areaCode=(state.area||'').split('_')[0];
 
   // Actualizar state ANTES de renderizar
   state.etapa = etapaSig;
   saveAreaData(state.torre,state.piso,state.depto,state.area,{etapaActual:etapaSig});
 
   await gasPost({accion:'set_etapa',torre:state.torre,nivel:state.piso,
-    tipo_depto:tipoDepto,depto_num:deptoNum,area:areaCode,
+    tipo_depto:tipoDepto,depto_num:deptoNum,area:state.area,
     etapa:etapaSigLabel,responsable:'',notas:etapaActual+' completado'});
 
   showNotif('✅ '+etapaActual+' completo — pasó a '+etapaSigLabel);
@@ -1450,13 +1473,12 @@ async function completarArmado(){
   const parts = (state.depto||'').split('_');
   const deptoNum = parts[parts.length-1];
   const tipoDepto = parts.slice(0,-1).join('_');
-  const areaCode = (state.area||'').split('_')[0];
 
   state.etapa = 'empaque';
   saveAreaData(state.torre, state.piso, state.depto, state.area, {etapaActual:'empaque'});
 
   await gasPost({accion:'set_etapa', torre:state.torre, nivel:state.piso,
-    tipo_depto:tipoDepto, depto_num:deptoNum, area:areaCode,
+    tipo_depto:tipoDepto, depto_num:deptoNum, area:state.area,
     etapa:'Empaque', responsable:'', notas:'Armado completado'});
 
   document.querySelectorAll('.etapa-btn').forEach(b=>b.classList.toggle('active', b.dataset.etapa==='empaque'));
@@ -1480,11 +1502,10 @@ async function avanzarEtapa(etapaActual, etapaSiguiente, etapaSiguienteLabel, no
   const parts = (state.depto||'').split('_');
   const deptoNum = parts[parts.length-1];
   const tipoDepto = parts.slice(0,-1).join('_');
-  const areaCode = (state.area||'').split('_')[0];
   saveAreaData(state.torre, state.piso, state.depto, state.area, {etapaActual: etapaSiguiente});
   setEtapa(etapaSiguiente);
   await gasPost({accion:'set_etapa', torre:state.torre, nivel:state.piso,
-    tipo_depto:tipoDepto, depto_num:deptoNum, area:areaCode,
+    tipo_depto:tipoDepto, depto_num:deptoNum, area:state.area,
     etapa:etapaSiguienteLabel, responsable:'', notas:notaTexto});
   showNotif('✅ ' + notaTexto);
   cargarResumenGlobal();
@@ -1926,7 +1947,6 @@ async function completarCorte(){
   const parts = (state.depto || '').split('_');
   const deptoNum = parts[parts.length-1];
   const tipoDepto = parts.slice(0,-1).join('_');
-  const areaCode = (state.area || '').split('_')[0];
 
   saveAreaData(state.torre, state.piso, state.depto, state.area, { etapaActual: 'armado' });
   setEtapa('armado');
@@ -1935,7 +1955,7 @@ async function completarCorte(){
     accion: 'set_etapa',
     torre: state.torre, nivel: state.piso,
     tipo_depto: tipoDepto, depto_num: deptoNum,
-    area: areaCode, etapa: 'Armado',
+    area: state.area, etapa: 'Armado',
     responsable: '', notas: 'Corte completado — todos los gabinetes aplicados'
   });
 
