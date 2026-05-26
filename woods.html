@@ -881,40 +881,47 @@ function contarEtapasDepto(torre, piso, deptoId, tipo){
   return {counts, total};
 }
 
-// Genera HTML de barras de etapa apiladas
+// Genera HTML de barras individuales por etapa
 function renderBarrasEtapa(counts, total){
   const ETAPAS = ['corte','armado','ensamble','empaque','embarque','sitio','lista'];
   const ECOLOR = {
     corte:'#e8c84a', armado:'#4a8fe8', ensamble:'#e84ab0',
     empaque:'#4ae8a8', embarque:'#e8834a', sitio:'#c44ae8', lista:'#4ae84a'
   };
-  const ELABEL = {corte:'COR',armado:'ARM',ensamble:'ENS',empaque:'EMP',embarque:'EMB',sitio:'SIT',lista:'OK'};
-  if(!total) return `<div style="margin-top:8px;height:6px;background:var(--border);border-radius:3px"></div>`;
+  const ELABEL = {
+    corte:'Corte', armado:'Armado', ensamble:'Ensamble',
+    empaque:'Empaque', embarque:'Embarque', sitio:'Sitio', lista:'Lista ✓'
+  };
 
-  // Puntaje ponderado para % general
+  if(!total) return `<div style="margin-top:8px;height:4px;background:var(--border);border-radius:2px"></div>`;
+
+  // % ponderado general
   let score = 0;
   ETAPAS.forEach((e,i)=>{ score += (counts[e]||0) * (i+1); });
   const pct = Math.round(score / (total * ETAPAS.length) * 100);
 
-  const segs = ETAPAS.map(e=>{
-    const n = counts[e]||0; if(!n) return '';
-    const w = (n/total*100).toFixed(1);
-    return `<div title="${e}: ${n}" style="height:100%;width:${w}%;background:${ECOLOR[e]};flex-shrink:0;min-width:3px"></div>`;
+  // Fila por etapa — solo las que tengan valor > 0, o todas si quieres el pipeline completo
+  const filas = ETAPAS.map(e=>{
+    const n = counts[e]||0;
+    const w = total > 0 ? (n / total * 100).toFixed(0) : 0;
+    const color = ECOLOR[e];
+    return `
+      <div style="display:grid;grid-template-columns:52px 1fr 20px;align-items:center;gap:5px">
+        <span style="font-size:9px;color:${n>0?color:'var(--muted)'};font-family:DM Mono;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ELABEL[e].toUpperCase()}</span>
+        <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${w}%;background:${color};border-radius:3px;transition:width .4s ease;${n===0?'opacity:.25':''}"></div>
+        </div>
+        <span style="font-size:9px;font-family:DM Mono;text-align:right;color:${n>0?color:'var(--border)'};font-weight:700">${n||'·'}</span>
+      </div>`;
   }).join('');
 
-  const chips = ETAPAS.filter(e=>(counts[e]||0)>0).map(e=>
-    `<span style="font-size:9px;color:${ECOLOR[e]};font-family:DM Mono;font-weight:700">${ELABEL[e]}·${counts[e]}</span>`
-  ).join('');
-
   return `
-    <div style="margin-top:9px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${chips||'<span style="font-size:9px;color:var(--muted)">Sin iniciar</span>'}</div>
-        <span style="font-size:10px;font-family:DM Mono;color:var(--muted);font-weight:700">${pct}%</span>
+    <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:9px;color:var(--muted);font-family:DM Mono;letter-spacing:.5px">ETAPAS</span>
+        <span style="font-size:10px;font-family:'Bebas Neue';color:var(--accent);letter-spacing:1px">${pct}% avance</span>
       </div>
-      <div style="height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;display:flex">
-        ${segs||''}
-      </div>
+      <div style="display:grid;gap:4px">${filas}</div>
     </div>`;
 }
 
