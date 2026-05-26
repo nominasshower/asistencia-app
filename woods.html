@@ -949,14 +949,34 @@ function renderHome(){
     </div>`).join('');
 }
 
+// ─── Carga todos los pisos de una torre desde Sheets → _cache → localStorage ─
+async function cargarTorreSheets(torre){
+  try {
+    await Promise.all([1,2,3,4,5].map(p => cargarAreaDesdeSheets(torre, p, null, null)));
+    // Persistir en localStorage para acceso offline
+    localStorage.setItem('t1000_data', JSON.stringify(_cache));
+  } catch(e){ console.warn('cargarTorreSheets error:', e); }
+}
+
 // ─── SELECCIONAR TORRE ───────────────────────────────────────────────
-function selectTorre(id){
+async function selectTorre(id){
   state.torre = id; state.piso = null; state.depto = null; state.area = null;
   const t = TORRES.find(x=>x.id===id);
   document.getElementById('torre-title').textContent = t.nombre;
   document.getElementById('torre-desc').textContent = '5 Niveles — selecciona el piso a trabajar';
-  // Generar pisos
   const g = document.getElementById('pisos-grid');
+  // Mostrar spinner mientras carga Sheets
+  g.innerHTML = `<div style="grid-column:1/-1;padding:32px;text-align:center;color:var(--muted)">
+    <div style="font-size:28px;margin-bottom:8px">⏳</div>
+    <div style="font-size:13px">Cargando avance desde Sheets…</div></div>`;
+  showView('pisos');
+  updateBreadcrumb();
+  renderSidebar();
+
+  // Traer datos frescos de Sheets
+  await cargarTorreSheets(id);
+
+  // Renderizar tarjetas con datos reales
   g.innerHTML = '';
   const counts = contarAreasPorPiso();
   for(let p=1;p<=5;p++){
@@ -976,18 +996,26 @@ function selectTorre(id){
     div.onclick = ()=>selectPiso(p);
     g.appendChild(div);
   }
-  showView('pisos');
-  updateBreadcrumb();
-  renderSidebar();
 }
 
 // ─── SELECCIONAR PISO ────────────────────────────────────────────────
-function selectPiso(p){
+async function selectPiso(p){
   state.piso = p; state.depto = null; state.area = null;
   document.getElementById('piso-title').textContent = `Torre ${state.torre} — Nivel ${p}`;
   const g = document.getElementById('deptos-grid');
+  g.innerHTML = `<div style="grid-column:1/-1;padding:32px;text-align:center;color:var(--muted)">
+    <div style="font-size:28px;margin-bottom:8px">⏳</div>
+    <div style="font-size:13px">Sincronizando nivel ${p} desde Sheets…</div></div>`;
+  showView('deptos');
+  updateBreadcrumb();
+  renderSidebar();
+
+  // Refrescar este piso desde Sheets
+  await cargarAreaDesdeSheets(state.torre, p, null, null);
+  localStorage.setItem('t1000_data', JSON.stringify(_cache));
+
+  // Renderizar departamentos con datos frescos
   g.innerHTML = '';
-  // Generar todos los departamentos del piso
   let idx = 1;
   Object.entries(TIPOS_DEPTO).forEach(([key, tipo])=>{
     for(let i=0;i<tipo.qty_por_piso;i++){
@@ -995,7 +1023,7 @@ function selectPiso(p){
       const div = document.createElement('div');
       div.className = `depto-card ${tipo.color}`;
       const chips = [...new Set(tipo.areaCodes)].map(c=>`<span class="area-chip chip-${c}">${AREA_META[c].label}</span>`).join('');
-      const {counts:ec2, total:tot2} = contarEtapasDepto(state.torre, p, `${key}_${i+1}`, tipo);
+      const {counts:ec2, total:tot2} = contarEtapasDepto(state.torre, p, deptoId, tipo);
       div.innerHTML = `
         <div class="depto-type">${tipo.tipo.toUpperCase()} — Depto ${idx}</div>
         <div class="depto-name">${tipo.nombre} #${i+1}</div>
@@ -1007,9 +1035,6 @@ function selectPiso(p){
       idx++;
     }
   });
-  showView('deptos');
-  updateBreadcrumb();
-  renderSidebar();
 }
 
 // ─── SELECCIONAR DEPTO ───────────────────────────────────────────────
