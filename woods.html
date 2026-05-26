@@ -1113,9 +1113,13 @@ function renderGabinetes(gabinetes, etapaForzada){
   toolbar.id = 'gab-toolbar';
   toolbar.style.cssText = 'display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center';
   const btnEtiqueta = etapa === 'armado' ? `
-    <button onclick="imprimirEtiquetasZebra()"
+    <button id="btn-print-zebra" onclick="imprimirEtiquetasZebra()"
       style="padding:12px 18px;border-radius:10px;border:2px solid var(--etapa-armado);background:rgba(74,143,232,.12);color:var(--etapa-armado);font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans;display:flex;align-items:center;gap:8px">
-      🏷️ Imprimir Etiquetas Zebra (${disponibles.length})
+      🏷️ Imprimir seleccionados (0)
+    </button>
+    <button onclick="toggleSeleccionarTodos()"  id="btn-sel-todos"
+      style="padding:12px 14px;border-radius:10px;border:1px solid var(--etapa-armado);background:transparent;color:var(--etapa-armado);font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans">
+      ☑️ Todos
     </button>
     <button onclick="configurarZebra()"
       style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:DM Sans" title="Configurar IP de la Zebra">
@@ -1152,9 +1156,14 @@ function renderGabinetes(gabinetes, etapaForzada){
     const hecho  = yaHechos.has(gabId);
     const color  = hecho ? 'var(--accent3)' : cfg.color;
     const bcVal  = `W1K-${state.torre||'?'}${state.piso||'?'}-${(state.area||'').split('_')[0]}-${gabId}`.toUpperCase();
+    const chkPrint = etapa === 'armado'
+      ? `<input type="checkbox" id="chk-print-${gabId}" onchange="actualizarContadorImpresion()"
+           style="width:22px;height:22px;cursor:pointer;accent-color:var(--etapa-armado);flex-shrink:0">`
+      : '';
     return `
     <div class="gab-item" id="gab-etapa-${gabId}" style="border-left:3px solid ${color};padding:14px 16px">
       <div style="display:flex;align-items:center;gap:12px;flex:1">
+        ${chkPrint}
         <span style="font-family:'Bebas Neue';font-size:22px;color:${color};min-width:40px">${gabId}</span>
         <div style="flex:1">
           <div class="gab-name" style="font-size:15px">${g.nombre}</div>
@@ -1980,6 +1989,21 @@ function generarZPL(gabinetes){
   }).join('\n');
 }
 
+function actualizarContadorImpresion(){
+  const sel = document.querySelectorAll('[id^="chk-print-"]:checked').length;
+  const btn = document.getElementById('btn-print-zebra');
+  if(btn) btn.innerHTML = `🏷️ Imprimir seleccionados (${sel})`;
+}
+
+function toggleSeleccionarTodos(){
+  const chks = document.querySelectorAll('[id^="chk-print-"]');
+  const todosChecked = Array.from(chks).every(c => c.checked);
+  chks.forEach(c => c.checked = !todosChecked);
+  const btnTodos = document.getElementById('btn-sel-todos');
+  if(btnTodos) btnTodos.textContent = todosChecked ? '☑️ Todos' : '🔲 Ninguno';
+  actualizarContadorImpresion();
+}
+
 async function imprimirEtiquetasZebra(){
   const ip = localStorage.getItem('zebra_ip');
   if(!ip){
@@ -1988,11 +2012,18 @@ async function imprimirEtiquetasZebra(){
     return;
   }
 
-  // Obtener gabinetes actuales del área
+  // Obtener solo los gabinetes con checkbox marcado
+  const seleccionados = Array.from(document.querySelectorAll('[id^="chk-print-"]:checked'))
+    .map(chk => chk.id.replace('chk-print-',''));
+
+  if(!seleccionados.length){ showNotif('⚠️ Marca al menos un gabinete para imprimir'); return; }
+
   const code = (state.area||'').split('_')[0];
-  const gabinetes = typeof COCINA_GABINETES !== 'undefined' && code === 'cocina'
+  const todosGabs = typeof COCINA_GABINETES !== 'undefined' && code === 'cocina'
     ? COCINA_GABINETES.map(g => ({ id:g.id, tipo:g.id, nombre:g.nombre }))
     : (getAreaData(state.torre, state.piso, state.depto, state.area).gabinetes || []);
+
+  const gabinetes = todosGabs.filter(g => seleccionados.includes(g.tipo||g.id||''));
 
   if(!gabinetes.length){ showNotif('⚠️ Sin gabinetes para imprimir'); return; }
 
