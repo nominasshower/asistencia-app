@@ -1100,6 +1100,28 @@ function renderGabinetes(gabinetes, etapaForzada){
     ? gabinetes.filter(g => (_checks[k+cfg.anterior]||new Set()).has(g.tipo||g.id||g.nombre))
     : gabinetes;
 
+  // ── Toolbar siempre visible (scan + imprimir en Armado) ─────────────
+  const existingToolbar = document.getElementById('gab-toolbar');
+  if(existingToolbar) existingToolbar.remove();
+  const toolbar = document.createElement('div');
+  toolbar.id = 'gab-toolbar';
+  toolbar.style.cssText = 'display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center';
+  const btnEtiqueta = etapa === 'armado' ? `
+    <button onclick="imprimirEtiquetasZebra()"
+      style="padding:12px 18px;border-radius:10px;border:2px solid var(--etapa-armado);background:rgba(74,143,232,.12);color:var(--etapa-armado);font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans;display:flex;align-items:center;gap:8px">
+      🏷️ Imprimir Etiquetas Zebra (${disponibles.length})
+    </button>
+    <button onclick="configurarZebra()"
+      style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:DM Sans" title="Configurar IP de la Zebra">
+      ⚙️
+    </button>` : '';
+  toolbar.innerHTML = `
+    <button class="scan-btn" onclick="abrirScanner('${etapa}')">
+      📷 Escanear código de barra
+    </button>
+    ${btnEtiqueta}`;
+  list.parentNode.insertBefore(toolbar, list);
+
   if(!disponibles.length){
     list.innerHTML=''; empty.style.display='block';
     const etapaAnteriorNombre = {
@@ -1118,30 +1140,6 @@ function renderGabinetes(gabinetes, etapaForzada){
   empty.style.display='none';
   const yaHechos = _checks[k+cfg.sufijo] || new Set();
   const esPostCorte = etapa !== 'corte';
-
-  // Botones de acción rápida arriba (escaneo + imprimir etiquetas)
-  const existingToolbar = document.getElementById('gab-toolbar');
-  if(existingToolbar) existingToolbar.remove();
-  const toolbar = document.createElement('div');
-  toolbar.id = 'gab-toolbar';
-  toolbar.style.cssText = 'display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center';
-  // En Armado: scan + imprimir etiquetas Zebra
-  // En otras etapas: solo scan (la etiqueta ya viaja con el gabinete)
-  const btnEtiqueta = etapa === 'armado' ? `
-    <button onclick="imprimirEtiquetasZebra()"
-      style="padding:12px 18px;border-radius:10px;border:2px solid var(--etapa-armado);background:rgba(74,143,232,.12);color:var(--etapa-armado);font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans;display:flex;align-items:center;gap:8px">
-      🏷️ Imprimir Etiquetas Zebra (${disponibles.length})
-    </button>
-    <button onclick="configurarZebra()"
-      style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:DM Sans" title="Configurar IP de la Zebra">
-      ⚙️
-    </button>` : '';
-  toolbar.innerHTML = `
-    <button class="scan-btn" onclick="abrirScanner('${etapa}')">
-      📷 Escanear código de barra
-    </button>
-    ${btnEtiqueta}`;
-  list.parentNode.insertBefore(toolbar, list);
 
   list.innerHTML = disponibles.map((g,i)=>{
     const gabId  = g.tipo||g.id||('G'+i);
