@@ -755,9 +755,10 @@ async function gasGet(params){
 // ── Llamada POST al GAS ───────────────────────────────────────────
 async function gasPost(body){
   try {
+    // text/plain evita el preflight CORS que GAS móvil no maneja bien
     const r = await fetch(GAS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(body)
     });
     const json = await r.json();
