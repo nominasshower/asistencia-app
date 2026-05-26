@@ -1005,6 +1005,7 @@ function selectArea(areaId, areaName, code, meta){
 
   showView('detalle');
   updateBreadcrumb();
+  refreshChecksFromSheets(); // sync Sheets en background
 }
 
 // ─── DATOS DEMO (de los archivos analizados) ──────────────────────────
@@ -1535,12 +1536,11 @@ function getChecksKey(){
   return (state.torre||'')+'_'+(state.piso||'')+'_'+(state.depto||'')+'_'+(state.area||'');
 }
 
-// ── Persistir checks en localStorage ────────────────────────────────
+// ── Persistir checks en localStorage + Sheets ───────────────────────
 function saveChecks(){
   try {
     const k = getChecksKey();
     const toSave = {};
-    // Solo guardar claves que pertenecen al área actual (prefix k)
     Object.keys(_checks).forEach(key => {
       if(key.startsWith(k) && _checks[key] instanceof Set){
         toSave[key] = [..._checks[key]];
@@ -1549,6 +1549,8 @@ function saveChecks(){
     const all = JSON.parse(localStorage.getItem('t1000_checks')||'{}');
     all[k] = toSave;
     localStorage.setItem('t1000_checks', JSON.stringify(all));
+    // Sincronizar a Sheets en background (sin bloquear UI)
+    gasPost({ accion:'save_checks', key:k, data:toSave }).catch(()=>{});
   } catch(e){}
 }
 
@@ -1560,6 +1562,33 @@ function loadChecks(){
     Object.keys(saved).forEach(key => {
       _checks[key] = new Set(saved[key]);
     });
+  } catch(e){}
+}
+
+// Carga checks desde Sheets y re-renderiza si hay diferencias
+async function refreshChecksFromSheets(){
+  try {
+    const k = getChecksKey();
+    const remote = await gasGet({ accion:'get_checks', key:k });
+    if(!remote || typeof remote !== 'object') return;
+    let changed = false;
+    Object.keys(remote).forEach(key => {
+      const remoteArr = remote[key] || [];
+      const localSet  = _checks[key] || new Set();
+      if(remoteArr.length !== localSet.size) changed = true;
+      _checks[key] = new Set(remoteArr);
+    });
+    if(changed){
+      const all = JSON.parse(localStorage.getItem('t1000_checks')||'{}');
+      all[k] = remote;
+      localStorage.setItem('t1000_checks', JSON.stringify(all));
+      // Re-renderizar lista de gabinetes con datos actualizados
+      const code = (state.area||'').split('_')[0];
+      const gabs = typeof COCINA_GABINETES!=='undefined' && code==='cocina'
+        ? COCINA_GABINETES.map(g=>{const p=COCINA_PIEZAS.find(x=>x.id===g.id);return{nombre:g.nombre,tipo:g.id,ancho:p?p.ancho:0,alto:p?p.alto:0,prof:p?p.espesor:0,qty:1};})
+        : (getAreaData(state.torre,state.piso,state.depto,state.area).gabinetes||[]);
+      if(gabs.length) renderGabinetes(gabs, state.etapa);
+    }
   } catch(e){}
 }
 
@@ -2377,6 +2406,7 @@ function irAArea(torre, piso, deptoKey, areaCode, tab){
 
   loadChecks();
   showView('detalle');
+  refreshChecksFromSheets(); // sync Sheets en background
   updateBreadcrumb();
   setTab(tab||'plano');
 
