@@ -835,18 +835,103 @@ function renderSidebar(){
   sb.innerHTML = html;
 }
 
+// ─── HELPERS DE CONTEO ───────────────────────────────────────────────
+
+// Cuenta áreas por tipo de elemento en un piso (desde TIPOS_DEPTO, estático)
+function contarAreasPorPiso(){
+  const counts = {cocina:0, closet:0, bano:0, puerta:0};
+  Object.values(TIPOS_DEPTO).forEach(tipo => {
+    tipo.areaCodes.forEach(code => {
+      counts[code] = (counts[code]||0) + tipo.qty_por_piso;
+    });
+  });
+  return counts;
+}
+
+// Cuenta áreas por etapa en un piso completo (dinámico, desde localStorage)
+function contarEtapasPiso(torre, piso){
+  const ETAPAS = ['corte','armado','ensamble','empaque','embarque','sitio','lista'];
+  const counts = {}; ETAPAS.forEach(e=>counts[e]=0); counts._sin = 0;
+  let total = 0;
+  Object.entries(TIPOS_DEPTO).forEach(([key, tipo])=>{
+    for(let i=0;i<tipo.qty_por_piso;i++){
+      const deptoId = `${key}_${i+1}`;
+      tipo.areaCodes.forEach((code, ai)=>{
+        const aData = getAreaData(torre, piso, deptoId, `${code}_${ai}`);
+        const e = aData.etapaActual||null;
+        if(e) counts[e] = (counts[e]||0)+1; else counts._sin++;
+        total++;
+      });
+    }
+  });
+  return {counts, total};
+}
+
+// Cuenta áreas por etapa en un depto concreto
+function contarEtapasDepto(torre, piso, deptoId, tipo){
+  const ETAPAS = ['corte','armado','ensamble','empaque','embarque','sitio','lista'];
+  const counts = {}; ETAPAS.forEach(e=>counts[e]=0); counts._sin = 0;
+  let total = 0;
+  tipo.areaCodes.forEach((code, ai)=>{
+    const aData = getAreaData(torre, piso, deptoId, `${code}_${ai}`);
+    const e = aData.etapaActual||null;
+    if(e) counts[e] = (counts[e]||0)+1; else counts._sin++;
+    total++;
+  });
+  return {counts, total};
+}
+
+// Genera HTML de barras de etapa apiladas
+function renderBarrasEtapa(counts, total){
+  const ETAPAS = ['corte','armado','ensamble','empaque','embarque','sitio','lista'];
+  const ECOLOR = {
+    corte:'#e8c84a', armado:'#4a8fe8', ensamble:'#e84ab0',
+    empaque:'#4ae8a8', embarque:'#e8834a', sitio:'#c44ae8', lista:'#4ae84a'
+  };
+  const ELABEL = {corte:'COR',armado:'ARM',ensamble:'ENS',empaque:'EMP',embarque:'EMB',sitio:'SIT',lista:'OK'};
+  if(!total) return `<div style="margin-top:8px;height:6px;background:var(--border);border-radius:3px"></div>`;
+
+  // Puntaje ponderado para % general
+  let score = 0;
+  ETAPAS.forEach((e,i)=>{ score += (counts[e]||0) * (i+1); });
+  const pct = Math.round(score / (total * ETAPAS.length) * 100);
+
+  const segs = ETAPAS.map(e=>{
+    const n = counts[e]||0; if(!n) return '';
+    const w = (n/total*100).toFixed(1);
+    return `<div title="${e}: ${n}" style="height:100%;width:${w}%;background:${ECOLOR[e]};flex-shrink:0;min-width:3px"></div>`;
+  }).join('');
+
+  const chips = ETAPAS.filter(e=>(counts[e]||0)>0).map(e=>
+    `<span style="font-size:9px;color:${ECOLOR[e]};font-family:DM Mono;font-weight:700">${ELABEL[e]}·${counts[e]}</span>`
+  ).join('');
+
+  return `
+    <div style="margin-top:9px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${chips||'<span style="font-size:9px;color:var(--muted)">Sin iniciar</span>'}</div>
+        <span style="font-size:10px;font-family:DM Mono;color:var(--muted);font-weight:700">${pct}%</span>
+      </div>
+      <div style="height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;display:flex">
+        ${segs||''}
+      </div>
+    </div>`;
+}
+
 // ─── HOME ─────────────────────────────────────────────────────────────
 function renderHome(){
   const g = document.getElementById('torres-grid');
+  const c = contarAreasPorPiso(); // cuentas reales por piso
+  const totalDeptos = Object.values(TIPOS_DEPTO).reduce((s,t)=>s+t.qty_por_piso,0);
   g.innerHTML = TORRES.map(t => `
     <div class="torre-card" onclick="selectTorre('${t.id}')">
       <h2>${t.nombre}</h2>
-      <p>5 niveles · 13 departamentos por piso</p>
+      <p>5 niveles · ${totalDeptos} departamentos por piso</p>
       <div class="torre-card-stats">
-        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--cocina)">13</div><div class="tc-stat-l">Cocinas</div></div>
-        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--closet)">26</div><div class="tc-stat-l">Closets</div></div>
-        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--bano)">18</div><div class="tc-stat-l">Vanities</div></div>
-        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--puerta)">13</div><div class="tc-stat-l">Puertas</div></div>
+        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--cocina)">${c.cocina}</div><div class="tc-stat-l">Cocinas</div></div>
+        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--closet)">${c.closet}</div><div class="tc-stat-l">Closets</div></div>
+        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--bano)">${c.bano}</div><div class="tc-stat-l">Vanities</div></div>
+        <div class="tc-stat"><div class="tc-stat-n" style="color:var(--puerta)">${c.puerta}</div><div class="tc-stat-l">Puertas</div></div>
       </div>
     </div>`).join('');
 }
@@ -860,19 +945,21 @@ function selectTorre(id){
   // Generar pisos
   const g = document.getElementById('pisos-grid');
   g.innerHTML = '';
+  const counts = contarAreasPorPiso();
   for(let p=1;p<=5;p++){
+    const {counts:ec, total} = contarEtapasPiso(id, p);
     const div = document.createElement('div');
     div.className = 'depto-card';
     div.innerHTML = `
       <div class="depto-type">Nivel</div>
       <div class="depto-name" style="font-size:24px;font-family:'Bebas Neue';letter-spacing:2px">${p}</div>
       <div class="depto-areas" style="margin-top:8px">
-        <span class="area-chip chip-cocina">13 Cocinas</span>
-        <span class="area-chip chip-closet">26 Closets</span>
-        <span class="area-chip chip-bano">18 Vanities</span>
-        <span class="area-chip chip-puerta">13 Puertas</span>
+        <span class="area-chip chip-cocina">${counts.cocina} Cocinas</span>
+        <span class="area-chip chip-closet">${counts.closet} Closets</span>
+        <span class="area-chip chip-bano">${counts.bano} Vanities</span>
+        <span class="area-chip chip-puerta">${counts.puerta} Puertas</span>
       </div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${Math.random()*60}%"></div></div>`;
+      ${renderBarrasEtapa(ec, total)}`;
     div.onclick = ()=>selectPiso(p);
     g.appendChild(div);
   }
@@ -895,12 +982,13 @@ function selectPiso(p){
       const div = document.createElement('div');
       div.className = `depto-card ${tipo.color}`;
       const chips = [...new Set(tipo.areaCodes)].map(c=>`<span class="area-chip chip-${c}">${AREA_META[c].label}</span>`).join('');
+      const {counts:ec2, total:tot2} = contarEtapasDepto(state.torre, p, `${key}_${i+1}`, tipo);
       div.innerHTML = `
         <div class="depto-type">${tipo.tipo.toUpperCase()} — Depto ${idx}</div>
         <div class="depto-name">${tipo.nombre} #${i+1}</div>
         <div class="depto-areas">${chips}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px">${tipo.areas.length} áreas a instalar</div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${Math.random()*50}%"></div></div>`;
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">${tipo.areas.length} áreas</div>
+        ${renderBarrasEtapa(ec2, tot2)}`;
       div.onclick = ()=>selectDepto(deptoId, tipo, idx, i+1);
       g.appendChild(div);
       idx++;
