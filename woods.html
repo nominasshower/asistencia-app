@@ -78,6 +78,11 @@
   padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 13px;
   cursor: pointer; font-family: DM Sans; transition: all .2s; border: 2px solid;
 }
+#fab-admin:hover {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--accent) !important;
+}
 </style>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
@@ -445,7 +450,7 @@
 </head>
 <body>
 
-<header>
+<header id="main-header">
   <div>
     <div class="logo">Torres 1000 <span>Sistema de Producción</span></div>
   </div>
@@ -462,6 +467,19 @@
     <button onclick="limpiarCache()" title="Limpiar caché local y recargar desde Sheets" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:DM Sans">🗑️</button>
   </div>
 </header>
+
+<!-- Botón flotante Admin — visible solo en modo producción (cuando header está oculto) -->
+<button id="fab-admin" onclick="goHome()"
+  style="display:none;position:fixed;top:12px;right:14px;z-index:9000;
+         align-items:center;gap:6px;padding:8px 14px;
+         border-radius:20px;border:1px solid var(--border);
+         background:var(--surface2);color:var(--muted);
+         font-size:12px;font-weight:600;cursor:pointer;
+         font-family:DM Sans;box-shadow:0 2px 10px rgba(0,0,0,.5);
+         transition:all .2s">
+  ✕ Admin
+</button>
+
 
 <button id="sidebar-toggle" onclick="toggleSidebar()" title="Mostrar/ocultar menú">☰</button>
 
@@ -2454,6 +2472,12 @@ function irAArea(torre, piso, deptoKey, areaCode, tab){
   const btnActP = document.getElementById('btn-activar-area');
   if(btnActP) btnActP.style.display = 'none';
 
+  // Ocultar encabezado en modo producción
+  const hdr2 = document.getElementById('main-header');
+  if(hdr2) hdr2.style.display = 'none';
+  const fabAdmin2 = document.getElementById('fab-admin');
+  if(fabAdmin2) fabAdmin2.style.display = 'flex';
+
   loadChecks();
   showView('detalle');
   refreshChecksFromSheets(); // sync Sheets en background
@@ -2483,6 +2507,11 @@ function showView(name){
 
 function goHome(){
   state = {...state, torre:null, piso:null, depto:null, area:null};
+  // Restaurar encabezado al volver al modo admin
+  const hdr = document.getElementById('main-header');
+  if(hdr) hdr.style.display = '';
+  const fabAdmin = document.getElementById('fab-admin');
+  if(fabAdmin) fabAdmin.style.display = 'none';
   showView('home');
   updateBreadcrumb();
   renderSidebar();
@@ -2598,6 +2627,11 @@ async function showProduccion(){
     sb.classList.add('collapsed');
     if(toggleBtn){ toggleBtn.textContent = '▶'; toggleBtn.style.left = '12px'; }
   }
+  // Ocultar encabezado en modo producción
+  const hdr = document.getElementById('main-header');
+  if(hdr) hdr.style.display = 'none';
+  const fabAdmin = document.getElementById('fab-admin');
+  if(fabAdmin) fabAdmin.style.display = 'flex';
   showView('produccion');
   // Mostrar spinner mientras carga de Sheets
   document.getElementById('prod-grid').innerHTML = `
