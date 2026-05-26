@@ -1059,14 +1059,22 @@ function renderGabinetes(gabinetes, etapaForzada){
   const toolbar = document.createElement('div');
   toolbar.id = 'gab-toolbar';
   toolbar.style.cssText = 'display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center';
+  // En Armado: scan + imprimir etiquetas Zebra
+  // En otras etapas: solo scan (la etiqueta ya viaja con el gabinete)
+  const btnEtiqueta = etapa === 'armado' ? `
+    <button onclick="imprimirEtiquetasZebra()"
+      style="padding:12px 18px;border-radius:10px;border:2px solid var(--etapa-armado);background:rgba(74,143,232,.12);color:var(--etapa-armado);font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans;display:flex;align-items:center;gap:8px">
+      🏷️ Imprimir Etiquetas Zebra (${disponibles.length})
+    </button>
+    <button onclick="configurarZebra()"
+      style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:DM Sans" title="Configurar IP de la Zebra">
+      ⚙️
+    </button>` : '';
   toolbar.innerHTML = `
     <button class="scan-btn" onclick="abrirScanner('${etapa}')">
       📷 Escanear código de barra
     </button>
-    <button onclick="imprimirEtiquetas(${JSON.stringify(disponibles).replace(/"/g,'&quot;')})"
-      style="padding:12px 18px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:DM Sans;display:flex;align-items:center;gap:8px">
-      🏷️ Imprimir Etiquetas (${disponibles.length})
-    </button>`;
+    ${btnEtiqueta}`;
   list.parentNode.insertBefore(toolbar, list);
 
   list.innerHTML = disponibles.map((g,i)=>{
@@ -1856,6 +1864,107 @@ function imprimirEtiquetas(gabinetes){
     } catch(e){}
   });
   setTimeout(()=>{ window.print(); sheet.style.display='none'; }, 300);
+}
+
+// ─── ZEBRA ZD420 — IMPRESIÓN DIRECTA ZPL ─────────────────────────────
+
+function configurarZebra(){
+  const actual = localStorage.getItem('zebra_ip') || '';
+  const ip = prompt('IP de la Zebra ZD420 en la red:\n(ej. 192.168.1.50)', actual);
+  if(ip !== null){
+    localStorage.setItem('zebra_ip', ip.trim());
+    showNotif('✅ Zebra configurada: ' + ip.trim());
+  }
+}
+
+function generarZPL(gabinetes){
+  const t = state.torre||'?';
+  const p = state.piso||'?';
+  const d = (state.depto||'').replace(/_/g,' ').toUpperCase();
+  const aCode = (state.area||'').split('_')[0].toUpperCase();
+  const areaNombre = (document.getElementById('det-title')||{}).textContent||aCode;
+
+  // ZD420 a 203 DPI: 4" = 812 dots, 2" = 406 dots
+  return gabinetes.map(g => {
+    const gabId = (g.tipo||g.id||'G').toUpperCase();
+    const nombre = (g.nombre||'').substring(0,32).toUpperCase();
+    const ref = `TORRE ${t} · NIV ${p} · ${d} · ${areaNombre.toUpperCase()}`.substring(0,48);
+    const bcVal = `W1K-${t}${p}-${aCode}-${gabId}`;
+    return [
+      '^XA',
+      '^PW812',      // ancho 4"
+      '^LL406',      // alto 2"
+      '^CI28',       // UTF-8
+      // Referencia departamento — arriba
+      `^FO20,14^A0N,20,20^FD${ref}^FS`,
+      // ID grande
+      `^FO20,42^A0N,58,58^FD${gabId}^FS`,
+      // Código de barras Code128
+      `^FO20,110^BY2,3,55^BCN,,,N^FD${bcVal}^FS`,
+      // Nombre del gabinete
+      `^FO20,175^A0N,24,24^FD${nombre}^FS`,
+      // Valor del barcode en texto pequeño
+      `^FO20,205^A0N,18,18^FD${bcVal}^FS`,
+      '^XZ'
+    ].join('\n');
+  }).join('\n');
+}
+
+async function imprimirEtiquetasZebra(){
+  const ip = localStorage.getItem('zebra_ip');
+  if(!ip){
+    const conf = confirm('No hay IP de Zebra configurada.\n¿Quieres configurarla ahora?');
+    if(conf) configurarZebra();
+    return;
+  }
+
+  // Obtener gabinetes actuales del área
+  const code = (state.area||'').split('_')[0];
+  const gabinetes = typeof COCINA_GABINETES !== 'undefined' && code === 'cocina'
+    ? COCINA_GABINETES.map(g => ({ id:g.id, tipo:g.id, nombre:g.nombre }))
+    : (getAreaData(state.torre, state.piso, state.depto, state.area).gabinetes || []);
+
+  if(!gabinetes.length){ showNotif('⚠️ Sin gabinetes para imprimir'); return; }
+
+  const zpl = generarZPL(gabinetes);
+  showNotif('📡 Enviando ' + gabinetes.length + ' etiquetas a Zebra ' + ip + '...');
+
+  try {
+    // Zebra Link-OS acepta ZPL en POST /pstprnt
+    const resp = await fetch(`http://${ip}/pstprnt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: zpl,
+      mode: 'no-cors'   // La Zebra no envía CORS headers — no-cors ignora la respuesta pero envía el ZPL
+    });
+    showNotif('✅ Etiquetas enviadas a Zebra — ' + gabinetes.length + ' labels');
+  } catch(err){
+    // Fallback: mostrar ZPL para copiar o imprimir por browser
+    mostrarZplFallback(zpl, gabinetes.length);
+  }
+}
+
+function mostrarZplFallback(zpl, count){
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px';
+  ov.innerHTML = `
+    <div style="color:#fff;font-family:Bebas Neue;font-size:20px;letter-spacing:3px">NO SE PUDO CONECTAR A LA ZEBRA</div>
+    <div style="color:var(--muted);font-size:13px;text-align:center">Verifica que la tablet y la Zebra estén en la misma red y que el IP sea correcto.<br>
+    IP actual: <strong style="color:var(--accent)">${localStorage.getItem('zebra_ip')||'—'}</strong>
+    <button onclick="configurarZebra()" style="margin-left:10px;padding:4px 10px;border-radius:6px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:12px;cursor:pointer">Cambiar IP</button></div>
+    <div style="color:var(--muted);font-size:12px">También puedes copiar el ZPL y pegarlo en cualquier cliente de impresión Zebra:</div>
+    <textarea readonly style="width:min(600px,90vw);height:180px;font-family:monospace;font-size:11px;background:#111;color:#4ae8a8;border:1px solid var(--border);border-radius:8px;padding:10px;resize:none">${zpl.replace(/</g,'&lt;')}</textarea>
+    <div style="display:flex;gap:12px">
+      <button onclick="navigator.clipboard.writeText(this.closest('div[style]').querySelector('textarea').value).then(()=>showNotif('✅ ZPL copiado'))"
+        style="padding:10px 20px;border-radius:8px;border:1px solid var(--accent);background:rgba(74,232,168,.1);color:var(--accent);font-family:DM Sans;font-size:14px;cursor:pointer">
+        📋 Copiar ZPL
+      </button>
+      <button onclick="this.closest('div[style]').remove()"
+        style="padding:10px 20px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:transparent;color:#fff;font-family:DM Sans;font-size:14px;cursor:pointer">
+        Cerrar
+      </button>
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 // ─── ESCANEO POR CÁMARA ───────────────────────────────────────────────
