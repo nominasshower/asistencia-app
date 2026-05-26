@@ -2244,7 +2244,20 @@ function procesarCodigoEscaneado(raw, etapa){
       : '→ Pasar a '+(cfg.siguienteLabel||'siguiente')+' ('+hechos+'/'+total+')';
   }
 
-  showNotif('✅ '+gabId+' — '+cfg.doneLabel+' vía escáner');
+  // Registrar en Sheets
+  gasPost({ accion:'log_gab', torre:state.torre, piso:String(state.piso),
+    depto:state.depto, area:state.area, gab_id:gabId, gab_nombre:gabId,
+    etapa:etapa, operador:'scanner' }).catch(()=>{});
+
+  if(hechos === total && total > 0 && cfg.siguienteEtapa){
+    // Último gabinete — avanzar toda el área a siguiente etapa
+    showNotif('🎉 '+gabId+' listo — todos completos, pasando a '+cfg.siguienteLabel+'...');
+    setTimeout(()=> completarEtapaDesdeGab(etapa, cfg.siguienteEtapa, cfg.siguienteLabel), 1000);
+  } else {
+    // Quedan más — mostrar notif y reabrir escáner automáticamente
+    showNotif('✅ '+gabId+' — '+cfg.doneLabel+' ('+hechos+'/'+total+') • Escanea el siguiente');
+    setTimeout(()=> abrirScanner(etapa), 1200);
+  }
 }
 
 // ─── DASHBOARD GERENCIAL ─────────────────────────────────────────────
