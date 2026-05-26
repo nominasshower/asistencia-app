@@ -1126,6 +1126,10 @@ function renderGabinetes(gabinetes, etapaForzada){
     <button onclick="configurarZebra()"
       style="padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:DM Sans" title="Configurar IP de la Zebra">
       ⚙️
+    </button>
+    <button onclick="testZebraConexion()"
+      style="padding:12px 14px;border-radius:10px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:13px;cursor:pointer;font-family:DM Sans" title="Imprimir etiqueta de prueba">
+      🧪
     </button>` : '';
   toolbar.innerHTML = `
     <button class="scan-btn" onclick="abrirScanner('${etapa}')">
@@ -2000,30 +2004,53 @@ function generarZPL(gabinetes){
   const aCode = (state.area||'').split('_')[0].toUpperCase();
   const areaNombre = (document.getElementById('det-title')||{}).textContent||aCode;
 
-  // ZD420 a 203 DPI: 4" = 812 dots, 2" = 406 dots
+  // ZD420 — 4"x2" — 203 DPI = 812x406 dots
   return gabinetes.map(g => {
     const gabId = (g.tipo||g.id||'G').toUpperCase();
-    const nombre = (g.nombre||'').substring(0,32).toUpperCase();
-    const ref = `TORRE ${t} · NIV ${p} · ${d} · ${areaNombre.toUpperCase()}`.substring(0,48);
+    const nombre = (g.nombre||'').substring(0,28).toUpperCase();
+    const ref = `T${t}-N${p} ${d} ${areaNombre.toUpperCase()}`.substring(0,40);
     const bcVal = `W1K-${t}${p}-${aCode}-${gabId}`;
     return [
       '^XA',
-      '^PW812',      // ancho 4"
-      '^LL406',      // alto 2"
-      '^CI28',       // UTF-8
-      // Referencia departamento — arriba
-      `^FO20,10^A0N,30,30^FD${ref}^FS`,
-      // ID grande en el centro
-      `^FO20,46^A0N,90,90^FD${gabId}^FS`,
-      // Código de barras Code128
-      `^FO20,144^BY2,3,65^BCN,,,N^FD${bcVal}^FS`,
-      // Nombre del gabinete
-      `^FO20,222^A0N,36,36^FD${nombre}^FS`,
-      // Valor del barcode en texto
-      `^FO20,264^A0N,26,26^FD${bcVal}^FS`,
+      '^PW812',
+      '^LL406',
+      '^CI28',
+      '^MMT',                          // modo impresora térmica
+      // Fuente por defecto grande
+      '^CF0,40',
+      // Línea ref — pequeña arriba
+      `^FO15,8^A0N,22,22^FD${ref}^FS`,
+      // ID del gabinete — MUY GRANDE
+      `^FO15,35^A0N,130,90^FD${gabId}^FS`,
+      // Barcode
+      `^FO15,175^BY2,3,70^BCN,,,N^FD${bcVal}^FS`,
+      // Nombre debajo del barcode
+      `^FO15,255^A0N,38,38^FD${nombre}^FS`,
+      // Código pequeño
+      `^FO15,300^A0N,24,24^FD${bcVal}^FS`,
       '^XZ'
     ].join('\n');
   }).join('\n');
+}
+
+// Envía etiqueta de PRUEBA para verificar conexión y tamaños
+async function testZebraConexion(){
+  const ip = localStorage.getItem('zebra_ip');
+  if(!ip){ configurarZebra(); return; }
+  const zpl = [
+    '^XA','^PW812','^LL406','^CI28',
+    '^FO30,30^A0N,50,50^FDPRUEBA ZEBRA^FS',
+    '^FO30,100^A0N,120,80^FDTEST-01^FS',
+    '^FO30,230^BY2,3,60^BCN,,,N^FDTEST-CONN^FS',
+    '^FO30,305^A0N,35,35^FDCONEXION OK^FS',
+    '^XZ'
+  ].join('\n');
+  try {
+    await fetch(`http://${ip}/pstprnt`,{method:'POST',headers:{'Content-Type':'text/plain'},body:zpl,mode:'no-cors'});
+    showNotif('📡 Etiqueta de prueba enviada a '+ip);
+  } catch(e) {
+    showNotif('❌ No se pudo conectar a '+ip);
+  }
 }
 
 function actualizarContadorImpresion(){
