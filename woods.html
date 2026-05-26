@@ -2395,30 +2395,51 @@ function showNotif(msg){
 
 // ─── VISTA PRODUCCIÓN ────────────────────────────────────────────────
 
+// ── Activas: caché local + sync a Sheets ─────────────────────────────
 function getActivasKey(){ return 't1000_activas'; }
 
+function _cacheActivas(){ try{ return JSON.parse(localStorage.getItem(getActivasKey())||'{}'); }catch(e){ return {}; } }
+function _guardarCacheActivas(all){ try{ localStorage.setItem(getActivasKey(), JSON.stringify(all)); }catch(e){} }
+
 function isAreaActiva(t, p, d, a){
-  try {
-    const all = JSON.parse(localStorage.getItem(getActivasKey())||'{}');
-    return !!all[`${t}-${p}-${d}-${a}`];
-  } catch(e){ return false; }
+  return !!_cacheActivas()[`${t}-${p}-${d}-${a}`];
 }
 
-function setAreaActiva(t, p, d, a, activa){
+async function setAreaActiva(t, p, d, a, activa){
+  // 1. Actualizar caché local inmediatamente
+  const all = _cacheActivas();
+  const k = `${t}-${p}-${d}-${a}`;
+  if(activa) all[k] = { torre:t, piso:String(p), depto:d, area:a };
+  else delete all[k];
+  _guardarCacheActivas(all);
+
+  // 2. Sincronizar con Google Sheets
   try {
-    const all = JSON.parse(localStorage.getItem(getActivasKey())||'{}');
-    const k = `${t}-${p}-${d}-${a}`;
-    if(activa) all[k] = { torre:t, piso:p, depto:d, area:a, ts: Date.now() };
-    else delete all[k];
-    localStorage.setItem(getActivasKey(), JSON.stringify(all));
-  } catch(e){}
+    await gasPost({ accion:'activar_area', torre:t, piso:String(p), depto:d, area:a, activa });
+  } catch(e){ console.warn('Sin conexión — activación guardada solo local'); }
 }
 
-function toggleActivarArea(){
+// Carga áreas activas desde Sheets y actualiza caché local
+async function cargarActivasDesdeSheets(){
+  try {
+    const data = await gasGet({ accion:'get_activas' });
+    if(!Array.isArray(data)) return;
+    const all = {};
+    data.forEach(r => {
+      const k = `${r.torre}-${r.piso}-${r.depto}-${r.area}`;
+      all[k] = { torre:r.torre, piso:String(r.piso), depto:r.depto, area:r.area };
+    });
+    _guardarCacheActivas(all);
+  } catch(e){ /* usa caché local */ }
+}
+
+async function toggleActivarArea(){
   const t = state.torre, p = state.piso, d = state.depto, a = state.area;
   if(!t||!p||!d||!a) return;
   const actual = isAreaActiva(t,p,d,a);
-  setAreaActiva(t,p,d,a,!actual);
+  const btn = document.getElementById('btn-activar-area');
+  if(btn){ btn.textContent = '⏳ Guardando...'; btn.disabled = true; }
+  await setAreaActiva(t, p, d, a, !actual);
   actualizarBtnActivar();
   showNotif(actual ? '⬜ Área desactivada de Producción' : '✅ Área activada en Producción');
 }
@@ -2438,16 +2459,21 @@ function actualizarBtnActivar(){
 
 let _prodFiltro = 'todas';
 
-function showProduccion(){
+async function showProduccion(){
   _prodFiltro = 'todas';
   // Colapsar sidebar automáticamente en vista producción
   const sb = document.getElementById('sidebar');
-  const btn = document.getElementById('sidebar-toggle');
+  const toggleBtn = document.getElementById('sidebar-toggle');
   if(sb && !sb.classList.contains('collapsed')){
     sb.classList.add('collapsed');
-    if(btn){ btn.textContent = '▶'; btn.style.left = '12px'; }
+    if(toggleBtn){ toggleBtn.textContent = '▶'; toggleBtn.style.left = '12px'; }
   }
   showView('produccion');
+  // Mostrar spinner mientras carga de Sheets
+  document.getElementById('prod-grid').innerHTML = `
+    <div class="prod-empty"><div style="font-size:32px;margin-bottom:12px">⏳</div>
+    <div style="font-size:14px;color:var(--muted)">Sincronizando con servidor...</div></div>`;
+  await cargarActivasDesdeSheets();
   renderProduccion();
   updateBreadcrumb();
 }
