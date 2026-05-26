@@ -2010,22 +2010,23 @@ function generarZPL(gabinetes){
     const nombre = (g.nombre||'').substring(0,28).toUpperCase();
     const ref = `T${t}-N${p} ${d} ${areaNombre.toUpperCase()}`.substring(0,40);
     const bcVal = `W1K-${t}${p}-${aCode}-${gabId}`;
+    // 300 DPI: 4"=1200 dots ancho, 2"=600 dots alto
     return [
       '^XA',
-      '^PW812',
-      '^LL406',
+      '^PW1200',
+      '^LL600',
       '^CI28',
       '^MMT',
       // Ref pequeña arriba
-      `^FO15,6^A0N,24,24^FD${ref}^FS`,
-      // ID MUY GRANDE — llena la etiqueta
-      `^FO15,34^A0N,150,100^FD${gabId}^FS`,
-      // Barcode más alto
-      `^FO15,190^BY3,3,80^BCN,,,N^FD${bcVal}^FS`,
+      `^FO20,6^A0N,38,38^FD${ref}^FS`,
+      // ID MUY GRANDE
+      `^FO20,50^A0N,260,190^FD${gabId}^FS`,
+      // Barcode
+      `^FO20,318^BY4,3,130^BCN,,,N^FD${bcVal}^FS`,
       // Nombre
-      `^FO15,282^A0N,40,40^FD${nombre}^FS`,
-      // Código barras texto
-      `^FO15,328^A0N,26,26^FD${bcVal}^FS`,
+      `^FO20,458^A0N,68,68^FD${nombre}^FS`,
+      // Código texto
+      `^FO20,534^A0N,42,42^FD${bcVal}^FS`,
       '^XZ'
     ].join('\n');
   }).join('\n');
@@ -2035,27 +2036,16 @@ function generarZPL(gabinetes){
 async function testZebraConexion(){
   const ip = localStorage.getItem('zebra_ip');
   if(!ip){ configurarZebra(); return; }
-  // Prueba A: 203 DPI (4"=812, 2"=406)
-  const zplA = [
-    '^XA','^PW812','^LL406','^CI28','^MMT',
-    '^FO10,4^A0N,26,26^FD203 DPI TEST^FS',
-    '^FO10,34^A0N,180,130^FDTEST-A^FS',
-    '^FO10,220^BY3,3,90^BCN,,,N^FDTEST-203^FS',
-    '^FO10,318^A0N,46,46^FDCONEXION OK^FS',
-    '^FO10,368^A0N,28,28^FDTEST-203^FS',
-    '^XZ'
-  ].join('\n');
-  // Prueba B: 300 DPI (4"=1200, 2"=600)
-  const zplB = [
+  // 300 DPI confirmado: 4"=1200 dots, 2"=600 dots
+  const zpl = [
     '^XA','^PW1200','^LL600','^CI28','^MMT',
-    '^FO15,6^A0N,38,38^FD300 DPI TEST^FS',
-    '^FO15,50^A0N,260,190^FDTEST-B^FS',
-    '^FO15,320^BY4,3,130^BCN,,,N^FDTEST-300^FS',
-    '^FO15,462^A0N,68,68^FDCONEXION OK^FS',
-    '^FO15,538^A0N,42,42^FDTEST-300^FS',
+    '^FO20,6^A0N,38,38^FDPRUEBA ZEBRA 300DPI^FS',
+    '^FO20,50^A0N,260,190^FDTEST-01^FS',
+    '^FO20,318^BY4,3,130^BCN,,,N^FDTEST-CONN^FS',
+    '^FO20,458^A0N,68,68^FDCONEXION OK^FS',
+    '^FO20,534^A0N,42,42^FDTEST-CONN^FS',
     '^XZ'
   ].join('\n');
-  const zpl = zplA + '\n' + zplB;
   try {
     await fetch(`http://${ip}/pstprnt`,{method:'POST',headers:{'Content-Type':'text/plain'},body:zpl,mode:'no-cors'});
     showNotif('📡 Etiqueta de prueba enviada a '+ip);
