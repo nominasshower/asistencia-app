@@ -1218,6 +1218,10 @@ function aplicarEtapaGab(id, nombre, etapa){
   if(!_checks[k+cfg.sufijo]) _checks[k+cfg.sufijo] = new Set();
   _checks[k+cfg.sufijo].add(id);
   saveChecks();
+  // Registrar evento en HISTORIAL para reportes
+  gasPost({ accion:'log_gab', torre:state.torre, piso:String(state.piso),
+    depto:state.depto, area:state.area, gab_id:id, gab_nombre:nombre,
+    etapa:etapa, operador:'' }).catch(()=>{});
 
   const btn  = document.getElementById('btn-etapagab-'+id);
   const card = document.getElementById('gab-etapa-'+id);
@@ -1727,6 +1731,9 @@ function aplicarGabinete(id, nombre){
   if(!_checks[k+'_aplicados']) _checks[k+'_aplicados'] = new Set();
   _checks[k+'_aplicados'].add(id);
   saveChecks();
+  gasPost({ accion:'log_gab', torre:state.torre, piso:String(state.piso),
+    depto:state.depto, area:state.area, gab_id:id, gab_nombre:nombre,
+    etapa:'corte', operador:'' }).catch(()=>{});
 
   showNotif('✅ ' + id + ' — ' + nombre + ' marcado como CORTADO');
   actualizarProgreso();
