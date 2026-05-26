@@ -46,6 +46,38 @@
   display: flex; align-items: center; gap: 10px; transition: all .2s;
 }
 .scan-btn:hover { background: rgba(74,143,232,.2); }
+
+/* ── VISTA PRODUCCIÓN ── */
+.prod-depto {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; margin-bottom: 16px; overflow: hidden;
+}
+.prod-depto-header {
+  padding: 14px 18px; display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid var(--border); background: var(--surface2);
+}
+.prod-depto-title { font-family: 'Bebas Neue'; font-size: 18px; letter-spacing: 2px; color: var(--accent); }
+.prod-depto-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.prod-areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; padding: 14px; }
+.prod-area-card {
+  background: var(--bg); border: 2px solid var(--border); border-radius: 12px;
+  padding: 16px 14px; cursor: pointer; transition: all .2s; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.prod-area-card:hover, .prod-area-card:active { transform: scale(0.97); }
+.prod-area-card .pa-icon { font-size: 32px; }
+.prod-area-card .pa-name { font-size: 14px; font-weight: 700; }
+.prod-area-card .pa-etapa {
+  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+  letter-spacing: 0.5px; text-transform: uppercase;
+}
+.prod-area-card .pa-prog { font-size: 11px; color: var(--muted); }
+.prod-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.btn-activar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 13px;
+  cursor: pointer; font-family: DM Sans; transition: all .2s; border: 2px solid;
+}
 </style>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
@@ -426,6 +458,7 @@
     <div class="hstat"><div class="hstat-num">65</div><div class="hstat-label">Deptos</div></div>
     <div class="hstat"><div class="hstat-num" id="global-pct">0%</div><div class="hstat-label">Avance</div></div>
     <button onclick="showDashboard()" style="padding:8px 18px;border-radius:8px;border:1px solid var(--accent);background:rgba(232,200,74,.1);color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;font-family:DM Sans">📊 Dashboard</button>
+    <button onclick="showProduccion()" id="btn-produccion" style="padding:8px 18px;border-radius:8px;border:2px solid var(--etapa-empaque);background:rgba(74,232,168,.12);color:var(--etapa-empaque);font-weight:700;font-size:13px;cursor:pointer;font-family:DM Sans">🏭 Producción</button>
   </div>
 </header>
 
@@ -479,7 +512,8 @@
           <div class="detail-title" id="det-title"></div>
           <div class="detail-meta" id="det-meta"></div>
         </div>
-        <div style="margin-left:auto;display:flex;gap:10px">
+        <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
+          <button id="btn-activar-area" class="btn-activar" onclick="toggleActivarArea()">⬜ Activar en Producción</button>
           <button class="btn btn-ghost" onclick="goBack('areas')">← Volver</button>
         </div>
       </div>
@@ -604,6 +638,23 @@
         <button class="dash-fil" data-fil="lista"    onclick="filtrarDash('lista')"    style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-lista);background:transparent;color:var(--etapa-lista);font-size:12px;cursor:pointer;font-family:DM Sans">✅ Lista</button>
       </div>
       <div id="dash-planner"></div>
+    </div>
+
+    <!-- VISTA 6: PRODUCCIÓN (operadores en planta) -->
+    <div class="view" id="view-produccion">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="section-title">Vista de Producción</div>
+          <div class="section-desc" id="prod-subtitle">Departamentos activos — toca el área para trabajar</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="goHome()" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;cursor:pointer;font-family:DM Sans">Admin ↗</button>
+        </div>
+      </div>
+      <!-- Filtro rápido por etapa -->
+      <div id="prod-filtros" style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap"></div>
+      <!-- Grid de departamentos activos -->
+      <div id="prod-grid"></div>
     </div>
 
   </main>
@@ -907,6 +958,7 @@ function selectArea(areaId, areaName, code, meta){
 
   // Cargar checks guardados de esta área
   loadChecks();
+  actualizarBtnActivar();
 
   // Cargar gabinetes — filtra solo los aplicados en corte
   const gabsParaRender = code==='cocina' ? COCINA_GABINETES.map(g=>{
@@ -2339,6 +2391,170 @@ function showNotif(msg){
   const n = document.getElementById('notif');
   n.textContent = msg; n.style.display='block';
   setTimeout(()=>n.style.display='none', 3000);
+}
+
+// ─── VISTA PRODUCCIÓN ────────────────────────────────────────────────
+
+function getActivasKey(){ return 't1000_activas'; }
+
+function isAreaActiva(t, p, d, a){
+  try {
+    const all = JSON.parse(localStorage.getItem(getActivasKey())||'{}');
+    return !!all[`${t}-${p}-${d}-${a}`];
+  } catch(e){ return false; }
+}
+
+function setAreaActiva(t, p, d, a, activa){
+  try {
+    const all = JSON.parse(localStorage.getItem(getActivasKey())||'{}');
+    const k = `${t}-${p}-${d}-${a}`;
+    if(activa) all[k] = { torre:t, piso:p, depto:d, area:a, ts: Date.now() };
+    else delete all[k];
+    localStorage.setItem(getActivasKey(), JSON.stringify(all));
+  } catch(e){}
+}
+
+function toggleActivarArea(){
+  const t = state.torre, p = state.piso, d = state.depto, a = state.area;
+  if(!t||!p||!d||!a) return;
+  const actual = isAreaActiva(t,p,d,a);
+  setAreaActiva(t,p,d,a,!actual);
+  actualizarBtnActivar();
+  showNotif(actual ? '⬜ Área desactivada de Producción' : '✅ Área activada en Producción');
+}
+
+function actualizarBtnActivar(){
+  const btn = document.getElementById('btn-activar-area');
+  if(!btn) return;
+  const activa = isAreaActiva(state.torre, state.piso, state.depto, state.area);
+  if(activa){
+    btn.textContent = '✅ Activa en Producción';
+    btn.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:DM Sans;transition:all .2s;border:2px solid var(--etapa-lista);background:rgba(74,232,74,.12);color:var(--etapa-lista)';
+  } else {
+    btn.textContent = '⬜ Activar en Producción';
+    btn.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:DM Sans;transition:all .2s;border:2px solid var(--border);background:transparent;color:var(--muted)';
+  }
+}
+
+let _prodFiltro = 'todas';
+
+function showProduccion(){
+  _prodFiltro = 'todas';
+  showView('produccion');
+  renderProduccion();
+  updateBreadcrumb();
+}
+
+function renderProduccion(){
+  const ETAPA_COLOR = {corte:'var(--etapa-corte)',armado:'var(--etapa-armado)',ensamble:'var(--etapa-ensamble)',empaque:'var(--etapa-empaque)',embarque:'var(--etapa-embarque)',sitio:'var(--etapa-sitio)',lista:'var(--etapa-lista)'};
+  const ETAPA_ICON  = {corte:'✂️',armado:'🔧',ensamble:'🔩',empaque:'📦',embarque:'🚛',sitio:'🏗️',lista:'✅'};
+  const ETAPAS = ['corte','armado','ensamble','empaque','embarque','sitio','lista'];
+
+  let activas = {};
+  try { activas = JSON.parse(localStorage.getItem(getActivasKey())||'{}'); } catch(e){}
+
+  const lista = Object.values(activas);
+  const total = lista.length;
+
+  document.getElementById('prod-subtitle').textContent =
+    total ? `${total} área${total>1?'s':''} activa${total>1?'s':''} — toca el área para trabajar` : 'Sin áreas activas aún';
+
+  // Filtros rápidos por etapa
+  const etapasEnUso = [...new Set(lista.map(a => {
+    const aData = getAreaData(a.torre, a.piso, a.depto, a.area);
+    return aData.etapaActual || 'corte';
+  }))];
+
+  const filBtns = [
+    {k:'todas', label:'Todas', color:'var(--accent)'},
+    ...ETAPAS.filter(e => etapasEnUso.includes(e) || e === _prodFiltro)
+             .map(e => ({k:e, label: ETAPA_ICON[e]+' '+e.charAt(0).toUpperCase()+e.slice(1), color: ETAPA_COLOR[e]}))
+  ];
+
+  document.getElementById('prod-filtros').innerHTML = filBtns.map(f=>`
+    <button onclick="filtrarProd('${f.k}')"
+      style="padding:7px 16px;border-radius:20px;font-size:13px;font-weight:${_prodFiltro===f.k?'700':'400'};cursor:pointer;font-family:DM Sans;
+             border:2px solid ${f.color};background:${_prodFiltro===f.k?f.color:'transparent'};
+             color:${_prodFiltro===f.k?'#000':f.color};transition:all .2s">
+      ${f.label}
+    </button>`).join('');
+
+  if(!total){
+    document.getElementById('prod-grid').innerHTML = `
+      <div class="prod-empty">
+        <div style="font-size:48px;margin-bottom:16px">🏭</div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:8px">Sin áreas activas</div>
+        <div style="font-size:13px">El programador debe entrar a un área y dar click en<br>
+          <strong style="color:var(--etapa-lista)">"Activar en Producción"</strong></div>
+      </div>`;
+    return;
+  }
+
+  // Agrupar por departamento
+  const deptos = {};
+  lista.forEach(a => {
+    const aData = getAreaData(a.torre, a.piso, a.depto, a.area);
+    const etapaActual = aData.etapaActual || 'corte';
+    if(_prodFiltro !== 'todas' && etapaActual !== _prodFiltro) return;
+
+    const dk = `${a.torre}-${a.piso}-${a.depto}`;
+    if(!deptos[dk]) deptos[dk] = { torre:a.torre, piso:a.piso, depto:a.depto, areas:[] };
+
+    // Conteo de progreso
+    const ck = `${a.torre}_${a.piso}_${a.depto}_${a.area}`;
+    const conteo = getConteoArea(ck);
+    const tot = aData.totalGabinetes || '?';
+    const etapaIdx = ETAPAS.indexOf(etapaActual);
+    const pct = tot !== '?' && tot > 0 ? Math.round((etapaIdx / (ETAPAS.length-1))*100) : 0;
+
+    deptos[dk].areas.push({ ...a, etapaActual, conteo, tot, pct, etapaIdx });
+  });
+
+  const deptosArr = Object.values(deptos);
+  if(!deptosArr.length){
+    document.getElementById('prod-grid').innerHTML = `
+      <div class="prod-empty">
+        <div style="font-size:36px;margin-bottom:12px">${ETAPA_ICON[_prodFiltro]||'📋'}</div>
+        <div style="font-size:14px">Sin áreas en etapa <strong>${_prodFiltro}</strong></div>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('prod-grid').innerHTML = deptosArr.map(dep => {
+    const deptoLabel = dep.depto.replace(/_\d+$/,'').replace(/_/g,' ');
+    const deptoNum   = (dep.depto.match(/\d+$/) || [''])[0];
+    const areaCards  = dep.areas.map(a => {
+      const meta  = AREA_META[(a.area||'').split('_')[0]] || {icon:'📦',label:'Área'};
+      const color = ETAPA_COLOR[a.etapaActual] || 'var(--muted)';
+      const cortados = a.conteo.cortados || 0;
+      return `
+        <div class="prod-area-card" style="border-color:${color}"
+             onclick="irAArea('${a.torre}','${a.piso}','${a.depto}','${a.area}','${a.etapaActual === 'corte' ? 'corte' : 'gabinetes'}')">
+          <div class="pa-icon">${meta.icon}</div>
+          <div class="pa-name">${meta.label}</div>
+          <div class="pa-etapa" style="background:${color}20;color:${color};border:1px solid ${color}">
+            ${ETAPA_ICON[a.etapaActual]||''} ${a.etapaActual.toUpperCase()}
+          </div>
+          <div class="pa-prog">${cortados}/${a.tot} cortados</div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="prod-depto">
+        <div class="prod-depto-header">
+          <div>
+            <div class="prod-depto-title">Torre ${dep.torre} · Nivel ${dep.piso} · ${deptoLabel.toUpperCase()} ${deptoNum ? '#'+deptoNum : ''}</div>
+            <div class="prod-depto-sub">${dep.areas.length} área${dep.areas.length>1?'s':''} activa${dep.areas.length>1?'s':''}</div>
+          </div>
+        </div>
+        <div class="prod-areas">${areaCards}</div>
+      </div>`;
+  }).join('');
+}
+
+function filtrarProd(filtro){
+  _prodFiltro = filtro;
+  renderProduccion();
 }
 
 // ─── SIDEBAR TOGGLE ──────────────────────────────────────────────────
