@@ -2035,15 +2035,27 @@ function generarZPL(gabinetes){
 async function testZebraConexion(){
   const ip = localStorage.getItem('zebra_ip');
   if(!ip){ configurarZebra(); return; }
-  const zpl = [
+  // Prueba A: 203 DPI (4"=812, 2"=406)
+  const zplA = [
     '^XA','^PW812','^LL406','^CI28','^MMT',
-    '^FO15,6^A0N,24,24^FDPRUEBA ZEBRA · CONEXION OK^FS',
-    '^FO15,34^A0N,150,100^FDTEST-01^FS',
-    '^FO15,190^BY3,3,80^BCN,,,N^FDTEST-CONN^FS',
-    '^FO15,282^A0N,40,40^FDCONEXION OK^FS',
-    '^FO15,328^A0N,26,26^FDTEST-CONN^FS',
+    '^FO10,4^A0N,26,26^FD203 DPI TEST^FS',
+    '^FO10,34^A0N,180,130^FDTEST-A^FS',
+    '^FO10,220^BY3,3,90^BCN,,,N^FDTEST-203^FS',
+    '^FO10,318^A0N,46,46^FDCONEXION OK^FS',
+    '^FO10,368^A0N,28,28^FDTEST-203^FS',
     '^XZ'
   ].join('\n');
+  // Prueba B: 300 DPI (4"=1200, 2"=600)
+  const zplB = [
+    '^XA','^PW1200','^LL600','^CI28','^MMT',
+    '^FO15,6^A0N,38,38^FD300 DPI TEST^FS',
+    '^FO15,50^A0N,260,190^FDTEST-B^FS',
+    '^FO15,320^BY4,3,130^BCN,,,N^FDTEST-300^FS',
+    '^FO15,462^A0N,68,68^FDCONEXION OK^FS',
+    '^FO15,538^A0N,42,42^FDTEST-300^FS',
+    '^XZ'
+  ].join('\n');
+  const zpl = zplA + '\n' + zplB;
   try {
     await fetch(`http://${ip}/pstprnt`,{method:'POST',headers:{'Content-Type':'text/plain'},body:zpl,mode:'no-cors'});
     showNotif('📡 Etiqueta de prueba enviada a '+ip);
