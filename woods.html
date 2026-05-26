@@ -744,9 +744,15 @@ const _cache = {};
 
 function getKey(t,p,d,a){ return `${t}-${p}-${d}-${a}`; }
 
-// Lee de cache local (se llena al cargar área)
+// Lee de cache local — primero memoria, luego localStorage
 function getAreaData(t,p,d,a){
-  return _cache[getKey(t,p,d,a)] || {};
+  const k = getKey(t,p,d,a);
+  if(_cache[k]) return _cache[k];
+  try {
+    const local = JSON.parse(localStorage.getItem('t1000_data')||'{}');
+    if(local[k]){ _cache[k] = local[k]; return local[k]; }
+  } catch(e){}
+  return {};
 }
 
 // Guarda localmente en cache Y en Google Sheets
