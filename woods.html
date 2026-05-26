@@ -459,6 +459,7 @@
     <div class="hstat"><div class="hstat-num" id="global-pct">0%</div><div class="hstat-label">Avance</div></div>
     <button onclick="showDashboard()" style="padding:8px 18px;border-radius:8px;border:1px solid var(--accent);background:rgba(232,200,74,.1);color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;font-family:DM Sans">📊 Dashboard</button>
     <button onclick="showProduccion()" id="btn-produccion" style="padding:8px 18px;border-radius:8px;border:2px solid var(--etapa-empaque);background:rgba(74,232,168,.12);color:var(--etapa-empaque);font-weight:700;font-size:13px;cursor:pointer;font-family:DM Sans">🏭 Producción</button>
+    <button onclick="limpiarCache()" title="Limpiar caché local y recargar desde Sheets" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:DM Sans">🗑️</button>
   </div>
 </header>
 
@@ -2467,6 +2468,13 @@ function showNotif(msg){
   const n = document.getElementById('notif');
   n.textContent = msg; n.style.display='block';
   setTimeout(()=>n.style.display='none', 3000);
+}
+
+function limpiarCache(){
+  if(!confirm('¿Limpiar caché local y recargar datos desde Sheets?\nEsto borra el progreso guardado solo en este dispositivo.')) return;
+  ['t1000_data','t1000_checks','t1000_activas'].forEach(k => localStorage.removeItem(k));
+  showNotif('🗑️ Caché limpiado — recargando...');
+  setTimeout(() => location.reload(), 1200);
 }
 
 // ─── VISTA PRODUCCIÓN ────────────────────────────────────────────────
