@@ -4,6 +4,46 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Woods — Sistema de Producción Torres 1000</title>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<style>
+/* ── ETIQUETAS IMPRIMIBLES ── */
+@media print {
+  body > *:not(#print-labels-sheet) { display: none !important; }
+  #print-labels-sheet { display: flex !important; }
+  @page { size: letter; margin: 0.25in; }
+}
+#print-labels-sheet {
+  display: none;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 0;
+  background: #fff;
+  position: fixed; inset: 0; z-index: 9999; overflow: auto;
+  align-content: flex-start;
+}
+.etiqueta {
+  width: 4in; height: 2in;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 6px 8px; gap: 2px;
+  font-family: Arial, sans-serif;
+  page-break-inside: avoid;
+  background: #fff;
+}
+.etiqueta-ref { font-size: 8px; color: #666; text-align: center; letter-spacing: 0.5px; }
+.etiqueta-id  { font-size: 18px; font-weight: 900; color: #000; letter-spacing: 2px; }
+.etiqueta-nombre { font-size: 9px; font-weight: 600; color: #000; text-align: center; }
+.etiqueta svg { max-width: 180px; height: 36px; }
+.scan-btn {
+  padding: 14px 22px; border-radius: 10px; border: 2px solid var(--accent2);
+  background: rgba(74,143,232,.1); color: var(--accent2);
+  font-size: 16px; font-weight: 700; cursor: pointer; font-family: DM Sans;
+  display: flex; align-items: center; gap: 10px; transition: all .2s;
+}
+.scan-btn:hover { background: rgba(74,143,232,.2); }
+</style>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
@@ -25,6 +65,7 @@
 
     --etapa-corte: #e8c84a;
     --etapa-armado: #4a8fe8;
+    --etapa-ensamble: #e84ab0;
     --etapa-empaque: #4ae8a8;
     --etapa-embarque: #e8834a;
     --etapa-sitio: #c44ae8;
@@ -428,12 +469,13 @@
 
       <!-- ETAPAS -->
       <div class="etapas-bar">
-        <button class="etapa-btn" data-etapa="corte" onclick="setEtapa('corte')"><span class="etapa-num">1</span>Corte</button>
-        <button class="etapa-btn" data-etapa="armado" onclick="setEtapa('armado')"><span class="etapa-num">2</span>Armado</button>
-        <button class="etapa-btn" data-etapa="empaque" onclick="setEtapa('empaque')"><span class="etapa-num">3</span>Empaque</button>
-        <button class="etapa-btn" data-etapa="embarque" onclick="setEtapa('embarque')"><span class="etapa-num">4</span>Embarque</button>
-        <button class="etapa-btn" data-etapa="sitio" onclick="setEtapa('sitio')"><span class="etapa-num">5</span>En Sitio</button>
-        <button class="etapa-btn" data-etapa="lista" onclick="setEtapa('lista')"><span class="etapa-num">✓</span>Lista</button>
+        <button class="etapa-btn" data-etapa="corte"    onclick="setEtapa('corte')"><span class="etapa-num">1</span>Corte</button>
+        <button class="etapa-btn" data-etapa="armado"   onclick="setEtapa('armado')"><span class="etapa-num">2</span>Armado</button>
+        <button class="etapa-btn" data-etapa="ensamble" onclick="setEtapa('ensamble')"><span class="etapa-num">3</span>Ensamble</button>
+        <button class="etapa-btn" data-etapa="empaque"  onclick="setEtapa('empaque')"><span class="etapa-num">4</span>Empaque</button>
+        <button class="etapa-btn" data-etapa="embarque" onclick="setEtapa('embarque')"><span class="etapa-num">5</span>Embarque</button>
+        <button class="etapa-btn" data-etapa="sitio"    onclick="setEtapa('sitio')"><span class="etapa-num">6</span>En Sitio</button>
+        <button class="etapa-btn" data-etapa="lista"    onclick="setEtapa('lista')"><span class="etapa-num">✓</span>Lista</button>
       </div>
 
       <!-- TABS -->
@@ -533,11 +575,12 @@
         </div>
         <button class="btn btn-ghost" onclick="goHome()">← Volver</button>
       </div>
-      <div id="dash-kpis" style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:28px"></div>
+      <div id="dash-kpis" style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:28px"></div>
       <div id="dash-filtros" style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
         <button class="dash-fil" data-fil="todos" onclick="filtrarDash('todos')" style="padding:6px 14px;border-radius:20px;border:1px solid var(--accent);background:rgba(232,200,74,.15);color:var(--accent);font-size:12px;cursor:pointer;font-family:DM Sans;font-weight:600">Todos</button>
         <button class="dash-fil" data-fil="corte"    onclick="filtrarDash('corte')"    style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-corte);background:transparent;color:var(--etapa-corte);font-size:12px;cursor:pointer;font-family:DM Sans">✂️ Corte</button>
         <button class="dash-fil" data-fil="armado"   onclick="filtrarDash('armado')"   style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-armado);background:transparent;color:var(--etapa-armado);font-size:12px;cursor:pointer;font-family:DM Sans">🔧 Armado</button>
+        <button class="dash-fil" data-fil="ensamble" onclick="filtrarDash('ensamble')" style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-ensamble,#e84ab0);background:transparent;color:var(--etapa-ensamble,#e84ab0);font-size:12px;cursor:pointer;font-family:DM Sans">🔩 Ensamble</button>
         <button class="dash-fil" data-fil="empaque"  onclick="filtrarDash('empaque')"  style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-empaque);background:transparent;color:var(--etapa-empaque);font-size:12px;cursor:pointer;font-family:DM Sans">📦 Empaque</button>
         <button class="dash-fil" data-fil="embarque" onclick="filtrarDash('embarque')" style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-embarque);background:transparent;color:var(--etapa-embarque);font-size:12px;cursor:pointer;font-family:DM Sans">🚛 Embarque</button>
         <button class="dash-fil" data-fil="sitio"    onclick="filtrarDash('sitio')"    style="padding:6px 14px;border-radius:20px;border:1px solid var(--etapa-sitio);background:transparent;color:var(--etapa-sitio);font-size:12px;cursor:pointer;font-family:DM Sans">🏗️ En Sitio</button>
@@ -550,6 +593,9 @@
 </div>
 
 <div class="notif" id="notif"></div>
+
+<!-- HOJA DE ETIQUETAS IMPRIMIBLES -->
+<div id="print-labels-sheet"></div>
 
 <!-- FILE INPUT global -->
 <input type="file" id="global-file-input" accept=".xlsx,.xls,.csv,.pdf,.png,.jpg">
@@ -790,7 +836,7 @@ function selectDepto(deptoId, tipo, num, sub){
     const areaId = `${code}_${i}`;
     const aData = getAreaData(state.torre, state.piso, deptoId, areaId);
     const etapa = aData.etapaActual || null;
-    const etapas = ['corte','armado','empaque','embarque','sitio','lista'];
+    const etapas = ['corte','armado','ensamble','empaque','embarque','sitio','lista'];
     const etapaIdx = etapa ? etapas.indexOf(etapa) : -1;
     const dots = etapas.map((e,ei)=>`<div class="etapa-dot ${ei<etapaIdx?'done':ei===etapaIdx?'active':''}"></div>`).join('');
     const div = document.createElement('div');
@@ -821,7 +867,7 @@ function selectArea(areaId, areaName, code, meta){
   document.getElementById('det-meta').textContent = `Torre ${state.torre} · Nivel ${state.piso} · ${meta.label}`;
 
   // Etapas
-  const etapas = ['corte','armado','empaque','embarque','sitio','lista'];
+  const etapas = ['corte','armado','ensamble','empaque','embarque','sitio','lista'];
   const cur = aData.etapaActual || null;
   document.querySelectorAll('.etapa-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.etapa === cur);
@@ -950,12 +996,14 @@ function getDemoGabinetes(code){
 
 // ── Configuración de etapas para el tab Gabinetes ───────────────────
 const ETAPA_CONFIG = {
-  corte:    { sufijo:'_aplicados', anterior:null,          accion:'aplicarGabinete', btnLabel:'✓ Aplicar Corte',   color:'var(--etapa-corte)',    doneLabel:'✅ Cortado',   completar:'completarCorteDesdeGab' },
-  armado:   { sufijo:'_armados',   anterior:'_aplicados',  accion:'aplicarEtapaGab', btnLabel:'✓ Aplicar Armado',  color:'var(--etapa-armado)',   doneLabel:'✅ Armado',    completar:'completarArmado',  siguienteEtapa:'empaque',  siguienteLabel:'Empaque'  },
-  empaque:  { sufijo:'_empacados', anterior:'_armados',    accion:'aplicarEtapaGab', btnLabel:'✓ Aplicar Empaque', color:'var(--etapa-empaque)',  doneLabel:'✅ Empacado',  completar:'completarEtapaGab', siguienteEtapa:'embarque', siguienteLabel:'Embarque' },
-  embarque: { sufijo:'_embarcados',anterior:'_empacados',  accion:'aplicarEtapaGab', btnLabel:'✓ Aplicar Embarque',color:'var(--etapa-embarque)',doneLabel:'✅ Embarcado', completar:'completarEtapaGab', siguienteEtapa:'sitio',    siguienteLabel:'En Sitio' },
-  sitio:    { sufijo:'_sitio',     anterior:'_embarcados', accion:'aplicarEtapaGab', btnLabel:'✓ Instalado',       color:'var(--etapa-sitio)',    doneLabel:'✅ Instalado', completar:'completarEtapaGab', siguienteEtapa:'lista',    siguienteLabel:'Lista'    },
+  corte:    { sufijo:'_aplicados',  anterior:null,           btnLabel:'✓ Aplicar Corte',    color:'var(--etapa-corte)',    doneLabel:'✅ Cortado',    siguienteEtapa:'armado',    siguienteLabel:'Armado'   },
+  armado:   { sufijo:'_armados',    anterior:'_aplicados',   btnLabel:'✓ Aplicar Armado',   color:'var(--etapa-armado)',   doneLabel:'✅ Armado',     siguienteEtapa:'ensamble',  siguienteLabel:'Ensamble' },
+  ensamble: { sufijo:'_ensamblados',anterior:'_armados',     btnLabel:'✓ Aplicar Ensamble', color:'var(--etapa-ensamble)', doneLabel:'✅ Ensamblado', siguienteEtapa:'empaque',   siguienteLabel:'Empaque'  },
+  empaque:  { sufijo:'_empacados',  anterior:'_ensamblados', btnLabel:'✓ Aplicar Empaque',  color:'var(--etapa-empaque)',  doneLabel:'✅ Empacado',   siguienteEtapa:'embarque',  siguienteLabel:'Embarque' },
+  embarque: { sufijo:'_embarcados', anterior:'_empacados',   btnLabel:'✓ Aplicar Embarque', color:'var(--etapa-embarque)', doneLabel:'✅ Embarcado',  siguienteEtapa:'sitio',     siguienteLabel:'En Sitio' },
+  sitio:    { sufijo:'_sitio',      anterior:'_embarcados',  btnLabel:'✓ Instalado',        color:'var(--etapa-sitio)',    doneLabel:'✅ Instalado',  siguienteEtapa:'lista',     siguienteLabel:'Lista'    },
 };
+
 
 function renderGabinetes(gabinetes, etapaForzada){
   const list   = document.getElementById('gabinetes-list');
@@ -968,7 +1016,7 @@ function renderGabinetes(gabinetes, etapaForzada){
 
   // Actualizar título del tab
   const tabTitle = document.getElementById('gab-tab-title');
-  const etapaLabels = {corte:'✂️ Corte — Aplicar gabinetes',armado:'🔧 Armado — Gabinetes cortados',empaque:'📦 Empaque — Gabinetes armados',embarque:'🚛 Embarque — Gabinetes empacados',sitio:'🏗️ En Sitio — Gabinetes embarcados',lista:'✅ Completado'};
+  const etapaLabels = {corte:'✂️ Corte — Aplicar gabinetes',armado:'🔧 Armado — Gabinetes cortados',ensamble:'🔩 Ensamble — Gabinetes armados',empaque:'📦 Empaque — Gabinetes ensamblados',embarque:'🚛 Embarque — Gabinetes empacados',sitio:'🏗️ En Sitio — Gabinetes embarcados',lista:'✅ Completado'};
   if(tabTitle) tabTitle.textContent = etapaLabels[etapa] || 'Gabinetes / Módulos';
 
   // Si no hay config para esta etapa (lista), mostrar resumen
@@ -986,9 +1034,9 @@ function renderGabinetes(gabinetes, etapaForzada){
   if(!disponibles.length){
     list.innerHTML=''; empty.style.display='block';
     const etapaAnteriorNombre = {
-      '_aplicados':'Corte','_armados':'Armado','_empacados':'Empaque','_embarcados':'Embarque'
+      '_aplicados':'Corte','_armados':'Armado','_ensamblados':'Ensamble','_empacados':'Empaque','_embarcados':'Embarque'
     }[cfg.anterior] || 'etapa anterior';
-    const iconos = {corte:'✂️',armado:'🔧',empaque:'📦',embarque:'🚛',sitio:'🏗️'};
+    const iconos = {corte:'✂️',armado:'🔧',ensamble:'🔩',empaque:'📦',embarque:'🚛',sitio:'🏗️'};
     empty.innerHTML=`
       <div style="text-align:center;padding:40px 20px">
         <div style="font-size:40px;margin-bottom:12px">${iconos[etapa]||'📋'}</div>
@@ -1000,53 +1048,73 @@ function renderGabinetes(gabinetes, etapaForzada){
 
   empty.style.display='none';
   const yaHechos = _checks[k+cfg.sufijo] || new Set();
+  const esPostCorte = etapa !== 'corte';
+
+  // Botones de acción rápida arriba (escaneo + imprimir etiquetas)
+  const existingToolbar = document.getElementById('gab-toolbar');
+  if(existingToolbar) existingToolbar.remove();
+  const toolbar = document.createElement('div');
+  toolbar.id = 'gab-toolbar';
+  toolbar.style.cssText = 'display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center';
+  toolbar.innerHTML = `
+    <button class="scan-btn" onclick="abrirScanner('${etapa}')">
+      📷 Escanear código de barra
+    </button>
+    <button onclick="imprimirEtiquetas(${JSON.stringify(disponibles).replace(/"/g,'&quot;')})"
+      style="padding:12px 18px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:DM Sans;display:flex;align-items:center;gap:8px">
+      🏷️ Imprimir Etiquetas (${disponibles.length})
+    </button>`;
+  list.parentNode.insertBefore(toolbar, list);
 
   list.innerHTML = disponibles.map((g,i)=>{
     const gabId  = g.tipo||g.id||('G'+i);
     const hecho  = yaHechos.has(gabId);
     const color  = hecho ? 'var(--accent3)' : cfg.color;
+    const bcVal  = `W1K-${state.torre||'?'}${state.piso||'?'}-${(state.area||'').split('_')[0]}-${gabId}`.toUpperCase();
     return `
-    <div class="gab-item" id="gab-etapa-${gabId}" style="border-left:3px solid ${color}">
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-family:'Bebas Neue';font-size:18px;color:${color}">${gabId}</span>
-        <div>
-          <div class="gab-name">${g.nombre}</div>
-          <div class="gab-dims">${g.ancho} × ${g.alto} × ${g.prof} mm</div>
+    <div class="gab-item" id="gab-etapa-${gabId}" style="border-left:3px solid ${color};padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:12px;flex:1">
+        <span style="font-family:'Bebas Neue';font-size:22px;color:${color};min-width:40px">${gabId}</span>
+        <div style="flex:1">
+          <div class="gab-name" style="font-size:15px">${g.nombre}</div>
+          <div style="font-family:DM Mono;font-size:10px;color:var(--muted);margin-top:2px">${bcVal}</div>
         </div>
+        ${hecho ? `<span style="background:var(--accent3);color:#000;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">${cfg.doneLabel}</span>` : ''}
       </div>
-      <div class="gab-right" style="gap:12px">
-        <div style="text-align:center"><div class="gab-count">×${g.qty||1}</div><div class="gab-count-label">cant.</div></div>
+      <div class="gab-right" style="gap:10px;margin-top:0">
         <button id="btn-etapagab-${gabId}"
           onclick="aplicarEtapaGab('${gabId}','${g.nombre}','${etapa}')"
           ${hecho?'disabled':''}
-          style="padding:7px 16px;border-radius:6px;border:1px solid ${color};background:${color};color:#000;font-size:12px;font-weight:700;cursor:${hecho?'default':'pointer'};font-family:DM Sans;white-space:nowrap;transition:all .3s">
+          style="padding:10px 20px;border-radius:8px;border:1px solid ${hecho?'var(--accent3)':color};background:${hecho?'var(--accent3)':color};color:#000;font-size:13px;font-weight:700;cursor:${hecho?'default':'pointer'};font-family:DM Sans;white-space:nowrap;transition:all .3s;min-width:130px">
           ${hecho?cfg.doneLabel:cfg.btnLabel}
         </button>
       </div>
     </div>`;
   }).join('');
 
-  // Footer con contador y botón global
+  // Footer con contador, scan global y botón avanzar etapa
   const existingFooter = document.getElementById('gab-etapa-footer');
   if(existingFooter) existingFooter.remove();
 
-  const total   = disponibles.length;
-  const hechos  = yaHechos.size;
+  const total    = disponibles.length;
+  const hechos   = yaHechos.size;
   const sigEtapa = cfg.siguienteEtapa || '';
   const sigLabel = cfg.siguienteLabel || '';
   const colorFooter = hechos===total&&total>0?'var(--accent3)':hechos>0?cfg.color:'var(--surface2)';
-  const colorTxt   = hechos>0?'#000':'var(--muted)';
-  const btnTxt     = hechos===total&&total>0?`✅ Todo listo — Pasar a ${sigLabel}`:hechos>0?`→ Pasar a ${sigLabel} (${hechos}/${total})`:`Aplica para continuar`;
+  const colorTxt    = hechos>0?'#000':'var(--muted)';
+  const btnTxt      = hechos===total&&total>0
+    ? `✅ Todo listo — Pasar a ${sigLabel}`
+    : hechos>0 ? `→ Pasar a ${sigLabel} (${hechos}/${total})` : `Aplica o escanea para continuar`;
 
   const footer = document.createElement('div');
-  footer.id='gab-etapa-footer';
-  footer.style.cssText='margin-top:20px;padding:16px 20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;gap:20px;flex-wrap:wrap';
-  footer.innerHTML=`
-    <span style="font-family:'Bebas Neue';font-size:16px;letter-spacing:2px;color:${cfg.color}">${etapa.toUpperCase()}</span>
+  footer.id = 'gab-etapa-footer';
+  footer.style.cssText = 'margin-top:20px;padding:16px 20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;gap:16px;flex-wrap:wrap';
+  footer.innerHTML = `
+    <span style="font-family:'Bebas Neue';font-size:18px;letter-spacing:2px;color:${cfg.color}">${etapa.toUpperCase()}</span>
     <span id="gab-etapa-contador" style="font-family:DM Mono;font-size:13px;color:var(--muted)">${hechos} de ${total} gabinetes</span>
     <button id="btn-completar-etapa-gab" onclick="completarEtapaDesdeGab('${etapa}','${sigEtapa}','${sigLabel}')"
       ${hechos===0?'disabled':''}
-      style="margin-left:auto;padding:8px 20px;border-radius:6px;font-weight:700;cursor:${hechos===0?'not-allowed':'pointer'};font-family:DM Sans;transition:all .3s;border:1px solid ${colorFooter};background:${colorFooter};color:${colorTxt}">
+      style="margin-left:auto;padding:10px 24px;border-radius:8px;font-weight:700;font-size:14px;cursor:${hechos===0?'not-allowed':'pointer'};font-family:DM Sans;transition:all .3s;border:1px solid ${colorFooter};background:${colorFooter};color:${colorTxt}">
       ${btnTxt}
     </button>`;
   list.parentNode.appendChild(footer);
@@ -1411,13 +1479,14 @@ function getConteoArea(checksKey){
     const all = JSON.parse(localStorage.getItem('t1000_checks')||'{}');
     const saved = all[checksKey] || {};
     return {
-      cortados:   (saved[checksKey+'_aplicados']  ||[]).length,
-      armados:    (saved[checksKey+'_armados']     ||[]).length,
-      empacados:  (saved[checksKey+'_empacados']   ||[]).length,
-      embarcados: (saved[checksKey+'_embarcados']  ||[]).length,
-      sitio:      (saved[checksKey+'_sitio']       ||[]).length,
+      cortados:    (saved[checksKey+'_aplicados']   ||[]).length,
+      armados:     (saved[checksKey+'_armados']      ||[]).length,
+      ensamblados: (saved[checksKey+'_ensamblados']  ||[]).length,
+      empacados:   (saved[checksKey+'_empacados']    ||[]).length,
+      embarcados:  (saved[checksKey+'_embarcados']   ||[]).length,
+      sitio:       (saved[checksKey+'_sitio']        ||[]).length,
     };
-  } catch(e){ return {cortados:0,armados:0,empacados:0,embarcados:0,sitio:0}; }
+  } catch(e){ return {cortados:0,armados:0,ensamblados:0,empacados:0,embarcados:0,sitio:0}; }
 }
 
 function restaurarChecks(){
@@ -1623,7 +1692,7 @@ function renderResumen(aData){
     <div class="resumen-item"><div class="resumen-num">${totalM2.toFixed(1)}</div><div class="resumen-unit">m² Material</div></div>`;
 
   const log = document.getElementById('etapas-log');
-  const etapas = ['corte','armado','empaque','embarque','sitio','lista'];
+  const etapas = ['corte','armado','ensamble','empaque','embarque','sitio','lista'];
   const cur = aData.etapaActual||'';
   const curIdx = etapas.indexOf(cur);
   log.innerHTML = etapas.map((e,i)=>`
@@ -1639,7 +1708,7 @@ function renderResumen(aData){
 function setEtapa(e){
   state.etapa = e;
   document.querySelectorAll('.etapa-btn').forEach(b=>b.classList.toggle('active', b.dataset.etapa===e));
-  const tabMap = { corte:'corte', armado:'gabinetes', empaque:'gabinetes', embarque:'gabinetes', sitio:'gabinetes', lista:'resumen' };
+  const tabMap = { corte:'corte', armado:'gabinetes', ensamble:'gabinetes', empaque:'gabinetes', embarque:'gabinetes', sitio:'gabinetes', lista:'resumen' };
   if(tabMap[e]) setTab(tabMap[e]);
   if(['armado','empaque','embarque','sitio'].includes(e)){
     const gabsParaRender = typeof COCINA_GABINETES!=='undefined' ? COCINA_GABINETES.map(g=>{
@@ -1739,6 +1808,166 @@ function handleExcelUpload(e, tipo){
   }, 800);
 }
 
+// ─── ETIQUETAS Y CÓDIGOS DE BARRA ────────────────────────────────────
+
+// Genera el código para el barcode: proyecto-torre-piso-area-gabId
+function getBarcodeValue(gabId){
+  const t = state.torre||'?';
+  const p = state.piso||'?';
+  const a = (state.area||'').split('_')[0]||'?';
+  return `W1000-${t}${p}-${a}-${gabId}`;
+}
+
+// Imprime hoja de etiquetas 4×2" con barcode para los gabinetes del área
+function imprimirEtiquetas(gabinetes){
+  const sheet = document.getElementById('print-labels-sheet');
+  const t = state.torre||'?';
+  const p = state.piso||'?';
+  const d = (state.depto||'').replace(/_/g,' ');
+  const aCode = (state.area||'').split('_')[0];
+  const areaNombre = (document.getElementById('det-title')||{}).textContent || aCode;
+
+  sheet.innerHTML = gabinetes.map((g,i)=>{
+    const gabId = g.tipo||g.id||('G'+(i+1));
+    const bcVal = `W1K-${t}${p}-${aCode}-${gabId}`.toUpperCase();
+    return `
+      <div class="etiqueta">
+        <div class="etiqueta-ref">Torre ${t} · Niv ${p} · ${d.toUpperCase()} · ${areaNombre.toUpperCase()}</div>
+        <div class="etiqueta-id">${gabId}</div>
+        <svg id="bc-${i}" class="bc-svg"></svg>
+        <div class="etiqueta-nombre">${g.nombre}</div>
+        <div class="etiqueta-ref" style="font-size:7px;margin-top:2px">${bcVal}</div>
+      </div>`;
+  }).join('');
+
+  sheet.style.display = 'flex';
+  // Generar barcodes
+  gabinetes.forEach((g,i)=>{
+    const gabId = g.tipo||g.id||('G'+(i+1));
+    const bcVal = `W1K-${t}${p}-${aCode}-${gabId}`.toUpperCase();
+    try {
+      JsBarcode(`#bc-${i}`, bcVal, {
+        format: 'CODE128', width: 1.4, height: 36,
+        displayValue: false, margin: 2
+      });
+    } catch(e){}
+  });
+  setTimeout(()=>{ window.print(); sheet.style.display='none'; }, 300);
+}
+
+// ─── ESCANEO POR CÁMARA ───────────────────────────────────────────────
+let _scanEtapa = null;
+let _scanStream = null;
+
+function abrirScanner(etapa){
+  _scanEtapa = etapa;
+  // Preferir BarcodeDetector (Chrome/Edge moderno) si está disponible
+  if('BarcodeDetector' in window){
+    abrirCamaraStream(etapa);
+  } else {
+    // Fallback: input file con capture
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment';
+    inp.onchange = e => procesarImagenEscaneada(e.target.files[0], etapa);
+    inp.click();
+  }
+}
+
+function abrirCamaraStream(etapa){
+  const overlay = document.createElement('div');
+  overlay.id = 'scan-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
+  overlay.innerHTML = `
+    <div style="color:#fff;font-family:Bebas Neue;font-size:22px;letter-spacing:3px">ESCANEAR CÓDIGO</div>
+    <div style="position:relative;width:320px;height:240px;border:3px solid var(--accent);border-radius:12px;overflow:hidden">
+      <video id="scan-video" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>
+      <div style="position:absolute;inset:0;border:2px solid rgba(232,200,74,.4);border-radius:10px;pointer-events:none"></div>
+    </div>
+    <div id="scan-result" style="color:var(--accent);font-family:DM Mono;font-size:14px;min-height:20px"></div>
+    <button onclick="cerrarScanner()" style="padding:10px 28px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;font-family:DM Sans;font-size:14px;cursor:pointer;margin-top:4px">Cancelar</button>`;
+  document.body.appendChild(overlay);
+
+  navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } })
+    .then(stream => {
+      _scanStream = stream;
+      const video = document.getElementById('scan-video');
+      video.srcObject = stream;
+      video.play();
+      rastrearFrame(video, etapa);
+    })
+    .catch(()=>{ cerrarScanner(); showNotif('⚠️ No se pudo acceder a la cámara'); });
+}
+
+async function rastrearFrame(video, etapa){
+  if(!document.getElementById('scan-overlay')) return;
+  try {
+    const detector = new BarcodeDetector({ formats: ['code_128','code_39','qr_code'] });
+    const codes = await detector.detect(video);
+    if(codes.length){
+      const raw = codes[0].rawValue;
+      procesarCodigoEscaneado(raw, etapa);
+      return;
+    }
+  } catch(e){}
+  requestAnimationFrame(()=> rastrearFrame(video, etapa));
+}
+
+function cerrarScanner(){
+  if(_scanStream) _scanStream.getTracks().forEach(t=>t.stop());
+  _scanStream = null;
+  const ov = document.getElementById('scan-overlay');
+  if(ov) ov.remove();
+}
+
+async function procesarImagenEscaneada(file, etapa){
+  if(!file) return;
+  if(!('BarcodeDetector' in window)){ showNotif('⚠️ Tu navegador no soporta lectura de códigos'); return; }
+  const img = await createImageBitmap(file);
+  const detector = new BarcodeDetector({ formats: ['code_128','code_39','qr_code'] });
+  const codes = await detector.detect(img);
+  if(codes.length){ procesarCodigoEscaneado(codes[0].rawValue, etapa); }
+  else { showNotif('⚠️ No se detectó código — intenta de nuevo'); }
+}
+
+function procesarCodigoEscaneado(raw, etapa){
+  // Formato esperado: W1K-A1-cocina-C01
+  cerrarScanner();
+  const partes = raw.toUpperCase().split('-');
+  const gabId = partes[partes.length-1];
+  if(!gabId){ showNotif('⚠️ Código no reconocido: '+raw); return; }
+
+  const cfg = ETAPA_CONFIG[etapa];
+  if(!cfg){ showNotif('⚠️ Etapa no válida'); return; }
+
+  const k = getChecksKey();
+  if(!_checks[k+cfg.sufijo]) _checks[k+cfg.sufijo] = new Set();
+  _checks[k+cfg.sufijo].add(gabId);
+  saveChecks();
+
+  // Actualizar UI del botón si está visible
+  const btn = document.getElementById('btn-etapagab-'+gabId);
+  const card = document.getElementById('gab-etapa-'+gabId);
+  if(btn){ btn.textContent=cfg.doneLabel; btn.disabled=true; btn.style.background='var(--accent3)'; btn.style.borderColor='var(--accent3)'; }
+  if(card){ card.style.borderLeftColor='var(--accent3)'; }
+
+  // Actualizar contador footer
+  const total = document.querySelectorAll('[id^="gab-etapa-"]').length;
+  const hechos = _checks[k+cfg.sufijo].size;
+  const contador = document.getElementById('gab-etapa-contador');
+  const btnC = document.getElementById('btn-completar-etapa-gab');
+  if(contador) contador.textContent = hechos+' de '+total+' gabinetes';
+  if(btnC){
+    btnC.disabled = false; btnC.style.color='#000'; btnC.style.cursor='pointer';
+    const col = hechos===total ? 'var(--accent3)' : cfg.color;
+    btnC.style.background=col; btnC.style.borderColor=col;
+    btnC.textContent = hechos===total
+      ? '✅ Todo listo — Pasar a '+(cfg.siguienteLabel||'siguiente')
+      : '→ Pasar a '+(cfg.siguienteLabel||'siguiente')+' ('+hechos+'/'+total+')';
+  }
+
+  showNotif('✅ '+gabId+' — '+cfg.doneLabel+' vía escáner');
+}
+
 // ─── DASHBOARD GERENCIAL ─────────────────────────────────────────────
 let _dashFiltro = 'todos';
 
@@ -1766,8 +1995,8 @@ function renderDashboard(){
   try { dataAll   = JSON.parse(localStorage.getItem('t1000_data')  ||'{}'); } catch(e){}
 
   // Colores e iconos por etapa
-  const ETAPA_COLOR = {corte:'var(--etapa-corte)',armado:'var(--etapa-armado)',empaque:'var(--etapa-empaque)',embarque:'var(--etapa-embarque)',sitio:'var(--etapa-sitio)',lista:'var(--etapa-lista)'};
-  const ETAPA_ICON  = {corte:'✂️',armado:'🔧',empaque:'📦',embarque:'🚛',sitio:'🏗️',lista:'✅'};
+  const ETAPA_COLOR = {corte:'var(--etapa-corte)',armado:'var(--etapa-armado)',ensamble:'var(--etapa-ensamble)',empaque:'var(--etapa-empaque)',embarque:'var(--etapa-embarque)',sitio:'var(--etapa-sitio)',lista:'var(--etapa-lista)'};
+  const ETAPA_ICON  = {corte:'✂️',armado:'🔧',ensamble:'🔩',empaque:'📦',embarque:'🚛',sitio:'🏗️',lista:'✅'};
 
   // Construir lista de áreas activas desde t1000_checks
   // Cada key en checksAll es: "Torre_Piso_deptoKey_areaType_areaIdx"
@@ -1794,11 +2023,12 @@ function renderDashboard(){
   });
 
   // KPIs globales
-  const kpiCount = {corte:0,armado:0,empaque:0,embarque:0,sitio:0,lista:0};
+  const kpiCount = {corte:0,armado:0,ensamble:0,empaque:0,embarque:0,sitio:0,lista:0};
   areas.forEach(a => { if(a.etapaActual && kpiCount[a.etapaActual]!==undefined) kpiCount[a.etapaActual]++; });
   const kpis = [
     {e:'corte',    label:'En Corte'},
     {e:'armado',   label:'En Armado'},
+    {e:'ensamble', label:'En Ensamble'},
     {e:'empaque',  label:'En Empaque'},
     {e:'embarque', label:'En Embarque'},
     {e:'sitio',    label:'En Sitio'},
@@ -1833,7 +2063,7 @@ function renderDashboard(){
     grupos[gk].areas.push(a);
   });
 
-  const etapas = ['corte','armado','empaque','embarque','sitio','lista'];
+  const etapas = ['corte','armado','ensamble','empaque','embarque','sitio','lista'];
 
   document.getElementById('dash-planner').innerHTML = Object.values(grupos).map(g=>{
     const areaRows = g.areas.map(a=>{
@@ -1847,10 +2077,11 @@ function renderDashboard(){
 
       // Tarjetas de progreso por etapa
       const cards = [
-        {label:'✂️ Cortados', val:c.cortados, tab:'corte'},
-        {label:'🔧 Armados',  val:c.armados,  tab:'gabinetes'},
-        {label:'📦 Empacados',val:c.empacados, tab:'gabinetes'},
-        {label:'🚛 Embarcados',val:c.embarcados,tab:'gabinetes'},
+        {label:'✂️ Cortados',    val:c.cortados,    tab:'corte'},
+        {label:'🔧 Armados',     val:c.armados,     tab:'gabinetes'},
+        {label:'🔩 Ensamblados', val:c.ensamblados, tab:'gabinetes'},
+        {label:'📦 Empacados',   val:c.empacados,   tab:'gabinetes'},
+        {label:'🚛 Embarcados',  val:c.embarcados,  tab:'gabinetes'},
       ].map(card=>`
         <div onclick="irAArea('${a.torre}','${a.piso}','${a.deptoKey}','${a.areaCode}','${card.tab}')"
              style="background:var(--surface2);border-radius:8px;padding:8px 12px;text-align:center;cursor:pointer;min-width:90px;transition:all .2s;border:1px solid var(--border)"
