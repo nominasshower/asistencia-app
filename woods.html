@@ -6,36 +6,39 @@
 <title>Woods — Sistema de Producción Torres 1000</title>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <style>
-/* ── ETIQUETAS IMPRIMIBLES ── */
+/* ── ETIQUETAS IMPRIMIBLES — Zebra ZD420 4×2" ── */
 @media print {
   body > *:not(#print-labels-sheet) { display: none !important; }
-  #print-labels-sheet { display: flex !important; }
-  @page { size: letter; margin: 0.25in; }
+  #print-labels-sheet { display: block !important; }
+  /* Una etiqueta por página = una por label stock en la Zebra */
+  @page { size: 4in 2in; margin: 0; }
+  .etiqueta {
+    width: 4in; height: 2in;
+    page-break-after: always;
+    border: none !important;
+    margin: 0; padding: 0.1in;
+  }
+  .etiqueta:last-child { page-break-after: avoid; }
 }
 #print-labels-sheet {
   display: none;
-  flex-wrap: wrap;
-  gap: 0;
-  padding: 0;
   background: #fff;
   position: fixed; inset: 0; z-index: 9999; overflow: auto;
-  align-content: flex-start;
 }
 .etiqueta {
   width: 4in; height: 2in;
-  border: 1px solid #ccc;
+  border: 1px dashed #bbb;
   box-sizing: border-box;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  padding: 6px 8px; gap: 2px;
+  padding: 0.1in 0.12in; gap: 1px;
   font-family: Arial, sans-serif;
-  page-break-inside: avoid;
   background: #fff;
 }
-.etiqueta-ref { font-size: 8px; color: #666; text-align: center; letter-spacing: 0.5px; }
-.etiqueta-id  { font-size: 18px; font-weight: 900; color: #000; letter-spacing: 2px; }
-.etiqueta-nombre { font-size: 9px; font-weight: 600; color: #000; text-align: center; }
-.etiqueta svg { max-width: 180px; height: 36px; }
+.etiqueta-ref { font-size: 7.5px; color: #555; text-align: center; letter-spacing: 0.3px; line-height: 1.3; }
+.etiqueta-id  { font-size: 20px; font-weight: 900; color: #000; letter-spacing: 3px; line-height: 1.1; }
+.etiqueta-nombre { font-size: 9.5px; font-weight: 700; color: #000; text-align: center; }
+.etiqueta svg { max-width: 2.8in; height: 40px; }
 .scan-btn {
   padding: 14px 22px; border-radius: 10px; border: 2px solid var(--accent2);
   background: rgba(74,143,232,.1); color: var(--accent2);
