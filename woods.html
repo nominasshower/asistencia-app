@@ -998,6 +998,11 @@ function selectArea(areaId, areaName, code, meta){
     }
   }
 
+  // En modo admin: mostrar botón Activar en Producción
+  const btnAct = document.getElementById('btn-activar-area');
+  if(btnAct) btnAct.style.display = '';
+  actualizarBtnActivar();
+
   showView('detalle');
   updateBreadcrumb();
 }
@@ -1961,15 +1966,15 @@ function generarZPL(gabinetes){
       '^LL406',      // alto 2"
       '^CI28',       // UTF-8
       // Referencia departamento — arriba
-      `^FO20,14^A0N,20,20^FD${ref}^FS`,
-      // ID grande
-      `^FO20,42^A0N,58,58^FD${gabId}^FS`,
+      `^FO20,10^A0N,30,30^FD${ref}^FS`,
+      // ID grande en el centro
+      `^FO20,46^A0N,90,90^FD${gabId}^FS`,
       // Código de barras Code128
-      `^FO20,110^BY2,3,55^BCN,,,N^FD${bcVal}^FS`,
+      `^FO20,144^BY2,3,65^BCN,,,N^FD${bcVal}^FS`,
       // Nombre del gabinete
-      `^FO20,175^A0N,24,24^FD${nombre}^FS`,
-      // Valor del barcode en texto pequeño
-      `^FO20,205^A0N,18,18^FD${bcVal}^FS`,
+      `^FO20,222^A0N,36,36^FD${nombre}^FS`,
+      // Valor del barcode en texto
+      `^FO20,264^A0N,26,26^FD${bcVal}^FS`,
       '^XZ'
     ].join('\n');
   }).join('\n');
@@ -2334,6 +2339,10 @@ function irAArea(torre, piso, deptoKey, areaCode, tab){
     });
     if(!aData.gabinetes) saveAreaData(torre,pisoN,deptoKey,areaCode,{gabinetes:gabs,piezas,totalGabinetes:gabs.length});
   }
+
+  // En modo Producción: ocultar botón Activar en Producción
+  const btnActP = document.getElementById('btn-activar-area');
+  if(btnActP) btnActP.style.display = 'none';
 
   loadChecks();
   showView('detalle');
