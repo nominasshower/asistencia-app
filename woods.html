@@ -2015,19 +2015,17 @@ function generarZPL(gabinetes){
       '^PW812',
       '^LL406',
       '^CI28',
-      '^MMT',                          // modo impresora térmica
-      // Fuente por defecto grande
-      '^CF0,40',
-      // Línea ref — pequeña arriba
-      `^FO15,8^A0N,22,22^FD${ref}^FS`,
-      // ID del gabinete — MUY GRANDE
-      `^FO15,35^A0N,130,90^FD${gabId}^FS`,
-      // Barcode
-      `^FO15,175^BY2,3,70^BCN,,,N^FD${bcVal}^FS`,
-      // Nombre debajo del barcode
-      `^FO15,255^A0N,38,38^FD${nombre}^FS`,
-      // Código pequeño
-      `^FO15,300^A0N,24,24^FD${bcVal}^FS`,
+      '^MMT',
+      // Ref pequeña arriba
+      `^FO15,6^A0N,24,24^FD${ref}^FS`,
+      // ID MUY GRANDE — llena la etiqueta
+      `^FO15,34^A0N,150,100^FD${gabId}^FS`,
+      // Barcode más alto
+      `^FO15,190^BY3,3,80^BCN,,,N^FD${bcVal}^FS`,
+      // Nombre
+      `^FO15,282^A0N,40,40^FD${nombre}^FS`,
+      // Código barras texto
+      `^FO15,328^A0N,26,26^FD${bcVal}^FS`,
       '^XZ'
     ].join('\n');
   }).join('\n');
@@ -2038,11 +2036,12 @@ async function testZebraConexion(){
   const ip = localStorage.getItem('zebra_ip');
   if(!ip){ configurarZebra(); return; }
   const zpl = [
-    '^XA','^PW812','^LL406','^CI28',
-    '^FO30,30^A0N,50,50^FDPRUEBA ZEBRA^FS',
-    '^FO30,100^A0N,120,80^FDTEST-01^FS',
-    '^FO30,230^BY2,3,60^BCN,,,N^FDTEST-CONN^FS',
-    '^FO30,305^A0N,35,35^FDCONEXION OK^FS',
+    '^XA','^PW812','^LL406','^CI28','^MMT',
+    '^FO15,6^A0N,24,24^FDPRUEBA ZEBRA · CONEXION OK^FS',
+    '^FO15,34^A0N,150,100^FDTEST-01^FS',
+    '^FO15,190^BY3,3,80^BCN,,,N^FDTEST-CONN^FS',
+    '^FO15,282^A0N,40,40^FDCONEXION OK^FS',
+    '^FO15,328^A0N,26,26^FDTEST-CONN^FS',
     '^XZ'
   ].join('\n');
   try {
