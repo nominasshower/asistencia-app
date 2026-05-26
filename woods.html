@@ -2470,10 +2470,14 @@ function showNotif(msg){
   setTimeout(()=>n.style.display='none', 3000);
 }
 
-function limpiarCache(){
-  if(!confirm('¿Limpiar caché local y recargar datos desde Sheets?\nEsto borra el progreso guardado solo en este dispositivo.')) return;
+async function limpiarCache(){
+  const op = confirm('¿Limpiar TODO el progreso?\n\nOK = Borra caché local Y Sheets (ambos dispositivos quedan en cero)\nCancelar = Solo borra este dispositivo');
   ['t1000_data','t1000_checks','t1000_activas'].forEach(k => localStorage.removeItem(k));
-  showNotif('🗑️ Caché limpiado — recargando...');
+  if(op){
+    showNotif('🗑️ Limpiando Sheets...');
+    try { await gasPost({ accion:'limpiar_checks' }); } catch(e){}
+  }
+  showNotif('✅ Caché limpiado — recargando...');
   setTimeout(() => location.reload(), 1200);
 }
 
