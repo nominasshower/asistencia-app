@@ -2577,7 +2577,7 @@ function renderDashboard(){
 }
 
 // Navega desde el dashboard directo a una área y su tab
-function irAArea(torre, piso, deptoKey, areaCode, tab){
+async function irAArea(torre, piso, deptoKey, areaCode, tab){
   // Reconstruir el estado
   state.torre  = torre;
   state.piso   = parseInt(piso) || piso;
