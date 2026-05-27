@@ -205,7 +205,11 @@ const F_MAR = 0.82;   // marmolina sobre (PESO - gelcoat - cat_gc)
 
 let VISTA = "resumen", LINEA = "";
 let TEORICO_RAW = [], FAB_RAW = [], ALM_RAW = [], INVENTARIOS_RAW = [], FISICO_RAW = [];
-let PRECIOS_RAW = [], GRADOC_RAW = [], MERMA_RAW = [];
+let PRECIOS_RAW = [], GRADOC_RAW = [], MERMA_RAW = [], REF_PESO_RAW = [];
+
+// Mapa CODIGO → {peso, gelcoat, cat_gc, resina, cat_res, marmolina}
+// Se construye en cargar() a partir de REF_PESO_MVT
+let REF_PESO_MAP = {};
 
 const MATERIALES = [
   {key:"gelcoat",  label:"Gel Coat",         color:"#3b82f6"},
@@ -1113,7 +1117,7 @@ async function cargar() {
   document.getElementById("main-content").innerHTML =
     `<div class="loading"><div class="spinner"></div><div>Conectando con Google Sheets…</div></div>`;
   try {
-    const [r0, r1, r2, r3, r4, r5, r6, r7] = await Promise.allSettled([
+    const [r0, r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.allSettled([
       fetchSheet(FAB_SHEET_ID, "Sistema fabricacion"),
       fetchSheet(SHEET_ID, "SALIDAS_MVT"),
       fetchSheet(SHEET_ID, "LLEGADAS_MVT"),
@@ -1122,6 +1126,7 @@ async function cargar() {
       fetchSheet(SHEET_ID, "PRECIOS_MVT"),
       fetchSheet(SHEET_ID, "GRADOC_MVT"),
       fetchSheet(SHEET_ID, "MERMA_MVT"),
+      fetchSheet(SHEET_ID, "REF_PESO_MVT"),
     ]);
     TEORICO_RAW     = r0.status === "fulfilled" ? r0.value : [];
     FAB_RAW         = r1.status === "fulfilled" ? r1.value : [];
@@ -1131,6 +1136,26 @@ async function cargar() {
     PRECIOS_RAW     = r5.status === "fulfilled" ? r5.value : [];
     GRADOC_RAW      = r6.status === "fulfilled" ? r6.value : [];
     MERMA_RAW       = r7.status === "fulfilled" ? r7.value : [];
+    REF_PESO_RAW    = r8.status === "fulfilled" ? r8.value : [];
+
+    // Construir mapa de referencia de pesos por CODIGO
+    REF_PESO_MAP = {};
+    REF_PESO_RAW.forEach(r => {
+      const cod = String(r["CODIGO"] || "").trim();
+      const cod2 = String(r["code"]  || "").trim();
+      const entry = {
+        modelo    : String(r["MODELO"]    || "").trim(),
+        categoria : String(r["CATEGORIA"] || "").trim(),
+        peso      : parseFloat(r["PESO"]      || 0) || 0,
+        gelcoat   : parseFloat(r["GELCOAT"]   || 0) || 0,
+        cat_gc    : parseFloat(r["CAT_GC"]    || 0) || 0,
+        resina    : parseFloat(r["RESINA"]    || 0) || 0,
+        cat_res   : parseFloat(r["CAT_RES"]   || 0) || 0,
+        marmolina : parseFloat(r["MARMOLINA"] || 0) || 0,
+      };
+      if (cod)  REF_PESO_MAP[cod]  = entry;
+      if (cod2) REF_PESO_MAP[cod2] = entry;
+    });
     document.getElementById("sidebar-update").textContent =
       `Actualizado ${new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}`;
     render();
@@ -1138,6 +1163,22 @@ async function cargar() {
     document.getElementById("main-content").innerHTML =
       `<div class="loading"><div style="color:var(--danger)">❌ Error: ${e.message}</div></div>`;
   }
+}
+
+// ── Peso de referencia por código de producto ─────────────────
+// Devuelve {peso, gelcoat, cat_gc, resina, cat_res, marmolina}
+// desde REF_PESO_MVT. Si no existe el código, calcula con factores.
+function getMatsRef(codigo, pesoFallback) {
+  const ref = codigo ? REF_PESO_MAP[String(codigo).trim()] : null;
+  if (ref && ref.peso > 0) return ref;
+  // Fallback: calcular con factores genéricos
+  const peso = pesoFallback || 0;
+  const gc    = round2(peso * F_GEL);
+  const catGc = round2(gc * F_CAT);
+  const resto = peso - gc - catGc;
+  const res   = round2(resto * F_RES);
+  return { peso, gelcoat: gc, cat_gc: catGc, resina: res,
+           cat_res: round2(res * F_CAT), marmolina: round2(resto * F_MAR) };
 }
 
 // ── Precios: lookup por año-mes y material ────────────────────
@@ -1261,40 +1302,42 @@ function renderCostos() {
     const cant = parseFloat(String(r["CANTIDAD"] || "1")) || 1;
     const fISO = fechaISO(r["FECHA"]); if (!fISO) return;
     const am   = fISO.slice(0, 7);
+    const codigo = String(r["CODIGO"] || r["CODIGO_CORTO"] || r["CODE"] || "").trim();
     // Intentar múltiples nombres de columna para el modelo
     const desc = (String(r["DESCRIPCION"] || r["MODELO"] || r["DESCRIPCION_MODELO"] || r["DESCRIPCION_PRODUCTO"] || r["PRODUCTO"] || "").trim()) ||
                  String(r["ID_CONECT"] || "Sin modelo").trim();
-    if (!modelosMap[desc]) modelosMap[desc] = { cant: 0, pesoTotal: 0, am };
+    if (!modelosMap[desc]) modelosMap[desc] = { cant: 0, pesoTotal: 0, am, codigo };
     const d = modelosMap[desc];
     d.cant += cant;
     d.pesoTotal = round2(d.pesoTotal + peso * cant);
     d.am = am; // último mes visto para precio
+    if (codigo && !d.codigo) d.codigo = codigo;
   });
 
   const modelosCost = Object.entries(modelosMap).map(([desc, d]) => {
     const am       = d.am;
     const pesoProm = d.cant > 0 ? d.pesoTotal / d.cant : 0;
-    const gc    = round2(pesoProm * F_GEL);
-    const catGc = round2(gc * F_CAT);
-    const resto = pesoProm - gc - catGc;
-    const res   = round2(resto * F_RES);
-    const catRes= round2(res * F_CAT);
-    const mar   = round2(resto * F_MAR);
+    // Usar materiales de referencia exacta si existe el código, o factores como fallback
+    const mats     = getMatsRef(d.codigo, pesoProm);
     const costoPza = round2(
-      gc    * getPrecioMes(am, 'gelcoat') +
-      catGc * getPrecioMes(am, 'cat_gc') +
-      res   * getPrecioMes(am, 'resina') +
-      catRes* getPrecioMes(am, 'cat_res') +
-      mar   * getPrecioMes(am, 'marmolina')
+      mats.gelcoat   * getPrecioMes(am, 'gelcoat') +
+      mats.cat_gc    * getPrecioMes(am, 'cat_gc') +
+      mats.resina    * getPrecioMes(am, 'resina') +
+      mats.cat_res   * getPrecioMes(am, 'cat_res') +
+      mats.marmolina * getPrecioMes(am, 'marmolina')
     );
-    return { desc, cant: d.cant, pesoProm: round2(pesoProm), costoPza };
+    return { desc, cant: d.cant, pesoProm: round2(pesoProm), costoPza,
+             desdeRef: !!(d.codigo && REF_PESO_MAP[d.codigo]) };
   })
   .filter(m => m.cant > 0)
   .sort((a, b) => b.costoPza - a.costoPza);
 
   const chartH = Math.max(200, Math.min(modelosCost.length * 28 + 60, 520));
+  const nConRef = modelosCost.filter(m => m.desdeRef).length;
   let graficaHtml = `<div class="card" style="margin-bottom:14px">
-    <div class="card-title">Costo por Modelo <span>${modelosCost.length} modelos fabricados en el período · USD/pieza · mayor → menor</span></div>
+    <div class="card-title">Costo por Modelo
+      <span>${modelosCost.length} modelos · ${nConRef} con peso exacto de catálogo · USD/pieza · mayor → menor</span>
+    </div>
     ${modelosCost.length === 0
       ? `<div class="empty">Sin producción en el período — verifica las fechas o que haya precios cargados (sync_consumos_modular.py)</div>`
       : `<div style="position:relative;height:${chartH}px"><canvas id="chart-modelos"></canvas></div>
@@ -1304,13 +1347,15 @@ function renderCostos() {
            <th style="text-align:right">Peso prom (kg)</th>
            <th style="text-align:right">Costo USD/pza</th>
            <th style="text-align:right">Total período USD</th>
+           <th style="text-align:center" title="Peso tomado del catálogo REF_PESO_MVT">Ref.</th>
          </tr></thead><tbody>
          ${modelosCost.map(m => `<tr>
-           <td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.desc}</td>
+           <td style="font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.desc}</td>
            <td class="mono" style="text-align:right">${m.cant.toLocaleString()}</td>
            <td class="mono" style="text-align:right;color:var(--muted)">${fmtN(m.pesoProm)}</td>
            <td class="mono" style="text-align:right;color:#22c55e;font-weight:600">${m.costoPza > 0 ? "$"+fmtN(m.costoPza) : "—"}</td>
            <td class="mono" style="text-align:right;color:var(--accent2)">${m.costoPza > 0 ? "$"+fmtN(round2(m.costoPza * m.cant)) : "—"}</td>
+           <td style="text-align:center;font-size:11px">${m.desdeRef ? '<span style="color:var(--accent)" title="Catálogo">✓</span>' : '<span style="color:var(--muted)">~</span>'}</td>
          </tr>`).join("")}
          </tbody></table></div>`
     }
@@ -1356,7 +1401,7 @@ function renderCostos() {
 
   // ── 2. Costo de producción teórico por mes ────────────────
   // Agrupar TEORICO_RAW fabricados en el rango por mes
-  const prodMeses = {}; // { 'YYYY-MM': { piezas, totalPeso, gc, catGc, res, catRes, mar } }
+  const prodMeses = {}; // { 'YYYY-MM': { piezas, gc, catGc, res, catRes, mar } }
   TEORICO_RAW.forEach(r => {
     if (!enPeriodo(r["FECHA"])) return;
     if ((r["ESTATUS"] || "") !== "Fabricado") return;
@@ -1365,19 +1410,20 @@ function renderCostos() {
     const peso = parseFloat(String(r["PESO"] || "0").replace(",", ".")) || 0;
     if (!peso) return;
     const cant = parseFloat(String(r["CANTIDAD"] || "1")) || 1;
-    const p = peso * cant;
-    const gc    = round2(p * F_GEL);
-    const catGc = round2(gc * F_CAT);
-    const resto = p - gc - catGc;
-    const res   = round2(resto * F_RES);
-    const catRes = round2(res * F_CAT);
-    const mar   = round2(resto * F_MAR);
+    const codigo = String(r["CODIGO"] || r["CODIGO_CORTO"] || r["CODE"] || "").trim();
+    // Usar materiales de referencia exacta; fallback a factores
+    const mats   = getMatsRef(codigo, peso);
+    const gc    = round2(mats.gelcoat   * cant);
+    const catGc = round2(mats.cat_gc    * cant);
+    const res   = round2(mats.resina    * cant);
+    const catRes= round2(mats.cat_res   * cant);
+    const mar   = round2(mats.marmolina * cant);
     const fISO  = fechaISO(r["FECHA"]);
     if (!fISO) return;
     const am = fISO.slice(0,7);
     if (!prodMeses[am]) prodMeses[am] = { piezas: 0, gc: 0, catGc: 0, res: 0, catRes: 0, mar: 0 };
     const d = prodMeses[am];
-    d.piezas++;
+    d.piezas += cant;
     d.gc    = round2(d.gc    + gc);
     d.catGc = round2(d.catGc + catGc);
     d.res   = round2(d.res   + res);
