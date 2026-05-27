@@ -737,34 +737,23 @@ let state = {
 };
 
 // ─── GOOGLE SHEETS API ───────────────────────────────────────────────
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyMf8PMwFE0Dm5GnAFOAUS5hOXxGAqFnq00AMfTSzc4VMOb5AYttLO16pUcqBNRjhTRTg/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxM_8W17ObgD4AqgoJ81r_QKdvgBMuP_KfiTRUy5gwq3EHWZakfPwLhkXfwDRWeUBdq8A/exec';
 
 // Cache local para no hacer fetch en cada render
 const _cache = {};
 
 function getKey(t,p,d,a){ return `${t}-${p}-${d}-${a}`; }
 
-// Lee de cache local — primero memoria, luego localStorage
+// Lee solo del cache en memoria (fuente de verdad = Sheets)
 function getAreaData(t,p,d,a){
-  const k = getKey(t,p,d,a);
-  if(_cache[k]) return _cache[k];
-  try {
-    const local = JSON.parse(localStorage.getItem('t1000_data')||'{}');
-    if(local[k]){ _cache[k] = local[k]; return local[k]; }
-  } catch(e){}
-  return {};
+  return _cache[getKey(t,p,d,a)] || {};
 }
 
 // Guarda localmente en cache Y en Google Sheets
 function saveAreaData(t,p,d,a, payload){
   const k = getKey(t,p,d,a);
   _cache[k] = {...(_cache[k]||{}), ...payload};
-  // También guardar en localStorage como respaldo offline
-  try {
-    const local = JSON.parse(localStorage.getItem('t1000_data')||'{}');
-    local[k] = _cache[k];
-    localStorage.setItem('t1000_data', JSON.stringify(local));
-  } catch(e){}
+  // Fuente de verdad = Sheets (escrito por gasPost en cada función que avanza etapa)
 }
 
 // ── Llamada GET al GAS (con timeout 12 s) ────────────────────────
@@ -1018,8 +1007,6 @@ function selectTorre(id){
   // 2) Actualizar desde Sheets en background (sin bloquear UI)
   Promise.all([1,2,3,4,5].map(p => cargarAreaDesdeSheets(id, p, null, null)))
     .then(()=>{
-      localStorage.setItem('t1000_data', JSON.stringify(_cache));
-      // Si el usuario sigue en esta vista, refrescar las barras
       if(state.torre === id && !state.piso) _renderPisoCards(id);
     }).catch(()=>{});
 }
@@ -1066,8 +1053,6 @@ function selectPiso(p){
   // 2) Actualizar desde Sheets en background
   cargarAreaDesdeSheets(torre, p, null, null)
     .then(()=>{
-      localStorage.setItem('t1000_data', JSON.stringify(_cache));
-      // Refrescar si el usuario sigue en esta vista
       if(state.torre === torre && state.piso === p && !state.depto) _renderDeptoCards(torre, p);
     }).catch(()=>{});
 }
@@ -1107,7 +1092,7 @@ function selectDepto(deptoId, tipo, num, sub){
 }
 
 // ─── SELECCIONAR ÁREA ────────────────────────────────────────────────
-function selectArea(areaId, areaName, code, meta){
+async function selectArea(areaId, areaName, code, meta){
   state.area = areaId;
   const aData = getAreaData(state.torre, state.piso, state.depto, areaId);
   
@@ -1137,8 +1122,8 @@ function selectArea(areaId, areaName, code, meta){
     </div>`;
   }
 
-  // Cargar checks guardados de esta área
-  loadChecks();
+  // Cargar checks desde Sheets
+  await loadChecks();
   actualizarBtnActivar();
 
   // Cargar gabinetes — filtra solo los aplicados en corte
@@ -1728,7 +1713,7 @@ function getChecksKey(){
   return (state.torre||'')+'_'+(state.piso||'')+'_'+(state.depto||'')+'_'+(state.area||'');
 }
 
-// ── Persistir checks en localStorage + Sheets ───────────────────────
+// ── Persistir checks en Sheets (sin localStorage) ───────────────────
 function saveChecks(){
   try {
     const k = getChecksKey();
@@ -1738,22 +1723,20 @@ function saveChecks(){
         toSave[key] = [..._checks[key]];
       }
     });
-    const all = JSON.parse(localStorage.getItem('t1000_checks')||'{}');
-    all[k] = toSave;
-    localStorage.setItem('t1000_checks', JSON.stringify(all));
-    // Sincronizar a Sheets en background (sin bloquear UI)
+    // Solo a Sheets
     gasPost({ accion:'save_checks', key:k, data:toSave }).catch(()=>{});
   } catch(e){}
 }
 
-function loadChecks(){
+async function loadChecks(){
   try {
     const k = getChecksKey();
-    const all = JSON.parse(localStorage.getItem('t1000_checks')||'{}');
-    const saved = all[k] || {};
-    Object.keys(saved).forEach(key => {
-      _checks[key] = new Set(saved[key]);
-    });
+    const saved = await gasGet({ accion:'get_checks', key: k });
+    if(saved && typeof saved === 'object'){
+      Object.keys(saved).forEach(key => {
+        _checks[key] = new Set(Array.isArray(saved[key]) ? saved[key] : []);
+      });
+    }
   } catch(e){}
 }
 
@@ -1771,9 +1754,6 @@ async function refreshChecksFromSheets(){
       _checks[key] = new Set(remoteArr);
     });
     if(changed){
-      const all = JSON.parse(localStorage.getItem('t1000_checks')||'{}');
-      all[k] = remote;
-      localStorage.setItem('t1000_checks', JSON.stringify(all));
       // Re-renderizar lista de gabinetes con datos actualizados
       const code = (state.area||'').split('_')[0];
       const gabs = typeof COCINA_GABINETES!=='undefined' && code==='cocina'
@@ -1784,18 +1764,16 @@ async function refreshChecksFromSheets(){
   } catch(e){}
 }
 
-// Lee cuántos gabinetes hay en cada etapa para un área (desde localStorage)
+// Lee cuántos gabinetes hay en cada etapa para un área (desde _checks en memoria)
 function getConteoArea(checksKey){
   try {
-    const all = JSON.parse(localStorage.getItem('t1000_checks')||'{}');
-    const saved = all[checksKey] || {};
     return {
-      cortados:    (saved[checksKey+'_aplicados']   ||[]).length,
-      armados:     (saved[checksKey+'_armados']      ||[]).length,
-      ensamblados: (saved[checksKey+'_ensamblados']  ||[]).length,
-      empacados:   (saved[checksKey+'_empacados']    ||[]).length,
-      embarcados:  (saved[checksKey+'_embarcados']   ||[]).length,
-      sitio:       (saved[checksKey+'_sitio']        ||[]).length,
+      cortados:    (_checks[checksKey+'_aplicados']   instanceof Set ? _checks[checksKey+'_aplicados'].size   : 0),
+      armados:     (_checks[checksKey+'_armados']      instanceof Set ? _checks[checksKey+'_armados'].size     : 0),
+      ensamblados: (_checks[checksKey+'_ensamblados']  instanceof Set ? _checks[checksKey+'_ensamblados'].size : 0),
+      empacados:   (_checks[checksKey+'_empacados']    instanceof Set ? _checks[checksKey+'_empacados'].size   : 0),
+      embarcados:  (_checks[checksKey+'_embarcados']   instanceof Set ? _checks[checksKey+'_embarcados'].size  : 0),
+      sitio:       (_checks[checksKey+'_sitio']        instanceof Set ? _checks[checksKey+'_sitio'].size       : 0),
     };
   } catch(e){ return {cortados:0,armados:0,ensamblados:0,empacados:0,embarcados:0,sitio:0}; }
 }
@@ -2468,11 +2446,12 @@ function filtrarDash(fil){
 }
 
 function renderDashboard(){
-  // Leer todo el localStorage
-  let checksAll = {};
-  let dataAll   = {};
-  try { checksAll = JSON.parse(localStorage.getItem('t1000_checks')||'{}'); } catch(e){}
-  try { dataAll   = JSON.parse(localStorage.getItem('t1000_data')  ||'{}'); } catch(e){}
+  // Leer desde cache en memoria (cargado de Sheets)
+  const checksAll = {};
+  Object.keys(_checks).forEach(k => {
+    if(_checks[k] instanceof Set) checksAll[k] = [..._checks[k]];
+  });
+  const dataAll = _cache;
 
   // Colores e iconos por etapa
   const ETAPA_COLOR = {corte:'var(--etapa-corte)',armado:'var(--etapa-armado)',ensamble:'var(--etapa-ensamble)',empaque:'var(--etapa-empaque)',embarque:'var(--etapa-embarque)',sitio:'var(--etapa-sitio)',lista:'var(--etapa-lista)'};
@@ -2648,7 +2627,7 @@ function irAArea(torre, piso, deptoKey, areaCode, tab){
   const fabAdmin2 = document.getElementById('fab-admin');
   if(fabAdmin2) fabAdmin2.style.display = 'flex';
 
-  loadChecks();
+  await loadChecks();
   showView('detalle');
   refreshChecksFromSheets(); // sync Sheets en background
   updateBreadcrumb();
@@ -2712,54 +2691,48 @@ function showNotif(msg){
 }
 
 async function limpiarCache(){
-  const op = confirm('¿Limpiar TODO el progreso?\n\nOK = Borra caché local Y Sheets (ambos dispositivos quedan en cero)\nCancelar = Solo borra este dispositivo');
+  const op = confirm('¿Limpiar TODO el progreso de esta área en Sheets?\n\nOK = Borra checks de Sheets (todos los dispositivos en cero)\nCancelar = Cancelar');
+  if(!op) return;
+  // Borrar cualquier dato viejo de localStorage (limpieza total)
   ['t1000_data','t1000_checks','t1000_activas'].forEach(k => localStorage.removeItem(k));
-  if(op){
-    showNotif('🗑️ Limpiando Sheets...');
-    try { await gasPost({ accion:'limpiar_checks' }); } catch(e){}
-  }
-  showNotif('✅ Caché limpiado — recargando...');
+  // Limpiar cache en memoria
+  Object.keys(_checks).forEach(k => delete _checks[k]);
+  showNotif('🗑️ Limpiando Sheets...');
+  try { await gasPost({ accion:'limpiar_checks' }); } catch(e){}
+  showNotif('✅ Datos limpiados — recargando...');
   setTimeout(() => location.reload(), 1200);
 }
 
 // ─── VISTA PRODUCCIÓN ────────────────────────────────────────────────
 
-// ── Activas: caché local + sync a Sheets ─────────────────────────────
-function getActivasKey(){ return 't1000_activas'; }
-
-function _cacheActivas(){ try{ return JSON.parse(localStorage.getItem(getActivasKey())||'{}'); }catch(e){ return {}; } }
-function _guardarCacheActivas(all){ try{ localStorage.setItem(getActivasKey(), JSON.stringify(all)); }catch(e){} }
+// ── Activas: solo memoria + Sheets (sin localStorage) ─────────────────
+const _activasMem = {};
 
 function isAreaActiva(t, p, d, a){
-  return !!_cacheActivas()[`${t}-${p}-${d}-${a}`];
+  return !!_activasMem[`${t}-${p}-${d}-${a}`];
 }
 
 async function setAreaActiva(t, p, d, a, activa){
-  // 1. Actualizar caché local inmediatamente
-  const all = _cacheActivas();
   const k = `${t}-${p}-${d}-${a}`;
-  if(activa) all[k] = { torre:t, piso:String(p), depto:d, area:a };
-  else delete all[k];
-  _guardarCacheActivas(all);
-
-  // 2. Sincronizar con Google Sheets
+  if(activa) _activasMem[k] = { torre:t, piso:String(p), depto:d, area:a };
+  else delete _activasMem[k];
+  // Sheets es la fuente de verdad
   try {
     await gasPost({ accion:'activar_area', torre:t, piso:String(p), depto:d, area:a, activa });
-  } catch(e){ console.warn('Sin conexión — activación guardada solo local'); }
+  } catch(e){ console.warn('Error guardando activa en Sheets'); }
 }
 
-// Carga áreas activas desde Sheets y actualiza caché local
+// Carga áreas activas desde Sheets a memoria
 async function cargarActivasDesdeSheets(){
   try {
     const data = await gasGet({ accion:'get_activas' });
     if(!Array.isArray(data)) return;
-    const all = {};
+    Object.keys(_activasMem).forEach(k => delete _activasMem[k]);
     data.forEach(r => {
       const k = `${r.torre}-${r.piso}-${r.depto}-${r.area}`;
-      all[k] = { torre:r.torre, piso:String(r.piso), depto:r.depto, area:r.area };
+      _activasMem[k] = { torre:r.torre, piso:String(r.piso), depto:r.depto, area:r.area };
     });
-    _guardarCacheActivas(all);
-  } catch(e){ /* usa caché local */ }
+  } catch(e){ console.warn('Error cargando activas'); }
 }
 
 async function toggleActivarArea(){
@@ -2817,10 +2790,7 @@ function renderProduccion(){
   const ETAPA_ICON  = {corte:'✂️',armado:'🔧',ensamble:'🔩',empaque:'📦',embarque:'🚛',sitio:'🏗️',lista:'✅'};
   const ETAPAS = ['corte','armado','ensamble','empaque','embarque','sitio','lista'];
 
-  let activas = {};
-  try { activas = JSON.parse(localStorage.getItem(getActivasKey())||'{}'); } catch(e){}
-
-  const lista = Object.values(activas);
+  const lista = Object.values(_activasMem);
   const total = lista.length;
 
   document.getElementById('prod-subtitle').textContent =
@@ -2948,16 +2918,19 @@ function toggleSidebar(){
 renderHome();
 renderSidebar();
 
-// Cargar resumen global desde Sheets al arrancar
-cargarResumenGlobal().then(()=>{
-  // Restaurar cache desde localStorage como respaldo offline
-  try {
-    const local = JSON.parse(localStorage.getItem('t1000_data')||'{}');
-    Object.assign(_cache, local);
-  } catch(e){}
+// Limpiar datos viejos de localStorage al arrancar (migración a Sheets-only)
+['t1000_data','t1000_checks','t1000_activas'].forEach(k => {
+  try { localStorage.removeItem(k); } catch(e){}
+});
+
+// Cargar activas y resumen desde Sheets al arrancar
+Promise.all([
+  cargarActivasDesdeSheets(),
+  cargarResumenGlobal()
+]).then(()=>{
   showNotif('🔗 Conectado a Google Sheets');
 }).catch(()=>{
-  showNotif('⚠️ Modo offline — sin conexión a Sheets');
+  showNotif('⚠️ Sin conexión a Sheets');
 });
 </script>
 </body>
