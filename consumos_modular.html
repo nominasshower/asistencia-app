@@ -946,15 +946,17 @@ function renderFisico() {
 
   let html = `
   <div class="card" style="margin-bottom:14px">
-    <div class="card-title">Registrar Consumo Físico</div>
+    <div class="card-title">Registrar / Editar Consumo Físico
+      <span id="fis-edit-badge" style="display:none;background:rgba(245,158,11,.15);color:#fbbf24;font-size:11px;font-weight:600;padding:2px 10px;border-radius:4px;border:1px solid rgba(245,158,11,.3)">✏️ Editando registro existente</span>
+    </div>
     <div style="display:grid;grid-template-columns:160px 160px 1fr;gap:16px;align-items:start;margin-bottom:14px">
       <div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Fecha</div>
-        <input type="date" id="fis-fecha" value="${hoy}" style="${inpStyle}text-align:left;">
+        <input type="date" id="fis-fecha" value="${hoy}" onchange="cargarFisicoExistente()" style="${inpStyle}text-align:left;">
       </div>
       <div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Línea</div>
-        <select id="fis-linea" style="${inpStyle}text-align:left;cursor:pointer">
+        <select id="fis-linea" onchange="cargarFisicoExistente()" style="${inpStyle}text-align:left;cursor:pointer">
           ${lineas.map(l=>`<option value="${l}">${l}</option>`).join("")}
         </select>
       </div>
@@ -1006,8 +1008,9 @@ function renderFisico() {
           const tot=round2(gc+cg+re+cr+ma);
           const ln=String(r["Linea"]||r["Línea"]||"");
           const cls=ln==="L1"?"b-l1":ln==="L2"?"b-l2":ln==="L3"?"b-l3":ln==="L4"?"b-l4":"";
-          return `<tr>
-            <td class="mono">${String(r["Fecha"]||"").slice(0,10)}</td>
+          const fecha=String(r["Fecha"]||"").slice(0,10);
+          return `<tr style="cursor:pointer" title="Clic para editar" onclick="editarFisicoFila('${fecha}','${ln}')">
+            <td class="mono">${fecha}</td>
             <td><span class="badge ${cls}">${ln||"—"}</span></td>
             <td class="mono" style="text-align:right;color:#3b82f6">${gc?fmtN(gc):"—"}</td>
             <td class="mono" style="text-align:right;color:#8b5cf6">${cg?fmtN(cg):"—"}</td>
@@ -1015,7 +1018,7 @@ function renderFisico() {
             <td class="mono" style="text-align:right;color:#06b6d4">${cr?fmtN(cr):"—"}</td>
             <td class="mono" style="text-align:right;color:#22c55e">${ma?fmtN(ma):"—"}</td>
             <td class="mono" style="text-align:right;font-weight:600">${fmtN(tot)}</td>
-            <td style="color:var(--muted);font-size:11px">${r["Observaciones"]||""}</td>
+            <td style="color:var(--muted);font-size:11px">${r["Observaciones"]||'<span style="color:var(--border);font-style:italic">+ agregar obs</span>'}</td>
           </tr>`;
         }).join("")}
     </tbody></table>
@@ -1087,6 +1090,52 @@ function renderFisico() {
   document.getElementById("main-content").innerHTML = html;
 }
 
+// Clic en fila del historial → sube la fecha+línea al formulario y carga valores
+function editarFisicoFila(fecha, linea) {
+  const fechaEl = document.getElementById("fis-fecha");
+  const lineaEl = document.getElementById("fis-linea");
+  if (fechaEl) fechaEl.value = fecha;
+  if (lineaEl) lineaEl.value = linea;
+  cargarFisicoExistente();
+  // Scroll suave al formulario
+  fechaEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+// Auto-carga el registro existente al cambiar fecha o línea
+function cargarFisicoExistente() {
+  const fecha = document.getElementById("fis-fecha")?.value || "";
+  const linea = document.getElementById("fis-linea")?.value || "";
+  const badge = document.getElementById("fis-edit-badge");
+  const ids   = {"Gelcoat":"gelcoat","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Marmolina":"marmolina"};
+  const COLS  = {"Gelcoat":"Gelcoat (kg)","Cat. Gelcoat":"Cat. Gelcoat (kg)","Resina":"Resina (kg)","Cat. Resina":"Cat. Resina (kg)","Marmolina":"Marmolina (kg)"};
+
+  if (!fecha || !linea) return;
+
+  // Buscar registro existente en FISICO_RAW (mismo fecha+linea)
+  const existe = FISICO_RAW.find(r =>
+    String(r["Fecha"]||"").slice(0,10) === fecha &&
+    (String(r["Linea"]||r["Línea"]||"").trim() === linea)
+  );
+
+  if (existe) {
+    // Pre-llenar campos con valores existentes
+    Object.entries(ids).forEach(([mat, id]) => {
+      const el = document.getElementById(`fis-${id}`);
+      if (el) el.value = parseFloat(existe[COLS[mat]]||0) || "";
+    });
+    const obsEl = document.getElementById("fis-obs");
+    if (obsEl) obsEl.value = existe["Observaciones"] || "";
+    if (badge) badge.style.display = "";
+  } else {
+    // Fecha nueva — limpiar campos
+    Object.values(ids).forEach(id => {
+      const el = document.getElementById(`fis-${id}`); if(el) el.value = "";
+    });
+    const obsEl = document.getElementById("fis-obs"); if(obsEl) obsEl.value = "";
+    if (badge) badge.style.display = "none";
+  }
+}
+
 async function guardarFisico() {
   const status = document.getElementById("fis-status");
   if (!GAS_INV_URL) { if(status) status.textContent="⚠ GAS_INV_URL no configurado"; return; }
@@ -1098,15 +1147,25 @@ async function guardarFisico() {
   const ids    = {"Gelcoat":"gelcoat","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Marmolina":"marmolina"};
   const vals = {};
   MATS_F.forEach(m => { vals[m] = parseFloat(document.getElementById(`fis-${ids[m]}`)?.value||"") || 0; });
-  if (!Object.values(vals).some(v=>v>0)) { if(status) status.textContent="⚠ Ingresa al menos un valor"; return; }
+
+  // Verificar si es registro existente (permite guardar solo obs sin kg)
+  const esExistente = !!FISICO_RAW.find(r =>
+    String(r["Fecha"]||"").slice(0,10) === fecha &&
+    String(r["Linea"]||r["Línea"]||"").trim() === linea
+  );
+  if (!esExistente && !Object.values(vals).some(v=>v>0)) {
+    if(status) status.textContent="⚠ Ingresa al menos un valor"; return;
+  }
+
   if(status) status.textContent="⏳ Guardando…";
   try {
     const res  = await fetch(GAS_INV_URL, { method:"POST", body: JSON.stringify({ action:"upsert_fisico", fecha, linea, obs, ...vals }) });
     const data = await res.json();
     if (data.ok) {
-      if(status) status.textContent=`✅ Guardado — ${new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}`;
-      MATS_F.forEach(m => { const el=document.getElementById(`fis-${m.toLowerCase()}`); if(el) el.value=""; });
-      document.getElementById("fis-obs").value="";
+      if(status) status.textContent=`✅ ${esExistente?"Actualizado":"Guardado"} — ${new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}`;
+      MATS_F.forEach(m => { const el=document.getElementById(`fis-${ids[m]}`); if(el) el.value=""; });
+      const obsEl=document.getElementById("fis-obs"); if(obsEl) obsEl.value="";
+      const badge=document.getElementById("fis-edit-badge"); if(badge) badge.style.display="none";
       await cargar();
     } else { if(status) status.textContent=`❌ ${data.error}`; }
   } catch(e) { if(status) status.textContent=`❌ ${e.message}`; }
