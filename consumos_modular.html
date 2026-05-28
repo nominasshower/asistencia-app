@@ -207,7 +207,7 @@ let VISTA = "resumen", LINEA = "";
 let TEORICO_RAW = [], FAB_RAW = [], ALM_RAW = [], INVENTARIOS_RAW = [], FISICO_RAW = [];
 let PRECIOS_RAW = [], GRADOC_RAW = [], MERMA_RAW = [], REF_PESO_RAW = [];
 
-// Mapa CODIGO → {peso, gelcoat_sw, gel_trans, cat_gc, resina, cat_res, marmolina}
+// Mapa CODIGO → {peso, gelcoat_sw, gel_trans, cat_gc, resina, cat_res, titanio, marmolina}
 // Se construye en cargar() a partir de REF_PESO_MVT
 let REF_PESO_MAP = {};
 
@@ -217,6 +217,7 @@ const MATERIALES = [
   {key:"cat_gc",    label:"Cat. Gelcoat",       color:"#8b5cf6"},
   {key:"resina",    label:"Resina",             color:"#f59e0b"},
   {key:"cat_res",   label:"Cat. Resina",        color:"#06b6d4"},
+  {key:"titanio",   label:"Titanio",            color:"#f97316"},  // MP-08-0001 — Laguna Flat
   {key:"marmolina", label:"Marmolina Estens",  color:"#22c55e"},
 ];
 
@@ -239,6 +240,8 @@ const LABEL_MAT = {
   "Resina 7090 Invierno"       : "resina",
   "Resina 7091 Verano"         : "resina",
   "Resina PMS 7103 Invierno"   : "resina",
+  "Bioxido de Titanio"         : "titanio",
+  "Titanio"                    : "titanio",
   "Marmolina Estens"           : "marmolina",
 };
 
@@ -941,9 +944,9 @@ async function guardarInventario(semana, fechaIni, fechaFin) {
 function renderFisico() {
   const hoy = new Date().toISOString().slice(0,10);
   const lineas = ["L1","L2","L3","L4"];
-  const MATS_F = ["Gelcoat","GC Trans","Cat. Gelcoat","Resina","Cat. Resina","Marmolina"];
-  const MAT_COLOR_F = {Gelcoat:"#3b82f6","GC Trans":"#38bdf8","Cat. Gelcoat":"#8b5cf6",Resina:"#f59e0b","Cat. Resina":"#06b6d4",Marmolina:"#22c55e"};
-  const ids = {"Gelcoat":"gelcoat","GC Trans":"gel-trans","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Marmolina":"marmolina"};
+  const MATS_F = ["Gelcoat","GC Trans","Cat. Gelcoat","Resina","Cat. Resina","Titanio","Marmolina"];
+  const MAT_COLOR_F = {Gelcoat:"#3b82f6","GC Trans":"#38bdf8","Cat. Gelcoat":"#8b5cf6",Resina:"#f59e0b","Cat. Resina":"#06b6d4",Titanio:"#f97316",Marmolina:"#22c55e"};
+  const ids = {"Gelcoat":"gelcoat","GC Trans":"gel-trans","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Titanio":"titanio","Marmolina":"marmolina"};
   const inpStyle = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;text-align:right;outline:none;`;
 
   // Tabla historial
@@ -970,10 +973,10 @@ function renderFisico() {
         <input type="text" id="fis-obs" placeholder="Opcional…" style="${inpStyle}text-align:left;">
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px">
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:14px">
       ${MATS_F.map(m=>`
       <div>
-        <div style="font-size:11px;color:${MAT_COLOR_F[m]};font-weight:600;margin-bottom:5px">${m}${m==="GC Trans"?'<span style="font-size:9px;color:var(--muted);font-weight:400"> · L1</span>':''}</div>
+        <div style="font-size:11px;color:${MAT_COLOR_F[m]};font-weight:600;margin-bottom:5px">${m}${m==="GC Trans"?'<span style="font-size:9px;color:var(--muted);font-weight:400"> · L1</span>':m==="Titanio"?'<span style="font-size:9px;color:var(--muted);font-weight:400"> · L.Flat</span>':''}</div>
         <div style="display:flex;align-items:center;gap:4px">
           <input type="number" id="fis-${ids[m]}" placeholder="0.00" min="0" step="0.01"
             style="${inpStyle}">
@@ -1002,17 +1005,19 @@ function renderFisico() {
       <th style="text-align:right;color:#8b5cf6">Cat.GC kg</th>
       <th style="text-align:right;color:#f59e0b">Resina kg</th>
       <th style="text-align:right;color:#06b6d4">Cat.Res kg</th>
+      <th style="text-align:right;color:#f97316">Titanio kg</th>
       <th style="text-align:right;color:#22c55e">Marmolina kg</th>
       <th style="text-align:right">Total kg</th>
       <th>Observaciones</th>
     </tr></thead><tbody>
     ${hist.length===0
-      ? `<tr><td colspan="10" class="empty">Sin registros — captura el primer consumo físico arriba</td></tr>`
+      ? `<tr><td colspan="11" class="empty">Sin registros — captura el primer consumo físico arriba</td></tr>`
       : hist.map(r=>{
           const gc=parseFloat(r["Gelcoat (kg)"]||0), gct=parseFloat(r["Gel Coat Trans (kg)"]||0),
                 cg=parseFloat(r["Cat. Gelcoat (kg)"]||0),
-                re=parseFloat(r["Resina (kg)"]||0), cr=parseFloat(r["Cat. Resina (kg)"]||0), ma=parseFloat(r["Marmolina (kg)"]||0);
-          const tot=round2(gc+gct+cg+re+cr+ma);
+                re=parseFloat(r["Resina (kg)"]||0), cr=parseFloat(r["Cat. Resina (kg)"]||0),
+                ti=parseFloat(r["Titanio (kg)"]||0), ma=parseFloat(r["Marmolina (kg)"]||0);
+          const tot=round2(gc+gct+cg+re+cr+ti+ma);
           const ln=String(r["Linea"]||r["Línea"]||"");
           const cls=ln==="L1"?"b-l1":ln==="L2"?"b-l2":ln==="L3"?"b-l3":ln==="L4"?"b-l4":"";
           const fecha=String(r["Fecha"]||"").slice(0,10);
@@ -1024,6 +1029,7 @@ function renderFisico() {
             <td class="mono" style="text-align:right;color:#8b5cf6">${cg?fmtN(cg):"—"}</td>
             <td class="mono" style="text-align:right;color:#f59e0b">${re?fmtN(re):"—"}</td>
             <td class="mono" style="text-align:right;color:#06b6d4">${cr?fmtN(cr):"—"}</td>
+            <td class="mono" style="text-align:right;color:#f97316">${ti?fmtN(ti):"—"}</td>
             <td class="mono" style="text-align:right;color:#22c55e">${ma?fmtN(ma):"—"}</td>
             <td class="mono" style="text-align:right;font-weight:600">${fmtN(tot)}</td>
             <td style="color:var(--muted);font-size:11px">${r["Observaciones"]||'<span style="color:var(--border);font-style:italic">+ agregar obs</span>'}</td>
@@ -1114,8 +1120,8 @@ function cargarFisicoExistente() {
   const fecha = document.getElementById("fis-fecha")?.value || "";
   const linea = document.getElementById("fis-linea")?.value || "";
   const badge = document.getElementById("fis-edit-badge");
-  const ids   = {"Gelcoat":"gelcoat","GC Trans":"gel-trans","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Marmolina":"marmolina"};
-  const COLS  = {"Gelcoat":"Gelcoat (kg)","GC Trans":"Gel Coat Trans (kg)","Cat. Gelcoat":"Cat. Gelcoat (kg)","Resina":"Resina (kg)","Cat. Resina":"Cat. Resina (kg)","Marmolina":"Marmolina (kg)"};
+  const ids   = {"Gelcoat":"gelcoat","GC Trans":"gel-trans","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Titanio":"titanio","Marmolina":"marmolina"};
+  const COLS  = {"Gelcoat":"Gelcoat (kg)","GC Trans":"Gel Coat Trans (kg)","Cat. Gelcoat":"Cat. Gelcoat (kg)","Resina":"Resina (kg)","Cat. Resina":"Cat. Resina (kg)","Titanio":"Titanio (kg)","Marmolina":"Marmolina (kg)"};
 
   if (!fecha || !linea) return;
 
@@ -1151,10 +1157,10 @@ async function guardarFisico() {
   const linea  = document.getElementById("fis-linea")?.value || "";
   const obs    = document.getElementById("fis-obs")?.value   || "";
   if (!fecha || !linea) { if(status) status.textContent="⚠ Fecha y línea requeridas"; return; }
-  const MATS_F = ["Gelcoat","GC Trans","Cat. Gelcoat","Resina","Cat. Resina","Marmolina"];
-  const ids    = {"Gelcoat":"gelcoat","GC Trans":"gel-trans","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Marmolina":"marmolina"};
+  const MATS_F = ["Gelcoat","GC Trans","Cat. Gelcoat","Resina","Cat. Resina","Titanio","Marmolina"];
+  const ids    = {"Gelcoat":"gelcoat","GC Trans":"gel-trans","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Titanio":"titanio","Marmolina":"marmolina"};
   // Mapear nombre del campo JS → nombre que espera el GAS
-  const GAS_KEY = {"Gelcoat":"Gelcoat","GC Trans":"Gel Coat Trans","Cat. Gelcoat":"Cat. Gelcoat","Resina":"Resina","Cat. Resina":"Cat. Resina","Marmolina":"Marmolina"};
+  const GAS_KEY = {"Gelcoat":"Gelcoat","GC Trans":"Gel Coat Trans","Cat. Gelcoat":"Cat. Gelcoat","Resina":"Resina","Cat. Resina":"Cat. Resina","Titanio":"Titanio","Marmolina":"Marmolina"};
   const vals = {};
   MATS_F.forEach(m => { vals[GAS_KEY[m]] = parseFloat(document.getElementById(`fis-${ids[m]}`)?.value||"") || 0; });
 
@@ -1221,6 +1227,7 @@ async function cargar() {
         cat_gc     : parseFloat(r["CAT_GC"]     || 0) || 0,
         resina     : parseFloat(r["RESINA"]     || 0) || 0,
         cat_res    : parseFloat(r["CAT_RES"]    || 0) || 0,
+        titanio    : parseFloat(r["TITANIO"]    || 0) || 0,
         marmolina  : parseFloat(r["MARMOLINA"]  || 0) || 0,
       };
       if (cod)  REF_PESO_MAP[cod]  = entry;
@@ -1236,19 +1243,19 @@ async function cargar() {
 }
 
 // ── Peso de referencia por código de producto ─────────────────
-// Devuelve {peso, gelcoat_sw, gel_trans, cat_gc, resina, cat_res, marmolina}
-// Si no existe el código, calcula con factores (solo gelcoat_sw, gel_trans=0).
+// Devuelve {peso, gelcoat_sw, gel_trans, cat_gc, resina, cat_res, titanio, marmolina}
+// Si no existe el código, calcula con factores (gelcoat_sw, gel_trans=0, titanio=0).
 function getMatsRef(codigo, pesoFallback) {
   const ref = codigo ? REF_PESO_MAP[String(codigo).trim()] : null;
   if (ref && ref.peso > 0) return ref;
-  // Fallback: factores genéricos (no hay transparente en el fallback)
+  // Fallback: factores genéricos (no hay transparente ni titanio en el fallback)
   const peso  = pesoFallback || 0;
   const gc    = round2(peso * F_GEL);
   const catGc = round2(gc * F_CAT);
   const resto = peso - gc - catGc;
   const res   = round2(resto * F_RES);
   return { peso, gelcoat_sw: gc, gel_trans: 0, cat_gc: catGc, resina: res,
-           cat_res: round2(res * F_CAT), marmolina: round2(resto * F_MAR) };
+           cat_res: round2(res * F_CAT), titanio: 0, marmolina: round2(resto * F_MAR) };
 }
 
 // Costo total de materiales de una pieza dado {gelcoat_sw,gel_trans,cat_gc,...} y mes
@@ -1259,6 +1266,7 @@ function costoPiezaMats(mats, am) {
     mats.cat_gc    * getPrecioMes(am, 'cat_gc') +
     mats.resina    * getPrecioMes(am, 'resina') +
     mats.cat_res   * getPrecioMes(am, 'cat_res') +
+    mats.titanio   * getPrecioMes(am, 'titanio') +
     mats.marmolina * getPrecioMes(am, 'marmolina')
   );
 }
@@ -1273,6 +1281,7 @@ function getPrecioMes(añoMes, matKey) {
     cat_gc    : 'Catalizador Gelcoat',
     cat_res   : 'Catalizador Gelcoat',
     resina    : 'Resina',
+    titanio   : 'Bioxido de Titanio',
     marmolina : 'Marmolina Estens',
   };
   const displayName = DISP[matKey];
@@ -1478,7 +1487,7 @@ function renderCostos() {
 
   // ── 2. Costo de producción teórico por mes ────────────────
   // Agrupar TEORICO_RAW fabricados en el rango por mes
-  const prodMeses = {}; // { 'YYYY-MM': { piezas, gcSw, gcTrans, catGc, res, catRes, mar } }
+  const prodMeses = {}; // { 'YYYY-MM': { piezas, gcSw, gcTrans, catGc, res, catRes, tit, mar } }
   TEORICO_RAW.forEach(r => {
     if (!enPeriodo(r["FECHA"])) return;
     if ((r["ESTATUS"] || "") !== "Fabricado") return;
@@ -1491,7 +1500,7 @@ function renderCostos() {
     const mats   = getMatsRef(codigo, peso);
     const fISO   = fechaISO(r["FECHA"]); if (!fISO) return;
     const am = fISO.slice(0,7);
-    if (!prodMeses[am]) prodMeses[am] = { piezas:0, gcSw:0, gcTrans:0, catGc:0, res:0, catRes:0, mar:0 };
+    if (!prodMeses[am]) prodMeses[am] = { piezas:0, gcSw:0, gcTrans:0, catGc:0, res:0, catRes:0, tit:0, mar:0 };
     const d = prodMeses[am];
     d.piezas  += cant;
     d.gcSw    = round2(d.gcSw   + mats.gelcoat_sw * cant);
@@ -1499,6 +1508,7 @@ function renderCostos() {
     d.catGc   = round2(d.catGc  + mats.cat_gc      * cant);
     d.res     = round2(d.res    + mats.resina       * cant);
     d.catRes  = round2(d.catRes + mats.cat_res      * cant);
+    d.tit     = round2(d.tit    + (mats.titanio||0) * cant);
     d.mar     = round2(d.mar    + mats.marmolina    * cant);
   });
 
@@ -1506,20 +1516,21 @@ function renderCostos() {
 
   let costoProdHtml = `<div class="card" style="margin-bottom:14px">
     <div class="card-title">Costo de Producción Teórico por Mes <span>USD · desde precio promedio ponderado</span></div>
-    <div style="overflow-x:auto"><table style="min-width:820px"><thead><tr>
+    <div style="overflow-x:auto"><table style="min-width:920px"><thead><tr>
       <th>Mes</th>
       <th style="text-align:right">Piezas</th>
       <th style="text-align:right;color:#3b82f6">GC Sólido $/pza</th>
       <th style="text-align:right;color:#38bdf8">GC Trans $/pza</th>
       <th style="text-align:right;color:#8b5cf6">Cat.GC $/pza</th>
       <th style="text-align:right;color:#f59e0b">Resina $/pza</th>
+      <th style="text-align:right;color:#f97316">Titanio $/pza</th>
       <th style="text-align:right;color:#22c55e">Marmolina $/pza</th>
       <th style="text-align:right">Total $/pza</th>
       <th style="text-align:right">Total $ Mes</th>
     </tr></thead><tbody>`;
 
   if (prodMesesList.length === 0) {
-    costoProdHtml += `<tr><td colspan="9" class="empty">Sin producción en el período seleccionado</td></tr>`;
+    costoProdHtml += `<tr><td colspan="10" class="empty">Sin producción en el período seleccionado</td></tr>`;
   } else {
     let totPiezas=0, totMes=0;
     prodMesesList.forEach(am => {
@@ -1530,13 +1541,15 @@ function renderCostos() {
       const pres = getPrecioMes(am, 'resina');
       const pmar = getPrecioMes(am, 'marmolina');
       const pcres= getPrecioMes(am, 'cat_res');
+      const ptit = getPrecioMes(am, 'titanio');
       const gcSwPza  = round2((d.gcSw    / d.piezas) * pgc);
       const gcTrPza  = round2((d.gcTrans / d.piezas) * pgc);
       const cgcPza   = round2((d.catGc   / d.piezas) * pcgc);
       const resPza   = round2((d.res     / d.piezas) * pres);
       const cresPza  = round2((d.catRes  / d.piezas) * pcres);
+      const titPza   = round2((d.tit     / d.piezas) * ptit);
       const marPza   = round2((d.mar     / d.piezas) * pmar);
-      const totPza   = round2(gcSwPza + gcTrPza + cgcPza + resPza + cresPza + marPza);
+      const totPza   = round2(gcSwPza + gcTrPza + cgcPza + resPza + cresPza + titPza + marPza);
       const totalMes = round2(totPza * d.piezas);
       totPiezas += d.piezas;
       totMes = round2(totMes + totalMes);
@@ -1549,6 +1562,7 @@ function renderCostos() {
         <td class="mono" style="text-align:right;color:${hasPrices?"#38bdf8":"var(--muted)"}">${gcTrPza > 0 ? "$"+fmtN(gcTrPza) : "—"}</td>
         <td class="mono" style="text-align:right;color:${hasPrices?"#8b5cf6":"var(--muted)"}">${cgcPza > 0 ? "$"+fmtN(cgcPza) : "—"}</td>
         <td class="mono" style="text-align:right;color:${hasPrices?"#f59e0b":"var(--muted)"}">${resPza > 0 ? "$"+fmtN(resPza) : "—"}</td>
+        <td class="mono" style="text-align:right;color:${hasPrices?"#f97316":"var(--muted)"}">${titPza > 0 ? "$"+fmtN(titPza) : "—"}</td>
         <td class="mono" style="text-align:right;color:${hasPrices?"#22c55e":"var(--muted)"}">${marPza > 0 ? "$"+fmtN(marPza) : "—"}</td>
         <td class="mono" style="text-align:right;font-weight:600">${totPza > 0 ? "$"+fmtN(totPza) : "—"}</td>
         <td class="mono" style="text-align:right;font-weight:600;color:var(--accent)">${totalMes > 0 ? "$"+fmtN(totalMes) : "—"}</td>
@@ -1557,7 +1571,7 @@ function renderCostos() {
     costoProdHtml += `<tr style="font-weight:700;border-top:2px solid var(--border);background:rgba(255,255,255,.03)">
       <td>TOTAL</td>
       <td class="mono" style="text-align:right">${totPiezas.toLocaleString()}</td>
-      <td colspan="6"></td>
+      <td colspan="7"></td>
       <td class="mono" style="text-align:right;color:var(--accent)">$${fmtN(totMes)}</td>
     </tr>`;
   }
