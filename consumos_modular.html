@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Consumos Materiales — Modular Vanity Tops</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
 :root{--bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--border:rgba(255,255,255,0.07);--text:#e8eaf0;--muted:#6b7280;--accent:#22c55e;--accent2:#3b82f6;--warn:#f59e0b;--danger:#ef4444;--ga:#22c55e;--gb:#f59e0b;--gc:#ef4444;}
@@ -42,7 +42,7 @@ label.lbl{font-size:11px;color:var(--muted);white-space:nowrap;}
 .metric{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:border-color .15s;}
 .metric:hover{border-color:rgba(255,255,255,.18);}
 .metric-label{font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
-.metric-val{font-size:20px;font-weight:600;line-height:1;font-family:'DM Mono',monospace;}
+.metric-val{font-size:20px;font-weight:600;line-height:1;font-family:'Roboto Mono',monospace;}
 .metric-sub{font-size:11px;color:var(--muted);margin-top:4px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
@@ -57,7 +57,7 @@ th{padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);font-weigh
 td{padding:9px 12px;font-size:12px;border-bottom:1px solid var(--border);}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:rgba(255,255,255,.02);}
-.mono{font-family:'DM Mono',monospace;font-size:11px;}
+.mono{font-family:'Roboto Mono',monospace;font-size:11px;}
 .badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
 .b-ok{background:rgba(34,197,94,.15);color:#4ade80;}
 .b-warn{background:rgba(245,158,11,.15);color:#fbbf24;}
@@ -563,9 +563,9 @@ function abrirDetalle(key) {
       ${["Fecha","Producto","kg","Workstation","L","Transferencia"].map(h=>`<th style="padding:5px 8px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">${h}</th>`).join("")}
     </tr></thead><tbody>
       ${movs.map(r=>`<tr>
-        <td style="padding:5px 8px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${(r["Fecha"]||"").substring(0,10)}</td>
+        <td style="padding:5px 8px;font-family:'Roboto Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${(r["Fecha"]||"").substring(0,10)}</td>
         <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);color:var(--muted)">${r["Producto Odoo"]||"—"}</td>
-        <td style="padding:5px 8px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${fmtN(r._qty)}</td>
+        <td style="padding:5px 8px;font-family:'Roboto Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${fmtN(r._qty)}</td>
         <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);color:var(--muted)">${r["Workstation"]||"—"}</td>
         <td style="padding:5px 8px;border-bottom:1px solid var(--border)">${lineaBadge(r["Linea"])}</td>
         <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);color:var(--muted)">${r["Transferencia"]||"—"}</td>
@@ -577,7 +577,7 @@ function abrirDetalle(key) {
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
       ${[["TEÓRICO","#3b82f6",t,null],["FAB ODOO","#f59e0b",b,pFab],["ALMACÉN","#6b7280",a,pAlm]].map(([lbl,clr,v,p])=>`
       <div style="background:${clr}18;border:1px solid ${clr}30;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:18px;font-weight:700;color:${clr};font-family:'DM Mono',monospace">${fmtN(v)}</div>
+        <div style="font-size:18px;font-weight:700;color:${clr};font-family:'Roboto Mono',monospace">${fmtN(v)}</div>
         <div style="font-size:10px;color:var(--muted);margin-top:2px">${lbl}${p!==null?" · "+fmtP(p):""}</div>
       </div>`).join("")}
     </div>
@@ -829,7 +829,7 @@ function renderCorte() {
   </tbody></table></div>`;
 
   // Formulario captura inventario
-  const invInputStyle = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;text-align:right;outline:none;`;
+  const invInputStyle = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'Roboto Mono',monospace;text-align:right;outline:none;`;
 
   const lineasMostrar = LINEA ? [{ key:"L"+LINEA, label:"Línea "+LINEA, mats: matsL["L"+LINEA] }] :
     [["L1","Línea 1"],["L2","Línea 2"],["L3","Línea 3"],["L4","Línea 4"]].map(([k,l])=>({key:k,label:l,mats:matsL[k]}));
@@ -947,7 +947,7 @@ function renderFisico() {
   const MATS_F = ["Gelcoat","GC Trans","Cat. Gelcoat","Resina","Cat. Resina","Titanio","Marmolina"];
   const MAT_COLOR_F = {Gelcoat:"#3b82f6","GC Trans":"#38bdf8","Cat. Gelcoat":"#8b5cf6",Resina:"#f59e0b","Cat. Resina":"#06b6d4",Titanio:"#f97316",Marmolina:"#22c55e"};
   const ids = {"Gelcoat":"gelcoat","GC Trans":"gel-trans","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Titanio":"titanio","Marmolina":"marmolina"};
-  const inpStyle = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;text-align:right;outline:none;`;
+  const inpStyle = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'Roboto Mono',monospace;text-align:right;outline:none;`;
 
   // Tabla historial
   const hist = [...FISICO_RAW].sort((a,b)=>String(b["Fecha"]||"").localeCompare(String(a["Fecha"]||"")));
@@ -1359,7 +1359,7 @@ function initChartModelos(datos) {
       scales: {
         x: {
           grid: { color: 'rgba(255,255,255,0.05)' },
-          ticks: { color: '#6b7280', font: { family: 'DM Mono', size: 11 },
+          ticks: { color: '#6b7280', font: { family: 'Roboto Mono', size: 11 },
             callback: v => '$' + v.toFixed(2) },
           title: { display: true, text: 'USD / pieza', color: '#6b7280', font: { size: 11 } }
         },
