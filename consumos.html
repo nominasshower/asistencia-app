@@ -104,6 +104,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
       Físico vs Salidas Almacén
     </div>
+    <div class="nav-item" onclick="setVista('fisico_captura',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Consumo Físico
+    </div>
     <div class="nav-item" onclick="setVista('corte',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Corte Semanal
@@ -194,7 +198,7 @@ const GAS_INV_URL   = "https://script.google.com/macros/s/AKfycbxk5nKkN1Dq0HGz99
 let VISTA="resumen", LINEA="";
 let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[];
 let KPIS_L1=[], KPIS_L2=[], PRECIOS_RAW=[];
-let BASES_RAW=[], REF_BASES_RAW=[];
+let BASES_RAW=[], REF_BASES_RAW=[], FISICO_RAW=[];
 
 const MATERIALES = [
   {key:"gelcoat",   label:"Gel Coat",        col_teo:"Gelcoat",      color:"#3b82f6"},
@@ -360,6 +364,7 @@ function render(){
   if(VISTA==="resumen") renderResumen(teo,fab,alm,fis,paredes);
   else if(VISTA==="fabricacion") renderMovimientos(movsFab,fab,teo,"Salidas hacia Fabricación");
   else if(VISTA==="fisico_vs_salidas") renderFisicoVsSalidas(fis,fab,paredes);
+  else if(VISTA==="fisico_captura") renderFisicoCaptura();
   else if(VISTA==="corte") renderCorte();
   else renderMovimientos(movsAlm,alm,teo,"Llegadas al Almacén",true);
 }
@@ -1142,11 +1147,181 @@ function renderCostos() {
   setTimeout(() => initChartSW(modelosCost), 0);
 }
 
+// ── Consumo Físico Diario SW ──────────────────────────────
+function renderFisicoCaptura() {
+  document.getElementById("topbar-sub").textContent = "Registro diario de consumo físico por línea";
+  const hoy = new Date().toISOString().slice(0,10);
+  const lineas = ["L1","L2"];
+  const MATS = [
+    {m:"Gelcoat",   id:"gelcoat",   col:"Gelcoat (kg)",   color:"#3b82f6"},
+    {m:"Butanox",   id:"butanox",   col:"Butanox (kg)",   color:"#8b5cf6"},
+    {m:"Resina",    id:"resina",    col:"Resina (kg)",    color:"#f59e0b"},
+    {m:"Norox",     id:"norox",     col:"Norox (kg)",     color:"#06b6d4"},
+    {m:"Marmolina", id:"marmolina", col:"Marmolina (kg)", color:"#22c55e"},
+  ];
+  const inp = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'DM Mono',monospace;text-align:right;outline:none;`;
+  const hist = [...FISICO_RAW].sort((a,b)=>String(b["Fecha"]||"").localeCompare(String(a["Fecha"]||"")));
+
+  let html = `
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">Registrar / Editar Consumo Físico
+      <span id="fis-edit-badge" style="display:none;background:rgba(245,158,11,.15);color:#fbbf24;font-size:11px;font-weight:600;padding:2px 10px;border-radius:4px;border:1px solid rgba(245,158,11,.3)">✏️ Editando registro existente</span>
+    </div>
+    <div style="display:grid;grid-template-columns:160px 140px 1fr;gap:16px;align-items:start;margin-bottom:14px">
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Fecha</div>
+        <input type="date" id="fis-fecha" value="${hoy}" onchange="cargarFisicoExistenteSW()" style="${inp}text-align:left;">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Línea</div>
+        <select id="fis-linea" onchange="cargarFisicoExistenteSW()" style="${inp}text-align:left;cursor:pointer">
+          ${lineas.map(l=>`<option value="${l}">${l}</option>`).join("")}
+        </select>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Observaciones</div>
+        <input type="text" id="fis-obs" placeholder="Opcional…" style="${inp}text-align:left;">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px">
+      ${MATS.map(({m,id,color})=>`
+      <div>
+        <div style="font-size:11px;color:${color};font-weight:600;margin-bottom:5px">${m}</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="number" id="fis-${id}" placeholder="0.00" min="0" step="0.01" style="${inp}">
+          <span style="font-size:10px;color:var(--muted)">kg</span>
+        </div>
+      </div>`).join("")}
+    </div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px">
+      <span style="font-size:11px;color:var(--muted)" id="fis-status"></span>
+      <button class="btn btn-green" onclick="guardarFisicoSW()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Guardar
+      </button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="table-header-title">Historial de Consumos Físicos</div>
+      <span style="font-size:11px;color:var(--muted)">${hist.length} registros</span>
+    </div>
+    <div style="max-height:400px;overflow-y:auto">
+    <table><thead><tr>
+      <th>Fecha</th><th>Línea</th>
+      <th style="text-align:right;color:#3b82f6">Gelcoat kg</th>
+      <th style="text-align:right;color:#8b5cf6">Butanox kg</th>
+      <th style="text-align:right;color:#f59e0b">Resina kg</th>
+      <th style="text-align:right;color:#06b6d4">Norox kg</th>
+      <th style="text-align:right;color:#22c55e">Marmolina kg</th>
+      <th style="text-align:right">Total kg</th>
+      <th>Observaciones</th>
+    </tr></thead><tbody>
+    ${hist.length===0
+      ? `<tr><td colspan="9" class="empty">Sin registros — captura el primer consumo arriba</td></tr>`
+      : hist.map(r=>{
+          const gc=parseFloat(r["Gelcoat (kg)"]||0), bt=parseFloat(r["Butanox (kg)"]||0),
+                re=parseFloat(r["Resina (kg)"]||0), no=parseFloat(r["Norox (kg)"]||0),
+                ma=parseFloat(r["Marmolina (kg)"]||0);
+          const tot=round2(gc+bt+re+no+ma);
+          const ln=String(r["Linea"]||r["Línea"]||"");
+          const cls=ln==="L1"?"b-l1":ln==="L2"?"b-l2":"";
+          const fecha=String(r["Fecha"]||"").slice(0,10);
+          return `<tr style="cursor:pointer" title="Clic para editar" onclick="editarFisicoFilaSW('${fecha}','${ln}')">
+            <td class="mono">${fecha}</td>
+            <td><span class="badge ${cls}">${ln||"—"}</span></td>
+            <td class="mono" style="text-align:right;color:#3b82f6">${gc?fmtN(gc):"—"}</td>
+            <td class="mono" style="text-align:right;color:#8b5cf6">${bt?fmtN(bt):"—"}</td>
+            <td class="mono" style="text-align:right;color:#f59e0b">${re?fmtN(re):"—"}</td>
+            <td class="mono" style="text-align:right;color:#06b6d4">${no?fmtN(no):"—"}</td>
+            <td class="mono" style="text-align:right;color:#22c55e">${ma?fmtN(ma):"—"}</td>
+            <td class="mono" style="text-align:right;font-weight:600">${fmtN(tot)}</td>
+            <td style="color:var(--muted);font-size:11px">${r["Observaciones"]||'<span style="color:var(--border);font-style:italic">+ agregar obs</span>'}</td>
+          </tr>`;
+        }).join("")}
+    </tbody></table></div>
+  </div>`;
+
+  document.getElementById("main-content").innerHTML = html;
+}
+
+function editarFisicoFilaSW(fecha, linea) {
+  const fe = document.getElementById("fis-fecha");
+  const li = document.getElementById("fis-linea");
+  if (fe) fe.value = fecha;
+  if (li) li.value = linea;
+  cargarFisicoExistenteSW();
+  fe?.scrollIntoView({ behavior:"smooth", block:"center" });
+}
+
+function cargarFisicoExistenteSW() {
+  const fecha = document.getElementById("fis-fecha")?.value || "";
+  const linea = document.getElementById("fis-linea")?.value || "";
+  const badge = document.getElementById("fis-edit-badge");
+  const COLS  = {gelcoat:"Gelcoat (kg)", butanox:"Butanox (kg)", resina:"Resina (kg)",
+                 norox:"Norox (kg)", marmolina:"Marmolina (kg)"};
+  if (!fecha || !linea) return;
+
+  const existe = FISICO_RAW.find(r =>
+    String(r["Fecha"]||"").slice(0,10) === fecha &&
+    String(r["Linea"]||r["Línea"]||"").trim() === linea
+  );
+  if (existe) {
+    Object.entries(COLS).forEach(([id, col]) => {
+      const el = document.getElementById(`fis-${id}`);
+      if (el) el.value = parseFloat(existe[col]||0) || "";
+    });
+    const obsEl = document.getElementById("fis-obs");
+    if (obsEl) obsEl.value = existe["Observaciones"] || "";
+    if (badge) badge.style.display = "";
+  } else {
+    Object.keys(COLS).forEach(id => { const el=document.getElementById(`fis-${id}`); if(el) el.value=""; });
+    const obsEl = document.getElementById("fis-obs"); if(obsEl) obsEl.value = "";
+    if (badge) badge.style.display = "none";
+  }
+}
+
+async function guardarFisicoSW() {
+  const status = document.getElementById("fis-status");
+  if (!GAS_INV_URL) { if(status) status.textContent="⚠ GAS_INV_URL no configurado"; return; }
+  const fecha = document.getElementById("fis-fecha")?.value || "";
+  const linea = document.getElementById("fis-linea")?.value || "";
+  const obs   = document.getElementById("fis-obs")?.value   || "";
+  if (!fecha || !linea) { if(status) status.textContent="⚠ Fecha y línea requeridas"; return; }
+  const vals = {
+    Gelcoat   : parseFloat(document.getElementById("fis-gelcoat")?.value   ||"") || 0,
+    Butanox   : parseFloat(document.getElementById("fis-butanox")?.value   ||"") || 0,
+    Resina    : parseFloat(document.getElementById("fis-resina")?.value    ||"") || 0,
+    Norox     : parseFloat(document.getElementById("fis-norox")?.value     ||"") || 0,
+    Marmolina : parseFloat(document.getElementById("fis-marmolina")?.value ||"") || 0,
+  };
+  const esExistente = !!FISICO_RAW.find(r =>
+    String(r["Fecha"]||"").slice(0,10) === fecha &&
+    String(r["Linea"]||r["Línea"]||"").trim() === linea
+  );
+  if (!esExistente && !Object.values(vals).some(v=>v>0)) {
+    if(status) status.textContent="⚠ Ingresa al menos un valor"; return;
+  }
+  if(status) status.textContent="⏳ Guardando…";
+  try {
+    const res  = await fetch(GAS_INV_URL, { method:"POST", body: JSON.stringify({ action:"upsert_fisico", fecha, linea, obs, ...vals }) });
+    const data = await res.json();
+    if (data.ok) {
+      if(status) status.textContent=`✅ ${esExistente?"Actualizado":"Guardado"} — ${new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}`;
+      ["gelcoat","butanox","resina","norox","marmolina"].forEach(id=>{ const el=document.getElementById(`fis-${id}`); if(el) el.value=""; });
+      const obsEl=document.getElementById("fis-obs"); if(obsEl) obsEl.value="";
+      const badge=document.getElementById("fis-edit-badge"); if(badge) badge.style.display="none";
+      await cargar();
+    } else { if(status) status.textContent=`❌ ${data.error}`; }
+  } catch(e) { if(status) status.textContent=`❌ ${e.message}`; }
+}
+
 // ── Cargar ────────────────────────────────────────────────
 async function cargar(){
   document.getElementById("main-content").innerHTML=`<div class="loading"><div class="spinner"></div><div>Conectando con Google Sheets…</div></div>`;
   try{
-    const [r0,r1,r2,r3,r4,r5,r6,r7,r8] = await Promise.allSettled([
+    const [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9] = await Promise.allSettled([
       fetchSheet(SHEET_ID,"CONSUMOS_DIARIOS"),
       fetchSheet(SHEET_ID,"SALIDAS_FABRICACION"),
       fetchSheet(SHEET_ID,"LLEGADAS_ALMACEN"),
@@ -1156,6 +1331,7 @@ async function cargar(){
       fetchSheet(SHEET_ID,"PRECIOS_SW"),
       fetchSheet(SHEET_ID,"CONSUMOS_BASES"),
       fetchSheet(SHEET_ID,"REF_PESO_BASES"),
+      fetchSheet(SHEET_ID,"FISICO_SW"),
     ]);
     TEORICO_RAW    = r0.status==="fulfilled" ? r0.value : [];
     FAB_RAW        = r1.status==="fulfilled" ? r1.value : [];
@@ -1166,6 +1342,7 @@ async function cargar(){
     PRECIOS_RAW    = r6.status==="fulfilled" ? r6.value : [];
     BASES_RAW      = r7.status==="fulfilled" ? r7.value : [];
     REF_BASES_RAW  = r8.status==="fulfilled" ? r8.value : [];
+    FISICO_RAW     = r9.status==="fulfilled" ? r9.value : [];
     document.getElementById("sidebar-update").textContent=
       `Actualizado ${new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}`;
     render();
