@@ -22,6 +22,7 @@ function doPost(e) {
     if      (data.action === 'upsert_inv')    result = upsertInventario(data.rows);
     else if (data.action === 'upsert_fisico') result = upsertFisico(data);
     else if (data.action === 'upsert_merma')  result = upsertMerma(data);
+    else if (data.action === 'delete_fisico') result = deleteFisicoSW(data);
     else result = { ok: false, error: 'Accion no reconocida: ' + data.action };
   } catch(err) {
     result = { ok: false, error: err.message };
@@ -161,4 +162,27 @@ function upsertMerma(data) {
   if (sheet.getLastRow() > 1)
     sheet.getRange(2, 3, sheet.getLastRow()-1, 1).setNumberFormat('0.000');
   return { ok: true, updated: 1 };
+}
+
+// ── Borrar consumo físico SW ───────────────────────────────────
+function deleteFisicoSW(data) {
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(FIS_SHEET);
+  if (!sheet) return { ok: false, error: 'Hoja FISICO_SW no existe' };
+  var fecha = String(data.fecha || '');
+  var linea = String(data.linea || '');
+  var key   = fecha + '|' + linea;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { ok: false, error: 'Sin registros' };
+  var vals = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+  var rowToDelete = -1;
+  vals.forEach(function(r, i) {
+    var f = r[0] instanceof Date
+      ? Utilities.formatDate(r[0], 'America/Mexico_City', 'yyyy-MM-dd')
+      : String(r[0]).slice(0, 10);
+    if (f + '|' + String(r[1]) === key) rowToDelete = i + 2;
+  });
+  if (rowToDelete < 0) return { ok: false, error: 'Registro no encontrado: ' + key };
+  sheet.deleteRow(rowToDelete);
+  return { ok: true, deleted: 1 };
 }
