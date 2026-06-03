@@ -959,6 +959,25 @@ function renderFisico() {
     })
     .sort((a,b)=>String(b["Fecha"]||"").localeCompare(String(a["Fecha"]||"")));
 
+  // Piezas fabricadas por fecha+línea (de TEORICO_RAW)
+  const piezasMap = {};
+  TEORICO_RAW.forEach(r => {
+    if (!enPeriodo(r["FECHA"])) return;
+    if ((r["ESTATUS"]||"") !== "Fabricado") return;
+    const linN = String(r["LINEA"]||"").replace(/[^0-9]/g,"");
+    const fISO = fechaISO(r["FECHA"]); if (!fISO) return;
+    const key  = fISO.slice(0,10) + "|" + linN;
+    piezasMap[key] = (piezasMap[key]||0) + (parseFloat(String(r["CANTIDAD"]||"1"))||1);
+  });
+  const getPiezas = (fecha, ln) => {
+    const linN = String(ln||"").replace(/[^0-9]/g,"");
+    return piezasMap[String(fecha).slice(0,10) + "|" + linN] || 0;
+  };
+  const totalPiezasHist = hist.reduce((s,r)=>{
+    const ln=String(r["Linea"]||r["Línea"]||""); const f=String(r["Fecha"]||"").slice(0,10);
+    return s + getPiezas(f, ln);
+  }, 0);
+
   // Pre-calcular fila de totales
   const htgc=hist.reduce((s,r)=>s+parseFloat(r["Gelcoat (kg)"]||0),0);
   const htgt=hist.reduce((s,r)=>s+parseFloat(r["Gel Coat Trans (kg)"]||0),0);
@@ -971,6 +990,7 @@ function renderFisico() {
   const hpct=(v)=>htot>0?`<div style="font-size:11px;color:var(--muted);font-weight:600">${(v/htot*100).toFixed(1)}%</div>`:'';
   const totalsRow = hist.length===0?'': `<tr style="font-weight:700;background:rgba(255,255,255,.04);border-bottom:2px solid var(--border)">
     <td colspan="2" style="font-size:11px;color:var(--muted);padding:8px 12px">TOTAL (${hist.length} reg.)</td>
+    <td class="mono" style="text-align:right;color:var(--muted)">${totalPiezasHist.toLocaleString()}</td>
     <td style="text-align:right"><div class="mono" style="color:#3b82f6">${fmtN(round2(htgc))}</div>${hpct(htgc)}</td>
     <td style="text-align:right"><div class="mono" style="color:#38bdf8">${fmtN(round2(htgt))}</div>${hpct(htgt)}</td>
     <td style="text-align:right"><div class="mono" style="color:#8b5cf6">${fmtN(round2(htcg))}</div>${hpct(htcg)}</td>
@@ -1032,6 +1052,7 @@ function renderFisico() {
     <table><thead><tr>
       <th style="position:sticky;top:0;background:var(--bg3);z-index:1">Fecha</th>
       <th style="position:sticky;top:0;background:var(--bg3);z-index:1">Línea</th>
+      <th style="text-align:right;color:var(--muted);position:sticky;top:0;background:var(--bg3);z-index:1">Piezas</th>
       <th style="text-align:right;color:#3b82f6;position:sticky;top:0;background:var(--bg3);z-index:1">GC Sólido kg</th>
       <th style="text-align:right;color:#38bdf8;position:sticky;top:0;background:var(--bg3);z-index:1">GC Trans kg</th>
       <th style="text-align:right;color:#8b5cf6;position:sticky;top:0;background:var(--bg3);z-index:1">Cat.GC kg</th>
@@ -1056,9 +1077,11 @@ function renderFisico() {
           const ln=String(r["Linea"]||r["Línea"]||"");
           const cls=ln==="L1"?"b-l1":ln==="L2"?"b-l2":ln==="L3"?"b-l3":ln==="L4"?"b-l4":"";
           const fecha=String(r["Fecha"]||"").slice(0,10);
+          const pzas = getPiezas(fecha, ln);
           return `<tr style="cursor:pointer" title="Clic para editar" onclick="editarFisicoFila('${fecha}','${ln}')">
             <td class="mono">${fecha}</td>
             <td><span class="badge ${cls}">${ln||"—"}</span></td>
+            <td class="mono" style="text-align:right;color:var(--muted)">${pzas?pzas.toLocaleString():"—"}</td>
             <td style="text-align:right"><div class="mono" style="color:#3b82f6">${gc?fmtN(gc):"—"}</div>${gc?p(gc):""}</td>
             <td style="text-align:right"><div class="mono" style="color:#38bdf8">${gct?fmtN(gct):"—"}</div>${gct?p(gct):""}</td>
             <td style="text-align:right"><div class="mono" style="color:#8b5cf6">${cg?fmtN(cg):"—"}</div>${cg?p(cg):""}</td>
