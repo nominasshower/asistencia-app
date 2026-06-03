@@ -958,6 +958,29 @@ function renderFisico() {
     })
     .sort((a,b)=>String(b["Fecha"]||"").localeCompare(String(a["Fecha"]||"")));
 
+  // Pre-calcular fila de totales
+  const htgc=hist.reduce((s,r)=>s+parseFloat(r["Gelcoat (kg)"]||0),0);
+  const htgt=hist.reduce((s,r)=>s+parseFloat(r["Gel Coat Trans (kg)"]||0),0);
+  const htcg=hist.reduce((s,r)=>s+parseFloat(r["Cat. Gelcoat (kg)"]||0),0);
+  const htre=hist.reduce((s,r)=>s+parseFloat(r["Resina (kg)"]||0),0);
+  const htcr=hist.reduce((s,r)=>s+parseFloat(r["Cat. Resina (kg)"]||0),0);
+  const htti=hist.reduce((s,r)=>s+parseFloat(r["Titanio (kg)"]||0),0);
+  const htma=hist.reduce((s,r)=>s+parseFloat(r["Marmolina (kg)"]||0),0);
+  const htot=round2(htgc+htgt+htcg+htre+htcr+htti+htma);
+  const hpct=(v)=>htot>0?`<div style="font-size:11px;color:var(--muted);font-weight:600">${(v/htot*100).toFixed(1)}%</div>`:'';
+  const totalsRow = hist.length===0?'': `<tr style="font-weight:700;background:rgba(255,255,255,.04);border-bottom:2px solid var(--border)">
+    <td colspan="2" style="font-size:11px;color:var(--muted);padding:8px 12px">TOTAL (${hist.length} reg.)</td>
+    <td style="text-align:right"><div class="mono" style="color:#3b82f6">${fmtN(round2(htgc))}</div>${hpct(htgc)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#38bdf8">${fmtN(round2(htgt))}</div>${hpct(htgt)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#8b5cf6">${fmtN(round2(htcg))}</div>${hpct(htcg)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#f59e0b">${fmtN(round2(htre))}</div>${hpct(htre)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#06b6d4">${fmtN(round2(htcr))}</div>${hpct(htcr)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#f97316">${fmtN(round2(htti))}</div>${hpct(htti)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#22c55e">${fmtN(round2(htma))}</div>${hpct(htma)}</td>
+    <td class="mono" style="text-align:right;color:var(--accent)">${fmtN(htot)}</td>
+    <td colspan="2"></td>
+  </tr>`;
+
   let html = `
   <div class="card" style="margin-bottom:14px">
     <div class="card-title">Registrar / Editar Consumo Físico
@@ -1019,29 +1042,7 @@ function renderFisico() {
       <th style="position:sticky;top:0;background:var(--bg3);z-index:1">Observaciones</th>
       <th style="position:sticky;top:0;background:var(--bg3);z-index:1"></th>
     </tr></thead><tbody>
-    ${hist.length>0?(()=>{
-      const tgc=hist.reduce((s,r)=>s+parseFloat(r["Gelcoat (kg)"]||0),0);
-      const tgt=hist.reduce((s,r)=>s+parseFloat(r["Gel Coat Trans (kg)"]||0),0);
-      const tcg=hist.reduce((s,r)=>s+parseFloat(r["Cat. Gelcoat (kg)"]||0),0);
-      const tre=hist.reduce((s,r)=>s+parseFloat(r["Resina (kg)"]||0),0);
-      const tcr=hist.reduce((s,r)=>s+parseFloat(r["Cat. Resina (kg)"]||0),0);
-      const tti=hist.reduce((s,r)=>s+parseFloat(r["Titanio (kg)"]||0),0);
-      const tma=hist.reduce((s,r)=>s+parseFloat(r["Marmolina (kg)"]||0),0);
-      const tot=round2(tgc+tgt+tcg+tre+tcr+tti+tma);
-      const pp=(v)=>tot>0?`<div style="font-size:11px;color:var(--muted);font-weight:600">${(v/tot*100).toFixed(1)}%</div>`:'';
-      return `<tr style="font-weight:700;background:rgba(255,255,255,.04);border-bottom:2px solid var(--border)">
-        <td colspan="2" style="font-size:11px;color:var(--muted);padding:8px 12px">TOTAL (${hist.length} reg.)</td>
-        <td style="text-align:right"><div class="mono" style="color:#3b82f6">${fmtN(round2(tgc))}</div>${pp(tgc)}</td>
-        <td style="text-align:right"><div class="mono" style="color:#38bdf8">${fmtN(round2(tgt))}</div>${pp(tgt)}</td>
-        <td style="text-align:right"><div class="mono" style="color:#8b5cf6">${fmtN(round2(tcg))}</div>${pp(tcg)}</td>
-        <td style="text-align:right"><div class="mono" style="color:#f59e0b">${fmtN(round2(tre))}</div>${pp(tre)}</td>
-        <td style="text-align:right"><div class="mono" style="color:#06b6d4">${fmtN(round2(tcr))}</div>${pp(tcr)}</td>
-        <td style="text-align:right"><div class="mono" style="color:#f97316">${fmtN(round2(tti))}</div>${pp(tti)}</td>
-        <td style="text-align:right"><div class="mono" style="color:#22c55e">${fmtN(round2(tma))}</div>${pp(tma)}</td>
-        <td class="mono" style="text-align:right;color:var(--accent)">${fmtN(tot)}</td>
-        <td colspan="2"></td>
-      </tr>`;
-    })():""}
+    ${totalsRow}
     ${hist.length===0
       ? `<tr><td colspan="12" class="empty">Sin registros — captura el primer consumo físico arriba</td></tr>`
       : hist.map(r=>{
