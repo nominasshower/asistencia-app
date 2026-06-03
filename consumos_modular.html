@@ -1421,7 +1421,7 @@ function renderFisicoVsVaciado() {
         <div class="card-title">Línea ${l}
           <span>${curr.length} días · X = fecha (piezas · kg producidos) · Y = kg materiales</span>
         </div>
-        <div style="position:relative;height:280px"><canvas id="fvv-l${l}"></canvas></div>
+        <div style="position:relative;height:360px"><canvas id="fvv-l${l}"></canvas></div>
         <div style="overflow-x:auto;margin-top:8px"><table style="min-width:520px"><thead><tr>
           <th>Fecha</th>
           <th style="text-align:right">Piezas</th>
@@ -1454,42 +1454,86 @@ function renderFisicoVsVaciado() {
     const reg=linReg(ptsLinea[l]);
     const curr=ptsLinea[l].filter(p=>p.isCurrent).sort((a,b)=>a.fecha.localeCompare(b.fecha));
     if(!curr.length) return;
-    // Etiqueta X: "DD/MM · 450pzas · 8,200kg"
-    const labels=curr.map(p=>{
-      const [y,m,d]=p.fecha.split("-");
-      return `${d}/${m} · ${Math.round(p.pzas||p.x)}pzas · ${fmtN(p.x)}kg`;
-    });
-    const kgFis=curr.map(p=>p.y);
-    // "kg vaciado esperado" = tendencia histórica para ese número de piezas
+    const labels=curr.map(p=>{ const [,m,d]=p.fecha.split("-"); return `${d}/${m}`; });
+    const kgFis =curr.map(p=>p.y);
     const kgTend=curr.map(p=>reg?round2(reg.m*p.x+reg.b):null);
     const ptColors=curr.map(p=>ptClr(p,reg));
+    const pzLabels=curr.map(p=>Math.round(p.pzas||0));
 
     new Chart(cvs,{
       type:"line",
       data:{labels, datasets:[
-        {label:"Tendencia histórica (kg esperado)", data:kgTend,
-         borderColor:"#f59e0b", borderWidth:2.5, borderDash:[8,4],
-         backgroundColor:"rgba(245,158,11,.08)", pointRadius:4,
-         pointBackgroundColor:"#f59e0b", fill:false, tension:0.2, spanGaps:true},
-        {label:"kg Físico consumido", data:kgFis,
-         borderColor:"#38bdf8", borderWidth:2.5, backgroundColor:"rgba(56,189,248,.1)",
-         pointRadius:6, pointBackgroundColor:ptColors, pointBorderColor:ptColors,
-         pointBorderWidth:2, fill:false, tension:0.2}
+        {label:"Tendencia histórica",
+         data:kgTend,
+         borderColor:"#f59e0b",
+         borderWidth:3,
+         borderDash:[10,5],
+         backgroundColor:"rgba(245,158,11,.15)",
+         pointRadius:5,
+         pointBackgroundColor:"#f59e0b",
+         pointBorderColor:"#f59e0b",
+         fill:false,
+         tension:0.3,
+         spanGaps:true,
+         order:2},
+        {label:"kg Físico consumido",
+         data:kgFis,
+         borderColor:"#38bdf8",
+         borderWidth:3,
+         backgroundColor:"rgba(56,189,248,.15)",
+         pointRadius:curr.map((_,i)=>8),
+         pointBackgroundColor:ptColors,
+         pointBorderColor:"#0f172a",
+         pointBorderWidth:2,
+         pointHoverRadius:11,
+         fill:true,
+         tension:0.3,
+         order:1}
       ]},
       options:{responsive:true,maintainAspectRatio:false,
+        interaction:{mode:"index",intersect:false},
         plugins:{
-          legend:{labels:{color:"#9ca3af",font:{family:"Roboto Mono",size:11},boxWidth:20}},
-          tooltip:{callbacks:{afterBody:items=>{
-            const i=items[0]?.dataIndex; if(i===undefined) return[];
-            const p=curr[i]; const d=devInfo(p,reg);
-            return d?[`Desvío: ${d.pct>0?"+":""}${d.pct}% (${d.sigs.toFixed(1)}σ)`]:[];
-          }}}
+          legend:{labels:{color:"#d1d5db",font:{family:"Roboto Mono",size:12},
+            boxWidth:28, padding:20, usePointStyle:true}},
+          tooltip:{
+            backgroundColor:"rgba(15,23,42,.95)",
+            borderColor:"rgba(255,255,255,.15)",
+            borderWidth:1,
+            padding:12,
+            callbacks:{
+              title:items=>{
+                const i=items[0].dataIndex;
+                return `${curr[i].fecha}  ·  ${pzLabels[i]} piezas  ·  ${fmtN(curr[i].x)} kg prod`;
+              },
+              label:ctx=>{
+                const v=ctx.parsed.y;
+                const label=ctx.dataset.label;
+                return `  ${label}: ${fmtN(v)} kg`;
+              },
+              afterBody:items=>{
+                const i=items[0]?.dataIndex; if(i===undefined) return[];
+                const p=curr[i]; const d=devInfo(p,reg);
+                if(!d) return[];
+                const arrow=d.pct>0?"⬆":"⬇";
+                const txt=Math.abs(d.pct)<15?"✅ Normal":Math.abs(d.pct)<30?"⚠ Inusual":"🔴 Crítico";
+                return [``, `  ${arrow} Desvío: ${d.pct>0?"+":""}${d.pct}%  ${txt}`];
+              }
+            }
+          }
         },
         scales:{
-          x:{ticks:{color:"#6b7280",font:{family:"Roboto Mono",size:9},maxRotation:45},
-             grid:{color:"rgba(255,255,255,.04)"}},
-          y:{ticks:{color:"#6b7280",font:{family:"Roboto Mono",size:10}},
-             grid:{color:"rgba(255,255,255,.06)"},beginAtZero:true}
+          x:{
+            ticks:{color:"#9ca3af",font:{family:"Roboto Mono",size:11},maxRotation:0},
+            grid:{color:"rgba(255,255,255,.05)"},
+            border:{color:"rgba(255,255,255,.1)"}
+          },
+          y:{
+            ticks:{color:"#9ca3af",font:{family:"Roboto Mono",size:11},
+              callback:v=>`${(v/1000).toFixed(0)}k`},
+            grid:{color:"rgba(255,255,255,.07)"},
+            border:{color:"rgba(255,255,255,.1)"},
+            beginAtZero:false
+          }
         }
       }
     });
