@@ -1285,15 +1285,18 @@ function renderFisicoVsVaciado() {
   const inFVV = s => { const d=parseDate(s); if(!d) return false;
     const a=parseDate(FVV_DESDE), b=parseDate(FVV_HASTA); return (!a||d>=a)&&(!b||d<=b); };
 
-  // ── 1. Piezas producidas por fecha+línea (conteo) ───────────────
-  const piezasMap = {};
+  // ── 1. Producción por fecha+línea: kg (PESO×CANT) y conteo piezas ─
+  const prodKgMap  = {}; // "fecha|lin" → kg producidos (PESO×CANT)
+  const piezasMap  = {}; // "fecha|lin" → conteo piezas
   TEORICO_RAW.forEach(r => {
     if ((r["ESTATUS"]||"") !== "Fabricado") return;
     const linN = String(r["LINEA"]||"").replace(/[^0-9]/g,""); if(!linN) return;
+    const peso = parseFloat(String(r["PESO"]||"0").replace(",","."))||0;
     const cant = parseFloat(String(r["CANTIDAD"]||"1"))||1;
     const fISO = fechaISO(r["FECHA"]); if(!fISO) return;
     const key  = fISO.slice(0,10)+"|"+linN;
-    piezasMap[key] = (piezasMap[key]||0) + cant;
+    prodKgMap[key]  = round2((prodKgMap[key]||0) + peso*cant);
+    piezasMap[key]  = (piezasMap[key]||0) + cant;
   });
 
   // ── 2. kg físico por fecha+línea (solo período actual) ─────────
@@ -1308,15 +1311,16 @@ function renderFisicoVsVaciado() {
     fisMap[fecha+"|"+linN] = round2((fisMap[fecha+"|"+linN]||0)+kg);
   });
 
-  // ── 3. Puntos históricos por línea: {x=piezas, y=kg, fecha, isCurrent} ─
-  const ptsLinea = {}; // linN → [{x,y,fecha,isCurrent}]
+  // ── 3. Puntos históricos: x = kg producción (PESO×CANT), y = kg físico ─
+  const ptsLinea = {};
   Object.keys(fisMap).forEach(key => {
     const [fecha, linN] = key.split("|");
-    const y = fisMap[key];
-    const x = piezasMap[key]||0;
+    const y    = fisMap[key];
+    const x    = prodKgMap[key]||0;  // kg producción — corrige por tamaño de pieza
+    const pzas = piezasMap[key]||0;
     if (!x || !y) return;
     if (!ptsLinea[linN]) ptsLinea[linN] = [];
-    ptsLinea[linN].push({x, y, fecha, isCurrent: inFVV(fecha)});
+    ptsLinea[linN].push({x, y, pzas, fecha, isCurrent: inFVV(fecha)});
   });
 
   const lineas = Object.keys(ptsLinea).sort();
@@ -1415,26 +1419,25 @@ function renderFisicoVsVaciado() {
       const reg=linReg(ptsLinea[l]);
       html+=`<div class="card" style="margin-bottom:12px">
         <div class="card-title">Línea ${l}
-          <span>${curr.length} días · eje X = fecha (piezas del día) · eje Y = kg</span>
+          <span>${curr.length} días · X = fecha (piezas · kg producidos) · Y = kg materiales</span>
         </div>
         <div style="position:relative;height:280px"><canvas id="fvv-l${l}"></canvas></div>
-        <div style="overflow-x:auto;margin-top:8px"><table style="min-width:460px"><thead><tr>
+        <div style="overflow-x:auto;margin-top:8px"><table style="min-width:520px"><thead><tr>
           <th>Fecha</th>
           <th style="text-align:right">Piezas</th>
-          <th style="text-align:right;color:#f59e0b">kg Vaciado</th>
+          <th style="text-align:right;color:#a78bfa">kg Prod.</th>
           <th style="text-align:right;color:#38bdf8">kg Físico</th>
-          <th style="text-align:right;color:var(--muted)">Tendencia</th>
+          <th style="text-align:right;color:#f59e0b">Tendencia</th>
           <th style="text-align:right">Desvío</th>
         </tr></thead><tbody>
         ${curr.map(p=>{
           const d=devInfo(p,reg); const c=ptClr(p,reg);
-          // kg vaciado = piezas × (reg.m aprox) — usamos el x que ya es piezas, y quieren ver el "vaciado" como piezas
           return`<tr>
             <td class="mono">${p.fecha}</td>
-            <td class="mono" style="text-align:right;color:var(--muted)">${Math.round(p.x)}</td>
-            <td class="mono" style="text-align:right;color:#f59e0b">${d?fmtN(d.pred):"—"}</td>
+            <td class="mono" style="text-align:right;color:var(--muted)">${Math.round(p.pzas||p.x)}</td>
+            <td class="mono" style="text-align:right;color:#a78bfa">${fmtN(p.x)}</td>
             <td class="mono" style="text-align:right;color:#38bdf8">${fmtN(p.y)}</td>
-            <td class="mono" style="text-align:right;color:var(--muted)">${d?fmtN(d.pred):"—"}</td>
+            <td class="mono" style="text-align:right;color:#f59e0b">${d?fmtN(d.pred):"—"}</td>
             <td class="mono" style="text-align:right;color:${c};font-weight:600">${d?(d.pct>0?"+":"")+d.pct+"%":"—"}</td>
           </tr>`;
         }).join("")}
@@ -1451,10 +1454,10 @@ function renderFisicoVsVaciado() {
     const reg=linReg(ptsLinea[l]);
     const curr=ptsLinea[l].filter(p=>p.isCurrent).sort((a,b)=>a.fecha.localeCompare(b.fecha));
     if(!curr.length) return;
-    // Etiqueta X: "DD/MM · 450pzas"
+    // Etiqueta X: "DD/MM · 450pzas · 8,200kg"
     const labels=curr.map(p=>{
       const [y,m,d]=p.fecha.split("-");
-      return `${d}/${m} · ${Math.round(p.x)}pzas`;
+      return `${d}/${m} · ${Math.round(p.pzas||p.x)}pzas · ${fmtN(p.x)}kg`;
     });
     const kgFis=curr.map(p=>p.y);
     // "kg vaciado esperado" = tendencia histórica para ese número de piezas
