@@ -558,6 +558,9 @@ function renderRegistros() {
         </tr>`;}).join("")}
       </tbody></table>
     </div>`;
+  // Restaurar foco en el buscador para que no se interrumpa al escribir
+  const inp = document.getElementById("r-busq");
+  if (inp) { inp.focus(); const len = inp.value.length; inp.setSelectionRange(len, len); }
 }
 
 // ─── AREAS ───────────────────────────────────────────────────
