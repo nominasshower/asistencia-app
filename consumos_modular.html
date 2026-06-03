@@ -1285,200 +1285,203 @@ function renderFisicoVsVaciado() {
   const inFVV = s => { const d=parseDate(s); if(!d) return false;
     const a=parseDate(FVV_DESDE), b=parseDate(FVV_HASTA); return (!a||d>=a)&&(!b||d<=b); };
 
-  // ── 1. kg vaciados por fecha+línea (PESO × CANTIDAD) ───────────
-  const prodMap = {};
+  // ── 1. Piezas producidas por fecha+línea (conteo) ───────────────
+  const piezasMap = {};
   TEORICO_RAW.forEach(r => {
-    if (!inFVV(r["FECHA"])) return;
     if ((r["ESTATUS"]||"") !== "Fabricado") return;
     const linN = String(r["LINEA"]||"").replace(/[^0-9]/g,""); if(!linN) return;
-    const peso = parseFloat(String(r["PESO"]||"0").replace(",","."))||0; if(!peso) return;
     const cant = parseFloat(String(r["CANTIDAD"]||"1"))||1;
     const fISO = fechaISO(r["FECHA"]); if(!fISO) return;
     const key  = fISO.slice(0,10)+"|"+linN;
-    prodMap[key] = round2((prodMap[key]||0) + peso*cant);
+    piezasMap[key] = (piezasMap[key]||0) + cant;
   });
 
-  // ── 2. kg físico por fecha+línea ────────────────────────────────
+  // ── 2. kg físico por fecha+línea (solo período actual) ─────────
   const fisMap = {};
   FISICO_RAW.forEach(r => {
-    if (!inFVV(r["Fecha"])) return;
     const linN = String(r["Linea"]||r["Línea"]||"").replace(/[^0-9]/g,""); if(!linN) return;
     const fecha = String(r["Fecha"]||"").slice(0,10);
-    const kg = round2(
-      parseFloat(r["Gelcoat (kg)"]||0)+parseFloat(r["Gel Coat Trans (kg)"]||0)+
+    const kg = round2(parseFloat(r["Gelcoat (kg)"]||0)+parseFloat(r["Gel Coat Trans (kg)"]||0)+
       parseFloat(r["Cat. Gelcoat (kg)"]||0)+parseFloat(r["Resina (kg)"]||0)+
-      parseFloat(r["Cat. Resina (kg)"]||0)+parseFloat(r["Titanio (kg)"]||0)+
-      parseFloat(r["Marmolina (kg)"]||0));
+      parseFloat(r["Cat. Resina (kg)"]||0)+parseFloat(r["Titanio (kg)"]||0)+parseFloat(r["Marmolina (kg)"]||0));
     if (!kg) return;
     fisMap[fecha+"|"+linN] = round2((fisMap[fecha+"|"+linN]||0)+kg);
   });
 
-  // ── 3. Fechas y líneas del período ─────────────────────────────
-  const allKeys = [...new Set([...Object.keys(prodMap),...Object.keys(fisMap)])];
-  const fechas  = [...new Set(allKeys.map(k=>k.split("|")[0]))].sort();
-  const lineas  = [...new Set(allKeys.map(k=>k.split("|")[1]))].filter(Boolean).sort();
-
-  // ── 4. Ratio histórico (todo historial, no filtrado) para alertas
-  // kg_fisico / kg_vaciado → promedio histórico por línea
-  const ratioHist = {}; // linN → {mean, sd}
-  lineas.forEach(l => {
-    const ratios = [];
-    FISICO_RAW.forEach(r => {
-      const ln = String(r["Linea"]||r["Línea"]||"").replace(/[^0-9]/g,"");
-      if (ln !== l) return;
-      const f   = String(r["Fecha"]||"").slice(0,10);
-      const kg  = round2(parseFloat(r["Gelcoat (kg)"]||0)+parseFloat(r["Gel Coat Trans (kg)"]||0)+parseFloat(r["Cat. Gelcoat (kg)"]||0)+parseFloat(r["Resina (kg)"]||0)+parseFloat(r["Cat. Resina (kg)"]||0)+parseFloat(r["Titanio (kg)"]||0)+parseFloat(r["Marmolina (kg)"]||0));
-      const prod = prodMap[f+"|"+l] || (() => {
-        // buscar en TEORICO_RAW sin filtro
-        let kp=0;
-        TEORICO_RAW.forEach(t => {
-          if ((t["ESTATUS"]||"")!=="Fabricado") return;
-          if (String(t["LINEA"]||"").replace(/[^0-9]/g,"")!==l) return;
-          const ti=fechaISO(t["FECHA"]); if(!ti||ti.slice(0,10)!==f) return;
-          kp+=parseFloat(String(t["PESO"]||"0").replace(",","."))||0;
-        });
-        return kp;
-      })();
-      if (kg>0 && prod>0) ratios.push(kg/prod);
-    });
-    if (ratios.length<2) { ratioHist[l]=null; return; }
-    const mean=ratios.reduce((a,b)=>a+b,0)/ratios.length;
-    const sd  =Math.max(Math.sqrt(ratios.reduce((s,r)=>s+(r-mean)**2,0)/ratios.length),0.02);
-    ratioHist[l]={mean,sd,n:ratios.length};
+  // ── 3. Puntos históricos por línea: {x=piezas, y=kg, fecha, isCurrent} ─
+  const ptsLinea = {}; // linN → [{x,y,fecha,isCurrent}]
+  Object.keys(fisMap).forEach(key => {
+    const [fecha, linN] = key.split("|");
+    const y = fisMap[key];
+    const x = piezasMap[key]||0;
+    if (!x || !y) return;
+    if (!ptsLinea[linN]) ptsLinea[linN] = [];
+    ptsLinea[linN].push({x, y, fecha, isCurrent: inFVV(fecha)});
   });
 
-  const desvioInfo = (l,fecha) => {
-    const rh=ratioHist[l]; if(!rh) return null;
-    const fis=fisMap[fecha+"|"+l]||0, prod=prodMap[fecha+"|"+l]||0;
-    if(!fis||!prod) return null;
-    const ratio=fis/prod;
-    const pct=Math.round((ratio-rh.mean)/rh.mean*100);
-    const sigs=Math.abs((ratio-rh.mean)/rh.sd);
-    return {pct, sigs, ratio, fis, prod, esperado:round2(rh.mean*prod)};
-  };
-  const alertColor = s => s>=2?"#ef4444":s>=1.2?"#f59e0b":"#22c55e";
+  const lineas = Object.keys(ptsLinea).sort();
 
-  // ── 5. Alertas ──────────────────────────────────────────────────
+  // ── 4. Regresión lineal por línea (todo historial) ──────────────
+  function linReg(pts) {
+    const n=pts.length; if(n<2) return null;
+    const mx=pts.reduce((s,p)=>s+p.x,0)/n, my=pts.reduce((s,p)=>s+p.y,0)/n;
+    const num=pts.reduce((s,p)=>s+(p.x-mx)*(p.y-my),0);
+    const den=pts.reduce((s,p)=>s+(p.x-mx)**2,0);
+    if(!den) return null;
+    const m=num/den, b=my-m*mx;
+    const resids=pts.map(p=>{ const pred=m*p.x+b; return pred>0?(p.y-pred)/pred*100:0; });
+    const mn=resids.reduce((a,b)=>a+b,0)/n;
+    const sd=Math.max(Math.sqrt(resids.reduce((s,r)=>s+(r-mn)**2,0)/n), 5);
+    return {m, b, meanR:mn, sdR:sd};
+  }
+
+  const devInfo = (pt, reg) => {
+    if(!reg) return null;
+    const pred = reg.m*pt.x + reg.b; if(pred<=0) return null;
+    const pct  = Math.round((pt.y-pred)/pred*100);
+    const sigs = Math.abs((pct-reg.meanR)/reg.sdR);
+    return {pct, sigs, pred:round2(pred)};
+  };
+  const ptClr = (pt, reg) => {
+    const d=devInfo(pt,reg); if(!d) return "#6b7280";
+    return d.sigs<1.2?"#22c55e":d.sigs<2?"#f59e0b":"#ef4444";
+  };
+
+  // ── 5. Alertas (solo período actual) ───────────────────────────
   const alertas=[];
-  lineas.forEach(l => fechas.forEach(f => {
-    const d=desvioInfo(l,f); if(!d||d.sigs<1.2) return;
-    alertas.push({l,f,...d});
-  }));
+  lineas.forEach(l => {
+    const reg=linReg(ptsLinea[l]);
+    if(!reg) return;
+    ptsLinea[l].filter(p=>p.isCurrent).forEach(p => {
+      const d=devInfo(p,reg); if(!d||d.sigs<1.2) return;
+      alertas.push({l,...p,...d,reg});
+    });
+  });
   alertas.sort((a,b)=>b.sigs-a.sigs);
 
   // ── 6. HTML ─────────────────────────────────────────────────────
   const inp=`background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;outline:none;`;
+  const ac=s=>s>=2?"#ef4444":s>=1.2?"#f59e0b":"#22c55e";
+
   let html=`
   <div style="padding:12px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <label class="lbl">Período</label>
+    <label class="lbl">Período a destacar</label>
     <input type="date" id="fvv-desde" value="${FVV_DESDE}" style="${inp}">
     <label class="lbl">→</label>
     <input type="date" id="fvv-hasta" value="${FVV_HASTA}" style="${inp}">
     <button class="btn btn-green" onclick="applyFVV()">Aplicar</button>
     <span style="font-size:11px;color:var(--muted)">
-      Alertas basadas en ratio histórico kg físico/kg vaciado por línea ·
+      Línea negra = tendencia histórica (todo el historial) ·
       <span style="color:#22c55e">●</span> normal
       <span style="color:#f59e0b;margin-left:4px">●</span> inusual
       <span style="color:#ef4444;margin-left:4px">●</span> crítico
+      · <span style="color:#4b5563">●</span> histórico
     </span>
   </div>`;
 
   if (alertas.length>0) {
     html+=`<div class="card" style="margin-bottom:12px;border-left:3px solid #f59e0b">
-      <div class="card-title" style="color:#fbbf24">⚠ ${alertas.length} días con consumo fuera del patrón histórico</div>
+      <div class="card-title" style="color:#fbbf24">⚠ ${alertas.length} días del período alejados de la tendencia histórica</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">
-      ${alertas.map(a=>{const c=alertColor(a.sigs);return`
+      ${alertas.map(a=>{const c=ac(a.sigs);return`
         <div style="background:${c}15;border:1px solid ${c}33;border-radius:6px;padding:8px 12px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-            <span class="mono" style="font-size:12px">${a.f}</span>
+            <span class="mono" style="font-size:12px">${a.fecha}</span>
             <span class="badge b-l${a.l}">L${a.l}</span>
           </div>
           <div style="font-size:11px;color:var(--muted)">
-            Vaciado: <b style="color:var(--text)">${fmtN(a.prod)} kg</b> ·
-            Físico: <b style="color:var(--text)">${fmtN(a.fis)} kg</b>
+            Piezas: <b style="color:var(--text)">${Math.round(a.x)}</b> ·
+            Físico: <b style="color:var(--text)">${fmtN(a.y)} kg</b>
           </div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px">
-            Esperado hist: <b style="color:var(--text)">${fmtN(a.esperado)} kg</b>
+            Esperado (tendencia): <b style="color:var(--text)">${fmtN(a.pred)} kg</b>
           </div>
           <div style="margin-top:6px;font-size:13px;font-weight:700;color:${c}">
-            ${a.pct>0?"+":""}${a.pct}% · ${a.sigs.toFixed(1)}σ ${a.pct>0?"⬆ alto":"⬇ bajo"}
+            ${a.pct>0?"+":""}${a.pct}% · ${a.sigs.toFixed(1)}σ ${a.pct>0?"⬆ consumo alto":"⬇ consumo bajo"}
           </div>
         </div>`}).join("")}
       </div>
     </div>`;
-  } else if (fechas.length>0) {
-    html+=`<div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:12px;color:#4ade80">✅ Consumo dentro del patrón histórico en todo el período</div>`;
+  } else if (lineas.some(l=>ptsLinea[l].some(p=>p.isCurrent))) {
+    html+=`<div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:12px;color:#4ade80">✅ Todos los días del período siguen la tendencia histórica normal</div>`;
   }
 
   if (!lineas.length) {
-    html+=`<div class="card"><div class="empty">Sin datos en el período seleccionado</div></div>`;
+    html+=`<div class="card"><div class="empty">Sin datos — necesitas físico capturado y producción en el mismo día</div></div>`;
   } else {
     lineas.forEach(l => {
-      const dias=fechas.filter(f=>(prodMap[f+"|"+l]||0)>0||(fisMap[f+"|"+l]||0)>0);
-      if(!dias.length) return;
-      const rh=ratioHist[l];
-      const kgFis =dias.map(f=>fisMap[f+"|"+l]||null);
-      const kgVac =dias.map(f=>prodMap[f+"|"+l]||null);
-      const labels=dias.map(f=>{const p=f.split("-");return p[2]+"/"+p[1];});
-      const ptColors=dias.map(f=>{const d=desvioInfo(l,f);return d?alertColor(d.sigs):"#6b7280";});
+      const pts=ptsLinea[l]; if(!pts.length) return;
+      const reg=linReg(pts);
+      const curr=pts.filter(p=>p.isCurrent);
+      const hist=pts.filter(p=>!p.isCurrent);
       html+=`<div class="card" style="margin-bottom:12px">
         <div class="card-title">Línea ${l}
-          <span>${dias.length} días · ${rh?`ratio hist. promedio: ${(rh.mean*100).toFixed(1)}% (±${(rh.sd*100).toFixed(1)}%, ${rh.n} dias)`:"sin historial suficiente"}</span>
+          <span>${pts.length} días históricos · ${curr.length} en período seleccionado · eje X = piezas producidas · eje Y = kg físico</span>
         </div>
-        <div style="position:relative;height:260px"><canvas id="fvv-l${l}"></canvas></div>
-        <div style="overflow-x:auto;margin-top:8px"><table style="min-width:480px"><thead><tr>
+        <div style="position:relative;height:300px"><canvas id="fvv-l${l}"></canvas></div>
+        ${curr.length>0?`
+        <div style="overflow-x:auto;margin-top:8px"><table style="min-width:460px"><thead><tr>
           <th>Fecha</th>
-          <th style="text-align:right;color:#22c55e">kg Vaciado</th>
+          <th style="text-align:right">Piezas</th>
           <th style="text-align:right;color:#3b82f6">kg Físico</th>
-          <th style="text-align:right;color:var(--muted)">Ratio</th>
-          <th style="text-align:right">vs Hist.</th>
+          <th style="text-align:right;color:var(--muted)">Tendencia</th>
+          <th style="text-align:right">Desvío</th>
         </tr></thead><tbody>
-        ${dias.map((f,i)=>{
-          const d=desvioInfo(l,f); const clr=d?alertColor(d.sigs):"var(--muted)";
+        ${curr.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(p=>{
+          const d=devInfo(p,reg); const c=ptClr(p,reg);
           return`<tr>
-            <td class="mono">${f}</td>
-            <td class="mono" style="text-align:right;color:#22c55e">${kgVac[i]?fmtN(kgVac[i]):"—"}</td>
-            <td class="mono" style="text-align:right;color:#3b82f6">${kgFis[i]?fmtN(kgFis[i]):"—"}</td>
-            <td class="mono" style="text-align:right;color:var(--muted)">${d?(d.ratio*100).toFixed(1)+"%":"—"}</td>
-            <td class="mono" style="text-align:right;color:${clr};font-weight:600">${d?(d.pct>0?"+":"")+d.pct+"%":"—"}</td>
+            <td class="mono">${p.fecha}</td>
+            <td class="mono" style="text-align:right;color:var(--muted)">${Math.round(p.x)}</td>
+            <td class="mono" style="text-align:right;color:#3b82f6">${fmtN(p.y)}</td>
+            <td class="mono" style="text-align:right;color:var(--muted)">${d?fmtN(d.pred):"—"}</td>
+            <td class="mono" style="text-align:right;color:${c};font-weight:600">${d?(d.pct>0?"+":"")+d.pct+"%":"—"}</td>
           </tr>`;
         }).join("")}
-        </tbody></table></div>
+        </tbody></table></div>`:""}
       </div>`;
     });
   }
 
   document.getElementById("main-content").innerHTML = html;
 
-  // ── Gráficas Chart.js ───────────────────────────────────────────
+  // ── Scatter Chart.js ────────────────────────────────────────────
   lineas.forEach(l => {
     const cvs=document.getElementById("fvv-l"+l); if(!cvs) return;
-    const dias=fechas.filter(f=>(prodMap[f+"|"+l]||0)>0||(fisMap[f+"|"+l]||0)>0);
-    const kgFis=dias.map(f=>fisMap[f+"|"+l]||null);
-    const kgVac=dias.map(f=>prodMap[f+"|"+l]||null);
-    const ptColors=dias.map(f=>{const d=desvioInfo(l,f);return d?alertColor(d.sigs)+"cc":"#22c55e99";});
-    const labels=dias.map(f=>{const p=f.split("-");return p[2]+"/"+p[1];});
+    const pts=ptsLinea[l], reg=linReg(pts);
+    const hist=pts.filter(p=>!p.isCurrent);
+    const curr=pts.filter(p=> p.isCurrent);
+    // Línea de tendencia (regresión)
+    const xs=pts.map(p=>p.x), xMin=Math.min(...xs), xMax=Math.max(...xs);
+    const trendData=reg?[{x:xMin,y:reg.m*xMin+reg.b},{x:xMax,y:reg.m*xMax+reg.b}]:[];
     new Chart(cvs,{
-      type:"line",
-      data:{labels, datasets:[
-        {label:"kg Vaciado (PESO×piezas)", data:kgVac, borderColor:"#22c55e", backgroundColor:"rgba(34,197,94,.1)",
-         borderWidth:2, pointRadius:4, pointBackgroundColor:"#22c55e", fill:true, tension:0.2, spanGaps:true},
-        {label:"kg Físico consumido", data:kgFis, borderColor:"#3b82f6", backgroundColor:"transparent",
-         borderWidth:2.5, pointRadius:dias.map((_,i)=>5), pointBackgroundColor:ptColors,
-         pointBorderColor:ptColors, fill:false, tension:0.2, spanGaps:true}
+      type:"scatter",
+      data:{datasets:[
+        {label:"Histórico", data:hist.map(p=>({x:p.x,y:p.y,f:p.fecha})),
+         backgroundColor:"#6b728044", pointRadius:5, pointHoverRadius:7, order:3},
+        {label:"Período actual", data:curr.map(p=>({x:p.x,y:p.y,f:p.fecha})),
+         backgroundColor:curr.map(p=>ptClr(p,reg)+"dd"),
+         pointRadius:8, pointHoverRadius:10, order:2},
+        {label:"Tendencia histórica", data:trendData, type:"line",
+         borderColor:"rgba(255,255,255,.7)", borderWidth:2, borderDash:[8,4],
+         pointRadius:0, fill:false, showLine:true, tension:0, order:1}
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         plugins:{
           legend:{labels:{color:"#6b7280",font:{family:"Roboto Mono",size:11}}},
-          tooltip:{callbacks:{afterBody:items=>{
-            const i=items[0]?.dataIndex; if(i===undefined) return [];
-            const d=desvioInfo(l,dias[i]); if(!d) return [];
-            return [`Desvío vs hist: ${d.pct>0?"+":""}${d.pct}% (${d.sigs.toFixed(1)}σ)`];
+          tooltip:{callbacks:{label:ctx=>{
+            const d=ctx.raw; if(d.f===undefined) return null;
+            const pt=pts.find(p=>p.fecha===d.f);
+            const dv=pt&&reg?devInfo(pt,reg):null;
+            return[`Fecha: ${d.f}`,`Piezas: ${Math.round(d.x)}`,`kg Físico: ${fmtN(d.y)}`,
+              dv?`Tendencia: ${fmtN(dv.pred)} kg (${dv.pct>0?"+":""}${dv.pct}%)`:""
+            ].filter(Boolean);
           }}}
         },
         scales:{
-          x:{ticks:{color:"#6b7280",font:{family:"Roboto Mono",size:10}},grid:{color:"rgba(255,255,255,.04)"}},
-          y:{ticks:{color:"#6b7280",font:{family:"Roboto Mono",size:10}},grid:{color:"rgba(255,255,255,.06)"},beginAtZero:true}
+          x:{title:{display:true,text:"Piezas producidas",color:"#6b7280",font:{size:11}},
+             ticks:{color:"#6b7280",font:{family:"Roboto Mono",size:10}},grid:{color:"rgba(255,255,255,.04)"}},
+          y:{title:{display:true,text:"kg físico consumido",color:"#6b7280",font:{size:11}},
+             ticks:{color:"#6b7280",font:{family:"Roboto Mono",size:10}},grid:{color:"rgba(255,255,255,.06)"},beginAtZero:true}
         }
       }
     });
