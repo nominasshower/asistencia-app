@@ -1280,15 +1280,15 @@ function applyFVV() {
 }
 
 function renderFisicoVsVaciado() {
-  document.getElementById("topbar-sub").textContent = "Físico vs Vaciado — patrón histórico por línea";
+  document.getElementById("topbar-sub").textContent = "Físico vs Vaciado — kg día a día por línea";
 
   const inFVV = s => { const d=parseDate(s); if(!d) return false;
     const a=parseDate(FVV_DESDE), b=parseDate(FVV_HASTA); return (!a||d>=a)&&(!b||d<=b); };
 
-  // ── 1. Peso vaciado por fecha+línea (kg PESO×CANTIDAD de piezas reales) ──
-  // X del scatter: cuánto "pesó" la producción de ese día
-  const prodMap = {}; // "FECHA|linN" → kg producción total (PESO × CANTIDAD)
+  // ── 1. kg vaciados por fecha+línea (PESO × CANTIDAD) ───────────
+  const prodMap = {};
   TEORICO_RAW.forEach(r => {
+    if (!inFVV(r["FECHA"])) return;
     if ((r["ESTATUS"]||"") !== "Fabricado") return;
     const linN = String(r["LINEA"]||"").replace(/[^0-9]/g,""); if(!linN) return;
     const peso = parseFloat(String(r["PESO"]||"0").replace(",","."))||0; if(!peso) return;
@@ -1298,9 +1298,10 @@ function renderFisicoVsVaciado() {
     prodMap[key] = round2((prodMap[key]||0) + peso*cant);
   });
 
-  // ── 2. Físico por fecha+línea (Y del scatter) ───────────────────
+  // ── 2. kg físico por fecha+línea ────────────────────────────────
   const fisMap = {};
   FISICO_RAW.forEach(r => {
+    if (!inFVV(r["Fecha"])) return;
     const linN = String(r["Linea"]||r["Línea"]||"").replace(/[^0-9]/g,""); if(!linN) return;
     const fecha = String(r["Fecha"]||"").slice(0,10);
     const kg = round2(
@@ -1309,203 +1310,175 @@ function renderFisicoVsVaciado() {
       parseFloat(r["Cat. Resina (kg)"]||0)+parseFloat(r["Titanio (kg)"]||0)+
       parseFloat(r["Marmolina (kg)"]||0));
     if (!kg) return;
-    const key = fecha+"|"+linN;
-    fisMap[key] = round2((fisMap[key]||0)+kg);
+    fisMap[fecha+"|"+linN] = round2((fisMap[fecha+"|"+linN]||0)+kg);
   });
 
-  // ── 3. Construir puntos históricos por línea ────────────────────
-  // Solo días que tienen ambos: producción Y físico capturado
-  const ptsLinea = {}; // linN → [{x,y,fecha,isCurrent}]
-  Object.keys(fisMap).forEach(key => {
-    const [fecha, linN] = key.split("|");
-    const y = fisMap[key]; const x = prodMap[key]||0;
-    if (!x || !y) return;
-    if (!ptsLinea[linN]) ptsLinea[linN] = [];
-    ptsLinea[linN].push({x, y, fecha, isCurrent: inFVV(fecha)});
+  // ── 3. Fechas y líneas del período ─────────────────────────────
+  const allKeys = [...new Set([...Object.keys(prodMap),...Object.keys(fisMap)])];
+  const fechas  = [...new Set(allKeys.map(k=>k.split("|")[0]))].sort();
+  const lineas  = [...new Set(allKeys.map(k=>k.split("|")[1]))].filter(Boolean).sort();
+
+  // ── 4. Ratio histórico (todo historial, no filtrado) para alertas
+  // kg_fisico / kg_vaciado → promedio histórico por línea
+  const ratioHist = {}; // linN → {mean, sd}
+  lineas.forEach(l => {
+    const ratios = [];
+    FISICO_RAW.forEach(r => {
+      const ln = String(r["Linea"]||r["Línea"]||"").replace(/[^0-9]/g,"");
+      if (ln !== l) return;
+      const f   = String(r["Fecha"]||"").slice(0,10);
+      const kg  = round2(parseFloat(r["Gelcoat (kg)"]||0)+parseFloat(r["Gel Coat Trans (kg)"]||0)+parseFloat(r["Cat. Gelcoat (kg)"]||0)+parseFloat(r["Resina (kg)"]||0)+parseFloat(r["Cat. Resina (kg)"]||0)+parseFloat(r["Titanio (kg)"]||0)+parseFloat(r["Marmolina (kg)"]||0));
+      const prod = prodMap[f+"|"+l] || (() => {
+        // buscar en TEORICO_RAW sin filtro
+        let kp=0;
+        TEORICO_RAW.forEach(t => {
+          if ((t["ESTATUS"]||"")!=="Fabricado") return;
+          if (String(t["LINEA"]||"").replace(/[^0-9]/g,"")!==l) return;
+          const ti=fechaISO(t["FECHA"]); if(!ti||ti.slice(0,10)!==f) return;
+          kp+=parseFloat(String(t["PESO"]||"0").replace(",","."))||0;
+        });
+        return kp;
+      })();
+      if (kg>0 && prod>0) ratios.push(kg/prod);
+    });
+    if (ratios.length<2) { ratioHist[l]=null; return; }
+    const mean=ratios.reduce((a,b)=>a+b,0)/ratios.length;
+    const sd  =Math.max(Math.sqrt(ratios.reduce((s,r)=>s+(r-mean)**2,0)/ratios.length),0.02);
+    ratioHist[l]={mean,sd,n:ratios.length};
   });
 
-  // ── 4. Regresión lineal + estadística por línea ─────────────────
-  function linReg(pts) {
-    const n=pts.length; if(n<2) return null;
-    const mx=pts.reduce((s,p)=>s+p.x,0)/n, my=pts.reduce((s,p)=>s+p.y,0)/n;
-    const num=pts.reduce((s,p)=>s+(p.x-mx)*(p.y-my),0);
-    const den=pts.reduce((s,p)=>s+(p.x-mx)**2,0);
-    if(!den) return null;
-    const m=num/den, b=my-m*mx;
-    // residuales % para calcular umbral dinámico
-    const resids=pts.map(p=>{ const pred=m*p.x+b; return pred>0?(p.y-pred)/pred*100:0; });
-    const mn=resids.reduce((a,b)=>a+b,0)/n;
-    const sd=Math.sqrt(resids.reduce((s,r)=>s+(r-mn)**2,0)/n);
-    return {m, b, meanResid:mn, sdResid:Math.max(sd,5)};
-  }
-
-  const pctDesvio = (pt, reg) => {
-    if(!reg) return null;
-    const pred = reg.m*pt.x + reg.b;
-    return pred>0 ? Math.round((pt.y-pred)/pred*100) : null;
+  const desvioInfo = (l,fecha) => {
+    const rh=ratioHist[l]; if(!rh) return null;
+    const fis=fisMap[fecha+"|"+l]||0, prod=prodMap[fecha+"|"+l]||0;
+    if(!fis||!prod) return null;
+    const ratio=fis/prod;
+    const pct=Math.round((ratio-rh.mean)/rh.mean*100);
+    const sigs=Math.abs((ratio-rh.mean)/rh.sd);
+    return {pct, sigs, ratio, fis, prod, esperado:round2(rh.mean*prod)};
   };
-  const sigmas = (pt, reg) => {
-    if(!reg||!reg.sdResid) return 0;
-    const pct = pctDesvio(pt, reg);
-    return pct!==null ? Math.abs((pct-reg.meanResid)/reg.sdResid) : 0;
-  };
-  const ptColor = (pt, reg) => {
-    const s=sigmas(pt,reg);
-    return s<1.5?"#22c55e":s<2.5?"#f59e0b":"#ef4444";
-  };
-
-  const lineas = Object.keys(ptsLinea).sort();
+  const alertColor = s => s>=2?"#ef4444":s>=1.2?"#f59e0b":"#22c55e";
 
   // ── 5. Alertas ──────────────────────────────────────────────────
-  const alertas = [];
-  lineas.forEach(l => {
-    const reg = linReg(ptsLinea[l]);
-    if(!reg) return;
-    ptsLinea[l].filter(p=>p.isCurrent).forEach(p => {
-      const s=sigmas(p,reg), dev=pctDesvio(p,reg);
-      if(s>=1.5) alertas.push({...p, l, dev, s, reg});
-    });
-  });
-  alertas.sort((a,b)=>b.s-a.s);
+  const alertas=[];
+  lineas.forEach(l => fechas.forEach(f => {
+    const d=desvioInfo(l,f); if(!d||d.sigs<1.2) return;
+    alertas.push({l,f,...d});
+  }));
+  alertas.sort((a,b)=>b.sigs-a.sigs);
 
-  // ── 6. UI ───────────────────────────────────────────────────────
-  const inp = `background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;outline:none;`;
-  const ac  = d => Math.abs(d)>=ALERTA_CRIT?"#ef4444":"#f59e0b";
-
-  let html = `
+  // ── 6. HTML ─────────────────────────────────────────────────────
+  const inp=`background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;outline:none;`;
+  let html=`
   <div style="padding:12px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <label class="lbl">Período a analizar</label>
+    <label class="lbl">Período</label>
     <input type="date" id="fvv-desde" value="${FVV_DESDE}" style="${inp}">
     <label class="lbl">→</label>
     <input type="date" id="fvv-hasta" value="${FVV_HASTA}" style="${inp}">
     <button class="btn btn-green" onclick="applyFVV()">Aplicar</button>
     <span style="font-size:11px;color:var(--muted)">
-      La regresión usa <b style="color:var(--text)">todo el historial</b> disponible.
-      Puntos del período: <span style="color:#22c55e">●</span> normal
-      <span style="color:#f59e0b;margin-left:6px">●</span> inusual
-      <span style="color:#ef4444;margin-left:6px">●</span> crítico
-      · <span style="color:#4b5563">●</span> histórico
+      Alertas basadas en ratio histórico kg físico/kg vaciado por línea ·
+      <span style="color:#22c55e">●</span> normal
+      <span style="color:#f59e0b;margin-left:4px">●</span> inusual
+      <span style="color:#ef4444;margin-left:4px">●</span> crítico
     </span>
   </div>`;
 
-  // Alertas del período
   if (alertas.length>0) {
-    html += `<div class="card" style="margin-bottom:12px;border-left:3px solid #f59e0b">
-      <div class="card-title" style="color:#fbbf24">⚠ ${alertas.length} días del período con consumo inusual vs historial</div>
+    html+=`<div class="card" style="margin-bottom:12px;border-left:3px solid #f59e0b">
+      <div class="card-title" style="color:#fbbf24">⚠ ${alertas.length} días con consumo fuera del patrón histórico</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">
-      ${alertas.map(a=>{
-        const clr=ac(a.dev);
-        return `<div style="background:${clr}15;border:1px solid ${clr}33;border-radius:6px;padding:8px 12px">
+      ${alertas.map(a=>{const c=alertColor(a.sigs);return`
+        <div style="background:${c}15;border:1px solid ${c}33;border-radius:6px;padding:8px 12px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-            <span class="mono" style="font-size:12px">${a.fecha}</span>
+            <span class="mono" style="font-size:12px">${a.f}</span>
             <span class="badge b-l${a.l}">L${a.l}</span>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">
-            Vaciado: <span style="color:var(--text)">${fmtN(a.x)} kg prod</span> ·
-            Físico: <span style="color:var(--text)">${fmtN(a.y)} kg</span>
-          </div>
           <div style="font-size:11px;color:var(--muted)">
-            Esperado historial: <span style="color:var(--text)">${fmtN(round2(a.reg.m*a.x+a.reg.b))} kg</span>
+            Vaciado: <b style="color:var(--text)">${fmtN(a.prod)} kg</b> ·
+            Físico: <b style="color:var(--text)">${fmtN(a.fis)} kg</b>
           </div>
-          <div style="margin-top:6px;font-size:13px;font-weight:700;color:${clr}">
-            ${a.dev>0?"+":""}${a.dev}% · ${a.s.toFixed(1)}σ ${a.dev>0?"⬆ consumo alto":"⬇ consumo bajo"}
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">
+            Esperado hist: <b style="color:var(--text)">${fmtN(a.esperado)} kg</b>
           </div>
-        </div>`;
-      }).join("")}
+          <div style="margin-top:6px;font-size:13px;font-weight:700;color:${c}">
+            ${a.pct>0?"+":""}${a.pct}% · ${a.sigs.toFixed(1)}σ ${a.pct>0?"⬆ alto":"⬇ bajo"}
+          </div>
+        </div>`}).join("")}
       </div>
     </div>`;
-  } else if (lineas.length>0) {
-    const hasCurrent = lineas.some(l=>ptsLinea[l].some(p=>p.isCurrent));
-    if (hasCurrent) html += `<div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:12px;color:#4ade80">✅ Todos los días del período están dentro del patrón histórico normal</div>`;
+  } else if (fechas.length>0) {
+    html+=`<div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:12px;color:#4ade80">✅ Consumo dentro del patrón histórico en todo el período</div>`;
   }
 
-  // Gráficas scatter por línea
   if (!lineas.length) {
-    html += `<div class="card"><div class="empty">Sin días con producción Y físico capturado simultáneamente</div></div>`;
+    html+=`<div class="card"><div class="empty">Sin datos en el período seleccionado</div></div>`;
   } else {
     lineas.forEach(l => {
-      const pts = ptsLinea[l]; if(!pts.length) return;
-      const reg = linReg(pts);
-      const curr= pts.filter(p=>p.isCurrent);
-      html += `<div class="card" style="margin-bottom:12px">
+      const dias=fechas.filter(f=>(prodMap[f+"|"+l]||0)>0||(fisMap[f+"|"+l]||0)>0);
+      if(!dias.length) return;
+      const rh=ratioHist[l];
+      const kgFis =dias.map(f=>fisMap[f+"|"+l]||null);
+      const kgVac =dias.map(f=>prodMap[f+"|"+l]||null);
+      const labels=dias.map(f=>{const p=f.split("-");return p[2]+"/"+p[1];});
+      const ptColors=dias.map(f=>{const d=desvioInfo(l,f);return d?alertColor(d.sigs):"#6b7280";});
+      html+=`<div class="card" style="margin-bottom:12px">
         <div class="card-title">Línea ${l}
-          <span>${pts.length} días históricos · ${curr.length} en período · eje X = kg producción vaciada · eje Y = kg físico</span>
+          <span>${dias.length} días · ${rh?`ratio hist. promedio: ${(rh.mean*100).toFixed(1)}% (±${(rh.sd*100).toFixed(1)}%, ${rh.n} dias)`:"sin historial suficiente"}</span>
         </div>
-        <div style="position:relative;height:300px"><canvas id="fvv-l${l}"></canvas></div>
-        ${curr.length>0?`
-        <div style="overflow-x:auto;margin-top:10px"><table style="min-width:480px"><thead><tr>
+        <div style="position:relative;height:260px"><canvas id="fvv-l${l}"></canvas></div>
+        <div style="overflow-x:auto;margin-top:8px"><table style="min-width:480px"><thead><tr>
           <th>Fecha</th>
-          <th style="text-align:right">kg Vaciado</th>
+          <th style="text-align:right;color:#22c55e">kg Vaciado</th>
           <th style="text-align:right;color:#3b82f6">kg Físico</th>
-          <th style="text-align:right;color:var(--muted)">Esperado hist.</th>
-          <th style="text-align:right">Desvío</th>
-          <th style="text-align:right">Sigmas</th>
+          <th style="text-align:right;color:var(--muted)">Ratio</th>
+          <th style="text-align:right">vs Hist.</th>
         </tr></thead><tbody>
-        ${curr.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(p=>{
-          const dev=pctDesvio(p,reg), s=sigmas(p,reg).toFixed(1);
-          const pred=reg?round2(reg.m*p.x+reg.b):0;
-          const clr=ptColor(p,reg);
-          return `<tr>
-            <td class="mono">${p.fecha}</td>
-            <td class="mono" style="text-align:right;color:var(--muted)">${fmtN(p.x)}</td>
-            <td class="mono" style="text-align:right;color:#3b82f6">${fmtN(p.y)}</td>
-            <td class="mono" style="text-align:right;color:var(--muted)">${pred?fmtN(pred):"—"}</td>
-            <td class="mono" style="text-align:right;color:${clr};font-weight:600">${dev!==null?(dev>0?"+":"")+dev+"%":"—"}</td>
-            <td class="mono" style="text-align:right;color:${clr}">${s}σ</td>
+        ${dias.map((f,i)=>{
+          const d=desvioInfo(l,f); const clr=d?alertColor(d.sigs):"var(--muted)";
+          return`<tr>
+            <td class="mono">${f}</td>
+            <td class="mono" style="text-align:right;color:#22c55e">${kgVac[i]?fmtN(kgVac[i]):"—"}</td>
+            <td class="mono" style="text-align:right;color:#3b82f6">${kgFis[i]?fmtN(kgFis[i]):"—"}</td>
+            <td class="mono" style="text-align:right;color:var(--muted)">${d?(d.ratio*100).toFixed(1)+"%":"—"}</td>
+            <td class="mono" style="text-align:right;color:${clr};font-weight:600">${d?(d.pct>0?"+":"")+d.pct+"%":"—"}</td>
           </tr>`;
         }).join("")}
-        </tbody></table></div>`:""}
+        </tbody></table></div>
       </div>`;
     });
   }
 
   document.getElementById("main-content").innerHTML = html;
 
-  // ── Scatter Chart.js ────────────────────────────────────────────
+  // ── Gráficas Chart.js ───────────────────────────────────────────
   lineas.forEach(l => {
-    const cvs = document.getElementById("fvv-l"+l); if(!cvs) return;
-    const pts  = ptsLinea[l]; const reg = linReg(pts);
-    const hist = pts.filter(p=>!p.isCurrent);
-    const curr = pts.filter(p=> p.isCurrent);
-    // Línea de regresión
-    const xs = pts.map(p=>p.x);
-    const xMin=Math.min(...xs)*0.95, xMax=Math.max(...xs)*1.05;
-    const trendPts = reg ? [{x:xMin,y:reg.m*xMin+reg.b},{x:xMax,y:reg.m*xMax+reg.b}] : [];
-    new Chart(cvs, {
-      type:"scatter",
-      data: { datasets: [
-        { label:"Histórico", data:hist.map(p=>({x:p.x,y:p.y,fecha:p.fecha})),
-          backgroundColor:"#4b556355", pointRadius:5, pointHoverRadius:7 },
-        { label:"Período actual", data:curr.map(p=>({x:p.x,y:p.y,fecha:p.fecha})),
-          backgroundColor:curr.map(p=>ptColor(p,reg)+"cc"),
-          pointRadius:8, pointHoverRadius:10, pointStyle:"circle" },
-        { label:"Tendencia histórica", data:trendPts, type:"line",
-          borderColor:"rgba(255,255,255,.4)", borderWidth:2, borderDash:[6,4],
-          pointRadius:0, fill:false, showLine:true, tension:0 }
+    const cvs=document.getElementById("fvv-l"+l); if(!cvs) return;
+    const dias=fechas.filter(f=>(prodMap[f+"|"+l]||0)>0||(fisMap[f+"|"+l]||0)>0);
+    const kgFis=dias.map(f=>fisMap[f+"|"+l]||null);
+    const kgVac=dias.map(f=>prodMap[f+"|"+l]||null);
+    const ptColors=dias.map(f=>{const d=desvioInfo(l,f);return d?alertColor(d.sigs)+"cc":"#22c55e99";});
+    const labels=dias.map(f=>{const p=f.split("-");return p[2]+"/"+p[1];});
+    new Chart(cvs,{
+      type:"line",
+      data:{labels, datasets:[
+        {label:"kg Vaciado (PESO×piezas)", data:kgVac, borderColor:"#22c55e", backgroundColor:"rgba(34,197,94,.1)",
+         borderWidth:2, pointRadius:4, pointBackgroundColor:"#22c55e", fill:true, tension:0.2, spanGaps:true},
+        {label:"kg Físico consumido", data:kgFis, borderColor:"#3b82f6", backgroundColor:"transparent",
+         borderWidth:2.5, pointRadius:dias.map((_,i)=>5), pointBackgroundColor:ptColors,
+         pointBorderColor:ptColors, fill:false, tension:0.2, spanGaps:true}
       ]},
-      options:{
-        responsive:true, maintainAspectRatio:false,
+      options:{responsive:true,maintainAspectRatio:false,
         plugins:{
           legend:{labels:{color:"#6b7280",font:{family:"Roboto Mono",size:11}}},
-          tooltip:{ callbacks:{
-            label: ctx => {
-              const d=ctx.raw; if(!d.fecha) return null;
-              const p=pts.find(p=>p.fecha===d.fecha&&Math.abs(p.x-d.x)<1);
-              const dev=p&&reg?pctDesvio(p,reg):null;
-              return [
-                `Fecha: ${d.fecha}`,
-                `Vaciado: ${fmtN(d.x)} kg prod`,
-                `Físico: ${fmtN(d.y)} kg`,
-                dev!==null?`Desvío: ${dev>0?"+":""}${dev}% (${sigmas(p,reg).toFixed(1)}σ)`:""
-              ].filter(Boolean);
-            }
-          }}
+          tooltip:{callbacks:{afterBody:items=>{
+            const i=items[0]?.dataIndex; if(i===undefined) return [];
+            const d=desvioInfo(l,dias[i]); if(!d) return [];
+            return [`Desvío vs hist: ${d.pct>0?"+":""}${d.pct}% (${d.sigs.toFixed(1)}σ)`];
+          }}}
         },
         scales:{
-          x:{title:{display:true,text:"kg producción vaciada (PESO × piezas)",color:"#6b7280",font:{size:11}},
-             ticks:{color:"#6b7280",font:{family:"Roboto Mono",size:10}},grid:{color:"rgba(255,255,255,.04)"}},
-          y:{title:{display:true,text:"kg físico consumido",color:"#6b7280",font:{size:11}},
-             ticks:{color:"#6b7280",font:{family:"Roboto Mono",size:10}},grid:{color:"rgba(255,255,255,.06)"},beginAtZero:true}
+          x:{ticks:{color:"#6b7280",font:{family:"Roboto Mono",size:10}},grid:{color:"rgba(255,255,255,.04)"}},
+          y:{ticks:{color:"#6b7280",font:{family:"Roboto Mono",size:10}},grid:{color:"rgba(255,255,255,.06)"},beginAtZero:true}
         }
       }
     });
