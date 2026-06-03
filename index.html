@@ -175,7 +175,7 @@ input[type=text] { flex: 1; min-width: 160px; }
     </div>
     <div class="topbar-right">
       <div class="pill pill-gray" id="status-pill"><span class="dot dot-amber"></span> Cargando...</div>
-      <button class="btn" onclick="cargarDatos()">
+      <button class="btn" onclick="invalidarGlobal();cargarDatos()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
         Actualizar
       </button>
@@ -219,6 +219,8 @@ let datos            = null;
 let datosEmpleados   = null;
 let filtroSubEmpresa = "";
 let fechaHoy         = new Date().toISOString().split("T")[0];
+let datosGlobal      = null;   // caché de TODAS las empresas para búsqueda cruzada
+let cargandoGlobal   = false;
 
 function navegar(page, el) {
   paginaActual = page;
@@ -287,6 +289,37 @@ async function cargarDatos() {
     document.getElementById("content").innerHTML = `<div class="loading"><div style="color:var(--danger);font-size:28px">⚠</div><div>${e.message}</div></div>`;
   }
 }
+
+// Carga TODAS las empresas en paralelo para búsqueda global
+async function cargarDatosGlobal() {
+  if (datosGlobal || cargandoGlobal) return;
+  cargandoGlobal = true;
+  try {
+    const resultados = await Promise.all(
+      Object.entries(EMPRESAS).map(async ([key, emp]) => {
+        try {
+          const url = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/${encodeURIComponent("REGISTROS")}?key=${API_KEY}`;
+          const r = await fetch(url);
+          if (!r.ok) return [];
+          const d = await r.json();
+          const filas = d.values || [];
+          if (filas.length < 2) return [];
+          const headers = filas[0];
+          return filas.slice(1).map(f => {
+            const o = { _empresa: emp.nombre, _empresaKey: key };
+            headers.forEach((h,i) => o[h.trim()] = (f[i]||"").trim());
+            return o;
+          });
+        } catch(e) { return []; }
+      })
+    );
+    datosGlobal = resultados.flat();
+  } catch(e) { datosGlobal = []; }
+  cargandoGlobal = false;
+}
+
+// Invalida caché global cuando cambia empresa (por si el usuario actualizó datos)
+function invalidarGlobal() { datosGlobal = null; cargandoGlobal = false; }
 
 function renderPagina() {
   if (!datos) { cargarDatos(); return; }
@@ -464,11 +497,30 @@ function renderDashboard() {
 function renderRegistros() {
   const rDesde = document.getElementById("r-desde")?.value || fechaHoy;
   const rHasta = document.getElementById("r-hasta")?.value || fechaHoy;
-  const busq   = (document.getElementById("r-busq")?.value || "").toLowerCase();
+  const busq   = (document.getElementById("r-busq")?.value || "").toLowerCase().trim();
   const fest   = document.getElementById("r-est")?.value || "";
 
-  let dd = filtrarRango(rDesde, rHasta);
-  if (busq) dd = dd.filter(r => `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")} ${g(r,"area","Departamento")}`.toLowerCase().includes(busq));
+  let dd;
+  if (busq) {
+    // Búsqueda global: todas las empresas, sin filtro de sub-empresa
+    if (!datosGlobal) {
+      // Inicia carga en background y re-renderiza cuando termine
+      cargarDatosGlobal().then(() => renderRegistros());
+      // Mientras tanto usar datos actuales
+      dd = datos.filter(r => { const f = g(r,"fecha","Fecha"); return f >= rDesde && f <= rHasta; });
+    } else {
+      dd = datosGlobal.filter(r => { const f = g(r,"fecha","Fecha"); return f >= rDesde && f <= rHasta; });
+    }
+    // Filtrar por nombre, apellido, área O nómina
+    dd = dd.filter(r => {
+      const nom  = String(g(r,"nomina","NOMINA")||"").toLowerCase();
+      const name = `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}`.toLowerCase();
+      const area = (g(r,"area","Departamento")||"").toLowerCase();
+      return nom.includes(busq) || name.includes(busq) || area.includes(busq);
+    });
+  } else {
+    dd = filtrarRango(rDesde, rHasta);
+  }
   if (fest) dd = dd.filter(r => g(r,"estado","EstadoAsistencia") === fest);
 
   document.getElementById("content").innerHTML = `
@@ -479,7 +531,7 @@ function renderRegistros() {
       <input type="date" id="r-hasta" value="${rHasta}" onchange="renderRegistros()">
       <button class="btn" onclick="document.getElementById('r-desde').value=fechaHoy;document.getElementById('r-hasta').value=fechaHoy;renderRegistros()">Hoy</button>
       ${selectSubEmpresa("r-subemp")}
-      <input type="text" id="r-busq" placeholder="Buscar empleado o área..." value="${busq}" oninput="renderRegistros()">
+      <input type="text" id="r-busq" placeholder="Buscar nombre, nómina o área... (todas las empresas)" value="${busq}" oninput="renderRegistros()" style="min-width:280px">
       <select class="filter" id="r-est" onchange="renderRegistros()">
         <option value="">Todos los estados</option>
         <option value="NORMAL">Normal</option>
@@ -491,13 +543,17 @@ function renderRegistros() {
       </select>
     </div>
     <div class="table-wrap">
-      <div class="table-header"><div class="table-header-title">Registros — ${rDesde === rHasta ? rDesde : rDesde+" → "+rHasta}</div><div style="font-size:11px;color:var(--muted)">${dd.length} registros</div></div>
+      <div class="table-header">
+        <div class="table-header-title">Registros — ${rDesde === rHasta ? rDesde : rDesde+" → "+rHasta}${busq ? ` · Búsqueda: "<b>${busq}</b>" en todas las empresas` : ""}</div>
+        <div style="font-size:11px;color:var(--muted)">${dd.length} registros${busq&&datosGlobal?` · ${[...new Set(dd.map(r=>r._empresa).filter(Boolean))].join(", ")||""}`:""}</div>
+      </div>
       <table><thead><tr>
-        <th>Nómina</th><th>Empleado</th><th>Área</th><th>Turno</th>
+        <th>Nómina</th><th>Empleado</th>${busq?`<th style="color:var(--accent2)">Empresa</th>`:""}
+        <th>Área</th><th>Turno</th>
         <th>Entrada</th><th>↗ Comida</th><th>↙ Regreso</th><th>Salida</th>
         <th>Hrs</th><th>Retardo</th><th>Estado</th>
       </tr></thead><tbody>
-        ${dd.length===0?`<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">Sin registros</td></tr>`:
+        ${dd.length===0?`<tr><td colspan="${busq?12:11}" style="text-align:center;color:var(--muted);padding:32px">${busq&&!datosGlobal?'<div class="spinner" style="margin:0 auto 8px"></div>Cargando todas las empresas...':'Sin registros'}</td></tr>`:
         dd.map(r=>{
           const iniCom = g(r,"inicio_comer","InicioComer")||"";
           const regCom = g(r,"regreso_comer","RegresoComer")||"";
@@ -505,6 +561,7 @@ function renderRegistros() {
           return `<tr>
           <td class="mono" style="color:var(--muted)">${g(r,"nomina","NOMINA")}</td>
           <td style="font-weight:500">${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}</td>
+          ${busq?`<td style="font-size:11px;color:var(--accent2)">${r._empresa||""}</td>`:""}
           <td style="color:var(--muted);font-size:11px">${g(r,"area","Departamento")}</td>
           <td style="color:var(--muted);font-size:11px">${g(r,"turno","Turno")}</td>
           <td class="mono">${g(r,"entrada_real","EntradaReal")||"—"}</td>
