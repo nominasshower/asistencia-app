@@ -1193,6 +1193,7 @@ function renderFisicoCaptura() {
   // Tabla historial — filtra por línea seleccionada
   const hist = [...FISICO_RAW]
     .filter(r => {
+      if (!enPeriodo(r["Fecha"])) return false;
       if (!LINEA) return true;
       const ln = String(r["Linea"]||r["Línea"]||"").replace(/[^0-9]/g,"");
       return ln === LINEA;
