@@ -1190,7 +1190,14 @@ function renderFisicoCaptura() {
     {m:"Marmolina", id:"marmolina", col:"Marmolina (kg)", color:"#22c55e"},
   ];
   const inp = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'Roboto Mono',monospace;text-align:right;outline:none;`;
-  const hist = [...FISICO_RAW].sort((a,b)=>String(b["Fecha"]||"").localeCompare(String(a["Fecha"]||"")));
+  // Tabla historial — filtra por línea seleccionada
+  const hist = [...FISICO_RAW]
+    .filter(r => {
+      if (!LINEA) return true;
+      const ln = String(r["Linea"]||r["Línea"]||"").replace(/[^0-9]/g,"");
+      return ln === LINEA;
+    })
+    .sort((a,b)=>String(b["Fecha"]||"").localeCompare(String(a["Fecha"]||"")));
 
   let html = `
   <div class="card" style="margin-bottom:14px">

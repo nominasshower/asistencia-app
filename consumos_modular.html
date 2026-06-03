@@ -357,7 +357,7 @@ function calcFisico() {
   const tot = {}; MATERIALES.forEach(m => tot[m.key] = 0);
   FISICO_RAW.forEach(r => {
     if (!enPeriodo(r["Fecha"])) return;
-    const ln = String(r["Linea"]||r["Línea"]||"").trim();
+    const ln = String(r["Linea"]||r["Línea"]||"").replace(/[^0-9]/g,"");
     if (LINEA && ln !== LINEA) return;
     tot.gelcoat  = round2(tot.gelcoat  + (parseFloat(r["Gelcoat (kg)"]      ||0)||0));
     tot.cat_gc   = round2(tot.cat_gc   + (parseFloat(r["Cat. Gelcoat (kg)"] ||0)||0));
@@ -949,8 +949,14 @@ function renderFisico() {
   const ids = {"Gelcoat":"gelcoat","GC Trans":"gel-trans","Cat. Gelcoat":"cat-gc","Resina":"resina","Cat. Resina":"cat-res","Titanio":"titanio","Marmolina":"marmolina"};
   const inpStyle = `width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;font-family:'Roboto Mono',monospace;text-align:right;outline:none;`;
 
-  // Tabla historial
-  const hist = [...FISICO_RAW].sort((a,b)=>String(b["Fecha"]||"").localeCompare(String(a["Fecha"]||"")));
+  // Tabla historial — filtra por línea seleccionada
+  const hist = [...FISICO_RAW]
+    .filter(r => {
+      if (!LINEA) return true;
+      const ln = String(r["Linea"]||r["Línea"]||"").replace(/[^0-9]/g,"");
+      return ln === LINEA;
+    })
+    .sort((a,b)=>String(b["Fecha"]||"").localeCompare(String(a["Fecha"]||"")));
 
   let html = `
   <div class="card" style="margin-bottom:14px">
