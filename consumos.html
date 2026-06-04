@@ -213,7 +213,8 @@ const COL_MAP_C = {
 async function fetchSupabase(tabla, {campoFecha='fecha',limit=100000}={}) {
   const params = `select=*&limit=${limit}&order=${campoFecha}.desc`;
   const r = await fetch(`${SUP_URL}/rest/v1/${tabla}?${params}`, {
-    headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json'}
+    headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
+             'Range-Unit':'items','Range':`0-${limit-1}`}
   });
   if (!r.ok) throw new Error(`Supabase HTTP ${r.status} — ${tabla}`);
   const rows = await r.json();

@@ -286,9 +286,38 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
 // ── Config ──────────────────────────────────────────────
-const API_KEY       = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
-const SHEET_ID      = "1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c";
+const SUP_URL       = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY       = "sb_secret_ZnXarLQFvdNjafxPOLvikQ_M92BVTDw";
 const GAS_WRITE_URL = "https://script.google.com/macros/s/AKfycbxk5nKkN1Dq0HGz99OU2VqXYqD7UOOa4qG_XvySvgmlSeOucTQhKUbyE1tpwROJmjIR/exec";
+
+// Mapeo Supabase → nombres de columna originales (compatibilidad sin tocar el resto del código)
+const COL_MAP = {
+  inspeccion:        {fecha:'Fecha',sku:'SKU',tag:'TAG',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',linea:'Linea',grado:'Grado',no_defectos:'No. Defectos',detalle_defecto:'Detalle Defecto',modulo_inspeccion:'Modulo Inspeccion'},
+  vaciados:          {fecha:'Fecha',tag:'TAG',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',linea:'Linea',po_cliente:'PO Cliente',grado_inspeccion:'Grado Inspeccion',es_grado_c:'Es Grado C',es_gelcoat:'Es Gelcoat'},
+  plan_diario:       {fecha:'Fecha',odoo:'Odoo',cliente:'Cliente',compromiso:'Compromiso',medida:'Medida',modelo:'Modelo',lado:'Lado',color:'Color',acabado:'Acabado',total:'Total',moldes:'Moldes',a_producir:'A Producir'},
+  liberado:          {fecha_liberado:'Fecha Liberado',sku:'SKU',tag:'TAG',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',linea:'Linea',po_cliente:'PO Cliente',orden_trabajo:'Orden Trabajo',grado_inspeccion:'Grado Inspeccion'},
+  producto_terminado:{sku:'SKU',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',fecha_liberacion:'Fecha Liberacion',po_cliente:'PO Cliente'},
+  empaque:           {sku:'SKU',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',fecha_liberacion:'Fecha Liberacion',fecha_empaque:'Fecha Empaque',po_cliente:'PO Cliente'},
+  ventas:            {fecha:'Fecha',fecha_entrega:'Fecha Entrega',pedido:'Pedido',cliente:'Cliente',sku:'SKU',producto:'Producto',cantidad:'Cantidad',precio_unit:'Precio Unit',subtotal:'Subtotal',moneda:'Moneda',estado:'Estado',entregado:'Entregado',pendiente:'Pendiente',linea_odoo:'Línea Odoo'},
+};
+
+async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',limit=50000}={}) {
+  let params = `select=*&limit=${limit}&order=${campoFecha}.desc`;
+  if (desde) params += `&${campoFecha}=gte.${desde}`;
+  if (hasta) params += `&${campoFecha}=lte.${hasta}`;
+  const r = await fetch(`${SUP_URL}/rest/v1/${tabla}?${params}`, {
+    headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
+             'Range-Unit':'items','Range':`0-${limit-1}`}
+  });
+  if (!r.ok) throw new Error(`Supabase HTTP ${r.status} — ${tabla}`);
+  const rows = await r.json();
+  const map = COL_MAP[tabla] || {};
+  return rows.map(row => {
+    const out = {};
+    for (const [sup,sheet] of Object.entries(map)) out[sheet] = row[sup] ?? "";
+    return out;
+  });
+}
 const WA_NUM    = "528115014189";
 const MESES_ES  = {ene:0,feb:1,mar:2,abr:3,may:4,jun:5,jul:6,ago:7,sep:8,oct:9,nov:10,dic:11};
 const LS_KEY    = "sw_excluir_defectos";
@@ -487,27 +516,8 @@ function clasif(d) {
   return "o";
 }
 
-// ── Fetch sheet (con retry automático) ───────────────────
-async function fetchSheet(name, retries = 3) {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(name)}?key=${API_KEY}`;
-  for (let intento = 1; intento <= retries; intento++) {
-    try {
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`HTTP ${r.status} (${name})`);
-      const j = await r.json();
-      const [hdrs, ...rows] = j.values || [];
-      if (!hdrs) return [];
-      return rows.map(r => { const o={}; hdrs.forEach((h,i)=>o[h]=r[i]??""); return o; });
-    } catch(err) {
-      if (intento < retries) {
-        console.warn(`[fetchSheet] Intento ${intento} fallido para ${name}, reintentando…`, err.message);
-        await new Promise(r => setTimeout(r, 1200 * intento)); // espera 1.2s, 2.4s
-      } else {
-        throw new Error(`No se pudo cargar "${name}" después de ${retries} intentos: ${err.message}`);
-      }
-    }
-  }
-}
+// fetchSheet mantenida por compatibilidad con GAS_WRITE_URL (escritura del plan)
+// La lectura de datos ya usa fetchSupabase()
 
 // ── Cargar datos ─────────────────────────────────────────
 async function cargar() {
@@ -519,20 +529,19 @@ async function cargar() {
 
   try {
     const [inspRaw, vacRaw, planRaw] = await Promise.all([
-      fetchSheet("INSPECCION"),
-      fetchSheet("VACIADO"),
-      fetchSheet("PLAN_DIARIO")
+      fetchSupabase("inspeccion"),
+      fetchSupabase("vaciados"),
+      fetchSupabase("plan_diario"),
     ]);
     PLAN    = planRaw;
     VAC_RAW = vacRaw;
 
-    // Hojas de seguimiento — no criticas, no rompen si falta la pestaña
-    const safe = name => fetchSheet(name).catch(() => []);
+    // Tablas de seguimiento — no criticas
     [LIB_RAW, PT_RAW, EMP_RAW, VENTAS_RAW] = await Promise.all([
-      safe("LIBERADO"),
-      safe("PT"),
-      safe("EMPAQUE"),
-      safe("VENTAS"),
+      fetchSupabase("liberado",{campoFecha:"fecha_liberado"}).catch(()=>[]),
+      fetchSupabase("producto_terminado",{campoFecha:"fecha_liberacion"}).catch(()=>[]),
+      fetchSupabase("empaque",{campoFecha:"fecha_empaque"}).catch(()=>[]),
+      fetchSupabase("ventas").catch(()=>[]),
     ]);
 
     // SKU → {grade, fechaInsp} de todo el año (inspRaw sin filtrar)
