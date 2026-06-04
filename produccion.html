@@ -1206,7 +1206,7 @@ async function guardarGanttEnSupabase(wb, toDateStr) {
       for (const [ci, fecha] of Object.entries(fechaCols)) {
         const c = parseInt(ci);
         const moldes = parseFloat(row[c])||0;
-        const aprod  = parseFloat(row[c+2])||0;  // col+2 = piezas (col+1 oculta)
+        const aprod  = parseFloat(row[c+1])||0;  // BASES: col+1 = piezas (estructura 2 cols/fecha)
         if (!moldes && !aprod) continue;
         registros.push({ fecha, odoo:odoo||null, cliente:cli||null,
           compromiso:comp||null, medida:medida||null, modelo:modelo||null,
@@ -1354,8 +1354,8 @@ function cargarExcelPlan(inputEl) {
           for (let r = dataRowStart; r < dataFmt.length; r++) {
             const row = dataFmt[r];
             if (!row || !row[4]) continue;
-            const piezas = parseFloat(row[colHoy])   || 0;  // columna gris = piezas a producir
-            const moldes = parseFloat(row[colHoy-1]) || 0;  // columna anterior = moldes
+            const moldes = parseFloat(row[colHoy])   || 0;  // col = moldes
+            const piezas = parseFloat(row[colHoy+1]) || 0;  // col+1 = piezas (BASES: 2 cols/fecha)
             if (!piezas) continue;
             const odoo       = (row[0]||'').toString().trim();
             const cliente    = (row[1]||'').toString().trim();
