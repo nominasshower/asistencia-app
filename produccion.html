@@ -998,8 +998,9 @@ function renderComparaPlan() {
           <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Archivo con hoja<br><b>GANTT PAREDES L1-2</b></div>
           <label style="cursor:pointer">
             <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarExcelPlan(this)">
-            <div class="btn btn-green" style="font-size:12px;padding:8px 18px">📤 Cargar PAREDES</div>
+            <div class="btn btn-green" style="font-size:12px;padding:8px 18px">&#x1F4E4; Cargar y Guardar Plan</div>
           </label>
+          <div id="btn-guardar-plan" style="margin-top:8px;font-size:11px;color:var(--muted);min-height:16px"></div>
         </div>
         <div style="background:var(--bg2);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:18px 24px;min-width:200px">
           <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--warn)">🧱 BASES</div>
@@ -1380,14 +1381,22 @@ function cargarExcelPlan(inputEl) {
       renderComparaPlan(); // re-renderizar con datos
 
       // ── Guardar TODO el Gantt en Supabase plan_diario ────────
+      const btnGuardar = document.getElementById('btn-guardar-plan');
+      if (btnGuardar) { btnGuardar.textContent = '⏳ Guardando...'; btnGuardar.disabled = true; }
       guardarGanttEnSupabase(wb, toDateStr).then(n => {
-        if (n > 0) {
-          // Recargar PLAN desde Supabase para actualizar Gantt + cumplimiento
-          fetchSupabase("plan_diario").then(planRaw => {
-            PLAN = planRaw;
-            console.log('[Gantt] plan_diario actualizado:', PLAN.length, 'filas');
-          });
+        if (btnGuardar) {
+          btnGuardar.textContent = n > 0 ? '✅ Plan guardado (' + n + ' filas)' : '⚠️ Sin fechas en Gantt';
+          btnGuardar.disabled = false;
         }
+        // Recargar PLAN desde Supabase y re-renderizar comparación
+        fetchSupabase("plan_diario").then(planRaw => {
+          PLAN = planRaw;
+          renderComparaPlan();
+          console.log('[Gantt] plan_diario actualizado:', PLAN.length, 'filas');
+        });
+      }).catch(e => {
+        if (btnGuardar) { btnGuardar.textContent = '❌ Error al guardar'; btnGuardar.disabled = false; }
+        console.error('[Gantt]', e);
       });
     } catch(err) {
       alert('Error leyendo Excel: ' + err.message);
