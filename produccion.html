@@ -1720,14 +1720,16 @@ function renderVentas() {
     ${estaSemana.length === 0
       ? `<div style="color:var(--muted);font-size:12px">Sin pedidos con fecha de entrega esta semana.</div>`
       : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px">
-        ${estaSemana.sort((a,b)=>a.entrega.localeCompare(b.entrega)).map(p => {
-          const prod = planPorPedido[(p.pedido||"").toUpperCase()]||0;
-          const pct  = p.cantidad>0?Math.min(100,Math.round(prod*100/p.cantidad)):0;
-          const col  = pct>=100?"var(--accent)":pct>=50?"var(--accent2)":"var(--warn)";
-          return `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px">
+        ${[...estaSemana.sort((a,b)=>a.entrega.localeCompare(b.entrega)),
+          ...sinFecha].map(p => {
+          const prod   = planPorPedido[(p.pedido||"").toUpperCase()]||0;
+          const pct    = p.cantidad>0?Math.min(100,Math.round(prod*100/p.cantidad)):0;
+          const col    = pct>=100?"var(--accent)":pct>=50?"var(--accent2)":"var(--warn)";
+          const sinF   = !p.entrega;
+          return `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;${sinF?'border:1px solid rgba(239,68,68,.2);opacity:.75':''}">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-              <span style="font-size:12px;font-weight:600;color:var(--accent2)">${p.pedido}</span>
-              <span style="font-size:11px;color:var(--warn)">⏰ ${p.entrega}</span>
+              <span style="font-size:12px;font-weight:600;color:${sinF?'var(--muted)':'var(--accent2)'}">${p.pedido}</span>
+              <span style="font-size:11px;color:${sinF?'var(--danger)':'var(--warn)'}">${sinF?'⚠ Sin fecha':'⏰ '+p.entrega}</span>
             </div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.cliente}</div>
             <div style="display:flex;align-items:center;gap:6px">
