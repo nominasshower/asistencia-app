@@ -3740,12 +3740,33 @@ function getSideTipo(patron) {
   return "CENTER";
 }
 
-function renderMoldes() {
+async function renderMoldes() {
   document.getElementById("topbar-title").textContent = "Inventario de Moldes";
+  document.getElementById("topbar-sub").textContent = "Todos los moldes activos — sin filtro de fecha";
+  document.getElementById("main-content").innerHTML = '<div class="loading"><div class="spinner"></div><div>Cargando inventario completo...</div></div>';
+
+  // Cargar TODOS los vaciados paginado (para tener historial completo de moldes)
+  let todosVac = [];
+  try {
+    let offset = 0; const pgSize = 1000;
+    while(true) {
+      const r = await fetch(`${SUP_URL}/rest/v1/vaciados?select=tag,patron,medida,linea,fecha&order=fecha.desc`, {
+        headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
+                 'Range-Unit':'items', Range:`${offset}-${offset+pgSize-1}`}
+      });
+      const chunk = await r.json();
+      todosVac.push(...chunk);
+      if (chunk.length < pgSize) break;
+      offset += pgSize;
+    }
+  } catch(e) { todosVac = VAC_RAW; } // fallback a lo que ya hay
+
+  // Mapear columnas a formato esperado
+  const vacData = todosVac.map(r => ({"TAG":r.tag||"","Patron":r.patron||"","Medida":r.medida||"","Linea":r.linea||"","Fecha":r.fecha||""}));
 
   // Agrupar vaciado por TAG
   const tagMap = {};
-  VAC_RAW.forEach(r => {
+  vacData.forEach(r => {
     const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
     if (!tag) return;
     const patron = r["Patron"] || "";
