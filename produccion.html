@@ -2271,13 +2271,44 @@ function renderGanttMoldes() {
   const totalActivos    = filas.reduce((s,f)=>s+f.activos,0);
   const maxMoldes = Math.max(...filas.map(f=>Math.max(f.moldes, f.activos)), 1);
 
+  // Desglose por categoria
+  const catPlan = {paredes:0, bases:0, accesorios:0};
+  const catActivos = {paredes:0, bases:0, accesorios:0};
+  const esParedes = p => { const m=(p||"").toUpperCase(); return m.startsWith("WALL")||m.startsWith("HERRINGBONE")||m.startsWith("VERTICAL")||m.startsWith("CHEVRON")||m.startsWith("INTERVAL")||m.startsWith("6X24")||m.startsWith("4X12")||m.startsWith("3X6")||m.startsWith("12X24")||m.startsWith("2X8")||m.startsWith("6X12"); };
+  const esBases   = p => { const m=(p||"").toUpperCase(); return m.startsWith("BASE")||m.startsWith("ADA")||m.startsWith("DRAIN")||m.startsWith("TINA")||m.startsWith("TRENCH"); };
+  filas.forEach(f => {
+    const cat = esParedes(f.patron)?'paredes':esBases(f.patron)?'bases':'accesorios';
+    catPlan[cat] += f.moldes; catActivos[cat] += f.activos;
+  });
+  Object.keys(moldesActivos).forEach(fk => {
+    if (planMap[fk]) return; // ya contado arriba
+    const info = moldesActivos[fk];
+    const cat = esParedes(info.patron)?'paredes':esBases(info.patron)?'bases':'accesorios';
+    catActivos[cat] += info.tags.size;
+  });
+
   const colActivo = v => v === 0 ? "var(--danger)" : "var(--accent)";
+  const metricaCat = (label, plan, activos, color) => `<div class="metric" style="border-color:${color}44">
+    <div class="metric-label" style="color:${color}">${label}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+      <div><div style="font-size:10px;color:var(--muted)">Planeados</div>
+        <div style="font-size:28px;font-weight:700">${Math.round(plan)}</div></div>
+      <div><div style="font-size:10px;color:var(--muted)">En l&iacute;nea</div>
+        <div style="font-size:28px;font-weight:700;color:${plan>0&&activos>=plan?"var(--accent)":activos>0?"var(--warn)":"var(--danger)"}">${activos}</div></div>
+    </div>
+    <div style="margin-top:6px;height:4px;background:var(--bg3);border-radius:2px">
+      <div style="width:${plan>0?Math.min(Math.round(activos/plan*100),100):0}%;height:100%;background:${color};border-radius:2px"></div>
+    </div></div>`;
 
   let html = `
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
-    <div class="metric"><div class="metric-label">Moldes planeados</div>
-      <div class="metric-val white">${Math.round(totalPlanMoldes)}</div>
-      <div class="metric-sub">según Gantt hoy</div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+    ${metricaCat("PAREDES",catPlan.paredes,catActivos.paredes,"var(--accent2)")}
+    ${metricaCat("BASES",catPlan.bases,catActivos.bases,"var(--warn)")}
+    ${metricaCat("ACCESORIOS",catPlan.accesorios,catActivos.accesorios,"#a78bfa")}
+    <div class="metric"><div class="metric-label" style="color:var(--danger)">Sin arrancar</div>
+      <div class="metric-val red">${filasConPlan.filter(f=>f.activos===0).length}</div>
+      <div class="metric-sub">en plan pero 0 activos</div></div>
+  </div>`;
     <div class="metric"><div class="metric-label">Moldes activos</div>
       <div class="metric-val" style="color:var(--accent)">${totalActivos}</div>
       <div class="metric-sub">TAGs únicos detectados</div></div>
