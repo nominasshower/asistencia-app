@@ -2239,13 +2239,14 @@ function renderGanttMoldes() {
     const ar = normAbrev(r["Modelo"]||""), med = normMedida(r["Medida"]||"");
     if (!ar) return;
     const fk = ar + "||" + med;
-    if (!planMap[fk]) planMap[fk] = {patron:r["Modelo"]||"", medida:r["Medida"]||"", moldes:0, piezas:0};
+    if (!planMap[fk]) planMap[fk] = {patron:r["Modelo"]||"", medida:r["Medida"]||"", lado:r["Lado"]||"", moldes:0, piezas:0};
     planMap[fk].moldes += parseFloat(r["Moldes"]||0)||0;
     planMap[fk].piezas += parseFloat(r["A Producir"]||0)||0;
   });
 
   // ── Unir plan + activos ────────────────────────────────
-  const allKeys = new Set([...Object.keys(planMap), ...Object.keys(moldesActivos)]);
+  // Solo tabla principal: los que TIENEN plan (activos sin plan van en seccion amarilla)
+  const allKeys = new Set(Object.keys(planMap));
   const filas = [];
   allKeys.forEach(fk => {
     const p = planMap[fk] || {patron:fk.split("||")[0], medida:fk.split("||")[1], moldes:0, piezas:0};
