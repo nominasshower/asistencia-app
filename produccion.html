@@ -2276,10 +2276,34 @@ function renderGanttMoldes() {
       <div class="metric-sub">en plan pero 0 activos</div></div>
   </div>
 
+  ${filas.filter(f=>f.activos>0&&f.moldes===0).length>0?`
+  <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:12px 16px;margin-bottom:12px">
+    <div style="font-size:12px;font-weight:600;color:var(--warn);margin-bottom:8px">
+      ⚠ Moldes activos SIN PLAN — ${filas.filter(f=>f.activos>0&&f.moldes===0).length} modelos corriendo que no están en el Gantt de hoy
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Modelo</th>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Medida</th>
+        <th style="text-align:right;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Moldes activos</th>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">TAGs</th>
+      </tr></thead>
+      <tbody>
+      ${filas.filter(f=>f.activos>0&&f.moldes===0).map(f=>`
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px;font-size:13px;font-weight:600;color:var(--warn)">${f.patron}</td>
+          <td style="padding:8px;font-family:monospace;font-size:12px">${f.medida}</td>
+          <td style="padding:8px;text-align:right;font-size:16px;font-weight:700;color:var(--warn)">${f.activos}</td>
+          <td style="padding:8px;font-size:10px;color:var(--muted)">${[...(moldesActivos[f.fk]||[])].slice(0,3).map(t=>t.slice(-6)).join(', ')}${f.activos>3?'...':''}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`:''}
+
   <div class="table-wrap">
     <div class="table-header">
       <div class="table-header-title">Plan vs Moldes Activos</div>
-      <div style="font-size:11px;color:var(--muted)">${desde} · ${filas.length} modelos</div>
+      <div style="font-size:11px;color:var(--muted)">${desde} · ${filas.filter(f=>f.moldes>0).length} modelos en plan</div>
     </div>
     <table><thead><tr>
       <th>Modelo / Patrón</th><th>Medida</th>
