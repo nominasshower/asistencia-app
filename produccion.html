@@ -2218,7 +2218,7 @@ function renderGanttMoldes() {
 
   // ── Vaciados reales (sin manuales) ─────────────────────
   // TAG → patron+medida → Set de TAGs por modelo
-  const moldesActivos = {}; // key "ar||med" → Set of tags
+  const moldesActivos = {}; // key "ar||med" → {tags, patron, medida, color}
   VAC_RAW.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (f < desde || f > hasta) return;
@@ -2227,8 +2227,8 @@ function renderGanttMoldes() {
     const ar = normAbrev(r["Patron"]||""), med = normMedida(r["Medida"]||"");
     if (!ar || !med) return;
     const fk = ar + "||" + med;
-    if (!moldesActivos[fk]) moldesActivos[fk] = new Set();
-    moldesActivos[fk].add(tag);
+    if (!moldesActivos[fk]) moldesActivos[fk] = {tags: new Set(), patron:r["Patron"]||"", medida:r["Medida"]||"", color:r["Color"]||""};
+    moldesActivos[fk].tags.add(tag);
   });
 
   // ── Plan del día ───────────────────────────────────────
@@ -2250,7 +2250,7 @@ function renderGanttMoldes() {
   const filas = [];
   allKeys.forEach(fk => {
     const p = planMap[fk] || {patron:fk.split("||")[0], medida:fk.split("||")[1], moldes:0, piezas:0};
-    const activos = moldesActivos[fk] ? moldesActivos[fk].size : 0;
+    const activos = moldesActivos[fk] ? moldesActivos[fk].tags.size : 0;
     filas.push({...p, fk, activos});
   });
   filas.sort((a,b) => (b.moldes - a.moldes) || (b.activos - a.activos));
@@ -2286,16 +2286,18 @@ function renderGanttMoldes() {
       <thead><tr>
         <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Modelo</th>
         <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Medida</th>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Color</th>
         <th style="text-align:right;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Moldes activos</th>
         <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">TAGs</th>
       </tr></thead>
       <tbody>
       ${filas.filter(f=>f.activos>0&&f.moldes===0).map(f=>`
         <tr style="border-top:1px solid var(--border)">
-          <td style="padding:8px;font-size:13px;font-weight:600;color:var(--warn)">${f.patron}</td>
-          <td style="padding:8px;font-family:monospace;font-size:12px">${f.medida}</td>
+          <td style="padding:8px;font-size:13px;font-weight:600;color:var(--warn)">${(moldesActivos[f.fk]?.patron)||f.patron}</td>
+          <td style="padding:8px;font-family:monospace;font-size:12px">${(moldesActivos[f.fk]?.medida)||f.medida}</td>
+          <td style="padding:8px;font-size:12px;color:var(--muted)">${(moldesActivos[f.fk]?.color)||''}</td>
           <td style="padding:8px;text-align:right;font-size:16px;font-weight:700;color:var(--warn)">${f.activos}</td>
-          <td style="padding:8px;font-size:10px;color:var(--muted)">${[...(moldesActivos[f.fk]||[])].slice(0,3).map(t=>t.slice(-6)).join(', ')}${f.activos>3?'...':''}</td>
+          <td style="padding:8px;font-size:10px;color:var(--muted)">${[...(moldesActivos[f.fk]?.tags||[])].slice(0,3).map(t=>t.slice(-6)).join(', ')}${f.activos>3?'...':''}</td>
         </tr>`).join('')}
       </tbody>
     </table>
