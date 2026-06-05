@@ -1720,28 +1720,43 @@ function renderVentas() {
     ${estaSemana.length === 0
       ? `<div style="color:var(--muted);font-size:12px">Sin pedidos con fecha de entrega esta semana.</div>`
       : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:5px 8px;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Pedido</th>
+          <th style="text-align:left;padding:5px 8px;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Cliente</th>
+          <th style="text-align:center;padding:5px 8px;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Entrega</th>
+          <th style="text-align:right;padding:5px 8px;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Piezas</th>
+          <th style="padding:5px 8px;min-width:140px;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Avance</th>
+          <th style="text-align:right;padding:5px 8px;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Total $</th>
+        </tr></thead>
+        <tbody>
         ${[...estaSemana.sort((a,b)=>a.entrega.localeCompare(b.entrega)),
-          ...sinFecha].map(p => {
-          const prod   = planPorPedido[(p.pedido||"").toUpperCase()]||0;
-          const pct    = p.cantidad>0?Math.min(100,Math.round(prod*100/p.cantidad)):0;
-          const col    = pct>=100?"var(--accent)":pct>=50?"var(--accent2)":"var(--warn)";
-          const sinF   = !p.entrega;
-          return `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;${sinF?'border:1px solid rgba(239,68,68,.2);opacity:.75':''}">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-              <span style="font-size:12px;font-weight:600;color:${sinF?'var(--muted)':'var(--accent2)'}">${p.pedido}</span>
-              <span style="font-size:11px;color:${sinF?'var(--danger)':'var(--warn)'}">${sinF?'⚠ Sin fecha':'⏰ '+p.entrega}</span>
-            </div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.cliente}</div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
-                <div style="width:${pct}%;height:100%;background:${col};border-radius:2px"></div>
+            ...sinFecha].map(p => {
+          const prod = planPorPedido[(p.pedido||"").toUpperCase()]||0;
+          const pct  = p.cantidad>0?Math.min(100,Math.round(prod*100/p.cantidad)):0;
+          const col  = pct>=100?"var(--accent)":pct>=50?"var(--accent2)":"var(--warn)";
+          const sinF = !p.entrega;
+          return `<tr style="border-bottom:1px solid var(--border);${sinF?'opacity:.65':''}">
+            <td style="padding:7px 8px;font-weight:600;color:${sinF?'var(--muted)':'var(--accent2)'}">${p.pedido}</td>
+            <td style="padding:7px 8px;color:var(--muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.cliente}</td>
+            <td style="padding:7px 8px;text-align:center">
+              ${sinF?`<span style="color:var(--danger);font-size:11px">⚠ Sin fecha</span>`
+                    :`<span style="color:var(--warn);font-size:11px">⏰ ${p.entrega}</span>`}
+            </td>
+            <td style="padding:7px 8px;text-align:right;font-family:monospace;font-size:11px">${Math.round(p.pendiente)}</td>
+            <td style="padding:7px 8px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
+                  <div style="width:${pct}%;height:100%;background:${col};border-radius:2px"></div>
+                </div>
+                <span style="font-size:10px;color:${col};font-family:monospace;white-space:nowrap">${prod}/${Math.round(p.cantidad)}</span>
               </div>
-              <span style="font-size:10px;color:${col};font-family:monospace">${prod}/${Math.round(p.cantidad)}</span>
-              <span style="font-size:10px;color:var(--muted)">${fmtMXN(p.total)}</span>
-            </div>
-          </div>`;
+            </td>
+            <td style="padding:7px 8px;text-align:right;font-family:monospace;font-size:11px;color:var(--muted)">${fmtMXN(p.total)}</td>
+          </tr>`;
         }).join('')}
-      </div>`
+        </tbody>
+      </table>`
     }
   </div>
 
