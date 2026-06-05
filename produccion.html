@@ -2317,7 +2317,7 @@ function renderGanttMoldes() {
       <th style="text-align:right">Plan pzas</th>
     </tr></thead><tbody>`;
 
-  filas.forEach(f => {
+  filasConPlan.forEach(f => {
     const pct = f.moldes > 0 ? Math.min(Math.round(f.activos/f.moldes*100),100) : (f.activos>0?100:0);
     const col = f.activos === 0 && f.moldes > 0 ? "var(--danger)"
               : f.activos >= f.moldes ? "var(--accent)" : "var(--warn)";
