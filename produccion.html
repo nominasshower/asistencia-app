@@ -550,10 +550,21 @@ async function cargar() {
 
     // SKU → {grade, fechaInsp} de todo el año (inspRaw sin filtrar)
     SKU_INSP = {};
+    // SKUs donde TODOS sus defectos son operativos/excluidos → no contar como vaciada real
+    const SKU_SOLO_EXCLUIDOS = new Set();
     inspRaw.forEach(r => {
       const sku = (r["SKU"]||"").trim().toUpperCase();
       if (!sku) return;
-      SKU_INSP[sku] = { grade: r["Grado"]||"", fechaInsp: (r["Fecha"]||"").slice(0,10) };
+      SKU_INSP[sku] = { grade: r["Grado"]||"", fechaInsp: (r["Fecha"]||"").slice(0,10),
+                        detalle: r["Detalle Defecto"]||"" };
+      // Si la pieza SOLO tiene defectos excluidos → marcarla
+      const detalle = r["Detalle Defecto"]||"";
+      if (detalle && detalle !== "null" && detalle.trim() !== "") {
+        const todos = detalle.split(",").map(d=>d.trim()).filter(d=>d && d!=="null");
+        if (todos.length > 0 && todos.every(d => estaExcluido(d))) {
+          SKU_SOLO_EXCLUIDOS.add(sku);
+        }
+      }
     });
 
     // Vaciado: último vaciado por TAG (normalizado)
@@ -2862,7 +2873,11 @@ function renderPlan() {
   // Para cada pieza vaciada: busco su inspección (puede ser otro día)
   const vacPeriodo = VAC_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
-    return f >= desde && f <= hasta;
+    if (f < desde || f > hasta) return false;
+    // Excluir piezas cuyo SKU tiene SOLO defectos operativos/excluidos (Molde Vacio, etc.)
+    const sku = (r["SKU"]||"").trim().toUpperCase();
+    if (sku && typeof SKU_SOLO_EXCLUIDOS !== "undefined" && SKU_SOLO_EXCLUIDOS.has(sku)) return false;
+    return true;
   });
 
   // ── Vaciado agrupado por fecha + SKU-producto construido ──────
@@ -3472,7 +3487,11 @@ function renderGerencia(data) {
   // ── PRODUCCIÓN ───────────────────────────────────────────
   const vacPeriodo = VAC_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
-    return f >= desde && f <= hasta;
+    if (f < desde || f > hasta) return false;
+    // Excluir piezas cuyo SKU tiene SOLO defectos operativos/excluidos (Molde Vacio, etc.)
+    const sku = (r["SKU"]||"").trim().toUpperCase();
+    if (sku && typeof SKU_SOLO_EXCLUIDOS !== "undefined" && SKU_SOLO_EXCLUIDOS.has(sku)) return false;
+    return true;
   });
   const totalVac = vacPeriodo.length;
 
