@@ -1737,22 +1737,22 @@ function renderVentas() {
           const col  = pct>=100?"var(--accent)":pct>=50?"var(--accent2)":"var(--warn)";
           const sinF = !p.entrega;
           return `<tr style="border-bottom:1px solid var(--border);${sinF?'opacity:.65':''}">
-            <td style="padding:7px 8px;font-weight:600;color:${sinF?'var(--muted)':'var(--accent2)'}">${p.pedido}</td>
-            <td style="padding:7px 8px;color:var(--muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.cliente}</td>
-            <td style="padding:7px 8px;text-align:center">
-              ${sinF?`<span style="color:var(--danger);font-size:11px">⚠ Sin fecha</span>`
-                    :`<span style="color:var(--warn);font-size:11px">⏰ ${p.entrega}</span>`}
+            <td style="padding:12px 12px;font-size:15px;font-weight:700;color:${sinF?'var(--muted)':'var(--accent2)'};white-space:nowrap">${p.pedido}</td>
+            <td style="padding:12px 12px;font-size:14px;color:var(--text)">${p.cliente}</td>
+            <td style="padding:12px 12px;text-align:center;white-space:nowrap">
+              ${sinF?`<span style="color:var(--danger);font-size:13px;font-weight:600">⚠ Sin fecha</span>`
+                    :`<span style="color:var(--warn);font-size:13px;font-weight:600">⏰ ${p.entrega}</span>`}
             </td>
-            <td style="padding:7px 8px;text-align:right;font-family:monospace;font-size:11px">${Math.round(p.pendiente)}</td>
-            <td style="padding:7px 8px">
-              <div style="display:flex;align-items:center;gap:6px">
-                <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
-                  <div style="width:${pct}%;height:100%;background:${col};border-radius:2px"></div>
+            <td style="padding:12px 12px;text-align:right;font-family:monospace;font-size:15px;font-weight:600">${Math.round(p.pendiente)}</td>
+            <td style="padding:12px 12px;min-width:180px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden">
+                  <div style="width:${pct}%;height:100%;background:${col};border-radius:4px"></div>
                 </div>
-                <span style="font-size:10px;color:${col};font-family:monospace;white-space:nowrap">${prod}/${Math.round(p.cantidad)}</span>
+                <span style="font-size:13px;color:${col};font-family:monospace;font-weight:600;white-space:nowrap">${prod}/${Math.round(p.cantidad)}</span>
               </div>
             </td>
-            <td style="padding:7px 8px;text-align:right;font-family:monospace;font-size:11px;color:var(--muted)">${fmtMXN(p.total)}</td>
+            <td style="padding:12px 12px;text-align:right;font-size:14px;font-weight:600;color:var(--text)">\$${fmtMXN(p.total)}</td>
           </tr>`;
         }).join('')}
         </tbody>
