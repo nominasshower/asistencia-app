@@ -2874,10 +2874,10 @@ function renderPlan() {
   const vacPeriodo = VAC_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (f < desde || f > hasta) return false;
-    const sku = (r["SKU"]||"").trim().toUpperCase();
-    // Excluir Grado C — pieza rechazada, no cuenta como producida
-    if (sku && SKU_INSP[sku]?.grade === "C") return false;
+    // Excluir Grado C directamente del campo es_grado_c de vaciados
+    if (r["Es Grado C"] === true || r["Es Grado C"] === "SI") return false;
     // Excluir piezas con SOLO defectos operativos (Molde Vacio, Etiqueta Incorrecta, etc.)
+    const sku = (r["SKU"]||"").trim().toUpperCase();
     if (sku && typeof SKU_SOLO_EXCLUIDOS !== "undefined" && SKU_SOLO_EXCLUIDOS.has(sku)) return false;
     return true;
   });
@@ -3490,10 +3490,10 @@ function renderGerencia(data) {
   const vacPeriodo = VAC_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (f < desde || f > hasta) return false;
-    const sku = (r["SKU"]||"").trim().toUpperCase();
-    // Excluir Grado C — pieza rechazada, no cuenta como producida
-    if (sku && SKU_INSP[sku]?.grade === "C") return false;
+    // Excluir Grado C directamente del campo es_grado_c de vaciados
+    if (r["Es Grado C"] === true || r["Es Grado C"] === "SI") return false;
     // Excluir piezas con SOLO defectos operativos (Molde Vacio, Etiqueta Incorrecta, etc.)
+    const sku = (r["SKU"]||"").trim().toUpperCase();
     if (sku && typeof SKU_SOLO_EXCLUIDOS !== "undefined" && SKU_SOLO_EXCLUIDOS.has(sku)) return false;
     return true;
   });
