@@ -3594,19 +3594,26 @@ function renderGerencia(data) {
            (r["Tipo"]||"").toUpperCase().includes("PISO");
   }).reduce((s,r)=>s+(parseInt(r["A Producir"]||0)||0),0);
 
-  const vacParedes = vacPeriodo.filter(r => (r["Tipo"]||"").trim() === "Pared").length;
-  const vacBases   = vacPeriodo.filter(r => {
-    const t = (r["Tipo"]||"").trim();
-    return t === "Piso" || t === "Base" || t === "Bases";
-  }).length;
+  const vacParedes    = vacPeriodo.filter(r => (r["Tipo"]||"").trim() === "Pared").length;
+  const vacBases      = vacPeriodo.filter(r => { const t=(r["Tipo"]||"").trim(); return t==="Piso"||t==="Base"||t==="Bases"; }).length;
+  const vacAccesorios = vacPeriodo.filter(r => (r["Tipo"]||"").trim() === "Accesorios").length;
 
-  const cumplP = planParedes > 0 ? Math.round(vacParedes*100/planParedes) : null;
-  const cumplB = planBases   > 0 ? Math.round(vacBases  *100/planBases)   : null;
+  const planAccesorios = PLAN.filter(r => {
+    const f = parsePlanFecha(r["Fecha"]);
+    if (!f || f < desde || f > hasta) return false;
+    const m = (r["Modelo"]||"").toUpperCase();
+    return m.includes("WINDOWSILL") || m.includes("RAMP") || m.includes("COVER") ||
+           (r["Tipo"]||"").toUpperCase().includes("ACCES");
+  }).reduce((s,r)=>s+(parseInt(r["A Producir"]||0)||0),0);
+
+  const cumplP = planParedes    > 0 ? Math.round(vacParedes   *100/planParedes)    : null;
+  const cumplB = planBases      > 0 ? Math.round(vacBases     *100/planBases)      : null;
+  const cumplA = planAccesorios > 0 ? Math.round(vacAccesorios*100/planAccesorios) : null;
 
   document.getElementById("main-content").innerHTML = `
 
   <!-- ── Fila 0: Paredes vs Bases ── -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
     <div class="metric" style="position:relative;overflow:hidden;border-color:rgba(59,130,246,.3)">
       <div class="metric-label" style="color:var(--accent2)">PAREDES &mdash; cumplimiento</div>
       <div style="display:flex;align-items:baseline;gap:12px">
@@ -3625,6 +3632,16 @@ function renderGerencia(data) {
       </div>
       <div style="margin-top:8px;height:4px;background:var(--bg3);border-radius:2px">
         <div style="width:${Math.min(cumplB||0,100)}%;height:100%;background:${colCumpl(cumplB)};border-radius:2px;transition:width .6s"></div>
+      </div>
+    </div>
+    <div class="metric" style="position:relative;overflow:hidden;border-color:rgba(139,92,246,.3)">
+      <div class="metric-label" style="color:#a78bfa">ACCESORIOS &mdash; cumplimiento</div>
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <div style="font-size:40px;font-weight:700;color:${colCumpl(cumplA)}">${cumplA!==null?cumplA+"%":"&mdash;"}</div>
+        <div style="font-size:13px;color:var(--muted)">${vacAccesorios.toLocaleString()} / ${planAccesorios>0?planAccesorios.toLocaleString():"?"} pzas</div>
+      </div>
+      <div style="margin-top:8px;height:4px;background:var(--bg3);border-radius:2px">
+        <div style="width:${Math.min(cumplA||0,100)}%;height:100%;background:${colCumpl(cumplA)};border-radius:2px;transition:width .6s"></div>
       </div>
     </div>
   </div>
