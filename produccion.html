@@ -2326,7 +2326,9 @@ function renderGanttMoldes() {
     html += `<tr>
       <td style="font-size:12px">${f.patron}</td>
       <td class="mono">${f.medida}</td>
-      <td style="font-size:11px;color:var(--muted)">${f.lado||"—"}</td>
+      <td style="font-size:11px;font-weight:600;color:var(--muted)">
+        ${({"LEFT":"Izq","RIGHT":"Der","CENTER":"Cen","SIDE":"Side","IZQ":"Izq","DER":"Der","N/A":"—","":"—"}[(f.lado||"").toUpperCase()])||(f.lado||"—")}
+      </td>
       <td class="mono" style="text-align:right">${f.moldes||"—"}</td>
       <td class="mono" style="text-align:right;color:${col};font-weight:700">${f.activos}</td>
       <td>
