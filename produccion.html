@@ -469,7 +469,8 @@ let INSP      = [];
 let VAC_RAW   = [];   // vaciado completo sin filtrar
 let VACIADO   = {};   // map TAG → última fecha vaciado
 let PLAN      = [];
-let SKU_INSP  = {};   // map SKU → {grade, fechaInsp} — todo el año
+let SKU_INSP  = {};   // map SKU
+let SKU_SOLO_EXCLUIDOS = new Set(); // SKUs con solo defectos operativos → {grade, fechaInsp} — todo el año
 let VENTAS_RAW = [];  // pedidos Odoo (hoja VENTAS)
 let moldisMap    = {};     // normPatron → cantidad de moldes disponibles (calculado en renderGantt)
 let ganttEditMode = false; // true = modo edición del plan
@@ -551,7 +552,7 @@ async function cargar() {
     // SKU → {grade, fechaInsp} de todo el año (inspRaw sin filtrar)
     SKU_INSP = {};
     // SKUs donde TODOS sus defectos son operativos/excluidos → no contar como vaciada real
-    const SKU_SOLO_EXCLUIDOS = new Set();
+    SKU_SOLO_EXCLUIDOS = new Set();
     inspRaw.forEach(r => {
       const sku = (r["SKU"]||"").trim().toUpperCase();
       if (!sku) return;
