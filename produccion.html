@@ -1107,7 +1107,7 @@ function renderComparaPlan() {
       </tr>
     </thead>
     <tbody>
-      ${filas.map(f => {
+      ${filasConPlan.map(f => {
         const rowBg = f.soloExcel ? 'rgba(59,130,246,.07)'
                     : f.soloApp   ? 'rgba(239,68,68,.07)'
                     : f.deltaPzas !== 0 ? 'rgba(251,191,36,.04)' : '';
@@ -2245,8 +2245,8 @@ function renderGanttMoldes() {
   });
 
   // ── Unir plan + activos ────────────────────────────────
-  // Solo tabla principal: los que TIENEN plan (activos sin plan van en seccion amarilla)
-  const allKeys = new Set(Object.keys(planMap));
+  // Incluir plan + activos para la seccion amarilla; la tabla solo muestra los del plan
+  const allKeys = new Set([...Object.keys(planMap), ...Object.keys(moldesActivos)]);
   const filas = [];
   allKeys.forEach(fk => {
     const p = planMap[fk] || {patron:fk.split("||")[0], medida:fk.split("||")[1], moldes:0, piezas:0};
@@ -2254,6 +2254,7 @@ function renderGanttMoldes() {
     filas.push({...p, fk, activos});
   });
   filas.sort((a,b) => (b.moldes - a.moldes) || (b.activos - a.activos));
+  const filasConPlan = filas.filter(f => f.moldes > 0);
 
   const totalPlanMoldes = filas.reduce((s,f)=>s+f.moldes,0);
   const totalActivos    = filas.reduce((s,f)=>s+f.activos,0);
@@ -2309,7 +2310,7 @@ function renderGanttMoldes() {
       <div style="font-size:11px;color:var(--muted)">${desde} · ${filas.filter(f=>f.moldes>0).length} modelos en plan</div>
     </div>
     <table><thead><tr>
-      <th>Modelo / Patrón</th><th>Medida</th>
+      <th>Modelo / Patrón</th><th>Medida</th><th>Lado</th>
       <th style="text-align:right">Plan moldes</th>
       <th style="text-align:right">Activos</th>
       <th style="min-width:160px">Progreso</th>
@@ -2325,6 +2326,7 @@ function renderGanttMoldes() {
     html += `<tr>
       <td style="font-size:12px">${f.patron}</td>
       <td class="mono">${f.medida}</td>
+      <td style="font-size:11px;color:var(--muted)">${f.lado||"—"}</td>
       <td class="mono" style="text-align:right">${f.moldes||"—"}</td>
       <td class="mono" style="text-align:right;color:${col};font-weight:700">${f.activos}</td>
       <td>
