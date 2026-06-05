@@ -183,6 +183,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10" width="12" height="3" rx="1"/><rect x="3" y="16" width="15" height="3" rx="1"/></svg>
       Gantt Producción
     </div>
+    <div class="nav-item" id="nav-ganttmoldes" onclick="navegar('ganttmoldes',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+      Gantt Moldes
+    </div>
   </div>
   <div class="nav-group">
     <div class="nav-label">Seguimiento</div>
@@ -611,6 +615,7 @@ function renderVista(data) {
   if      (VISTA === "dash")     renderDash(dataLimpia);
   else if (VISTA === "alertas")  renderAlertas(dataLimpia);
   else if (VISTA === "tabla")    renderTabla(dataLimpia);
+  else if (VISTA === "ganttmoldes")   renderGanttMoldes();
   else if (VISTA === "plan")          renderPlan();
   else if (VISTA === "comparaplanes") renderComparaPlan();
   else if (VISTA === "ventas")   renderVentas();
@@ -2126,6 +2131,126 @@ function renderGantt() {
 
 // Re-dibuja sin reconstruir todo (para filtro de texto en tiempo real)
 function _dibujarGantt() { renderGantt(); }
+
+// ── Gantt Moldes: plan vs moldes activos en línea ─────────
+function renderGanttMoldes() {
+  document.getElementById("topbar-title").textContent = "Gantt Moldes";
+  document.getElementById("topbar-sub").textContent   = "Plan del día vs moldes activos detectados por antenas";
+
+  const desde = document.getElementById("fDesde").value;
+  const hasta  = document.getElementById("fHasta").value;
+
+  // ── Detectar tags manuales ──────────────────────────────
+  // Un TAG que aparece con 2+ patrones distintos HOY = tag manual (se reutiliza)
+  const tagPatrones = {};
+  VAC_RAW.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (f < desde || f > hasta) return;
+    const tag = (r["TAG"]||"").trim().toUpperCase();
+    if (!tag) return;
+    const pat = normAbrev(r["Patron"]||"") + "||" + normMedida(r["Medida"]||"");
+    if (!tagPatrones[tag]) tagPatrones[tag] = new Set();
+    tagPatrones[tag].add(pat);
+  });
+  const tagsManual = new Set(Object.entries(tagPatrones).filter(([,s])=>s.size>1).map(([t])=>t));
+
+  // ── Vaciados reales (sin manuales) ─────────────────────
+  // TAG → patron+medida → Set de TAGs por modelo
+  const moldesActivos = {}; // key "ar||med" → Set of tags
+  VAC_RAW.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (f < desde || f > hasta) return;
+    const tag = (r["TAG"]||"").trim().toUpperCase();
+    if (!tag || tagsManual.has(tag)) return;
+    const ar = normAbrev(r["Patron"]||""), med = normMedida(r["Medida"]||"");
+    if (!ar || !med) return;
+    const fk = ar + "||" + med;
+    if (!moldesActivos[fk]) moldesActivos[fk] = new Set();
+    moldesActivos[fk].add(tag);
+  });
+
+  // ── Plan del día ───────────────────────────────────────
+  const planMap = {}; // key "ar||med" → {patron, medida, moldes, piezas}
+  PLAN.forEach(r => {
+    const f = parsePlanFecha(r["Fecha"]||"");
+    if (!f || f < desde || f > hasta) return;
+    const ar = normAbrev(r["Modelo"]||""), med = normMedida(r["Medida"]||"");
+    if (!ar) return;
+    const fk = ar + "||" + med;
+    if (!planMap[fk]) planMap[fk] = {patron:r["Modelo"]||"", medida:r["Medida"]||"", moldes:0, piezas:0};
+    planMap[fk].moldes += parseFloat(r["Moldes"]||0)||0;
+    planMap[fk].piezas += parseFloat(r["A Producir"]||0)||0;
+  });
+
+  // ── Unir plan + activos ────────────────────────────────
+  const allKeys = new Set([...Object.keys(planMap), ...Object.keys(moldesActivos)]);
+  const filas = [];
+  allKeys.forEach(fk => {
+    const p = planMap[fk] || {patron:fk.split("||")[0], medida:fk.split("||")[1], moldes:0, piezas:0};
+    const activos = moldesActivos[fk] ? moldesActivos[fk].size : 0;
+    filas.push({...p, fk, activos});
+  });
+  filas.sort((a,b) => (b.moldes - a.moldes) || (b.activos - a.activos));
+
+  const totalPlanMoldes = filas.reduce((s,f)=>s+f.moldes,0);
+  const totalActivos    = filas.reduce((s,f)=>s+f.activos,0);
+  const maxMoldes = Math.max(...filas.map(f=>Math.max(f.moldes, f.activos)), 1);
+
+  const colActivo = v => v === 0 ? "var(--danger)" : "var(--accent)";
+
+  let html = `
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div class="metric"><div class="metric-label">Moldes planeados</div>
+      <div class="metric-val white">${Math.round(totalPlanMoldes)}</div>
+      <div class="metric-sub">según Gantt hoy</div></div>
+    <div class="metric"><div class="metric-label">Moldes activos</div>
+      <div class="metric-val" style="color:var(--accent)">${totalActivos}</div>
+      <div class="metric-sub">TAGs únicos detectados</div></div>
+    <div class="metric"><div class="metric-label">Tags manuales excluidos</div>
+      <div class="metric-val amber">${tagsManual.size}</div>
+      <div class="metric-sub">misma etiqueta, 2+ modelos</div></div>
+    <div class="metric"><div class="metric-label">Modelos sin arrancar</div>
+      <div class="metric-val red">${filas.filter(f=>f.moldes>0&&f.activos===0).length}</div>
+      <div class="metric-sub">en plan pero 0 activos</div></div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="table-header-title">Plan vs Moldes Activos</div>
+      <div style="font-size:11px;color:var(--muted)">${desde} · ${filas.length} modelos</div>
+    </div>
+    <table><thead><tr>
+      <th>Modelo / Patrón</th><th>Medida</th>
+      <th style="text-align:right">Plan moldes</th>
+      <th style="text-align:right">Activos</th>
+      <th style="min-width:160px">Progreso</th>
+      <th style="text-align:right">Plan pzas</th>
+    </tr></thead><tbody>`;
+
+  filas.forEach(f => {
+    const pct = f.moldes > 0 ? Math.min(Math.round(f.activos/f.moldes*100),100) : (f.activos>0?100:0);
+    const col = f.activos === 0 && f.moldes > 0 ? "var(--danger)"
+              : f.activos >= f.moldes ? "var(--accent)" : "var(--warn)";
+    const estado = f.activos === 0 && f.moldes > 0 ? "Sin arrancar"
+                 : f.activos >= f.moldes ? "Completo" : "Parcial";
+    html += `<tr>
+      <td style="font-size:12px">${f.patron}</td>
+      <td class="mono">${f.medida}</td>
+      <td class="mono" style="text-align:right">${f.moldes||"—"}</td>
+      <td class="mono" style="text-align:right;color:${col};font-weight:700">${f.activos}</td>
+      <td>
+        <div style="height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:2px">
+          <div style="width:${pct}%;height:100%;background:${col};border-radius:4px;transition:width .4s"></div>
+        </div>
+        <div style="font-size:9px;color:${col}">${estado} ${f.moldes>0?pct+'%':''}</div>
+      </td>
+      <td class="mono" style="text-align:right;color:var(--muted)">${f.piezas||"—"}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+  document.getElementById("main-content").innerHTML = html;
+}
 
 // ── Modal detalle celda Gantt ─────────────────────────────
 function verDetalleCeldaGantt(el) {
