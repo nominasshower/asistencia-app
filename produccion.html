@@ -1582,9 +1582,18 @@ async function savePlanDirecto() {
 // ── Pedidos Odoo ──────────────────────────────────────────
 function renderVentas() {
   document.getElementById("topbar-title").textContent = "Pedidos Odoo";
+  document.getElementById("topbar-sub").textContent   = "Pedidos confirmados — avance de entrega";
   const hoy  = new Date().toISOString().slice(0,10);
   const en7d = new Date(Date.now() +  7*864e5).toISOString().slice(0,10);
   const en30 = new Date(Date.now() + 30*864e5).toISOString().slice(0,10);
+
+  // ── Semana actual (lunes a domingo) ───────────────────────
+  const _hoy = new Date();
+  const _dow = _hoy.getDay(); // 0=Dom, 1=Lun...
+  const _lunes = new Date(_hoy); _lunes.setDate(_hoy.getDate() - (_dow===0?6:_dow-1));
+  const _domingo = new Date(_lunes); _domingo.setDate(_lunes.getDate()+6);
+  const semIni = _lunes.toISOString().slice(0,10);
+  const semFin = _domingo.toISOString().slice(0,10);
 
   if (!VENTAS_RAW.length) {
     document.getElementById("main-content").innerHTML = `
@@ -1642,8 +1651,10 @@ function renderVentas() {
   const montoPend     = abiertos.reduce((s,p)=>s+p.pendiente,0);  // piezas
   const montoEnviado  = enviados.reduce((s,p)=>s+p.total,0);
 
-  const vencidos  = confirmados.filter(p => p.entrega && p.entrega < hoy && p.pendiente > 0);
-  const proximos  = confirmados.filter(p => p.entrega && p.entrega >= hoy && p.entrega <= en7d);
+  const vencidos    = confirmados.filter(p => p.entrega && p.entrega < hoy && p.pendiente > 0);
+  const proximos    = confirmados.filter(p => p.entrega && p.entrega >= hoy && p.entrega <= en7d);
+  const estaSemana  = confirmados.filter(p => p.entrega >= semIni && p.entrega <= semFin && p.pendiente > 0);
+  const sinFecha    = confirmados.filter(p => !p.entrega && p.pendiente > 0);
 
   // Avance general desde PLAN_DIARIO vs cantidad total de pedidos abiertos
   const totProducido = abiertos.reduce((s,p)=>s+(planPorPedido[(p.pedido||"").toUpperCase()]||0),0);
@@ -1697,6 +1708,40 @@ function renderVentas() {
   };
 
   document.getElementById("main-content").innerHTML = `
+
+  <!-- ── Semana actual ── -->
+  <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:10px;padding:14px 18px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:600;color:var(--accent2)">
+        📅 Esta semana — ${semIni} al ${semFin}
+      </div>
+      <div style="font-size:12px;color:var(--muted)">${estaSemana.length} pedidos a entregar · ${sinFecha.length} sin fecha asignada</div>
+    </div>
+    ${estaSemana.length === 0
+      ? `<div style="color:var(--muted);font-size:12px">Sin pedidos con fecha de entrega esta semana.</div>`
+      : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px">
+        ${estaSemana.sort((a,b)=>a.entrega.localeCompare(b.entrega)).map(p => {
+          const prod = planPorPedido[(p.pedido||"").toUpperCase()]||0;
+          const pct  = p.cantidad>0?Math.min(100,Math.round(prod*100/p.cantidad)):0;
+          const col  = pct>=100?"var(--accent)":pct>=50?"var(--accent2)":"var(--warn)";
+          return `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <span style="font-size:12px;font-weight:600;color:var(--accent2)">${p.pedido}</span>
+              <span style="font-size:11px;color:var(--warn)">⏰ ${p.entrega}</span>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.cliente}</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden">
+                <div style="width:${pct}%;height:100%;background:${col};border-radius:2px"></div>
+              </div>
+              <span style="font-size:10px;color:${col};font-family:monospace">${prod}/${Math.round(p.cantidad)}</span>
+              <span style="font-size:10px;color:var(--muted)">${fmtMXN(p.total)}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`
+    }
+  </div>
 
   <!-- KPIs -->
   <div class="metrics" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
