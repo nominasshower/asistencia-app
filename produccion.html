@@ -3742,26 +3742,29 @@ function getSideTipo(patron) {
 
 async function renderMoldes() {
   document.getElementById("topbar-title").textContent = "Inventario de Moldes";
-  document.getElementById("topbar-sub").textContent = "Todos los moldes activos — sin filtro de fecha";
-  document.getElementById("main-content").innerHTML = '<div class="loading"><div class="spinner"></div><div>Cargando inventario completo...</div></div>';
+  document.getElementById("topbar-sub").textContent = "Moldes activos — ultimos 90 dias";
+  document.getElementById("main-content").innerHTML = '<div class="loading"><div class="spinner"></div><div>Cargando inventario...</div></div>';
 
-  // Cargar TODOS los vaciados paginado (para tener historial completo de moldes)
+  // Cargar ultimos 90 dias — suficiente para capturar todos los moldes en uso
+  // (no se dan de alta moldes nuevos a diario)
+  const fecha90 = new Date(); fecha90.setDate(fecha90.getDate()-90);
+  const desde90 = fecha90.toISOString().slice(0,10);
   let todosVac = [];
   try {
     let offset = 0; const pgSize = 1000;
     while(true) {
-      const r = await fetch(`${SUP_URL}/rest/v1/vaciados?select=tag,patron,medida,linea,fecha&order=fecha.desc`, {
-        headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
-                 'Range-Unit':'items', Range:`${offset}-${offset+pgSize-1}`}
-      });
+      const r = await fetch(
+        `${SUP_URL}/rest/v1/vaciados?select=tag,patron,medida,linea,fecha&fecha=gte.${desde90}&order=fecha.desc`,
+        {headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
+                  'Range-Unit':'items', Range:`${offset}-${offset+pgSize-1}`}}
+      );
       const chunk = await r.json();
       todosVac.push(...chunk);
       if (chunk.length < pgSize) break;
       offset += pgSize;
     }
-  } catch(e) { todosVac = VAC_RAW; } // fallback a lo que ya hay
+  } catch(e) { todosVac = VAC_RAW; }
 
-  // Mapear columnas a formato esperado
   const vacData = todosVac.map(r => ({"TAG":r.tag||"","Patron":r.patron||"","Medida":r.medida||"","Linea":r.linea||"","Fecha":r.fecha||""}));
 
   // Agrupar vaciado por TAG
