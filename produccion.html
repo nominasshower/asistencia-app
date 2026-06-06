@@ -2309,17 +2309,8 @@ function renderGanttMoldes() {
     <div class="metric"><div class="metric-label" style="color:var(--danger)">Sin arrancar</div>
       <div class="metric-val red">${filasConPlan.filter(f=>f.activos===0).length}</div>
       <div class="metric-sub">en plan pero 0 activos</div></div>
-  </div>`;
-    <div class="metric"><div class="metric-label">Moldes activos</div>
-      <div class="metric-val" style="color:var(--accent)">${totalActivos}</div>
-      <div class="metric-sub">TAGs únicos detectados</div></div>
-    <div class="metric"><div class="metric-label">Tags manuales excluidos</div>
-      <div class="metric-val amber">${tagsManual.size}</div>
-      <div class="metric-sub">misma etiqueta, 2+ modelos</div></div>
-    <div class="metric"><div class="metric-label">Modelos sin arrancar</div>
-      <div class="metric-val red">${filas.filter(f=>f.moldes>0&&f.activos===0).length}</div>
-      <div class="metric-sub">en plan pero 0 activos</div></div>
   </div>
+
 
   ${filas.filter(f=>f.activos>0&&f.moldes===0).length>0?`
   <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:12px 16px;margin-bottom:12px">
