@@ -2376,7 +2376,68 @@ function renderGanttMoldes() {
   });
 
   html += `</tbody></table></div>`;
+
+  // Seccion: Preparar para manana
+  const fechas_plan = [...new Set(PLAN.map(r=>parsePlanFecha(r["Fecha"]||"")).filter(Boolean))].sort();
+  const manana = fechas_plan.find(f => f > desde) || null;
+  if (manana) {
+    const planManana = {};
+    PLAN.forEach(r => {
+      const f = parsePlanFecha(r["Fecha"]||"");
+      if (f !== manana) return;
+      const ar = normAbrev(r["Modelo"]||""), med = normMedida(r["Medida"]||"");
+      if (!ar) return;
+      const fk = ar+"||"+med;
+      if (!planManana[fk]) planManana[fk] = {patron:r["Modelo"]||"", medida:r["Medida"]||"", lado:r["Lado"]||"", moldes:0, piezas:0};
+      planManana[fk].moldes += parseFloat(r["Moldes"]||0)||0;
+      planManana[fk].piezas += parseFloat(r["A Producir"]||0)||0;
+    });
+    const activosHoy = new Set(Object.keys(moldesActivos));
+    const faltantes = Object.entries(planManana).filter(([fk])=>!activosHoy.has(fk)).sort((a,b)=>b[1].moldes-a[1].moldes);
+    const yaEnLinea = Object.entries(planManana).filter(([fk])=>activosHoy.has(fk)).sort((a,b)=>b[1].moldes-a[1].moldes);
+    const ladoLabel = l => ({"LEFT":"Izq","RIGHT":"Der","CENTER":"Cen","SIDE":"Side","IZQ":"Izq","DER":"Der","":""}[(l||"").toUpperCase()])||(l||"");
+    const colCat2 = p => esParedes(p.patron)?"var(--accent2)":esBases(p.patron)?"var(--warn)":"#a78bfa";
+    html += `
+    <div style="margin-top:16px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:14px 18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;color:var(--danger)">Preparar para ma&ntilde;ana &mdash; ${manana}</div>
+        <div style="font-size:11px;color:var(--muted)">${faltantes.length} por preparar &nbsp;|&nbsp; ${yaEnLinea.length} ya en l&iacute;nea</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div style="font-size:10px;color:var(--danger);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600">Por preparar (${faltantes.length})</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+          ${faltantes.map(([fk,p])=>`<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:5px 8px;font-weight:600;color:${colCat2(p)}">${p.patron}</td>
+            <td class="mono" style="padding:5px 8px">${p.medida}</td>
+            <td style="padding:5px 8px;font-size:11px;color:var(--muted)">${ladoLabel(p.lado)}</td>
+            <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--danger)">${Math.round(p.moldes)}</td>
+          </tr>`).join("")}
+          </table>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600">Ya en l&iacute;nea (${yaEnLinea.length})</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+          ${yaEnLinea.map(([fk,p])=>`<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:5px 8px;font-weight:600;color:${colCat2(p)}">${p.patron}</td>
+            <td class="mono" style="padding:5px 8px">${p.medida}</td>
+            <td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--accent)">${Math.round(p.moldes)}</td>
+          </tr>`).join("")}
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }
+
   document.getElementById("main-content").innerHTML = html;
+
+  // Auto-refresh cada 30 min cuando esta en esta vista
+  if (window._ganttMoldesTimer) clearInterval(window._ganttMoldesTimer);
+  window._ganttMoldesTimer = setInterval(() => {
+    if (VISTA === "ganttmoldes") {
+      fetchSupabase("vaciados").then(vacRaw => { VAC_RAW = vacRaw; renderGanttMoldes(); });
+    }
+  }, 30 * 60 * 1000);
 }
 
 // ── Modal detalle celda Gantt ─────────────────────────────
