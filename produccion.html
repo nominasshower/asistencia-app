@@ -2428,15 +2428,13 @@ function renderGanttMoldes() {
       </div>
     </div>`;
 
-    // Nuevo recuadro: tabla Gantt solo con moldes FALTANTES para manana
+    // Nuevo recuadro: solo los moldes que FALTAN para manana (no activos hoy)
     if (faltantes.length > 0) {
       html += `
       <div style="margin-top:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <div style="font-size:13px;font-weight:600">
-            Moldes a subir para ma&ntilde;ana &mdash; ${manana}
-          </div>
-          <div style="font-size:11px;color:var(--muted)">${faltantes.length} modelos &nbsp;|&nbsp; ${faltantes.reduce((s,[,p])=>s+p.moldes,0)} moldes &nbsp;|&nbsp; ${faltantes.reduce((s,[,p])=>s+p.piezas,0)} pzas</div>
+          <div style="font-size:13px;font-weight:600">Moldes a subir para ma&ntilde;ana &mdash; ${manana}</div>
+          <div style="font-size:11px;color:var(--muted)">${faltantes.length} modelos &nbsp;|&nbsp; ${Math.round(faltantes.reduce((s,[,p])=>s+p.moldes,0))} moldes &nbsp;|&nbsp; ${Math.round(faltantes.reduce((s,[,p])=>s+p.piezas,0))} pzas</div>
         </div>
         <table style="width:100%;border-collapse:collapse">
           <thead><tr style="border-bottom:1px solid var(--border)">
