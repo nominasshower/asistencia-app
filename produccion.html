@@ -2427,6 +2427,43 @@ function renderGanttMoldes() {
         </div>
       </div>
     </div>`;
+
+    // Nuevo recuadro: tabla Gantt solo con moldes FALTANTES para manana
+    if (faltantes.length > 0) {
+      html += `
+      <div style="margin-top:12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:600">
+            Moldes a subir para ma&ntilde;ana &mdash; ${manana}
+          </div>
+          <div style="font-size:11px;color:var(--muted)">${faltantes.length} modelos &nbsp;|&nbsp; ${faltantes.reduce((s,[,p])=>s+p.moldes,0)} moldes &nbsp;|&nbsp; ${faltantes.reduce((s,[,p])=>s+p.piezas,0)} pzas</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:500">Modelo / Patr&oacute;n</th>
+            <th style="text-align:left;padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:500">Medida</th>
+            <th style="padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:500">Lado</th>
+            <th style="text-align:right;padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:500">Moldes</th>
+            <th style="text-align:right;padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:500">Piezas</th>
+            <th style="padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:500">Tipo</th>
+          </tr></thead>
+          <tbody>
+          ${faltantes.map(([fk,p]) => {
+            const col = esParedes(p.patron)?"var(--accent2)":esBases(p.patron)?"var(--warn)":"#a78bfa";
+            const tipo = esParedes(p.patron)?"Pared":esBases(p.patron)?"Base":"Accesorio";
+            return `<tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px;font-size:13px;font-weight:600;color:${col}">${p.patron}</td>
+              <td class="mono" style="padding:8px;font-size:13px">${p.medida}</td>
+              <td style="padding:8px;font-size:12px;color:var(--muted)">${({"LEFT":"Izq","RIGHT":"Der","CENTER":"Cen","SIDE":"Side","IZQ":"Izq","DER":"Der","":""}[(p.lado||"").toUpperCase()])||(p.lado||"—")}</td>
+              <td style="padding:8px;text-align:right;font-size:16px;font-weight:700;color:var(--danger)">${Math.round(p.moldes)}</td>
+              <td style="padding:8px;text-align:right;font-size:14px;color:var(--muted)">${Math.round(p.piezas)||"—"}</td>
+              <td style="padding:8px"><span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${col}22;color:${col};font-weight:600">${tipo}</span></td>
+            </tr>`;
+          }).join("")}
+          </tbody>
+        </table>
+      </div>`;
+    }
   }
 
   document.getElementById("main-content").innerHTML = html;
