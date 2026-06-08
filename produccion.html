@@ -2326,18 +2326,20 @@ function renderGanttMoldes() {
   const tieneTiempo = (() => {
     const conHora = VAC_RAW.filter(r => (r["Fecha"]||"").length > 10).slice(0, 30);
     if (conHora.length < 2) return false;
-    const tiempos = new Set(conHora.map(r => new Date(r["Fecha"]).getTime() % 86400000));
+    const tiempos = new Set(conHora.map(r => toLocalTs(r["Fecha"]) % 86400000));
     return tiempos.size > 1; // tiempos distintos = hora real; todos iguales = sin hora
   })();
 
   // TAG → timestamp del último vaciado en el período
+  // Stripeamos +00:00/Z para que JS trate la hora como local (MySQL guarda hora México, no UTC)
+  const toLocalTs = s => { const clean = (s||"").replace(/\+\d{2}:\d{2}$/, "").replace(/Z$/, ""); return new Date(clean).getTime(); };
   const tagUltimoTs = {};
   VAC_RAW.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (f < desde || f > hasta) return;
     const tag = (r["TAG"]||"").trim().toUpperCase();
     if (!tag) return;
-    const ts = new Date(r["Fecha"]||"").getTime();
+    const ts = toLocalTs(r["Fecha"]);
     if (!isNaN(ts) && (!tagUltimoTs[tag] || ts > tagUltimoTs[tag])) tagUltimoTs[tag] = ts;
   });
 
