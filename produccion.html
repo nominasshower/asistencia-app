@@ -2322,7 +2322,13 @@ function renderGanttMoldes() {
   const MS_60 = 60 * 60 * 1000;
 
   // Detectar si el campo fecha trae hora real (no solo fecha "YYYY-MM-DD")
-  const tieneTiempo = VAC_RAW.some(r => (r["Fecha"]||"").length > 10);
+  // Si todos los registros tienen el mismo componente de hora (ej. midnight) = no hay hora real
+  const tieneTiempo = (() => {
+    const conHora = VAC_RAW.filter(r => (r["Fecha"]||"").length > 10).slice(0, 30);
+    if (conHora.length < 2) return false;
+    const tiempos = new Set(conHora.map(r => new Date(r["Fecha"]).getTime() % 86400000));
+    return tiempos.size > 1; // tiempos distintos = hora real; todos iguales = sin hora
+  })();
 
   // TAG → timestamp del último vaciado en el período
   const tagUltimoTs = {};
