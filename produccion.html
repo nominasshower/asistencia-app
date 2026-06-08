@@ -2295,7 +2295,7 @@ function _dibujarGantt() { renderGantt(); }
 // ── Gantt Moldes: plan vs moldes activos en línea ─────────
 function renderGanttMoldes() {
   document.getElementById("topbar-title").textContent = "Gantt Moldes";
-  document.getElementById("topbar-sub").textContent   = "En línea = vaciado en últimos 30 min · se quita al pasar 60 min sin registro · actualiza cada 5 min";
+  document.getElementById("topbar-sub").textContent   = "En línea hoy = todos los moldes con vaciado hoy · Activo ahora = últimos 45 min · actualiza cada 5 min";
 
   const desde = document.getElementById("fDesde").value;
   const hasta  = document.getElementById("fHasta").value;
@@ -2318,8 +2318,8 @@ function renderGanttMoldes() {
   const ahora = Date.now();
   const hoyStr = new Date().toISOString().slice(0,10);
   const esHoy = hasta >= hoyStr;
-  const MS_30 = 30 * 60 * 1000;
-  const MS_60 = 60 * 60 * 1000;
+  const MS_30 = 45 * 60 * 1000;  // "activo ahora" = últimos 45 min
+  const MS_60 = 90 * 60 * 1000;  // se quita si lleva >90 min sin vaciado
 
   // Strip +00:00/Z → JS trata como hora local (MySQL guarda hora México, no UTC)
   const toLocalTs = s => { const clean = (s||"").replace(/\+\d{2}:\d{2}$/, "").replace(/Z$/, ""); return new Date(clean).getTime(); };
@@ -2361,17 +2361,14 @@ function renderGanttMoldes() {
 
   // ── Vaciados reales (sin manuales) ─────────────────────
   // TAG → patron+medida → Set de TAGs por modelo (solo activos en última hora si es hoy)
+  // moldesActivos = TODOS los TAGs que vaciaron HOY (sin filtro de tiempo)
+  // El filtro 30/60 min solo afecta el color, no el conteo total
   const moldesActivos = {};
   VAC_RAW.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (f < desde || f > hasta) return;
     const tag = (r["TAG"]||"").trim().toUpperCase();
     if (!tag || tagsManual.has(tag)) return;
-    // Si es hoy y tenemos hora: excluir TAGs que llevan >60 min sin vaciado
-    if (esHoy && tieneTiempo) {
-      const est = estadoTag(tagUltimoTs[tag]);
-      if (est === "inactivo") return;
-    }
     const ar = normAbrev(r["Patron"]||""), med = normMedida(r["Medida"]||"");
     if (!ar || !med) return;
     const fk = ar + "||" + med;
@@ -2431,25 +2428,28 @@ function renderGanttMoldes() {
     catActivos60[cat] += f.activos60;
   });
 
-  // metricaCat: activos30=en línea(<30min), activos60=pausa(30-60min)
-  const metricaCat = (label, plan, a30, a60, color) => {
-    const totalAct = a30 + a60;
-    const pctBar30 = plan>0 ? Math.min(Math.round(a30/plan*100),100) : 0;
-    const pctBarTot = plan>0 ? Math.min(Math.round(totalAct/plan*100),100) : 0;
-    const colNum = plan>0&&a30>=plan?"var(--accent)":a30>0?"var(--warn)":"var(--danger)";
-    const etiqueta = esHoy && tieneTiempo ? "En línea <span style='font-size:9px;color:var(--muted)'>(30 min)</span>" : "En l&iacute;nea";
+  // metricaCat: activos=total hoy, activos30=activos ahora(<30min), activos60=pausa(30-60min)
+  const metricaCat = (label, plan, activos, a30, a60, color) => {
+    const pctBarTot = plan>0 ? Math.min(Math.round(activos/plan*100),100) : 0;
+    const pctBar30  = plan>0 ? Math.min(Math.round(a30/plan*100),100) : 0;
+    const colNum = plan>0&&activos>=plan?"var(--accent)":activos>0?"var(--warn)":"var(--danger)";
+    const ahoraInfo = esHoy && tieneTiempo
+      ? `<div style="font-size:9px;margin-top:2px">
+           <span style="color:${a30>0?"var(--accent)":"var(--muted)"}">⬤ ${a30} ahora</span>
+           ${a60>0?`<span style="color:var(--warn);margin-left:6px">⬤ ${a60} pausa</span>`:""}
+         </div>` : "";
     return `<div class="metric" style="border-color:${color}44">
     <div class="metric-label" style="color:${color}">${label}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
       <div><div style="font-size:10px;color:var(--muted)">Planeados</div>
         <div style="font-size:28px;font-weight:700">${Math.round(plan)}</div></div>
-      <div><div style="font-size:10px;color:var(--muted)">${etiqueta}</div>
-        <div style="font-size:28px;font-weight:700;color:${colNum}">${a30}</div>
-        ${a60>0&&esHoy&&tieneTiempo?`<div style="font-size:9px;color:var(--warn);margin-top:1px">+${a60} en pausa</div>`:""}
+      <div><div style="font-size:10px;color:var(--muted)">En l&iacute;nea hoy</div>
+        <div style="font-size:28px;font-weight:700;color:${colNum}">${activos}</div>
+        ${ahoraInfo}
       </div>
     </div>
     <div style="margin-top:6px;height:4px;background:var(--bg3);border-radius:2px;position:relative">
-      <div style="width:${pctBarTot}%;height:100%;background:var(--warn);border-radius:2px"></div>
+      <div style="width:${pctBarTot}%;height:100%;background:${color}55;border-radius:2px"></div>
       <div style="position:absolute;top:0;width:${pctBar30}%;height:100%;background:${color};border-radius:2px"></div>
     </div></div>`;
   };
@@ -2496,7 +2496,7 @@ function renderGanttMoldes() {
       <div class="table-header-title">Plan vs Moldes Activos</div>
       <div style="font-size:11px;color:var(--muted)">
         ${desde}
-        ${esHoy&&tieneTiempo ? ' · <span style="color:var(--accent)">● En línea</span> = últimos 30 min · <span style="color:var(--warn)">● Pausa</span> = 30-60 min' : ''}
+        ${esHoy&&tieneTiempo ? ' · <span style="color:var(--accent)">● Activo</span> = últimos 45 min · <span style="color:var(--warn)">● Lento</span> = 45-90 min' : ''}
         · ${filas.filter(f=>f.moldes>0).length} modelos en plan
       </div>
     </div>
