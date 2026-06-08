@@ -153,7 +153,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
     </div>
     <div class="nav-item active" id="nav-dash" onclick="navegar('dash',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-      Dashboard
+      Calidad
     </div>
     <div class="nav-item" id="nav-alertas" onclick="navegar('alertas',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -743,27 +743,49 @@ function calcAlertas(data) {
   return { alertasMolde, alertasGelcoat };
 }
 
-// ── Dashboard ─────────────────────────────────────────────
+// ── Calidad (Dashboard) ───────────────────────────────────
 function renderDash(data) {
-  document.getElementById("topbar-title").textContent = "Dashboard Calidad";
+  document.getElementById("topbar-title").textContent = "Calidad";
   const total = data.length;
   const cA = data.filter(r=>r["Grado"]==="A").length;
   const cB = data.filter(r=>r["Grado"]==="B").length;
-  // Grado C real: solo piezas con al menos un defecto no excluido
   const cC_total = data.filter(r=>r["Grado"]==="C").length;
   const cC = data.filter(r=>r["Grado"]==="C" && defectosActivos(r["Detalle Defecto"]).length > 0).length;
   const cC_excluido = cC_total - cC;
   const pct = n => total ? Math.round(n*100/total) : 0;
 
-  // Top defectos activos
+  // Conteo de defectos activos con categoría
   const defCounts = {};
   data.forEach(r => {
     defectosActivos(r["Detalle Defecto"]).forEach(d => {
       defCounts[d] = (defCounts[d]||0)+1;
     });
   });
-  const topDef = Object.entries(defCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const maxDef = topDef[0]?.[1]||1;
+  const todosDefectos = Object.entries(defCounts).sort((a,b)=>b[1]-a[1]);
+  const totalDefOcurr = todosDefectos.reduce((s,[,c])=>s+c, 0);
+  const maxDef = todosDefectos[0]?.[1]||1;
+
+  // Conteo por categoría
+  let cGelcoat=0, cMolde=0, cOtros=0;
+  todosDefectos.forEach(([d,c])=>{
+    const cl=clasif(d);
+    if(cl==="g") cGelcoat+=c;
+    else if(cl==="m") cMolde+=c;
+    else cOtros+=c;
+  });
+
+  // Pareto: % acumulado y marca 80%
+  let acum=0;
+  const paretoData = todosDefectos.map(([d,c])=>{
+    acum+=c;
+    const pctAcum = totalDefOcurr ? Math.round(acum*100/totalDefOcurr) : 0;
+    const cl=clasif(d);
+    const color=cl==="g"?"var(--danger)":cl==="m"?"var(--warn)":"var(--accent2)";
+    return {d,c,pctAcum,color,cl};
+  });
+  // índice donde el acumulado supera 80%
+  const idx80 = paretoData.findIndex(x=>x.pctAcum>=80);
+  const top15 = paretoData.slice(0,15);
 
   // Por linea
   const lineas = {};
@@ -823,20 +845,66 @@ function renderDash(data) {
     </div>
   </div>
 
+  <!-- Pareto de defectos -->
   <div class="card" style="margin-bottom:12px">
-    <div class="card-title">Top defectos activos<span>${Object.keys(defCounts).length} tipos</span></div>
-    ${topDef.length===0 ? `<div class="empty">Sin defectos</div>` : `
-    <div class="bar-chart">
-      ${topDef.map(([d,c])=>{
-        const cl=clasif(d);
-        const color=cl==="g"?"var(--danger)":cl==="m"?"var(--warn)":"var(--accent2)";
-        return `<div class="bar-row"><div class="bar-label" title="${d}">${d}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c*100/maxDef)}%;background:${color}"></div></div><div class="bar-val">${c}</div></div>`;
+    <div class="card-title">
+      Pareto de defectos
+      <span>${todosDefectos.length} tipos · ${totalDefOcurr.toLocaleString()} ocurrencias totales</span>
+    </div>
+
+    <!-- Resumen por categoría -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+      <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:10px 12px;text-align:center">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">🎨 Gelcoat</div>
+        <div style="font-size:22px;font-weight:700;color:#f87171">${cGelcoat.toLocaleString()}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${totalDefOcurr?Math.round(cGelcoat*100/totalDefOcurr):0}% del total</div>
+      </div>
+      <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 12px;text-align:center">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">⚙️ Molde</div>
+        <div style="font-size:22px;font-weight:700;color:#fbbf24">${cMolde.toLocaleString()}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${totalDefOcurr?Math.round(cMolde*100/totalDefOcurr):0}% del total</div>
+      </div>
+      <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:10px 12px;text-align:center">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">📦 Otros</div>
+        <div style="font-size:22px;font-weight:700;color:#60a5fa">${cOtros.toLocaleString()}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${totalDefOcurr?Math.round(cOtros*100/totalDefOcurr):0}% del total</div>
+      </div>
+    </div>
+
+    ${top15.length===0 ? `<div class="empty">Sin defectos en el período</div>` : `
+    <!-- Encabezado de columnas -->
+    <div style="display:grid;grid-template-columns:170px 1fr 46px 52px;gap:8px;align-items:center;padding:0 0 4px;border-bottom:1px solid var(--border);margin-bottom:6px">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Defecto</div>
+      <div></div>
+      <div style="font-size:10px;color:var(--muted);text-align:right">#</div>
+      <div style="font-size:10px;color:var(--muted);text-align:right">% acum</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${top15.map((item,i)=>{
+        const es80 = idx80>=0 && i===idx80;
+        const sobre80 = idx80>=0 && i>idx80;
+        return `
+        ${es80 ? `<div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+          <div style="flex:1;height:1px;background:rgba(34,197,94,.4)"></div>
+          <div style="font-size:10px;color:var(--accent);white-space:nowrap;font-weight:600">▲ 80% de los defectos están arriba</div>
+          <div style="flex:1;height:1px;background:rgba(34,197,94,.4)"></div>
+        </div>` : ""}
+        <div style="display:grid;grid-template-columns:170px 1fr 46px 52px;gap:8px;align-items:center;opacity:${sobre80?'.55':'1'}">
+          <div style="font-size:11px;color:var(--text);overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${item.d}">${item.d}</div>
+          <div style="height:8px;background:var(--bg3);border-radius:4px;overflow:hidden">
+            <div style="height:100%;border-radius:4px;width:${Math.round(item.c*100/maxDef)}%;background:${item.color};transition:width .5s ease"></div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-align:right">${item.c}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;text-align:right;font-weight:600;color:${item.pctAcum<=50?'var(--danger)':item.pctAcum<=80?'var(--warn)':'var(--muted)'}">${item.pctAcum}%</div>
+        </div>`;
       }).join("")}
     </div>
-    <div style="margin-top:8px;font-size:10px;color:var(--muted);display:flex;gap:12px">
+    ${todosDefectos.length>15?`<div style="font-size:10px;color:var(--muted);margin-top:8px;text-align:center">+${todosDefectos.length-15} tipos adicionales (menores)</div>`:""}
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);display:flex;gap:14px">
       <span><span style="color:var(--danger)">■</span> Gelcoat</span>
       <span><span style="color:var(--warn)">■</span> Molde</span>
       <span><span style="color:var(--accent2)">■</span> Otros</span>
+      <span style="margin-left:auto;color:var(--accent)">▲ línea = 80% del problema</span>
     </div>`}
   </div>`;
 }
