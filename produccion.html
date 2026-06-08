@@ -1160,10 +1160,19 @@ function renderComparaPlan() {
 async function guardarGanttEnSupabase(wb, toDateStr) {
   const registros = [];
 
-  // Helper para extraer fechas de una fila de encabezado
+  // Helper: extrae mapa de fechas → {moldesCol, piezasCol}
+  // Para cada col de fecha, detecta si la col siguiente es piezas (vacía en header)
+  // o es otra fecha (no hay col de piezas separada).
   function extraerFechasCols(hdrRow) {
     const cols = {};
-    (hdrRow || []).forEach((v, i) => { const d = toDateStr(v); if (d) cols[i] = d; });
+    const arr = hdrRow || [];
+    for (let i = 0; i < arr.length; i++) {
+      const d = toDateStr(arr[i]);
+      if (!d) continue;
+      // Si la col siguiente NO es fecha → es la columna de piezas
+      const sigEsFecha = (i+1 < arr.length) && !!toDateStr(arr[i+1]);
+      cols[i] = { fecha: d, piezasCol: sigEsFecha ? i : i+1 };
+    }
     return cols;
   }
 
@@ -1183,10 +1192,10 @@ async function guardarGanttEnSupabase(wb, toDateStr) {
       const comp   = (row[2]||'').toString().trim();
       const total  = parseInt(row[8]||0)||0;
       if (!odoo && !modelo) continue;
-      for (const [ci, fecha] of Object.entries(fechaCols)) {
+      for (const [ci, {fecha, piezasCol}] of Object.entries(fechaCols)) {
         const c = parseInt(ci);
         const moldes = parseFloat(row[c])||0;
-        const aprod  = parseFloat(row[c+1])||0;  // col+1 = piezas del día (igual estructura que BASES)
+        const aprod  = parseFloat(row[piezasCol])||0;
         if (!moldes && !aprod) continue;
         registros.push({ fecha, odoo:odoo||null, cliente:cliente||null,
           compromiso:comp||null, medida:medida||null, modelo:modelo||null,
@@ -1220,10 +1229,10 @@ async function guardarGanttEnSupabase(wb, toDateStr) {
       const acab  = (row[8]||'').toString().trim();
       const total = parseInt(row[9]||0)||0;
       if (!odoo && !modelo) continue;
-      for (const [ci, fecha] of Object.entries(fechaCols)) {
+      for (const [ci, {fecha, piezasCol}] of Object.entries(fechaCols)) {
         const c = parseInt(ci);
         const moldes = parseFloat(row[c])||0;
-        const aprod  = parseFloat(row[c+1])||0;  // BASES: col+1 = piezas (estructura 2 cols/fecha)
+        const aprod  = parseFloat(row[piezasCol])||0;
         if (!moldes && !aprod) continue;
         registros.push({ fecha, odoo:odoo||null, cliente:cli||null,
           compromiso:comp||null, medida:medida||null, modelo:modelo||null,
@@ -1310,20 +1319,23 @@ function cargarExcelPlan(inputEl) {
       }
 
       // ── GANTT PAREDES L1-2 ──
-      // Estructura: fila 4 (idx 3) = fechas, fila 5+ = datos
-      // Cols: 0=Odoo, 3=Medida, 4=Modelo, 5=Lado, colHoy=moldes, colHoy+1=piezas
+      // Cols: 0=Odoo, 3=Medida, 4=Modelo, 5=Lado
+      // Detecta colPiezas dinámicamente: si col siguiente a la fecha no es fecha → es piezas
       const wsP = wb.Sheets['GANTT PAREDES L1-2'];
       if (wsP) {
         const data = XLSX.utils.sheet_to_json(wsP, { header:1, raw:false, dateNF:'yyyy-mm-dd' });
         const hdrRow = data[3] || [];
-        let colHoy = hdrRow.findIndex((v,i) => toDateStr(v) === hoyStr);
+        let colHoy = hdrRow.findIndex((v) => toDateStr(v) === hoyStr);
         if (colHoy < 0) console.warn('[ExcelPlan] PAREDES: no encontré col de hoy', hoyStr);
         else {
+          // Si col siguiente no es fecha → es la columna de piezas; si es fecha → sin col de piezas
+          const sigEsFecha = colHoy+1 < hdrRow.length && !!toDateStr(hdrRow[colHoy+1]);
+          const colPiezas  = sigEsFecha ? colHoy : colHoy+1;
           for (let r = 4; r < data.length; r++) {
             const row = data[r];
             if (!row || !row[4]) continue;
-            const moldes = parseFloat(row[colHoy])   || 0;  // col = moldes
-            const piezas = parseFloat(row[colHoy+1]) || 0;  // col+1 = piezas del día (igual que BASES)
+            const moldes = parseFloat(row[colHoy])   || 0;
+            const piezas = parseFloat(row[colPiezas]) || 0;
             if (!piezas) continue;
             const odoo   = (row[0]||'').toString().trim();
             const medida = (row[3]||'').toString().trim();
