@@ -2295,7 +2295,7 @@ function _dibujarGantt() { renderGantt(); }
 // ── Gantt Moldes: plan vs moldes activos en línea ─────────
 function renderGanttMoldes() {
   document.getElementById("topbar-title").textContent = "Gantt Moldes";
-  document.getElementById("topbar-sub").textContent   = "Plan del día vs moldes activos detectados por antenas";
+  document.getElementById("topbar-sub").textContent   = "En línea = vaciado en últimos 30 min · se quita al pasar 60 min sin registro · actualiza cada 5 min";
 
   const desde = document.getElementById("fDesde").value;
   const hasta  = document.getElementById("fHasta").value;
@@ -2314,14 +2314,58 @@ function renderGanttMoldes() {
   });
   const tagsManual = new Set(Object.entries(tagPatrones).filter(([,s])=>s.size>1).map(([t])=>t));
 
+  // ── Timestamps por TAG (para modo en-tiempo-real) ──────
+  const ahora = Date.now();
+  const hoyStr = new Date().toISOString().slice(0,10);
+  const esHoy = hasta >= hoyStr;
+  const MS_30 = 30 * 60 * 1000;
+  const MS_60 = 60 * 60 * 1000;
+
+  // Detectar si el campo fecha trae hora real (no solo fecha "YYYY-MM-DD")
+  const tieneTiempo = VAC_RAW.some(r => (r["Fecha"]||"").length > 10);
+
+  // TAG → timestamp del último vaciado en el período
+  const tagUltimoTs = {};
+  VAC_RAW.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (f < desde || f > hasta) return;
+    const tag = (r["TAG"]||"").trim().toUpperCase();
+    if (!tag) return;
+    const ts = new Date(r["Fecha"]||"").getTime();
+    if (!isNaN(ts) && (!tagUltimoTs[tag] || ts > tagUltimoTs[tag])) tagUltimoTs[tag] = ts;
+  });
+
+  // Estado de un TAG según su último vaciado
+  const estadoTag = ts => {
+    if (!ts || isNaN(ts) || !tieneTiempo || !esHoy) return "activo";
+    const d = ahora - ts;
+    if (d <= MS_30) return "activo";   // verde: últimos 30 min
+    if (d <= MS_60) return "pausa";    // amarillo: 30-60 min
+    return "inactivo";                 // fuera: >60 min
+  };
+
+  // Tiempo relativo legible
+  const tiempoAtras = ts => {
+    if (!ts || isNaN(ts) || !tieneTiempo) return "—";
+    const min = Math.round((ahora - ts) / 60000);
+    if (min < 1) return "ahora";
+    if (min < 60) return `${min} min`;
+    return `${Math.floor(min/60)}h ${min%60<10?"0":""}${min%60}m`;
+  };
+
   // ── Vaciados reales (sin manuales) ─────────────────────
-  // TAG → patron+medida → Set de TAGs por modelo
-  const moldesActivos = {}; // key "ar||med" → {tags, patron, medida, color}
+  // TAG → patron+medida → Set de TAGs por modelo (solo activos en última hora si es hoy)
+  const moldesActivos = {};
   VAC_RAW.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     if (f < desde || f > hasta) return;
     const tag = (r["TAG"]||"").trim().toUpperCase();
     if (!tag || tagsManual.has(tag)) return;
+    // Si es hoy y tenemos hora: excluir TAGs que llevan >60 min sin vaciado
+    if (esHoy && tieneTiempo) {
+      const est = estadoTag(tagUltimoTs[tag]);
+      if (est === "inactivo") return;
+    }
     const ar = normAbrev(r["Patron"]||""), med = normMedida(r["Medida"]||"");
     if (!ar || !med) return;
     const fk = ar + "||" + med;
@@ -2343,13 +2387,23 @@ function renderGanttMoldes() {
   });
 
   // ── Unir plan + activos ────────────────────────────────
-  // Incluir plan + activos para la seccion amarilla; la tabla solo muestra los del plan
   const allKeys = new Set([...Object.keys(planMap), ...Object.keys(moldesActivos)]);
   const filas = [];
   allKeys.forEach(fk => {
     const p = planMap[fk] || {patron:fk.split("||")[0], medida:fk.split("||")[1], moldes:0, piezas:0};
-    const activos = moldesActivos[fk] ? moldesActivos[fk].tags.size : 0;
-    filas.push({...p, fk, activos});
+    const info = moldesActivos[fk];
+    let activos=0, activos30=0, activos60=0, ultimoFkTs=0;
+    if (info) {
+      info.tags.forEach(tag => {
+        const ts = tagUltimoTs[tag] || 0;
+        if (ts > ultimoFkTs) ultimoFkTs = ts;
+        const est = estadoTag(ts);
+        activos++;
+        if (est === "activo") activos30++;
+        else activos60++;
+      });
+    }
+    filas.push({...p, fk, activos, activos30, activos60, ultimoTs: ultimoFkTs});
   });
   filas.sort((a,b) => (b.moldes - a.moldes) || (b.activos - a.activos));
   const filasConPlan = filas.filter(f => f.moldes > 0);
@@ -2360,38 +2414,45 @@ function renderGanttMoldes() {
 
   // Desglose por categoria
   const catPlan = {paredes:0, bases:0, accesorios:0};
-  const catActivos = {paredes:0, bases:0, accesorios:0};
+  const catActivos30 = {paredes:0, bases:0, accesorios:0}; // en línea (<30 min)
+  const catActivos60 = {paredes:0, bases:0, accesorios:0}; // en pausa (30-60 min)
   const esParedes = p => { const m=(p||"").toUpperCase(); return m.startsWith("WALL")||m.startsWith("HERRINGBONE")||m.startsWith("VERTICAL")||m.startsWith("CHEVRON")||m.startsWith("INTERVAL")||m.startsWith("6X24")||m.startsWith("4X12")||m.startsWith("3X6")||m.startsWith("12X24")||m.startsWith("2X8")||m.startsWith("6X12"); };
   const esBases   = p => { const m=(p||"").toUpperCase(); return m.startsWith("BASE")||m.startsWith("ADA")||m.startsWith("DRAIN")||m.startsWith("TINA")||m.startsWith("TRENCH"); };
   filas.forEach(f => {
     const cat = esParedes(f.patron)?'paredes':esBases(f.patron)?'bases':'accesorios';
-    catPlan[cat] += f.moldes; catActivos[cat] += f.activos;
-  });
-  Object.keys(moldesActivos).forEach(fk => {
-    if (planMap[fk]) return; // ya contado arriba
-    const info = moldesActivos[fk];
-    const cat = esParedes(info.patron)?'paredes':esBases(info.patron)?'bases':'accesorios';
-    catActivos[cat] += info.tags.size;
+    catPlan[cat] += f.moldes;
+    catActivos30[cat] += f.activos30;
+    catActivos60[cat] += f.activos60;
   });
 
-  const colActivo = v => v === 0 ? "var(--danger)" : "var(--accent)";
-  const metricaCat = (label, plan, activos, color) => `<div class="metric" style="border-color:${color}44">
+  // metricaCat: activos30=en línea(<30min), activos60=pausa(30-60min)
+  const metricaCat = (label, plan, a30, a60, color) => {
+    const totalAct = a30 + a60;
+    const pctBar30 = plan>0 ? Math.min(Math.round(a30/plan*100),100) : 0;
+    const pctBarTot = plan>0 ? Math.min(Math.round(totalAct/plan*100),100) : 0;
+    const colNum = plan>0&&a30>=plan?"var(--accent)":a30>0?"var(--warn)":"var(--danger)";
+    const etiqueta = esHoy && tieneTiempo ? "En línea <span style='font-size:9px;color:var(--muted)'>(30 min)</span>" : "En l&iacute;nea";
+    return `<div class="metric" style="border-color:${color}44">
     <div class="metric-label" style="color:${color}">${label}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
       <div><div style="font-size:10px;color:var(--muted)">Planeados</div>
         <div style="font-size:28px;font-weight:700">${Math.round(plan)}</div></div>
-      <div><div style="font-size:10px;color:var(--muted)">En l&iacute;nea</div>
-        <div style="font-size:28px;font-weight:700;color:${plan>0&&activos>=plan?"var(--accent)":activos>0?"var(--warn)":"var(--danger)"}">${activos}</div></div>
+      <div><div style="font-size:10px;color:var(--muted)">${etiqueta}</div>
+        <div style="font-size:28px;font-weight:700;color:${colNum}">${a30}</div>
+        ${a60>0&&esHoy&&tieneTiempo?`<div style="font-size:9px;color:var(--warn);margin-top:1px">+${a60} en pausa</div>`:""}
+      </div>
     </div>
-    <div style="margin-top:6px;height:4px;background:var(--bg3);border-radius:2px">
-      <div style="width:${plan>0?Math.min(Math.round(activos/plan*100),100):0}%;height:100%;background:${color};border-radius:2px"></div>
+    <div style="margin-top:6px;height:4px;background:var(--bg3);border-radius:2px;position:relative">
+      <div style="width:${pctBarTot}%;height:100%;background:var(--warn);border-radius:2px"></div>
+      <div style="position:absolute;top:0;width:${pctBar30}%;height:100%;background:${color};border-radius:2px"></div>
     </div></div>`;
+  };
 
   let html = `
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px">
-    ${metricaCat("PAREDES",catPlan.paredes,catActivos.paredes,"var(--accent2)")}
-    ${metricaCat("BASES",catPlan.bases,catActivos.bases,"var(--warn)")}
-    ${metricaCat("ACCESORIOS",catPlan.accesorios,catActivos.accesorios,"#a78bfa")}
+    ${metricaCat("PAREDES",catPlan.paredes,catActivos30.paredes,catActivos60.paredes,"var(--accent2)")}
+    ${metricaCat("BASES",catPlan.bases,catActivos30.bases,catActivos60.bases,"var(--warn)")}
+    ${metricaCat("ACCESORIOS",catPlan.accesorios,catActivos30.accesorios,catActivos60.accesorios,"#a78bfa")}
     <div class="metric"><div class="metric-label" style="color:var(--danger)">Sin arrancar</div>
       <div class="metric-val red">${filasConPlan.filter(f=>f.activos===0).length}</div>
       <div class="metric-sub">en plan pero 0 activos</div></div>
@@ -2427,22 +2488,33 @@ function renderGanttMoldes() {
   <div class="table-wrap">
     <div class="table-header">
       <div class="table-header-title">Plan vs Moldes Activos</div>
-      <div style="font-size:11px;color:var(--muted)">${desde} · ${filas.filter(f=>f.moldes>0).length} modelos en plan</div>
+      <div style="font-size:11px;color:var(--muted)">
+        ${desde}
+        ${esHoy&&tieneTiempo ? ' · <span style="color:var(--accent)">● En línea</span> = últimos 30 min · <span style="color:var(--warn)">● Pausa</span> = 30-60 min' : ''}
+        · ${filas.filter(f=>f.moldes>0).length} modelos en plan
+      </div>
     </div>
     <table><thead><tr>
       <th>Modelo / Patrón</th><th>Medida</th><th>Lado</th>
-      <th style="text-align:right">Plan moldes</th>
+      <th style="text-align:right">Plan</th>
       <th style="text-align:right">Activos</th>
-      <th style="min-width:160px">Progreso</th>
+      <th style="min-width:140px">Progreso</th>
       <th style="text-align:right">Plan pzas</th>
+      ${esHoy&&tieneTiempo?'<th style="text-align:right">Último vac.</th>':''}
     </tr></thead><tbody>`;
 
   filasConPlan.forEach(f => {
     const pct = f.moldes > 0 ? Math.min(Math.round(f.activos/f.moldes*100),100) : (f.activos>0?100:0);
+    // Color basado en activos30 (en línea real)
     const col = f.activos === 0 && f.moldes > 0 ? "var(--danger)"
-              : f.activos >= f.moldes ? "var(--accent)" : "var(--warn)";
+              : f.activos30 >= f.moldes ? "var(--accent)"
+              : f.activos30 > 0 ? "var(--accent)"
+              : f.activos60 > 0 ? "var(--warn)" : "var(--danger)";
     const estado = f.activos === 0 && f.moldes > 0 ? "Sin arrancar"
-                 : f.activos >= f.moldes ? "Completo" : "Parcial";
+                 : f.activos30 >= f.moldes ? "Completo" : f.activos30 > 0 ? "En línea" : f.activos60 > 0 ? "En pausa" : "Parcial";
+    const activosDisplay = esHoy && tieneTiempo
+      ? `<span style="color:var(--accent);font-weight:700">${f.activos30}</span>${f.activos60>0?`<span style="color:var(--warn);font-size:10px"> +${f.activos60}</span>`:""}`
+      : `<span style="color:${col};font-weight:700">${f.activos}</span>`;
     html += `<tr>
       <td style="font-size:12px">${f.patron}</td>
       <td class="mono">${f.medida}</td>
@@ -2450,14 +2522,16 @@ function renderGanttMoldes() {
         ${({"LEFT":"Izq","RIGHT":"Der","CENTER":"Cen","SIDE":"Side","IZQ":"Izq","DER":"Der","N/A":"—","":"—"}[(f.lado||"").toUpperCase()])||(f.lado||"—")}
       </td>
       <td class="mono" style="text-align:right">${f.moldes||"—"}</td>
-      <td class="mono" style="text-align:right;color:${col};font-weight:700">${f.activos}</td>
+      <td class="mono" style="text-align:right">${activosDisplay}</td>
       <td>
-        <div style="height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:2px">
-          <div style="width:${pct}%;height:100%;background:${col};border-radius:4px;transition:width .4s"></div>
+        <div style="height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:2px;position:relative">
+          ${f.activos60>0?`<div style="position:absolute;width:${Math.min(Math.round(f.activos/f.moldes*100),100)}%;height:100%;background:var(--warn);border-radius:4px"></div>`:''}
+          <div style="position:relative;width:${pct}%;height:100%;background:${col};border-radius:4px;transition:width .4s"></div>
         </div>
         <div style="font-size:9px;color:${col}">${estado} ${f.moldes>0?pct+'%':''}</div>
       </td>
       <td class="mono" style="text-align:right;color:var(--muted)">${f.piezas||"—"}</td>
+      ${esHoy&&tieneTiempo?`<td class="mono" style="text-align:right;font-size:11px;color:${f.ultimoTs&&(ahora-f.ultimoTs)<=MS_30?"var(--accent)":f.ultimoTs&&(ahora-f.ultimoTs)<=MS_60?"var(--warn)":"var(--muted)"}">${tiempoAtras(f.ultimoTs)}</td>`:''}
     </tr>`;
   });
 
@@ -2552,13 +2626,13 @@ function renderGanttMoldes() {
 
   document.getElementById("main-content").innerHTML = html;
 
-  // Auto-refresh cada 30 min cuando esta en esta vista
+  // Auto-refresh cada 5 min para mantener "en línea" actualizado
   if (window._ganttMoldesTimer) clearInterval(window._ganttMoldesTimer);
   window._ganttMoldesTimer = setInterval(() => {
     if (VISTA === "ganttmoldes") {
       fetchSupabase("vaciados").then(vacRaw => { VAC_RAW = vacRaw; renderGanttMoldes(); });
     }
-  }, 30 * 60 * 1000);
+  }, 5 * 60 * 1000);
 }
 
 // ── Modal detalle celda Gantt ─────────────────────────────
