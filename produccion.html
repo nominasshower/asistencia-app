@@ -1395,25 +1395,31 @@ function cargarExcelPlan(inputEl) {
         }
       }
       _excelPlanCargado = resultado;
-      renderComparaPlan(); // re-renderizar con datos
+
+      // ── Mostrar pantalla de carga mientras se guarda en Supabase ────────
+      document.getElementById("main-content").innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                    gap:16px;padding:80px 20px;text-align:center">
+          <div style="font-size:36px">⏳</div>
+          <div style="font-size:15px;font-weight:600;color:var(--text)">Guardando plan en Supabase...</div>
+          <div style="font-size:12px;color:var(--muted)">Procesando ${Object.keys(resultado).length} modelos · espera un momento</div>
+        </div>`;
 
       // ── Guardar TODO el Gantt en Supabase plan_diario ────────
-      const btnGuardar = document.getElementById('btn-guardar-plan');
-      if (btnGuardar) { btnGuardar.textContent = '⏳ Guardando...'; btnGuardar.disabled = true; }
       guardarGanttEnSupabase(wb, toDateStr).then(n => {
-        if (btnGuardar) {
-          btnGuardar.textContent = n > 0 ? '✅ Plan guardado (' + n + ' filas)' : '⚠️ Sin fechas en Gantt';
-          btnGuardar.disabled = false;
+        if (n === 0) {
+          alert('⚠️ No se guardaron filas en Supabase. Revisa que el archivo tenga la fecha de hoy en el encabezado.');
         }
         // Recargar PLAN desde Supabase y re-renderizar comparación
-        fetchSupabase("plan_diario").then(planRaw => {
-          PLAN = planRaw;
-          renderComparaPlan();
-          console.log('[Gantt] plan_diario actualizado:', PLAN.length, 'filas');
-        });
+        return fetchSupabase("plan_diario", {campoFecha:"fecha", asc:true});
+      }).then(planRaw => {
+        PLAN = planRaw;
+        console.log('[Gantt] plan_diario actualizado:', PLAN.length, 'filas');
+        renderComparaPlan();
       }).catch(e => {
-        if (btnGuardar) { btnGuardar.textContent = '❌ Error al guardar'; btnGuardar.disabled = false; }
+        alert('❌ Error al guardar plan: ' + e.message);
         console.error('[Gantt]', e);
+        renderComparaPlan(); // igual mostrar con lo que hay
       });
     } catch(err) {
       alert('Error leyendo Excel: ' + err.message);
