@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planta — Shower Walls</title>
+<style>
+  :root {
+    --bg:      #0f1117;
+    --bg2:     #1a1d27;
+    --border:  #2a2d3a;
+    --text:    #e2e8f0;
+    --muted:   #64748b;
+    --accent:  #22c55e;
+    --accent2: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text);
+         height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Top bar ── */
+  .topbar {
+    height: 52px; flex-shrink: 0;
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0; padding: 0;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 20px; border-right: 1px solid var(--border);
+    height: 100%;
+  }
+  .logo svg { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
+  .logo-text { font-size: 14px; font-weight: 600; line-height: 1.2; }
+  .logo-sub  { font-size: 10px; color: var(--muted); }
+
+  /* ── Nav buttons ── */
+  .nav-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 20px; height: 100%; cursor: pointer;
+    font-size: 13px; font-weight: 500; color: var(--muted);
+    border: none; background: none; border-right: 1px solid var(--border);
+    transition: color .15s, background .15s;
+    white-space: nowrap;
+  }
+  .nav-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .nav-btn:hover { color: var(--text); background: rgba(255,255,255,.04); }
+  .nav-btn.active { color: var(--accent); background: rgba(34,197,94,.07); }
+  .nav-btn.active svg { color: var(--accent); }
+
+  .spacer { flex: 1; }
+
+  /* Reloj en esquina derecha */
+  .clock {
+    padding: 0 20px; font-size: 13px; font-family: 'DM Mono', monospace;
+    color: var(--muted); letter-spacing: .5px;
+  }
+
+  /* ── iframe ── */
+  #frame {
+    flex: 1; width: 100%; border: none; display: block;
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="topbar">
+  <!-- Logo -->
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <div>
+      <div class="logo-text">Shower Walls</div>
+      <div class="logo-sub">Planta</div>
+    </div>
+  </div>
+
+  <!-- Botón: Producción (Resumen Gerencial) -->
+  <button class="nav-btn active" id="btn-produccion" onclick="ir('gerencia','btn-produccion')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>
+    </svg>
+    Producción
+  </button>
+
+  <!-- Botón: Gantt Moldes -->
+  <button class="nav-btn" id="btn-ganttmoldes" onclick="ir('ganttmoldes','btn-ganttmoldes')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12
+               M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+    </svg>
+    Gantt Moldes
+  </button>
+
+  <div class="spacer"></div>
+  <div class="clock" id="clock">--:--:--</div>
+</div>
+
+<!-- iframe que muestra produccion.html en modo embed -->
+<iframe id="frame" src="produccion.html?embed=1&v=gerencia" allow="same-origin"></iframe>
+
+<script>
+  const FRAME = document.getElementById("frame");
+  let vistaActual = "gerencia";
+
+  function ir(vista, btnId) {
+    // Marcar botón activo
+    document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById(btnId).classList.add("active");
+
+    // Si el iframe ya cargó produccion.html, cambiar vista por postMessage (sin recargar)
+    // Si aún no (o si la vista es la misma), no hacer nada innecesario
+    if (vista === vistaActual) return;
+    vistaActual = vista;
+
+    try {
+      FRAME.contentWindow.postMessage({ vista }, "*");
+    } catch(e) {
+      // fallback: recargar iframe con el parámetro
+      FRAME.src = "produccion.html?embed=1&v=" + vista;
+    }
+  }
+
+  // Reloj en tiempo real
+  function tick() {
+    const n = new Date();
+    document.getElementById("clock").textContent =
+      String(n.getHours()).padStart(2,"0") + ":" +
+      String(n.getMinutes()).padStart(2,"0") + ":" +
+      String(n.getSeconds()).padStart(2,"0");
+  }
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>

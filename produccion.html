@@ -4543,6 +4543,30 @@ function guardarFiltros() {
   renderVista(INSP);
 }
 
+// ── Modo embed (para páginas hija tipo planta.html) ──────
+(function aplicarEmbed() {
+  const p = new URLSearchParams(location.search);
+  if (p.get("embed") !== "1") return;
+  // Ocultar sidebar — el main ocupa toda la pantalla
+  document.querySelector(".sidebar").style.display = "none";
+  document.querySelector(".main").style.marginLeft = "0";
+  // Ocultar topbar-right (fechas, botones) — solo título y subtítulo
+  const tr = document.querySelector(".topbar-right");
+  if (tr) tr.style.display = "none";
+  // Navegar a la vista solicitada
+  const v = p.get("v");
+  const vistasValidas = ["gerencia","dash","alertas","tabla","plan","comparaplanes",
+                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque"];
+  if (v && vistasValidas.includes(v)) VISTA = v;
+  // Aceptar mensajes del padre para cambiar vista sin recargar
+  window.addEventListener("message", e => {
+    if (e.data && e.data.vista && vistasValidas.includes(e.data.vista)) {
+      VISTA = e.data.vista;
+      renderVista(INSP);
+    }
+  });
+})();
+
 // ── Init ─────────────────────────────────────────────────
 (function init() {
   const n = new Date();
