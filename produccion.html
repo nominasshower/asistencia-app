@@ -727,7 +727,7 @@ function calcAlertas(data) {
   // ── Alertas gelcoat: por Línea, ≥ UMBRAL_GELCOAT defectos gelcoat hoy ──
   const porLinea = {};
   data.forEach(r => {
-    const linea = r["Linea"] || "—";
+    const linea = normLinea(r["Linea"] || "—");
     const activos = defectosActivos(r["Detalle Defecto"]);
     const dGel = activos.filter(d => clasif(d) === "g");
     if (dGel.length === 0) return;
@@ -789,7 +789,7 @@ function renderDash(data) {
 
   // Por linea
   const lineas = {};
-  data.forEach(r => { const l=r["Linea"]||"—"; lineas[l]=(lineas[l]||0)+1; });
+  data.forEach(r => { const l=normLinea(r["Linea"]||"—"); lineas[l]=(lineas[l]||0)+1; });
   const linArr = Object.entries(lineas).sort((a,b)=>b[1]-a[1]);
   const maxLin = linArr[0]?.[1]||1;
 
@@ -1045,6 +1045,15 @@ function esBases(p) {
 }
 function catPatron(p) {
   return esParedes(p) ? "paredes" : esBases(p) ? "bases" : "accesorios";
+}
+
+// Normaliza línea de producción: Cabina 2 (6,7) → línea física (1,2)
+// assembly_line 6 = Línea 1 Cabina 2 → Línea 1
+// assembly_line 7 = Línea 2 Cabina 2 → Línea 2
+function normLinea(l) {
+  if (l === "6" || l === 6) return "1";
+  if (l === "7" || l === 7) return "2";
+  return l || "—";
 }
 
 // ── Comparar Planes: plan de ayer vs plan de hoy + sistema ───────────────
@@ -3950,7 +3959,7 @@ function renderGerencia(data) {
   // Calidad por línea
   const calLinea = {};
   data.forEach(r => {
-    const l = r["Linea"]||"—";
+    const l = normLinea(r["Linea"]||"—");
     if (!calLinea[l]) calLinea[l] = {a:0,b:0,c:0};
     if (r["Grado"]==="A") calLinea[l].a++;
     else if (r["Grado"]==="B") calLinea[l].b++;
