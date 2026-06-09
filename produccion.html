@@ -2406,6 +2406,25 @@ function renderGanttMoldes() {
     planMap[fk].piezas += parseFloat(r["A Producir"]||0)||0;
   });
 
+  // ── Próxima fecha en plan para cada fk (excluyendo el período actual) ──
+  // Usado para la tabla "activos sin plan": muestra si el modelo está programado otro día
+  const planProxFecha = {}; // fk → fecha más cercana (preferir futuro, si no el pasado más reciente)
+  PLAN.forEach(r => {
+    const f = parsePlanFecha(r["Fecha"]||"");
+    if (!f || (f >= desde && f <= hasta)) return; // ignorar el período actual
+    const ar = normAbrev(r["Modelo"]||""), med = normMedida(r["Medida"]||"");
+    if (!ar) return;
+    const fk = ar + "||" + med;
+    const prev = planProxFecha[fk];
+    if (!prev) { planProxFecha[fk] = f; return; }
+    // Priorizar: fecha futura más cercana; si no hay futura, la pasada más reciente
+    const hayFuturo = prev >= hasta;
+    const esFuturo  = f >= hasta;
+    if (esFuturo && !hayFuturo) { planProxFecha[fk] = f; return; }
+    if (esFuturo && hayFuturo  && f < prev) { planProxFecha[fk] = f; return; }
+    if (!esFuturo && !hayFuturo && f > prev) { planProxFecha[fk] = f; return; }
+  });
+
   // ── Unir plan + activos ────────────────────────────────
   const allKeys = new Set([...Object.keys(planMap), ...Object.keys(moldesActivos)]);
   const filas = [];
@@ -2501,16 +2520,27 @@ function renderGanttMoldes() {
         <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Color</th>
         <th style="text-align:right;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Moldes activos</th>
         <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">TAGs</th>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">En plan</th>
       </tr></thead>
       <tbody>
-      ${filas.filter(f=>f.activos>0&&f.moldes===0).map(f=>`
+      ${filas.filter(f=>f.activos>0&&f.moldes===0).map(f=>{
+        const proxF = planProxFecha[f.fk];
+        const esFuturo = proxF && proxF > hasta;
+        const planCell = proxF
+          ? `<span style="color:${esFuturo?'var(--accent2)':'var(--muted)'}">
+               ${esFuturo?'📅':'📁'} ${proxF}${esFuturo?' <span style="font-size:9px;color:var(--accent2)">(mover acá)</span>':''}
+             </span>`
+          : `<span style="color:var(--danger);font-size:11px">Sin programar</span>`;
+        return `
         <tr style="border-top:1px solid var(--border)">
           <td style="padding:8px;font-size:13px;font-weight:600;color:var(--warn)">${(moldesActivos[f.fk]?.patron)||f.patron}</td>
           <td style="padding:8px;font-family:monospace;font-size:12px">${(moldesActivos[f.fk]?.medida)||f.medida}</td>
           <td style="padding:8px;font-size:12px;color:var(--muted)">${(moldesActivos[f.fk]?.color)||''}</td>
           <td style="padding:8px;text-align:right;font-size:16px;font-weight:700;color:var(--warn)">${f.activos}</td>
           <td style="padding:8px;font-size:10px;color:var(--muted)">${[...(moldesActivos[f.fk]?.tags||[])].slice(0,3).map(t=>{const s=t.replace(/0+$/,'');return s.slice(-6)||t.slice(0,6);}).join(', ')}${f.activos>3?'...':''}</td>
-        </tr>`).join('')}
+          <td style="padding:8px;font-size:11px">${planCell}</td>
+        </tr>`;
+      }).join('')}
       </tbody>
     </table>
   </div>`:''}
