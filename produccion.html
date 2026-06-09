@@ -1030,6 +1030,23 @@ function parsePlanFecha(s) {
   return null;
 }
 
+// ── Categorización global de patrones (usada en todas las vistas) ──────────
+function esParedes(p) {
+  const m = (p||"").toUpperCase();
+  return m.startsWith("WALL")||m.startsWith("HERRINGBONE")||m.startsWith("VERTICAL")||
+         m.startsWith("CHEVRON")||m.startsWith("INTERVAL")||m.startsWith("6X24")||
+         m.startsWith("4X12")||m.startsWith("3X6")||m.startsWith("12X24")||
+         m.startsWith("2X8")||m.startsWith("6X12");
+}
+function esBases(p) {
+  const m = (p||"").toUpperCase();
+  return m.startsWith("BASE")||m.startsWith("ADA")||m.startsWith("DRAIN")||
+         m.startsWith("TINA")||m.startsWith("TRENCH");
+}
+function catPatron(p) {
+  return esParedes(p) ? "paredes" : esBases(p) ? "bases" : "accesorios";
+}
+
 // ── Comparar Planes: plan de ayer vs plan de hoy + sistema ───────────────
 // Plan externo cargado desde Excel (persiste mientras no se recargue la página)
 let _excelPlanCargado = null; // null = no cargado, {} = datos parseados
@@ -2419,10 +2436,8 @@ function renderGanttMoldes() {
   const catPlan = {paredes:0, bases:0, accesorios:0};
   const catActivos30 = {paredes:0, bases:0, accesorios:0}; // en línea (<30 min)
   const catActivos60 = {paredes:0, bases:0, accesorios:0}; // en pausa (30-60 min)
-  const esParedes = p => { const m=(p||"").toUpperCase(); return m.startsWith("WALL")||m.startsWith("HERRINGBONE")||m.startsWith("VERTICAL")||m.startsWith("CHEVRON")||m.startsWith("INTERVAL")||m.startsWith("6X24")||m.startsWith("4X12")||m.startsWith("3X6")||m.startsWith("12X24")||m.startsWith("2X8")||m.startsWith("6X12"); };
-  const esBases   = p => { const m=(p||"").toUpperCase(); return m.startsWith("BASE")||m.startsWith("ADA")||m.startsWith("DRAIN")||m.startsWith("TINA")||m.startsWith("TRENCH"); };
   filas.forEach(f => {
-    const cat = esParedes(f.patron)?'paredes':esBases(f.patron)?'bases':'accesorios';
+    const cat = catPatron(f.patron);
     catPlan[cat] += f.moldes;
     catActivos30[cat] += f.activos30;
     catActivos60[cat] += f.activos60;
@@ -2496,16 +2511,14 @@ function renderGanttMoldes() {
     // Plan piezas por categoría
     const planPzasCat = {paredes:0,bases:0,accesorios:0};
     filasConPlan.forEach(f=>{
-      const cat=esParedes(f.patron)?'paredes':esBases(f.patron)?'bases':'accesorios';
-      planPzasCat[cat]+=f.piezas;
+      planPzasCat[catPatron(f.patron)]+=f.piezas;
     });
     // Real vaciado por categoría (del período)
     const realVacCat = {paredes:0,bases:0,accesorios:0};
     VAC_RAW.forEach(r=>{
       const fd=(r["Fecha"]||"").slice(0,10);
       if(fd<desde||fd>hasta) return;
-      const cat=esParedes(r["Patron"]||"")?'paredes':esBases(r["Patron"]||"")?'bases':'accesorios';
-      realVacCat[cat]++;
+      realVacCat[catPatron(r["Patron"]||"")]++;
     });
     const cats=[
       {label:'PAREDES',  color:'var(--accent2)', k:'paredes',
@@ -3900,33 +3913,22 @@ function renderGerencia(data) {
     ? `<span style="color:var(--accent)">✓ Sin alertas activas</span>`
     : `<span style="color:var(--danger)">⚠ ${alertasMolde.length} molde${alertasMolde.length!==1?"s":""} · ${alertasGelcoat.length} línea${alertasGelcoat.length!==1?"s":""} gelcoat</span>`;
 
-  // ── PAREDES vs BASES ──────────────────────────────────────
-  const planParedes = PLAN.filter(r => {
+  // ── PAREDES / BASES / ACCESORIOS ─────────────────────────────────────────
+  // Usa esParedes()/esBases()/catPatron() globales — misma lógica que Gantt Moldes
+  const planPorCat = {paredes:0, bases:0, accesorios:0};
+  PLAN.forEach(r => {
     const f = parsePlanFecha(r["Fecha"]);
-    if (!f || f < desde || f > hasta) return false;
-    return (r["Modelo"]||"").toUpperCase().includes("WALL") ||
-           (r["Tipo"]||"").toUpperCase().includes("PARED");
-  }).reduce((s,r)=>s+(parseInt(r["A Producir"]||0)||0),0);
+    if (!f || f < desde || f > hasta) return;
+    const pzas = parseInt(r["A Producir"]||0)||0;
+    planPorCat[catPatron(r["Modelo"]||"")] += pzas;
+  });
+  const planParedes    = planPorCat.paredes;
+  const planBases      = planPorCat.bases;
+  const planAccesorios = planPorCat.accesorios;
 
-  const planBases = PLAN.filter(r => {
-    const f = parsePlanFecha(r["Fecha"]);
-    if (!f || f < desde || f > hasta) return false;
-    const m = (r["Modelo"]||"").toUpperCase();
-    return m.includes("BASE") || m.includes("DRAIN") || m.includes("ADA") ||
-           (r["Tipo"]||"").toUpperCase().includes("PISO");
-  }).reduce((s,r)=>s+(parseInt(r["A Producir"]||0)||0),0);
-
-  const vacParedes    = vacPeriodo.filter(r => (r["Tipo"]||"").trim() === "Pared").length;
-  const vacBases      = vacPeriodo.filter(r => { const t=(r["Tipo"]||"").trim(); return t==="Piso"||t==="Base"||t==="Bases"; }).length;
-  const vacAccesorios = vacPeriodo.filter(r => (r["Tipo"]||"").trim() === "Accesorios").length;
-
-  const planAccesorios = PLAN.filter(r => {
-    const f = parsePlanFecha(r["Fecha"]);
-    if (!f || f < desde || f > hasta) return false;
-    const m = (r["Modelo"]||"").toUpperCase();
-    return m.includes("WINDOWSILL") || m.includes("RAMP") || m.includes("COVER") ||
-           (r["Tipo"]||"").toUpperCase().includes("ACCES");
-  }).reduce((s,r)=>s+(parseInt(r["A Producir"]||0)||0),0);
+  const vacParedes    = vacPeriodo.filter(r => esParedes(r["Patron"]||"")).length;
+  const vacBases      = vacPeriodo.filter(r => esBases(r["Patron"]||"")).length;
+  const vacAccesorios = vacPeriodo.filter(r => !esParedes(r["Patron"]||"") && !esBases(r["Patron"]||"")).length;
 
   const cumplP = planParedes    > 0 ? Math.round(vacParedes   *100/planParedes)    : null;
   const cumplB = planBases      > 0 ? Math.round(vacBases     *100/planBases)      : null;
