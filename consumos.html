@@ -208,6 +208,7 @@ const COL_MAP_C = {
   precios_materiales:{anio_mes:'Año-Mes',material:'Material',precio_usd_kg:'Precio USD/kg',cantidad_kg:'Cant. Total (kg)',total_usd:'Total USD',oc_count:'OC Count'},
   consumos_bases:    {fecha:'Fecha',modelo:'Modelo',medida:'Medida',peso_kg:'Peso Kg',linea:'Linea'},
   ref_peso_bases:    {modelo:'Modelo',medida:'Medida',peso_prom_kg:'Peso Prom Kg',n_mediciones:'N Mediciones'},
+  fisico_sw:         {fecha:'Fecha',linea:'Linea',gelcoat_kg:'Gelcoat (kg)',butanox_kg:'Butanox (kg)',resina_kg:'Resina (kg)',norox_kg:'Norox (kg)',marmolina_kg:'Marmolina (kg)',observaciones:'Observaciones'},
 };
 
 async function fetchSupabase(tabla, {campoFecha='fecha',limit=100000}={}) {
@@ -1407,7 +1408,7 @@ async function cargar(){
       fetchSupabase("precios_materiales",{campoFecha:"anio_mes"}),
       fetchSupabase("consumos_bases"),
       fetchSupabase("ref_peso_bases",{campoFecha:"modelo"}),
-      fetchSheetRaw(KPIS_SHEET_ID,"FISICO_SW").catch(()=>[]),  // manual — sigue en Sheets
+      fetchSupabase("fisico_sw"),                                // físico — Supabase
     ]);
     TEORICO_RAW    = r0.status==="fulfilled" ? r0.value : [];
     FAB_RAW        = r1.status==="fulfilled" ? r1.value : [];
