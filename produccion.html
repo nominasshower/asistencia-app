@@ -2428,6 +2428,15 @@ function renderGanttMoldes() {
   filas.sort((a,b) => (b.moldes - a.moldes) || (b.activos - a.activos));
   const filasConPlan = filas.filter(f => f.moldes > 0);
 
+  // Piezas vaciadas por fila (patron+medida) en el período
+  const vacPorFila = {};
+  VAC_RAW.forEach(r => {
+    const fd = (r["Fecha"]||"").slice(0,10);
+    if (fd < desde || fd > hasta) return;
+    const fk = normAbrev(r["Patron"]||"") + "||" + normMedida(r["Medida"]||"");
+    vacPorFila[fk] = (vacPorFila[fk]||0) + 1;
+  });
+
   const totalPlanMoldes = filas.reduce((s,f)=>s+f.moldes,0);
   const totalActivos    = filas.reduce((s,f)=>s+f.activos,0);
   const maxMoldes = Math.max(...filas.map(f=>Math.max(f.moldes, f.activos)), 1);
@@ -2583,6 +2592,7 @@ function renderGanttMoldes() {
       <th style="text-align:right">Activos</th>
       <th style="min-width:140px">Progreso</th>
       <th style="text-align:right">Plan pzas</th>
+      <th style="text-align:right">Producidas</th>
       ${esHoy&&tieneTiempo?'<th style="text-align:right">Último vac.</th>':''}
     </tr></thead><tbody>`;
 
@@ -2614,6 +2624,14 @@ function renderGanttMoldes() {
         <div style="font-size:9px;color:${col}">${estado} ${f.moldes>0?pct+'%':''}</div>
       </td>
       <td class="mono" style="text-align:right;color:var(--muted)">${f.piezas||"—"}</td>
+      ${(()=>{
+        const vac = vacPorFila[f.fk]||0;
+        const col = vac===0 ? "var(--muted)"
+                  : f.piezas>0 && vac>=f.piezas ? "var(--accent)"
+                  : "var(--text)";
+        const pct = f.piezas>0 ? ` <span style="font-size:9px;color:${col}">(${Math.round(vac/f.piezas*100)}%)</span>` : "";
+        return `<td class="mono" style="text-align:right;color:${col};font-weight:${vac>0?'600':'400'}">${vac>0?vac:"—"}${pct}</td>`;
+      })()}
       ${esHoy&&tieneTiempo?`<td class="mono" style="text-align:right;font-size:11px;color:${f.ultimoTs&&(ahora-f.ultimoTs)<=MS_30?"var(--accent)":f.ultimoTs&&(ahora-f.ultimoTs)<=MS_60?"var(--warn)":"var(--muted)"}">${tiempoAtras(f.ultimoTs)}</td>`:''}
     </tr>`;
   });
