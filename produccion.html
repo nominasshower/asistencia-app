@@ -2491,50 +2491,68 @@ function renderGanttMoldes() {
     </table>
   </div>`:''}
 
-  <!-- Totales resumen -->
+  <!-- Totales por categoría -->
   ${(()=>{
-    const totPlanMoldes  = filasConPlan.reduce((s,f)=>s+f.moldes,0);
-    const totActivos     = filas.reduce((s,f)=>s+f.activos,0);
-    const totPlanPzas    = filasConPlan.reduce((s,f)=>s+f.piezas,0);
-    const totRealVac     = VAC_RAW.filter(r=>(r["Fecha"]||"").slice(0,10)>=desde&&(r["Fecha"]||"").slice(0,10)<=hasta).length;
-    const pctMoldes      = totPlanMoldes>0?Math.min(Math.round(totActivos/totPlanMoldes*100),999):0;
-    const pctPzas        = totPlanPzas>0?Math.min(Math.round(totRealVac/totPlanPzas*100),999):0;
-    const colM = pctMoldes>=100?"var(--accent)":pctMoldes>=50?"var(--warn)":"var(--danger)";
-    const colP = pctPzas>=100?"var(--accent)":pctPzas>=50?"var(--warn)":"var(--danger)";
-    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Moldes</div>
-          <div style="display:flex;align-items:baseline;gap:8px">
-            <span style="font-size:22px;font-weight:700">${Math.round(totPlanMoldes)}</span>
-            <span style="font-size:11px;color:var(--muted)">plan</span>
-            <span style="font-size:10px;color:var(--muted)">·</span>
-            <span style="font-size:22px;font-weight:700;color:${colM}">${totActivos}</span>
-            <span style="font-size:11px;color:var(--muted)">activos</span>
-            <span style="font-size:12px;color:${colM};font-weight:600">(${pctMoldes}%)</span>
+    // Plan piezas por categoría
+    const planPzasCat = {paredes:0,bases:0,accesorios:0};
+    filasConPlan.forEach(f=>{
+      const cat=esParedes(f.patron)?'paredes':esBases(f.patron)?'bases':'accesorios';
+      planPzasCat[cat]+=f.piezas;
+    });
+    // Real vaciado por categoría (del período)
+    const realVacCat = {paredes:0,bases:0,accesorios:0};
+    VAC_RAW.forEach(r=>{
+      const fd=(r["Fecha"]||"").slice(0,10);
+      if(fd<desde||fd>hasta) return;
+      const cat=esParedes(r["Patron"]||"")?'paredes':esBases(r["Patron"]||"")?'bases':'accesorios';
+      realVacCat[cat]++;
+    });
+    const cats=[
+      {label:'PAREDES',  color:'var(--accent2)', k:'paredes',
+       planM:catPlan.paredes, actM:catActivos30.paredes+catActivos60.paredes},
+      {label:'BASES',    color:'var(--warn)',    k:'bases',
+       planM:catPlan.bases,   actM:catActivos30.bases+catActivos60.bases},
+      {label:'ACCESORIOS',color:'#a78bfa',       k:'accesorios',
+       planM:catPlan.accesorios, actM:catActivos30.accesorios+catActivos60.accesorios},
+    ];
+    const card = ({label,color,k,planM,actM}) => {
+      const planP=Math.round(planPzasCat[k]), realV=realVacCat[k];
+      const pM=planM>0?Math.min(Math.round(actM/planM*100),999):0;
+      const pP=planP>0?Math.min(Math.round(realV/planP*100),999):0;
+      const cM=pM>=100?"var(--accent)":pM>=50?"var(--warn)":"var(--danger)";
+      const cP=pP>=100?"var(--accent)":pP>=50?"var(--warn)":"var(--danger)";
+      return `<div style="background:var(--bg2);border:1px solid ${color}33;border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:600;color:${color};text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">${label}</div>
+        <div style="display:flex;gap:12px">
+          <div style="flex:1">
+            <div style="font-size:9px;color:var(--muted);margin-bottom:3px">MOLDES</div>
+            <div style="display:flex;align-items:baseline;gap:5px">
+              <span style="font-size:20px;font-weight:700">${Math.round(planM)}</span>
+              <span style="font-size:10px;color:var(--muted)">plan</span>
+              <span style="font-size:20px;font-weight:700;color:${cM}">${actM}</span>
+              <span style="font-size:10px;color:${cM};font-weight:600">${pM}%</span>
+            </div>
+            <div style="height:4px;background:var(--bg3);border-radius:2px;margin-top:4px;overflow:hidden">
+              <div style="width:${Math.min(pM,100)}%;height:100%;background:${cM};border-radius:2px"></div>
+            </div>
+          </div>
+          <div style="width:1px;background:var(--border)"></div>
+          <div style="flex:1">
+            <div style="font-size:9px;color:var(--muted);margin-bottom:3px">PIEZAS</div>
+            <div style="display:flex;align-items:baseline;gap:5px">
+              <span style="font-size:20px;font-weight:700">${planP}</span>
+              <span style="font-size:10px;color:var(--muted)">plan</span>
+              <span style="font-size:20px;font-weight:700;color:${cP}">${realV}</span>
+              <span style="font-size:10px;color:${cP};font-weight:600">${pP}%</span>
+            </div>
+            <div style="height:4px;background:var(--bg3);border-radius:2px;margin-top:4px;overflow:hidden">
+              <div style="width:${Math.min(pP,100)}%;height:100%;background:${cP};border-radius:2px"></div>
+            </div>
           </div>
         </div>
-        <div style="width:80px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
-          <div style="width:${Math.min(pctMoldes,100)}%;height:100%;background:${colM};border-radius:3px"></div>
-        </div>
-      </div>
-      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Piezas</div>
-          <div style="display:flex;align-items:baseline;gap:8px">
-            <span style="font-size:22px;font-weight:700">${Math.round(totPlanPzas)}</span>
-            <span style="font-size:11px;color:var(--muted)">plan</span>
-            <span style="font-size:10px;color:var(--muted)">·</span>
-            <span style="font-size:22px;font-weight:700;color:${colP}">${totRealVac}</span>
-            <span style="font-size:11px;color:var(--muted)">vaciadas</span>
-            <span style="font-size:12px;color:${colP};font-weight:600">(${pctPzas}%)</span>
-          </div>
-        </div>
-        <div style="width:80px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
-          <div style="width:${Math.min(pctPzas,100)}%;height:100%;background:${colP};border-radius:3px"></div>
-        </div>
-      </div>
-    </div>`;
+      </div>`;
+    };
+    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">${cats.map(card).join("")}</div>`;
   })()}
 
   <div class="table-wrap">
