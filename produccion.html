@@ -1386,11 +1386,35 @@ async function guardarGanttEnSupabase(wb, toDateStr) {
       if (r.ok) total += chunk.length;
     }
     console.log('[Gantt] Guardado en Supabase plan_diario:', total, 'filas,', fechas.length, 'fechas');
+    congelarPlanHoy(registros).catch(e=>console.warn('[Congelado]', e));
     return total;
   } catch(e) {
     console.error('[Gantt] Error guardando en Supabase:', e);
     return 0;
   }
+}
+
+// ── Foto del plan de HOY → plan_congelado (solo la primera del día) ──
+// El gantt vivo se mueve al reprogramar; la foto preserva lo planeado cada
+// mañana para medir cumplimiento histórico real.
+async function congelarPlanHoy(registros) {
+  const n = new Date();
+  const hoy = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  const hdr = {apikey:SUP_KEY, Authorization:`Bearer ${SUP_KEY}`};
+  // ¿ya hay foto de hoy?
+  const r0 = await fetch(`${SUP_URL}/rest/v1/plan_congelado?select=id&fecha=eq.${hoy}&limit=1`, {headers:hdr});
+  if (!r0.ok) { console.warn('[Congelado] tabla plan_congelado no disponible'); return; }
+  if ((await r0.json()).length) { console.log('[Congelado] ya hay foto de', hoy, '— intacta'); return; }
+  const filas = registros.filter(r => r.fecha === hoy);
+  if (!filas.length) { console.log('[Congelado] el plan subido no tiene filas para', hoy); return; }
+  for (let i = 0; i < filas.length; i += 500) {
+    await fetch(`${SUP_URL}/rest/v1/plan_congelado`, {
+      method:'POST',
+      headers:{...hdr, 'Content-Type':'application/json', Prefer:'return=minimal'},
+      body: JSON.stringify(filas.slice(i, i+500))
+    });
+  }
+  console.log('[Congelado] foto de', hoy, 'guardada —', filas.length, 'filas');
 }
 
 // ── Parsear Excel cargado con SheetJS ─────────────────────
