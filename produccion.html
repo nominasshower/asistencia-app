@@ -297,24 +297,45 @@ const GAS_WRITE_URL = "https://script.google.com/macros/s/AKfycbxk5nKkN1Dq0HGz99
 // Mapeo Supabase → nombres de columna originales (compatibilidad sin tocar el resto del código)
 const COL_MAP = {
   inspeccion:        {fecha:'Fecha',sku:'SKU',tag:'TAG',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',linea:'Linea',grado:'Grado',no_defectos:'No. Defectos',detalle_defecto:'Detalle Defecto',modulo_inspeccion:'Modulo Inspeccion'},
-  vaciados:          {fecha:'Fecha',tag:'TAG',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',linea:'Linea',po_cliente:'PO Cliente',grado_inspeccion:'Grado Inspeccion',es_grado_c:'Es Grado C',es_gelcoat:'Es Gelcoat'},
+  vaciados:          {fecha:'Fecha',tag:'TAG',sku:'SKU',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',linea:'Linea',po_cliente:'PO Cliente',grado_inspeccion:'Grado Inspeccion',es_grado_c:'Es Grado C',es_gelcoat:'Es Gelcoat'},
   plan_diario:       {fecha:'Fecha',odoo:'Odoo',cliente:'Cliente',compromiso:'Compromiso',medida:'Medida',modelo:'Modelo',lado:'Lado',color:'Color',acabado:'Acabado',total:'Total',moldes:'Moldes',a_producir:'A Producir'},
+  plan_congelado:    {fecha:'Fecha',odoo:'Odoo',cliente:'Cliente',compromiso:'Compromiso',medida:'Medida',modelo:'Modelo',lado:'Lado',color:'Color',acabado:'Acabado',total:'Total',moldes:'Moldes',a_producir:'A Producir'},
   liberado:          {fecha_liberado:'Fecha Liberado',sku:'SKU',tag:'TAG',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',linea:'Linea',po_cliente:'PO Cliente',orden_trabajo:'Orden Trabajo',grado_inspeccion:'Grado Inspeccion'},
   producto_terminado:{sku:'SKU',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',fecha_liberacion:'Fecha Liberacion',po_cliente:'PO Cliente'},
   empaque:           {sku:'SKU',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',fecha_liberacion:'Fecha Liberacion',fecha_empaque:'Fecha Empaque',po_cliente:'PO Cliente'},
   ventas:            {fecha:'Fecha',fecha_entrega:'Fecha Entrega',pedido:'Pedido',cliente:'Cliente',sku:'SKU',producto:'Producto',cantidad:'Cantidad',precio_unit:'Precio Unit',subtotal:'Subtotal',moneda:'Moneda',estado:'Estado',entregado:'Entregado',pendiente:'Pendiente',linea_odoo:'Línea Odoo'},
 };
 
-async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',limit=50000,asc=false}={}) {
-  let params = `select=*&limit=${limit}&order=${campoFecha}.${asc?'asc':'desc'}`;
-  if (desde) params += `&${campoFecha}=gte.${desde}`;
-  if (hasta) params += `&${campoFecha}=lte.${hasta}`;
-  const r = await fetch(`${SUP_URL}/rest/v1/${tabla}?${params}`, {
-    headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
-             'Range-Unit':'items','Range':`0-${limit-1}`}
-  });
-  if (!r.ok) throw new Error(`Supabase HTTP ${r.status} — ${tabla}`);
-  const rows = await r.json();
+async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',limit=200000,asc=false}={}) {
+  // Supabase regresa máximo ~1000 filas por request — hay que paginar SIEMPRE.
+  let filtros = '';
+  if (desde) filtros += `&${campoFecha}=gte.${desde}`;
+  if (hasta) filtros += `&${campoFecha}=lte.${hasta}`;
+  const dir = asc ? 'asc' : 'desc';
+  // Orden secundario por id = paginación estable (sin filas duplicadas/perdidas entre páginas)
+  let url = `${SUP_URL}/rest/v1/${tabla}?select=*&order=${campoFecha}.${dir},id.${dir}${filtros}`;
+  const PG = 1000;
+  const hdr = off => ({apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
+                       'Range-Unit':'items','Range':`${off}-${off+PG-1}`,'Prefer':'count=exact'});
+  // Primera página + total real
+  let r0 = await fetch(url, {headers:hdr(0)});
+  if (r0.status === 400) {
+    // tabla sin columna id — reintentar sin orden secundario
+    url = `${SUP_URL}/rest/v1/${tabla}?select=*&order=${campoFecha}.${dir}${filtros}`;
+    r0 = await fetch(url, {headers:hdr(0)});
+  }
+  if (!r0.ok && r0.status !== 206) throw new Error(`Supabase HTTP ${r0.status} — ${tabla}`);
+  let rows = await r0.json();
+  const total = Math.min(parseInt((r0.headers.get('content-range')||'').split('/')[1])||rows.length, limit);
+  // Páginas restantes en lotes paralelos de 8
+  const offs = [];
+  for (let o = PG; o < total; o += PG) offs.push(o);
+  for (let i = 0; i < offs.length; i += 8) {
+    const chunks = await Promise.all(offs.slice(i, i+8).map(o =>
+      fetch(url, {headers:hdr(o)}).then(r => (r.ok || r.status===206) ? r.json() : [])
+    ));
+    chunks.forEach(c => { rows = rows.concat(c); });
+  }
   const map = COL_MAP[tabla] || {};
   return rows.map(row => {
     const out = {};
@@ -469,6 +490,7 @@ let INSP      = [];
 let VAC_RAW   = [];   // vaciado completo sin filtrar
 let VACIADO   = {};   // map TAG → última fecha vaciado
 let PLAN      = [];
+let PLAN_FROZEN = []; // foto diaria del plan (plan_congelado) — para cumplimiento histórico
 let SKU_INSP  = {};   // map SKU
 let SKU_SOLO_EXCLUIDOS = new Set(); // SKUs con solo defectos operativos → {grade, fechaInsp} — todo el año
 let VENTAS_RAW = [];  // pedidos Odoo (hoja VENTAS)
@@ -533,20 +555,25 @@ async function cargar() {
   document.getElementById("btn-wa").style.display = "none";
 
   try {
+    // Piso de descarga: 120 días atrás (o el "desde" del usuario si es más viejo)
+    // — evita bajar todo el histórico en cada carga.
+    const piso120 = new Date(Date.now() - 120*864e5).toISOString().slice(0,10);
+    const pisoFetch = (desde && desde < piso120) ? desde : piso120;
     const [inspRaw, vacRaw, planRaw] = await Promise.all([
-      fetchSupabase("inspeccion"),
-      fetchSupabase("vaciados"),
+      fetchSupabase("inspeccion", {desde: pisoFetch}),
+      fetchSupabase("vaciados",   {desde: pisoFetch}),
       fetchSupabase("plan_diario", {campoFecha:"fecha", asc:true}),
     ]);
     PLAN    = planRaw;
     VAC_RAW = vacRaw;
 
     // Tablas de seguimiento — no criticas
-    [LIB_RAW, PT_RAW, EMP_RAW, VENTAS_RAW] = await Promise.all([
+    [LIB_RAW, PT_RAW, EMP_RAW, VENTAS_RAW, PLAN_FROZEN] = await Promise.all([
       fetchSupabase("liberado",{campoFecha:"fecha_liberado"}).catch(()=>[]),
       fetchSupabase("producto_terminado",{campoFecha:"fecha_liberacion"}).catch(()=>[]),
       fetchSupabase("empaque",{campoFecha:"fecha_empaque"}).catch(()=>[]),
       fetchSupabase("ventas").catch(()=>[]),
+      fetchSupabase("plan_congelado",{campoFecha:"fecha",asc:true}).catch(()=>[]),
     ]);
 
     // SKU → {grade, fechaInsp} de todo el año (inspRaw sin filtrar)
@@ -2752,7 +2779,12 @@ function renderGanttMoldes() {
   if (window._ganttMoldesTimer) clearInterval(window._ganttMoldesTimer);
   window._ganttMoldesTimer = setInterval(() => {
     if (VISTA === "ganttmoldes") {
-      fetchSupabase("vaciados").then(vacRaw => { VAC_RAW = vacRaw; renderGanttMoldes(); });
+      // Solo refrescar los últimos 2 días y fusionar (no re-bajar todo el histórico)
+      const corte = new Date(Date.now() - 2*864e5).toISOString().slice(0,10);
+      fetchSupabase("vaciados", {desde: corte}).then(recientes => {
+        VAC_RAW = VAC_RAW.filter(r => (r["Fecha"]||"").slice(0,10) < corte).concat(recientes);
+        renderGanttMoldes();
+      }).catch(()=>{});
     }
   }, 5 * 60 * 1000);
 }
@@ -3315,8 +3347,17 @@ function renderPlan() {
   });
 
   // ── Plan agrupado por fecha+SKU (construido desde campos del plan) ──
+  // Días PASADOS con foto congelada usan plan_congelado (histórico real);
+  // HOY y días sin foto usan el gantt vivo (editable durante el día).
+  const _hoyLocal = (n => `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`)(new Date());
+  const _diasFrozenPlan = new Set(
+    PLAN_FROZEN.map(r => parsePlanFecha(r["Fecha"])).filter(f => f && f < _hoyLocal)
+  );
+  const PLAN_FUENTE = PLAN_FROZEN.filter(r => _diasFrozenPlan.has(parsePlanFecha(r["Fecha"]))).concat(
+    PLAN.filter(r => !_diasFrozenPlan.has(parsePlanFecha(r["Fecha"])))
+  );
   const planGrupos = {};
-  PLAN.forEach(r => {
+  PLAN_FUENTE.forEach(r => {
     const fecha = parsePlanFecha(r["Fecha"]);
     if (!fecha || fecha < desde || fecha > hasta) return;
     const modelo = r["PATRON"] || r["Modelo"] || "";
@@ -3907,31 +3948,29 @@ function renderGerencia(data) {
   // Por línea — vaciado
   const vacPorLinea = {};
   vacPeriodo.forEach(r => {
-    const l = r["Linea"] || r["linea"] || "—";
+    const l = normLinea(r["Linea"] || r["linea"] || "—");
     vacPorLinea[l] = (vacPorLinea[l]||0) + 1;
   });
 
-  // Plan del período
+  // Plan del período — días PASADOS con foto congelada (plan_congelado) usan
+  // la foto (histórico real); HOY y días sin foto usan el gantt vivo.
+  const hoyLocalG = (n => `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`)(new Date());
+  const diasFrozen = new Set();
   const planGrupos = {};
+  PLAN_FROZEN.forEach(r => {
+    const fecha = parsePlanFecha(r["Fecha"]);
+    if (!fecha || fecha < desde || fecha > hasta || fecha >= hoyLocalG) return;
+    diasFrozen.add(fecha);
+    planGrupos[fecha] = (planGrupos[fecha]||0) + (parseInt(r["A Producir"]||0)||0);
+  });
   PLAN.forEach(r => {
     const fecha = parsePlanFecha(r["Fecha"]);
-    if (!fecha || fecha < desde || fecha > hasta) return;
+    if (!fecha || fecha < desde || fecha > hasta || diasFrozen.has(fecha)) return;
     planGrupos[fecha] = (planGrupos[fecha]||0) + (parseInt(r["A Producir"]||r["A PRODUCIR"]||0)||0);
   });
   const totalPlan = Object.values(planGrupos).reduce((s,v)=>s+v,0);
 
-  // Buenos A+B del período (cruzando vaciado con inspección)
-  let buenosVac = 0;
-  vacPeriodo.forEach(r => {
-    const sku = (r["SKU"]||"").trim().toUpperCase();
-    const insp = SKU_INSP[sku];
-    if (insp && (insp.grade === "A" || insp.grade === "B")) buenosVac++;
-  });
-
-  const cumplPlan = totalPlan > 0 ? Math.round(totalVac * 100 / totalPlan) : null;
-  const cumplBuen = totalPlan > 0 ? Math.round(buenosVac * 100 / totalPlan) : null;
-
-  // Vaciado por día (últimos 7 días del rango)
+  // Vaciado por día
   const vacPorDia = {};
   vacPeriodo.forEach(r => {
     const d = (r["Fecha"]||"").slice(0,10);
@@ -3939,6 +3978,30 @@ function renderGerencia(data) {
   });
   const diasOrden = Object.keys(vacPorDia).sort();
   const maxDia = Math.max(...Object.values(vacPorDia), 1);
+
+  // El Gantt vigente MUEVE el plan de días pasados al reprogramar → días sin
+  // plan (o con plan residual: vaciado > 3x plan) no se pueden comparar.
+  // Días con foto congelada SIEMPRE son comparables.
+  const diasConPlan = new Set(Object.keys(planGrupos).filter(f =>
+    planGrupos[f] > 0 && (diasFrozen.has(f) || (vacPorDia[f]||0) <= planGrupos[f]*3)
+  ));
+  const enDiaConPlan = r => diasConPlan.has((r["Fecha"]||"").slice(0,10));
+  const vacConPlan = vacPeriodo.filter(enDiaConPlan);
+  const planComparable = [...diasConPlan].reduce((s,f)=>s+planGrupos[f],0);
+
+  // Buenos A+B del período (cruzando vaciado con inspección)
+  let buenosVac = 0, buenosConPlan = 0;
+  vacPeriodo.forEach(r => {
+    const sku = (r["SKU"]||"").trim().toUpperCase();
+    const insp = SKU_INSP[sku];
+    if (insp && (insp.grade === "A" || insp.grade === "B")) {
+      buenosVac++;
+      if (enDiaConPlan(r)) buenosConPlan++;
+    }
+  });
+
+  const cumplPlan = planComparable > 0 ? Math.round(vacConPlan.length * 100 / planComparable) : null;
+  const cumplBuen = planComparable > 0 ? Math.round(buenosConPlan * 100 / planComparable) : null;
 
   // Piezas por molde (eficiencia)
   const eficiencia = moldesActivos > 0 ? (totalVac / moldesActivos).toFixed(1) : "—";
@@ -3982,19 +4045,23 @@ function renderGerencia(data) {
   // ── PAREDES / BASES / ACCESORIOS ─────────────────────────────────────────
   // Usa esParedes()/esBases()/catPatron() globales — misma lógica que Gantt Moldes
   const planPorCat = {paredes:0, bases:0, accesorios:0};
-  PLAN.forEach(r => {
+  const acumPlanCat = (rows, saltarFrozen) => rows.forEach(r => {
     const f = parsePlanFecha(r["Fecha"]);
     if (!f || f < desde || f > hasta) return;
-    const pzas = parseInt(r["A Producir"]||0)||0;
-    planPorCat[catPatron(r["Modelo"]||"")] += pzas;
+    if (saltarFrozen && diasFrozen.has(f)) return;  // día congelado → ignora gantt vivo
+    if (!diasConPlan.has(f)) return; // solo días comparables (mismo criterio que % cumplimiento)
+    planPorCat[catPatron(r["Modelo"]||"")] += parseInt(r["A Producir"]||0)||0;
   });
+  acumPlanCat(PLAN_FROZEN, false);
+  acumPlanCat(PLAN, true);
   const planParedes    = planPorCat.paredes;
   const planBases      = planPorCat.bases;
   const planAccesorios = planPorCat.accesorios;
 
-  const vacParedes    = vacPeriodo.filter(r => esParedes(r["Patron"]||"")).length;
-  const vacBases      = vacPeriodo.filter(r => esBases(r["Patron"]||"")).length;
-  const vacAccesorios = vacPeriodo.filter(r => !esParedes(r["Patron"]||"") && !esBases(r["Patron"]||"")).length;
+  // Solo días con plan — mismo criterio que % cumplimiento
+  const vacParedes    = vacConPlan.filter(r => esParedes(r["Patron"]||"")).length;
+  const vacBases      = vacConPlan.filter(r => esBases(r["Patron"]||"")).length;
+  const vacAccesorios = vacConPlan.filter(r => !esParedes(r["Patron"]||"") && !esBases(r["Patron"]||"")).length;
 
   const cumplP = planParedes    > 0 ? Math.round(vacParedes   *100/planParedes)    : null;
   const cumplB = planBases      > 0 ? Math.round(vacBases     *100/planBases)      : null;
@@ -4042,7 +4109,7 @@ function renderGerencia(data) {
     <div class="metric" style="grid-column:span 2;position:relative;overflow:hidden">
       <div class="metric-label">% Cumplimiento producción</div>
       <div style="font-size:48px;font-weight:700;line-height:1;color:${colCumpl(cumplPlan)}">${cumplPlan!==null?cumplPlan+"%":"—"}</div>
-      <div class="metric-sub">${totalVac.toLocaleString()} vaciadas de ${totalPlan.toLocaleString()} planeadas</div>
+      <div class="metric-sub">${vacConPlan.length.toLocaleString()} vaciadas de ${planComparable.toLocaleString()} planeadas${diasConPlan.size < diasOrden.length ? ` · ${diasConPlan.size} día${diasConPlan.size!==1?"s":""} con plan` : ""}</div>
       <div style="margin-top:10px;height:5px;background:var(--bg3);border-radius:3px">
         <div style="width:${Math.min(cumplPlan||0,100)}%;height:100%;background:${colCumpl(cumplPlan)};border-radius:3px;transition:width .6s"></div>
       </div>
@@ -4103,14 +4170,17 @@ function renderGerencia(data) {
         ${diasOrden.map(d=>{
           const vac = vacPorDia[d]||0;
           const plan = planGrupos[d]||0;
-          const pctD = plan>0?Math.round(vac*100/plan):null;
+          // Plan residual (el Gantt movió el plan del día a otra fecha): si lo
+          // vaciado supera 3x el plan, el plan de ese día ya no es confiable.
+          const planValido = plan > 0 && vac <= plan*3;
+          const pctD = planValido ? Math.round(vac*100/plan) : null;
           const color = pctD===null?"var(--accent2)":colCumpl(pctD);
           return `<div>
             <div style="display:flex;justify-content:space-between;margin-bottom:3px">
               <span style="font-size:11px;color:var(--muted)">${d}</span>
               <span style="font-size:11px;font-family:'DM Mono',monospace">
                 <span style="color:${color}">${vac}</span>
-                ${plan>0?`<span style="color:var(--muted)"> / ${plan} plan ${pctD!==null?"("+pctD+"%)":""}</span>`:""}
+                ${planValido?`<span style="color:var(--muted)"> / ${plan} plan (${pctD}%)</span>`:""}
               </span>
             </div>
             <div style="display:flex;gap:2px;height:10px">

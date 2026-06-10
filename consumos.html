@@ -211,14 +211,32 @@ const COL_MAP_C = {
   fisico_sw:         {fecha:'Fecha',linea:'Linea',gelcoat_kg:'Gelcoat (kg)',butanox_kg:'Butanox (kg)',resina_kg:'Resina (kg)',norox_kg:'Norox (kg)',marmolina_kg:'Marmolina (kg)',observaciones:'Observaciones'},
 };
 
-async function fetchSupabase(tabla, {campoFecha='fecha',limit=100000}={}) {
-  const params = `select=*&limit=${limit}&order=${campoFecha}.desc`;
-  const r = await fetch(`${SUP_URL}/rest/v1/${tabla}?${params}`, {
-    headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
-             'Range-Unit':'items','Range':`0-${limit-1}`}
-  });
-  if (!r.ok) throw new Error(`Supabase HTTP ${r.status} — ${tabla}`);
-  const rows = await r.json();
+async function fetchSupabase(tabla, {campoFecha='fecha',limit=200000,desde=null}={}) {
+  // Supabase regresa máximo ~1000 filas por request — hay que paginar SIEMPRE.
+  let filtros = '';
+  if (desde) filtros += `&${campoFecha}=gte.${desde}`;
+  // Orden secundario por id = paginación estable (sin filas duplicadas/perdidas entre páginas)
+  let url = `${SUP_URL}/rest/v1/${tabla}?select=*&order=${campoFecha}.desc,id.desc${filtros}`;
+  const PG = 1000;
+  const hdr = off => ({apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
+                       'Range-Unit':'items','Range':`${off}-${off+PG-1}`,'Prefer':'count=exact'});
+  let r0 = await fetch(url, {headers:hdr(0)});
+  if (r0.status === 400) {
+    // tabla sin columna id — reintentar sin orden secundario
+    url = `${SUP_URL}/rest/v1/${tabla}?select=*&order=${campoFecha}.desc${filtros}`;
+    r0 = await fetch(url, {headers:hdr(0)});
+  }
+  if (!r0.ok && r0.status !== 206) throw new Error(`Supabase HTTP ${r0.status} — ${tabla}`);
+  let rows = await r0.json();
+  const total = Math.min(parseInt((r0.headers.get('content-range')||'').split('/')[1])||rows.length, limit);
+  const offs = [];
+  for (let o = PG; o < total; o += PG) offs.push(o);
+  for (let i = 0; i < offs.length; i += 8) {
+    const chunks = await Promise.all(offs.slice(i, i+8).map(o =>
+      fetch(url, {headers:hdr(o)}).then(r => (r.ok || r.status===206) ? r.json() : [])
+    ));
+    chunks.forEach(c => { rows = rows.concat(c); });
+  }
   const map = COL_MAP_C[tabla] || {};
   return rows.map(row => {
     const out = {};
@@ -255,7 +273,7 @@ const KPIS_COLS = {fecha:1, resina:2, marmolina:3, catalizador:4, gelcoat:5, mer
 // ── Sheets ───────────────────────────────────────────────
 async function fetchSheet(sheetId, name) {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(name)}?key=${API_KEY}`;
-  const r = await fetch(url);
+  const r = await fetch(url, {signal: AbortSignal.timeout(30000)});
   if (!r.ok) throw new Error(`HTTP ${r.status} — ${name}`);
   const j = await r.json();
   const [hdrs,...rows] = j.values||[];
@@ -265,10 +283,12 @@ async function fetchSheet(sheetId, name) {
 
 async function fetchSheetRaw(sheetId, name) {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(name)}?key=${API_KEY}`;
-  const r = await fetch(url);
-  if (!r.ok) return [];
-  const j = await r.json();
-  return j.values || [];
+  try {
+    const r = await fetch(url, {signal: AbortSignal.timeout(30000)});
+    if (!r.ok) return [];
+    const j = await r.json();
+    return j.values || [];
+  } catch(e) { return []; }
 }
 
 // ── Fechas ───────────────────────────────────────────────
@@ -316,7 +336,7 @@ function calcTeorico(rows){
     if((r["Fecha"]||"").toUpperCase().includes("TOTAL"))return;
     if(!esMismaLinea(r["Linea"]))return;
     paredes++;
-    MATERIALES.forEach(m=>{tot[m.key]+=parseFloat((r[m.col_teo]||"").replace(",","."))||0;});
+    MATERIALES.forEach(m=>{tot[m.key]+=parseFloat(String(r[m.col_teo]??"").replace(",","."))||0;});
   });
   return{tot,paredes};
 }
@@ -373,7 +393,7 @@ function calcMovimientos(rows, sinFiltroLinea=false){
     if(!enPeriodo(r["Fecha"]))return;
     if(!sinFiltroLinea&&!esMismaLinea(r["Linea"]))return;
     const mat=LABEL_MAT[r["Material"]]||r["Material"];
-    const qty=parseFloat((r["Cantidad (kg)"]||"").replace(",","."))||0;
+    const qty=parseFloat(String(r["Cantidad (kg)"]??"").replace(",","."))||0;
     if(tot[mat]!==undefined)tot[mat]+=qty;
     movs.push({...r,_mat:mat,_qty:qty});
   });
@@ -1398,8 +1418,9 @@ async function borrarFisicoSW(fecha, linea) {
 async function cargar(){
   document.getElementById("main-content").innerHTML=`<div class="loading"><div class="spinner"></div><div>Cargando desde Supabase…</div></div>`;
   try{
+    const inicioAnio = `${new Date().getFullYear()}-01-01`;
     const [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9] = await Promise.allSettled([
-      fetchSupabase("consumos_diarios"),
+      fetchSupabase("consumos_diarios", {desde: inicioAnio}),
       fetchSupabase("salidas_fabricacion"),
       fetchSupabase("llegadas_almacen"),
       fetchSupabase("inventarios",{campoFecha:"semana"}),
@@ -1492,7 +1513,7 @@ function renderCorte() {
     if (!esMismaLinea(r["Linea"])) return;
     const mat = LABEL_MAT[r["Material"]] || null;
     if (!mat) return;
-    salFabSem[mat] += parseFloat((r["Cantidad (kg)"]||"").replace(",","."))||0;
+    salFabSem[mat] += parseFloat(String(r["Cantidad (kg)"]??"").replace(",","."))||0;
   });
 
   // ── KPIs de la semana ───────────────────────────────────
