@@ -1089,9 +1089,34 @@ let _excelPlanCargado = null; // null = no cargado, {} = datos parseados
 let _excelPlanFecha   = null; // fecha del Excel cargado
 let _excelBasesRaw    = null; // filas crudas de GANTT BASES (para importar al plan)
 
+// ── App plan de una fecha agrupado por AR||medida (global) ──
+function agruparPlanApp(fechaFiltro) {
+  const mapa = {};
+  PLAN.forEach(r => {
+    const f = parsePlanFecha(r["Fecha"]);
+    if (f !== fechaFiltro) return;
+    const mod = r["PATRON"] || r["Modelo"] || "";
+    const ar  = normAbrev(mod);
+    const med = normMedida(r["Medida"] || "");
+    if (!ar || !med) return;
+    const fk = `${ar}||${med}`;
+    if (!mapa[fk]) mapa[fk] = {
+      aProducir: 0, moldes: 0,
+      odoo: r["Odoo"]||"", patron: mod, medida: r["Medida"]||"", lado: r["Lado"]||""
+    };
+    mapa[fk].aProducir += parseInt(r["A Producir"]||r["A PRODUCIR"]||0)||0;
+    mapa[fk].moldes    += parseInt(r["Moldes"]||r["MOLDES"]||0)||0;
+  });
+  return mapa;
+}
+
+// Foto del plan de HOY tomada ANTES de guardar el Excel nuevo
+// (si no existe, se usa el plan actual de la app — p.ej. al entrar sin subir nada)
+let _planAppAntes = null;
+
 function renderComparaPlan() {
   document.getElementById("topbar-title").textContent = "Comparar Planes";
-  document.getElementById("topbar-sub").textContent   = "Excel (plan físico) vs App (PLAN_DIARIO)";
+  document.getElementById("topbar-sub").textContent   = "Plan nuevo vs plan anterior ajustado por lo vaciado";
   const topRight = document.getElementById("topbar-right-extra");
   if (topRight) {
     topRight.innerHTML = `<button onclick="renderComparaPlan()" class="btn"
@@ -1101,28 +1126,33 @@ function renderComparaPlan() {
 
   const hoyStr  = new Date().toISOString().slice(0,10);
 
-  // ── App plan hoy agrupado por AR||medida ──
-  function agruparPlanApp(fechaFiltro) {
-    const mapa = {};
-    PLAN.forEach(r => {
-      const f = parsePlanFecha(r["Fecha"]);
-      if (f !== fechaFiltro) return;
-      const mod = r["PATRON"] || r["Modelo"] || "";
-      const ar  = normAbrev(mod);
-      const med = normMedida(r["Medida"] || "");
-      if (!ar || !med) return;
-      const fk = `${ar}||${med}`;
-      if (!mapa[fk]) mapa[fk] = {
-        aProducir: 0, moldes: 0,
-        odoo: r["Odoo"]||"", patron: mod, medida: r["Medida"]||"", lado: r["Lado"]||""
-      };
-      mapa[fk].aProducir += parseInt(r["A Producir"]||r["A PRODUCIR"]||0)||0;
-      mapa[fk].moldes    += parseInt(r["Moldes"]||r["MOLDES"]||0)||0;
-    });
-    return mapa;
-  }
+  // Plan ANTERIOR para hoy: la foto pre-guardado si existe, si no el plan actual
+  const planApp = _planAppAntes || agruparPlanApp(hoyStr);
 
-  const planApp = agruparPlanApp(hoyStr);
+  // ── Ajuste por lo vaciado: pendiente de AYER según el sistema ──
+  // ayer = último día con foto congelada antes de hoy
+  const diasFrozenCmp = [...new Set(PLAN_FROZEN.map(r=>parsePlanFecha(r["Fecha"])).filter(f=>f && f<hoyStr))].sort();
+  const ayerStr = diasFrozenCmp.length ? diasFrozenCmp[diasFrozenCmp.length-1] : null;
+
+  const planAyer = {};  // fk → pzas plan congelado de ayer
+  const vacAyer  = {};  // fk → pzas vaciadas ayer (sistema)
+  if (ayerStr) {
+    PLAN_FROZEN.forEach(r => {
+      if (parsePlanFecha(r["Fecha"]) !== ayerStr) return;
+      const ar = normAbrev(r["Modelo"]||""), med = normMedida(r["Medida"]||"");
+      if (!ar || !med) return;
+      planAyer[`${ar}||${med}`] = (planAyer[`${ar}||${med}`]||0) + (parseInt(r["A Producir"]||0)||0);
+    });
+    VAC_RAW.forEach(r => {
+      if ((r["Fecha"]||"").slice(0,10) !== ayerStr) return;
+      if (r["Es Grado C"] === true || r["Es Grado C"] === "SI") return;
+      const sku = (r["SKU"]||"").trim().toUpperCase();
+      if (sku && SKU_SOLO_EXCLUIDOS.has(sku)) return;
+      const ar = normAbrev(r["Patron"]||""), med = normMedida(r["Medida"]||"");
+      if (!ar || !med) return;
+      vacAyer[`${ar}||${med}`] = (vacAyer[`${ar}||${med}`]||0) + 1;
+    });
+  }
 
   // ── Si no hay Excel cargado → mostrar pantalla de carga ──
   if (!_excelPlanCargado) {
@@ -1157,21 +1187,31 @@ function renderComparaPlan() {
   }
 
   // ── Hay Excel cargado → mostrar comparación ──
+  // ESPERADO hoy = plan anterior para hoy + pendiente de ayer (plan ayer − vaciado ayer)
+  // Δ = Excel nuevo − esperado → diferencias a revisar
   const planExcel = _excelPlanCargado;
-  const todasClaves = new Set([...Object.keys(planExcel), ...Object.keys(planApp)]);
+  const todasClaves = new Set([...Object.keys(planExcel), ...Object.keys(planApp),
+                               ...Object.keys(planAyer), ...Object.keys(vacAyer)]);
   const filas = [];
   todasClaves.forEach(fk => {
     const ex = planExcel[fk];
     const ap = planApp[fk];
-    const patron  = (ex||ap)?.patron  || fk;
-    const medida  = (ex||ap)?.medida  || '';
+    const patron  = (ex||ap)?.patron  || fk.split('||')[0];
+    const medida  = (ex||ap)?.medida  || fk.split('||')[1] || '';
     const odoo    = (ex||ap)?.odoo    || ap?.odoo || '';
     const exPzas  = ex?.piezas  || 0;
     const exMoldes= ex?.moldes  || 0;
     const apPzas  = ap?.aProducir || 0;
     const apMoldes= ap?.moldes  || 0;
-    const deltaPzas = exPzas - apPzas;
-    filas.push({ fk, patron, medida, odoo, exPzas, exMoldes, apPzas, apMoldes, deltaPzas,
+    const pAyer   = planAyer[fk] || 0;
+    const vAyer   = vacAyer[fk]  || 0;
+    const pend    = pAyer - vAyer;          // + faltó ayer · − se adelantaron
+    const esperado = apPzas + pend;
+    const deltaPzas = exPzas - esperado;
+    // Omitir ruido: modelos sin nada hoy y sin pendiente
+    if (!exPzas && !apPzas && !pend) return;
+    filas.push({ fk, patron, medida, odoo, exPzas, exMoldes, apPzas, apMoldes,
+      pAyer, vAyer, pend, esperado, deltaPzas,
       soloExcel: !!ex && !ap,
       soloApp:   !ex && !!ap });
   });
@@ -1179,23 +1219,35 @@ function renderComparaPlan() {
 
   const totExcel = filas.reduce((s,f)=>s+f.exPzas, 0);
   const totApp   = filas.reduce((s,f)=>s+f.apPzas, 0);
-  const totDelta = totExcel - totApp;
+  const totPend  = filas.reduce((s,f)=>s+f.pend, 0);
+  const totEsper = filas.reduce((s,f)=>s+f.esperado, 0);
+  const totDelta = totExcel - totEsper;
 
   document.getElementById("main-content").innerHTML = `
   <!-- Barra superior: resumen + botón cambiar archivo -->
   <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
     <div style="background:var(--bg2);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:10px 16px;min-width:130px">
-      <div style="font-size:10px;color:var(--accent2);margin-bottom:3px">📂 EXCEL (plan físico)</div>
+      <div style="font-size:10px;color:var(--accent2);margin-bottom:3px">📂 EXCEL (plan nuevo)</div>
       <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace">${totExcel} pzas</div>
       <div style="font-size:10px;color:var(--muted)">${_excelPlanFecha||''}</div>
     </div>
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:130px">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:3px">🖥 APP (PLAN_DIARIO)</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:3px">🖥 PLAN ANTERIOR (hoy)</div>
       <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace">${totApp} pzas</div>
       <div style="font-size:10px;color:var(--muted)">${hoyStr}</div>
     </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:130px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:3px">⏳ PENDIENTE DE AYER</div>
+      <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:${totPend>0?'var(--warn)':totPend<0?'var(--accent2)':'var(--text)'}">${totPend>=0?'+':''}${totPend} pzas</div>
+      <div style="font-size:10px;color:var(--muted)">${ayerStr ? `plan ${ayerStr} − vaciado` : 'sin foto de ayer'}</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:130px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:3px">🎯 ESPERADO HOY</div>
+      <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace">${totEsper} pzas</div>
+      <div style="font-size:10px;color:var(--muted)">anterior + pendiente</div>
+    </div>
     <div style="background:var(--bg2);border:1px solid ${totDelta===0?'var(--border)':totDelta>0?'rgba(251,191,36,.4)':'rgba(239,68,68,.4)'};border-radius:8px;padding:10px 16px;min-width:100px">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:3px">Δ DIFERENCIA</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:3px">Δ EXCEL − ESPERADO</div>
       <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:${totDelta===0?'var(--accent)':totDelta>0?'var(--warn)':'var(--danger)'}">${totDelta>=0?'+':''}${totDelta}</div>
     </div>
     <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:10px 16px;min-width:80px">
@@ -1234,9 +1286,13 @@ function renderComparaPlan() {
         <th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)">Patrón</th>
         <th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)">Medida</th>
         <th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--border)">Orden App</th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Plan ayer</th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Vaciado ayer</th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Pendiente</th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">🖥 Anterior hoy</th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">🎯 Esperado</th>
         <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">📂 Excel<br><span style="font-size:9px">Moldes · Pzas</span></th>
-        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">🖥 App<br><span style="font-size:9px">Moldes · Pzas</span></th>
-        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Δ Piezas</th>
+        <th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--border)">Δ vs esperado</th>
       </tr>
     </thead>
     <tbody>
@@ -1244,22 +1300,25 @@ function renderComparaPlan() {
         const rowBg = f.soloExcel ? 'rgba(59,130,246,.07)'
                     : f.soloApp   ? 'rgba(239,68,68,.07)'
                     : f.deltaPzas !== 0 ? 'rgba(251,191,36,.04)' : '';
-        const badge = f.soloExcel ? `<span style="font-size:9px;background:rgba(59,130,246,.2);color:var(--accent2);padding:1px 5px;border-radius:3px;margin-left:4px">SOLO EXCEL</span>`
-                    : f.soloApp   ? `<span style="font-size:9px;background:rgba(239,68,68,.2);color:var(--danger);padding:1px 5px;border-radius:3px;margin-left:4px">SOLO APP</span>`
+        const badge = f.soloExcel ? `<span style="font-size:9px;background:rgba(59,130,246,.2);color:var(--accent2);padding:1px 5px;border-radius:3px;margin-left:4px">NUEVO</span>`
+                    : f.soloApp   ? `<span style="font-size:9px;background:rgba(239,68,68,.2);color:var(--danger);padding:1px 5px;border-radius:3px;margin-left:4px">YA NO VIENE</span>`
                     : '';
         const dc = f.deltaPzas > 0 ? 'var(--warn)' : f.deltaPzas < 0 ? 'var(--danger)' : 'var(--accent)';
         const ds = f.deltaPzas === 0 ? '✓' : (f.deltaPzas > 0 ? '+' : '') + f.deltaPzas;
+        const pc = f.pend > 0 ? 'var(--warn)' : f.pend < 0 ? 'var(--accent2)' : 'var(--muted)';
         return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);${rowBg?'background:'+rowBg:''}">
           <td style="padding:6px 10px;max-width:220px">
             <span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block">${f.patron||'—'}</span>${badge}
           </td>
           <td style="padding:6px 10px;font-family:'DM Mono',monospace">${f.medida||'—'}</td>
           <td style="padding:6px 10px;font-size:11px;color:var(--muted)">${f.odoo||'—'}</td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${f.pAyer||'—'}</td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)">${f.vAyer||'—'}</td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;color:${pc}">${f.pend===0?'—':(f.pend>0?'+':'')+f.pend}</td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace">${f.apPzas||'—'}</td>
+          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:600">${f.esperado||'—'}</td>
           <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--accent2)">
             ${f.exMoldes||'—'} · <b>${f.exPzas||'—'}</b>
-          </td>
-          <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace">
-            ${f.apMoldes||'—'} · <b>${f.apPzas||'—'}</b>
           </td>
           <td style="padding:6px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${dc}">${ds}</td>
         </tr>`;
@@ -1268,8 +1327,12 @@ function renderComparaPlan() {
     <tfoot>
       <tr style="background:var(--bg2);font-weight:700;border-top:2px solid var(--border)">
         <td colspan="3" style="padding:7px 10px;color:var(--muted)">TOTAL</td>
-        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--accent2)"><b>${totExcel}</b></td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)"><b>${filas.reduce((s,f)=>s+f.pAyer,0)}</b></td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--muted)"><b>${filas.reduce((s,f)=>s+f.vAyer,0)}</b></td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace"><b>${totPend>=0?'+':''}${totPend}</b></td>
         <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace"><b>${totApp}</b></td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace"><b>${totEsper}</b></td>
+        <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--accent2)"><b>${totExcel}</b></td>
         <td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace;color:${totDelta===0?'var(--accent)':totDelta>0?'var(--warn)':'var(--danger)'}"><b>${totDelta>=0?'+':''}${totDelta}</b></td>
       </tr>
     </tfoot>
@@ -1553,6 +1616,10 @@ function cargarExcelPlan(inputEl) {
       }
       _excelPlanCargado = resultado;
 
+      // Foto del plan ANTERIOR de hoy antes de sobreescribirlo en Supabase
+      // (solo la primera carga de la sesión — recargas del archivo no la pisan)
+      if (!_planAppAntes) _planAppAntes = agruparPlanApp(hoyStr);
+
       // ── Mostrar pantalla de carga mientras se guarda en Supabase ────────
       document.getElementById("main-content").innerHTML = `
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -1684,6 +1751,9 @@ async function importarBasesAlPlan() {
     return;
   }
   const hoyStr = new Date().toISOString().slice(0,10);
+
+  // Foto del plan ANTERIOR de hoy antes de modificarlo (si aún no se tomó)
+  if (!_planAppAntes) _planAppAntes = agruparPlanApp(hoyStr);
 
   // Detectar duplicados: bases que ya están en plan de hoy con mismo odoo+medida
   const yaEnPlan = new Set(
