@@ -4139,15 +4139,16 @@ function renderGerencia(data) {
   // ── PAREDES / BASES / ACCESORIOS ─────────────────────────────────────────
   // Usa esParedes()/esBases()/catPatron() globales — misma lógica que Gantt Moldes
   const planPorCat = {paredes:0, bases:0, accesorios:0};
-  const acumPlanCat = (rows, saltarFrozen) => rows.forEach(r => {
+  const acumPlanCat = (rows, esFrozen) => rows.forEach(r => {
     const f = parsePlanFecha(r["Fecha"]);
     if (!f || f < desde || f > hasta) return;
-    if (saltarFrozen && diasFrozen.has(f)) return;  // día congelado → ignora gantt vivo
+    if (esFrozen && f >= hoyLocalG) return;        // hoy usa plan vivo, no la foto congelada
+    if (!esFrozen && diasFrozen.has(f)) return;    // día congelado → ignora gantt vivo
     if (!diasConPlan.has(f)) return; // solo días comparables (mismo criterio que % cumplimiento)
     planPorCat[catPatron(r["Modelo"]||"")] += parseInt(r["A Producir"]||0)||0;
   });
-  acumPlanCat(PLAN_FROZEN, false);
-  acumPlanCat(PLAN, true);
+  acumPlanCat(PLAN_FROZEN, true);
+  acumPlanCat(PLAN, false);
   const planParedes    = planPorCat.paredes;
   const planBases      = planPorCat.bases;
   const planAccesorios = planPorCat.accesorios;
