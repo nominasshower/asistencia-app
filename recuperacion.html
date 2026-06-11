@@ -210,20 +210,27 @@ async function verTrazabilidad(recupId){
   card.style.display = '';
   if (!piezas.length) { document.getElementById('detalle-piezas').innerHTML = '<div class="empty">Aún no se escanean piezas de esta solicitud</div>'; return; }
   document.getElementById('detalle-piezas').innerHTML = '<div class="empty">Consultando trazabilidad…</div>';
-  // Cruce con liberado / PT / empaque por SKU
+  // Cruce con liberado / PT / empaque por SKU + burrito por modelo/medida/color/acabado
   const skus = piezas.map(p=>`"${p.sku}"`).join(',');
-  const [lib, pt, emp] = await Promise.all([
-    sbAll(`liberado?select=sku,fecha_liberado,grado_inspeccion&sku=in.(${skus})`).catch(()=>[]),
-    sbAll(`producto_terminado?select=sku,fecha_liberacion&sku=in.(${skus})`).catch(()=>[]),
-    sbAll(`empaque?select=sku,fecha_empaque,po_cliente&sku=in.(${skus})`).catch(()=>[]),
+  const [lib, pt, emp, burr] = await Promise.all([
+    sbAll(`liberado?select=sku,fecha_liberado,grado_inspeccion,patron,medida,color,acabado&sku=in.(${skus})`).catch(()=>[]),
+    sbAll(`producto_terminado?select=sku,fecha_liberacion,patron,medida,color,acabado&sku=in.(${skus})`).catch(()=>[]),
+    sbAll(`empaque?select=sku,fecha_empaque,po_cliente,patron,medida,color,acabado&sku=in.(${skus})`).catch(()=>[]),
+    sbAll(`burritos?select=burrito,patron,medida,color,acabado&order=created_at.desc`).catch(()=>[]),
   ]);
   const mLib = Object.fromEntries(lib.map(r=>[(r.sku||'').toUpperCase(), r]));
   const mPt  = Object.fromEntries(pt.map(r=>[(r.sku||'').toUpperCase(), r]));
   const mEmp = Object.fromEntries(emp.map(r=>[(r.sku||'').toUpperCase(), r]));
+  // burrito se asigna por modelo: clave patron||medida||color||acabado
+  const kBurr = r => [r.patron,r.medida,r.color,r.acabado].map(x=>(x||'').toString().toUpperCase().trim()).join('||');
+  const mBurr = {};
+  burr.forEach(b=>{ const k=kBurr(b); if(!mBurr[k]) mBurr[k]=b.burrito; });
   document.getElementById('detalle-piezas').innerHTML = `
-    <table><thead><tr><th>SKU</th><th>Escaneada</th><th style="text-align:center">Liberada</th><th style="text-align:center">PT</th><th style="text-align:center">Empacada</th></tr></thead>
+    <table><thead><tr><th>SKU</th><th>Escaneada</th><th style="text-align:center">Liberada</th><th style="text-align:center">PT</th><th style="text-align:center">Empacada</th><th style="text-align:center">Burrito</th></tr></thead>
     <tbody>${piezas.map(p=>{
       const k=(p.sku||'').toUpperCase(), L=mLib[k], P=mPt[k], E=mEmp[k];
+      const ref = E||P||L; // datos del modelo para cruzar burrito
+      const burrito = ref ? mBurr[kBurr(ref)] : null;
       const chip=(v,txt)=>v?`<span class="badge b-ok">✓ ${txt}</span>`:`<span class="badge b-no">—</span>`;
       return `<tr>
         <td class="mono" style="font-size:11px">${p.sku}</td>
@@ -231,6 +238,7 @@ async function verTrazabilidad(recupId){
         <td style="text-align:center">${chip(L, (L?.fecha_liberado||'').slice(5,10))}</td>
         <td style="text-align:center">${chip(P, (P?.fecha_liberacion||'').slice(5,10))}</td>
         <td style="text-align:center">${chip(E, (E?.fecha_empaque||'').slice(5,10))}</td>
+        <td style="text-align:center">${burrito?`<span class="badge b-ok">🛒 ${burrito}</span>`:`<span class="badge b-no">—</span>`}</td>
       </tr>`;
     }).join('')}</tbody></table>`;
   card.scrollIntoView({behavior:'smooth'});
