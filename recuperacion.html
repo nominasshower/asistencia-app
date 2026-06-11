@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recuperación de Piezas — Shower Walls</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--border:rgba(255,255,255,.08);--text:#e8eaf0;--muted:#6b7280;--accent:#22c55e;--accent2:#3b82f6;--warn:#f59e0b;--danger:#ef4444;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:14px}
+.mono{font-family:'DM Mono',monospace}
+h1{font-size:18px;margin-bottom:2px}
+.sub{font-size:12px;color:var(--muted);margin-bottom:14px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px}
+.card-title{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+input,select{background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:inherit;outline:none}
+input:focus{border-color:var(--accent2)}
+.btn{background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 16px;font-size:13px;cursor:pointer;font-family:inherit}
+.btn-green{background:rgba(34,197,94,.15);border-color:rgba(34,197,94,.4);color:var(--accent);font-weight:600}
+.btn:active{transform:scale(.97)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px;color:var(--muted);font-size:11px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+td{padding:9px 8px;border-bottom:1px solid rgba(255,255,255,.04)}
+tr:active td{background:rgba(255,255,255,.03)}
+.badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600}
+.b-pend{background:rgba(245,158,11,.15);color:var(--warn)}
+.b-parc{background:rgba(59,130,246,.15);color:var(--accent2)}
+.b-comp{background:rgba(34,197,94,.15);color:var(--accent)}
+.b-ok{background:rgba(34,197,94,.15);color:var(--accent)}
+.b-no{background:rgba(255,255,255,.06);color:var(--muted)}
+.empty{color:var(--muted);text-align:center;padding:24px;font-size:13px}
+.qty-input{width:70px;text-align:center;padding:8px}
+.prog{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:4px}
+.prog>div{height:100%;background:var(--accent);border-radius:3px}
+.row-click{cursor:pointer}
+#detalle-piezas td{font-size:12px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tab{padding:9px 18px;border-radius:8px;font-size:13px;cursor:pointer;background:var(--bg2);border:1px solid var(--border);color:var(--muted)}
+.tab.active{color:var(--accent);border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.07)}
+</style>
+</head>
+<body>
+<h1>♻️ Recuperación de Piezas</h1>
+<div class="sub">Pedidos abiertos de Odoo · selecciona qué recuperar · el PDA escanea las etiquetas nuevas</div>
+
+<div class="tabs">
+  <div class="tab active" id="tab-pedidos" onclick="verTab('pedidos')">📋 Pedidos</div>
+  <div class="tab" id="tab-solicitudes" onclick="verTab('solicitudes')">♻️ Solicitudes <span id="cnt-sol"></span></div>
+</div>
+
+<!-- ── TAB PEDIDOS ── -->
+<div id="vista-pedidos">
+  <div class="card">
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <input id="buscar" placeholder="Buscar pedido o cliente…" style="flex:1;min-width:200px" oninput="renderPedidos()">
+      <button class="btn" onclick="cargar()">↺ Actualizar</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Pedidos abiertos con pendiente <span id="n-pedidos" style="color:var(--muted);font-weight:400"></span></div>
+    <div id="lista-pedidos"><div class="empty">Cargando…</div></div>
+  </div>
+  <div class="card" id="card-detalle" style="display:none">
+    <div class="card-title">Pedido <span id="det-pedido" class="mono" style="color:var(--accent2)"></span></div>
+    <div id="det-lineas"></div>
+  </div>
+</div>
+
+<!-- ── TAB SOLICITUDES ── -->
+<div id="vista-solicitudes" style="display:none">
+  <div class="card">
+    <div class="card-title">Solicitudes de recuperación
+      <button class="btn" style="font-size:11px;padding:6px 12px" onclick="cargarSolicitudes()">↺</button>
+    </div>
+    <div id="lista-solicitudes"><div class="empty">Cargando…</div></div>
+  </div>
+  <div class="card" id="card-trazab" style="display:none">
+    <div class="card-title">Trazabilidad — piezas escaneadas</div>
+    <div id="detalle-piezas"></div>
+  </div>
+</div>
+
+<script>
+const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+const HDR = {apikey:SUP_KEY, Authorization:`Bearer ${SUP_KEY}`, 'Content-Type':'application/json'};
+
+let VENTAS = [], SOLICITUDES = [], PIEZAS = [];
+
+async function sb(path, opts={}) {
+  const r = await fetch(`${SUP_URL}/rest/v1/${path}`, {headers:{...HDR, ...(opts.headers||{})}, method:opts.method||'GET', body:opts.body});
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return opts.method==='POST'||opts.method==='PATCH' ? r : r.json();
+}
+
+// Paginado simple
+async function sbAll(path) {
+  let rows=[], off=0;
+  while(true){
+    const r = await fetch(`${SUP_URL}/rest/v1/${path}`, {headers:{...HDR,'Range-Unit':'items','Range':`${off}-${off+999}`}});
+    const chunk = await r.json();
+    rows = rows.concat(chunk);
+    if (chunk.length<1000) break;
+    off+=1000;
+  }
+  return rows;
+}
+
+function verTab(t){
+  document.getElementById('tab-pedidos').classList.toggle('active', t==='pedidos');
+  document.getElementById('tab-solicitudes').classList.toggle('active', t==='solicitudes');
+  document.getElementById('vista-pedidos').style.display = t==='pedidos'?'':'none';
+  document.getElementById('vista-solicitudes').style.display = t==='solicitudes'?'':'none';
+  if (t==='solicitudes') cargarSolicitudes();
+}
+
+// ── Pedidos abiertos (sin precios) ──────────────────────────
+async function cargar(){
+  document.getElementById('lista-pedidos').innerHTML = '<div class="empty">Cargando…</div>';
+  VENTAS = await sbAll(`ventas?select=pedido,cliente,producto,sku,cantidad,entregado,pendiente,estado,fecha_entrega&estado=not.in.(Cancelado,Cerrado)&pendiente=gt.0&order=pedido.desc`);
+  renderPedidos();
+  cargarSolicitudes();
+}
+
+function renderPedidos(){
+  const q = (document.getElementById('buscar').value||'').toUpperCase();
+  const porPedido = {};
+  VENTAS.forEach(v=>{
+    if (q && !(v.pedido||'').toUpperCase().includes(q) && !(v.cliente||'').toUpperCase().includes(q)) return;
+    if (!porPedido[v.pedido]) porPedido[v.pedido] = {pedido:v.pedido, cliente:v.cliente, lineas:0, pend:0, entrega:v.fecha_entrega};
+    porPedido[v.pedido].lineas++;
+    porPedido[v.pedido].pend += Number(v.pendiente)||0;
+  });
+  const lista = Object.values(porPedido);
+  document.getElementById('n-pedidos').textContent = `${lista.length} pedidos`;
+  document.getElementById('lista-pedidos').innerHTML = lista.length ? `
+    <table><thead><tr><th>Pedido</th><th>Cliente</th><th style="text-align:center">Líneas</th><th style="text-align:center">Pzas pendientes</th><th>Entrega</th></tr></thead>
+    <tbody>${lista.map(p=>`<tr class="row-click" onclick="verPedido('${p.pedido}')">
+      <td class="mono" style="color:var(--accent2);font-weight:600">${p.pedido}</td>
+      <td>${p.cliente||'—'}</td>
+      <td style="text-align:center">${p.lineas}</td>
+      <td style="text-align:center" class="mono">${p.pend}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted)">${(p.entrega||'').slice(0,10)||'—'}</td>
+    </tr>`).join('')}</tbody></table>` : '<div class="empty">Sin pedidos</div>';
+}
+
+function verPedido(pedido){
+  const lineas = VENTAS.filter(v=>v.pedido===pedido);
+  document.getElementById('card-detalle').style.display = '';
+  document.getElementById('det-pedido').textContent = pedido;
+  document.getElementById('det-lineas').innerHTML = `
+    <table><thead><tr><th>Producto</th><th style="text-align:center">Cant</th><th style="text-align:center">Pendiente</th><th style="text-align:center">Recuperar</th><th></th></tr></thead>
+    <tbody>${lineas.map((l,i)=>`<tr>
+      <td style="max-width:300px">${l.producto||l.sku||'—'}</td>
+      <td style="text-align:center" class="mono">${l.cantidad}</td>
+      <td style="text-align:center" class="mono" style="color:var(--warn)">${l.pendiente}</td>
+      <td style="text-align:center"><input type="number" class="qty-input" id="qty-${i}" min="1" max="${l.pendiente}" placeholder="0"></td>
+      <td><button class="btn btn-green" style="font-size:12px;padding:7px 14px" onclick="solicitar('${pedido}',${i})">Solicitar</button></td>
+    </tr>`).join('')}</tbody></table>`;
+  document.getElementById('card-detalle').scrollIntoView({behavior:'smooth'});
+  window._lineasPedido = lineas;
+}
+
+async function solicitar(pedido, idx){
+  const l = window._lineasPedido[idx];
+  const qty = parseInt(document.getElementById(`qty-${idx}`).value)||0;
+  if (qty < 1) { alert('Pon cuántas piezas recuperar'); return; }
+  if (qty > (Number(l.pendiente)||0)) { alert(`Máximo ${l.pendiente} (pendientes del pedido)`); return; }
+  try {
+    await sb('recuperaciones', {method:'POST', body: JSON.stringify({
+      pedido, cliente:l.cliente||null, producto:l.producto||null, sku_producto:l.sku||null,
+      cant_solicitada: qty
+    }), headers:{Prefer:'return=minimal'}});
+    alert(`✅ Solicitud creada: ${qty} pza(s) de\n${l.producto}\n\nEl PDA del área de etiquetas ya la puede ver.`);
+    verTab('solicitudes');
+  } catch(e) { alert('Error: '+e.message+'\n¿Ya corriste recuperacion_setup.sql en Supabase?'); }
+}
+
+// ── Solicitudes + trazabilidad ──────────────────────────────
+async function cargarSolicitudes(){
+  try {
+    SOLICITUDES = await sbAll('recuperaciones?select=*&order=id.desc');
+    PIEZAS = await sbAll('recuperaciones_piezas?select=*&order=id.desc');
+  } catch(e) {
+    document.getElementById('lista-solicitudes').innerHTML = `<div class="empty">Tabla no disponible — corre recuperacion_setup.sql en Supabase</div>`;
+    return;
+  }
+  const activas = SOLICITUDES.filter(s=>s.estado!=='cancelada');
+  document.getElementById('cnt-sol').textContent = activas.filter(s=>s.estado!=='completada').length || '';
+  document.getElementById('lista-solicitudes').innerHTML = activas.length ? `
+    <table><thead><tr><th>Pedido</th><th>Producto</th><th style="text-align:center">Avance</th><th style="text-align:center">Estado</th><th></th></tr></thead>
+    <tbody>${activas.map(s=>{
+      const pct = s.cant_solicitada ? Math.round(s.cant_recuperada*100/s.cant_solicitada) : 0;
+      const b = s.estado==='completada'?'b-comp':s.estado==='parcial'?'b-parc':'b-pend';
+      return `<tr>
+        <td class="mono" style="color:var(--accent2)">${s.pedido}</td>
+        <td style="max-width:280px;font-size:12px">${s.producto||'—'}</td>
+        <td style="text-align:center;min-width:110px"><span class="mono">${s.cant_recuperada}/${s.cant_solicitada}</span><div class="prog"><div style="width:${pct}%"></div></div></td>
+        <td style="text-align:center"><span class="badge ${b}">${s.estado}</span></td>
+        <td><button class="btn" style="font-size:11px;padding:6px 10px" onclick="verTrazabilidad(${s.id})">🔍 Piezas</button></td>
+      </tr>`;
+    }).join('')}</tbody></table>` : '<div class="empty">Sin solicitudes aún</div>';
+}
+
+async function verTrazabilidad(recupId){
+  const piezas = PIEZAS.filter(p=>p.recuperacion_id===recupId);
+  const card = document.getElementById('card-trazab');
+  card.style.display = '';
+  if (!piezas.length) { document.getElementById('detalle-piezas').innerHTML = '<div class="empty">Aún no se escanean piezas de esta solicitud</div>'; return; }
+  document.getElementById('detalle-piezas').innerHTML = '<div class="empty">Consultando trazabilidad…</div>';
+  // Cruce con liberado / PT / empaque por SKU
+  const skus = piezas.map(p=>`"${p.sku}"`).join(',');
+  const [lib, pt, emp] = await Promise.all([
+    sbAll(`liberado?select=sku,fecha_liberado,grado_inspeccion&sku=in.(${skus})`).catch(()=>[]),
+    sbAll(`producto_terminado?select=sku,fecha_liberacion&sku=in.(${skus})`).catch(()=>[]),
+    sbAll(`empaque?select=sku,fecha_empaque,po_cliente&sku=in.(${skus})`).catch(()=>[]),
+  ]);
+  const mLib = Object.fromEntries(lib.map(r=>[(r.sku||'').toUpperCase(), r]));
+  const mPt  = Object.fromEntries(pt.map(r=>[(r.sku||'').toUpperCase(), r]));
+  const mEmp = Object.fromEntries(emp.map(r=>[(r.sku||'').toUpperCase(), r]));
+  document.getElementById('detalle-piezas').innerHTML = `
+    <table><thead><tr><th>SKU</th><th>Escaneada</th><th style="text-align:center">Liberada</th><th style="text-align:center">PT</th><th style="text-align:center">Empacada</th></tr></thead>
+    <tbody>${piezas.map(p=>{
+      const k=(p.sku||'').toUpperCase(), L=mLib[k], P=mPt[k], E=mEmp[k];
+      const chip=(v,txt)=>v?`<span class="badge b-ok">✓ ${txt}</span>`:`<span class="badge b-no">—</span>`;
+      return `<tr>
+        <td class="mono" style="font-size:11px">${p.sku}</td>
+        <td class="mono" style="font-size:11px;color:var(--muted)">${(p.escaneado_at||'').slice(0,16).replace('T',' ')}</td>
+        <td style="text-align:center">${chip(L, (L?.fecha_liberado||'').slice(5,10))}</td>
+        <td style="text-align:center">${chip(P, (P?.fecha_liberacion||'').slice(5,10))}</td>
+        <td style="text-align:center">${chip(E, (E?.fecha_empaque||'').slice(5,10))}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+  card.scrollIntoView({behavior:'smooth'});
+}
+
+cargar();
+setInterval(cargarSolicitudes, 15000); // refresco en vivo del avance
+</script>
+</body>
+</html>

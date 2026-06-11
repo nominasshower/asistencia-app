@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Recuperación PDA — Shower Walls</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=DM+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--border:rgba(255,255,255,.1);--text:#e8eaf0;--muted:#6b7280;--accent:#22c55e;--accent2:#3b82f6;--warn:#f59e0b;--danger:#ef4444;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:10px;font-size:15px}
+.mono{font-family:'DM Mono',monospace}
+h1{font-size:17px;margin-bottom:10px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px}
+.sol{border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer;background:var(--bg2)}
+.sol.sel{border-color:var(--accent);background:rgba(34,197,94,.07)}
+.sol .ped{font-weight:700;color:var(--accent2);font-family:'DM Mono',monospace}
+.sol .prod{font-size:13px;margin:4px 0;color:var(--text)}
+.sol .avance{font-size:13px;color:var(--muted)}
+.prog{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:6px}
+.prog>div{height:100%;background:var(--accent)}
+#scan{width:100%;padding:16px;font-size:18px;background:var(--bg3);border:2px solid var(--accent2);border-radius:10px;color:var(--text);font-family:'DM Mono',monospace;outline:none;text-align:center}
+#scan:disabled{border-color:var(--border);opacity:.5}
+#msg{padding:14px;border-radius:10px;text-align:center;font-weight:700;font-size:16px;margin-top:10px;display:none}
+.ok{background:rgba(34,197,94,.15);color:var(--accent);display:block!important}
+.err{background:rgba(239,68,68,.15);color:var(--danger);display:block!important}
+.warn{background:rgba(245,158,11,.15);color:var(--warn);display:block!important}
+.empty{color:var(--muted);text-align:center;padding:20px;font-size:13px}
+.btn{background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+.hist{font-size:12px;color:var(--muted);padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+</style>
+</head>
+<body>
+<h1>📟 Recuperación — Escaneo de etiquetas</h1>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div style="font-size:13px;font-weight:600">1️⃣ Selecciona la solicitud</div>
+    <button class="btn" onclick="cargar()">↺</button>
+  </div>
+  <div id="solicitudes"><div class="empty">Cargando…</div></div>
+</div>
+
+<div class="card">
+  <div style="font-size:13px;font-weight:600;margin-bottom:8px">2️⃣ Escanea el código de la etiqueta nueva</div>
+  <input id="scan" placeholder="— escanea aquí —" disabled autocomplete="off">
+  <div id="msg"></div>
+</div>
+
+<div class="card">
+  <div style="font-size:13px;font-weight:600;margin-bottom:6px">Últimos escaneos</div>
+  <div id="historial"><div class="empty">—</div></div>
+</div>
+
+<script>
+const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+const HDR = {apikey:SUP_KEY, Authorization:`Bearer ${SUP_KEY}`, 'Content-Type':'application/json'};
+
+let SOLS = [], SEL = null;
+
+async function sb(path, opts={}) {
+  const r = await fetch(`${SUP_URL}/rest/v1/${path}`, {headers:{...HDR,...(opts.headers||{})}, method:opts.method||'GET', body:opts.body});
+  return r;
+}
+
+async function cargar(){
+  const r = await sb('recuperaciones?select=*&estado=in.(pendiente,parcial)&order=id.asc');
+  if (!r.ok) { document.getElementById('solicitudes').innerHTML = '<div class="empty">Tabla no disponible — corre recuperacion_setup.sql</div>'; return; }
+  SOLS = await r.json();
+  if (SEL && !SOLS.find(s=>s.id===SEL.id)) SEL = null;
+  render();
+}
+
+function render(){
+  const el = document.getElementById('solicitudes');
+  el.innerHTML = SOLS.length ? SOLS.map(s=>{
+    const pct = Math.round(s.cant_recuperada*100/s.cant_solicitada);
+    return `<div class="sol ${SEL&&SEL.id===s.id?'sel':''}" onclick="seleccionar(${s.id})">
+      <div class="ped">${s.pedido}</div>
+      <div class="prod">${s.producto||'—'}</div>
+      <div class="avance">Recuperadas <b class="mono" style="color:var(--text)">${s.cant_recuperada} / ${s.cant_solicitada}</b> — faltan ${s.cant_solicitada-s.cant_recuperada}</div>
+      <div class="prog"><div style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('') : '<div class="empty">Sin solicitudes pendientes 🎉</div>';
+  const scan = document.getElementById('scan');
+  scan.disabled = !SEL;
+  scan.placeholder = SEL ? `Escaneando para ${SEL.pedido}…` : '— primero selecciona solicitud —';
+  if (SEL) scan.focus();
+}
+
+function seleccionar(id){
+  SEL = SOLS.find(s=>s.id===id) || null;
+  render();
+}
+
+function msg(texto, clase){
+  const m = document.getElementById('msg');
+  m.className = clase; m.textContent = texto;
+  if (window._msgTimer) clearTimeout(window._msgTimer);
+  window._msgTimer = setTimeout(()=>{ m.className=''; m.style.display='none'; }, 4000);
+  m.style.display = 'block';
+}
+
+function beepOk(){ try{ navigator.vibrate && navigator.vibrate(80); }catch(e){} }
+function beepErr(){ try{ navigator.vibrate && navigator.vibrate([100,60,100]); }catch(e){} }
+
+async function procesarScan(sku){
+  sku = (sku||'').trim().toUpperCase();
+  if (!sku || !SEL) return;
+  try {
+    // 1. Registrar pieza (UNIQUE en sku evita doble conteo global)
+    const r = await sb('recuperaciones_piezas', {method:'POST', headers:{Prefer:'return=minimal'},
+      body: JSON.stringify({recuperacion_id: SEL.id, sku})});
+    if (r.status === 409) { beepErr(); msg(`⚠️ ${sku} YA fue escaneada antes`, 'warn'); return; }
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    // 2. Actualizar contador y estado
+    const nueva = SEL.cant_recuperada + 1;
+    const estado = nueva >= SEL.cant_solicitada ? 'completada' : 'parcial';
+    await sb(`recuperaciones?id=eq.${SEL.id}`, {method:'PATCH', headers:{Prefer:'return=minimal'},
+      body: JSON.stringify({cant_recuperada: nueva, estado, updated_at: new Date().toISOString()})});
+    beepOk();
+    msg(estado==='completada' ? `✅ ${sku} — ¡SOLICITUD COMPLETA! 🎉` : `✅ ${sku} — van ${nueva}/${SEL.cant_solicitada}`, 'ok');
+    agregarHistorial(sku);
+    await cargar();
+    if (estado==='completada') SEL = null, render();
+  } catch(e) { beepErr(); msg('❌ Error: '+e.message, 'err'); }
+}
+
+function agregarHistorial(sku){
+  const h = document.getElementById('historial');
+  if (h.querySelector('.empty')) h.innerHTML = '';
+  const hora = new Date().toTimeString().slice(0,8);
+  h.insertAdjacentHTML('afterbegin', `<div class="hist"><span class="mono">${sku}</span> · ${hora} · ${SEL?SEL.pedido:''}</div>`);
+  while (h.children.length > 10) h.removeChild(h.lastChild);
+}
+
+// El lector del PDA escribe como teclado y manda Enter
+document.getElementById('scan').addEventListener('keydown', e=>{
+  if (e.key === 'Enter') {
+    const v = e.target.value;
+    e.target.value = '';
+    procesarScan(v);
+  }
+});
+// Mantener foco en el campo de escaneo
+setInterval(()=>{ if (SEL && document.activeElement.id!=='scan') document.getElementById('scan').focus(); }, 2000);
+
+cargar();
+setInterval(cargar, 20000);
+</script>
+</body>
+</html>
