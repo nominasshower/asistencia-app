@@ -310,7 +310,8 @@ async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',li
   // Supabase regresa máximo ~1000 filas por request — hay que paginar SIEMPRE.
   let filtros = '';
   if (desde) filtros += `&${campoFecha}=gte.${desde}`;
-  if (hasta) filtros += `&${campoFecha}=lte.${hasta}`;
+  // hasta incluye el día completo (las columnas de fecha son timestamp)
+  if (hasta) filtros += `&${campoFecha}=lte.${/T/.test(hasta)?hasta:hasta+'T23:59:59'}`;
   const dir = asc ? 'asc' : 'desc';
   // Orden secundario por id = paginación estable (sin filas duplicadas/perdidas entre páginas)
   let url = `${SUP_URL}/rest/v1/${tabla}?select=*&order=${campoFecha}.${dir},id.${dir}${filtros}`;
@@ -487,7 +488,9 @@ const GELCOAT_KEYS = ["rechazo de gelcoat","gelcoat delgado","gelcoat levantado"
 const MOLDE_KEYS   = ["marca de molde","fallo de máquina","despostillado en desmolde","quebrado en desmolde","rayas por manejo","grumos"];
 
 let INSP      = [];
+let INSP_RAW  = [];   // inspeccion cruda (sin filtrar por periodo)
 let VAC_RAW   = [];   // vaciado completo sin filtrar
+let cargaToken = 0;   // invalida cargas en background si el filtro cambió
 let VACIADO   = {};   // map TAG → última fecha vaciado
 let PLAN      = [];
 let PLAN_FROZEN = []; // foto diaria del plan (plan_congelado) — para cumplimiento histórico
@@ -559,6 +562,65 @@ function clasif(d) {
 // fetchSheet mantenida por compatibilidad con GAS_WRITE_URL (escritura del plan)
 // La lectura de datos ya usa fetchSupabase()
 
+// ── Procesar crudos (INSP_RAW/VAC_RAW) y pintar la vista ─────────────────
+// Se llama 2 veces por carga: con el rango del filtro (rápido) y luego con
+// los 120 días completos del background. Reconstruye los derivados cada vez.
+function procesarYrender(desde, hasta) {
+  // SKU → {grade, fechaInsp}
+  SKU_INSP = {};
+  // SKUs donde TODOS sus defectos son operativos/excluidos → no contar como vaciada real
+  SKU_SOLO_EXCLUIDOS = new Set();
+  INSP_RAW.forEach(r => {
+    const sku = (r["SKU"]||"").trim().toUpperCase();
+    if (!sku) return;
+    SKU_INSP[sku] = { grade: r["Grado"]||"", fechaInsp: (r["Fecha"]||"").slice(0,10),
+                      detalle: r["Detalle Defecto"]||"" };
+    const detalle = r["Detalle Defecto"]||"";
+    if (detalle && detalle !== "null" && detalle.trim() !== "") {
+      const todos = detalle.split(",").map(d=>d.trim()).filter(d=>d && d!=="null");
+      if (todos.length > 0 && todos.every(d => estaExcluido(d))) {
+        SKU_SOLO_EXCLUIDOS.add(sku);
+      }
+    }
+  });
+
+  // Vaciado: último vaciado por TAG (normalizado)
+  VACIADO = {};
+  VAC_RAW.forEach(r => {
+    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
+    const fecha = r["Fecha"] || "";
+    if (!tag) return;
+    if (!VACIADO[tag] || fecha > VACIADO[tag]) VACIADO[tag] = fecha;
+  });
+
+  // Inspección: normalizar TAG y filtrar por fecha del período
+  const d0 = desde ? new Date(desde + "T00:00:00") : null;
+  const d1 = hasta ? new Date(hasta + "T23:59:59") : null;
+  INSP = INSP_RAW
+    .map(r => ({ ...r, TAG: (r["TAG"]||"").trim().toUpperCase() }))
+    .filter(r => {
+      const dt = new Date(r["Fecha"]);
+      if (d0 && dt < d0) return false;
+      if (d1 && dt > d1) return false;
+      return true;
+    });
+
+  // Conteo global de defectos para el modal
+  ALL_DEFECTS = {};
+  INSP_RAW.forEach(r => {
+    (r["Detalle Defecto"]||"").split(",").forEach(d => {
+      d = d.trim();
+      if (d && d !== "null") ALL_DEFECTS[d] = (ALL_DEFECTS[d]||0) + 1;
+    });
+  });
+
+  const inspContables = INSP.filter(esPiezaContable);
+  document.getElementById("topbar-sub").textContent =
+    `${inspContables.length} piezas — ${desde} → ${hasta}`;
+  document.getElementById("btn-wa").style.display = "flex";
+  renderVista(INSP);
+}
+
 // ── Cargar datos ─────────────────────────────────────────
 async function cargar() {
   const desde = document.getElementById("fDesde").value;
@@ -568,86 +630,40 @@ async function cargar() {
   document.getElementById("btn-wa").style.display = "none";
 
   try {
-    // Piso de descarga: 120 días atrás (o el "desde" del usuario si es más viejo)
-    // — evita bajar todo el histórico en cada carga.
+    // Piso para la HISTORIA (alertas de Gantt/inventario que comparan con el
+    // pasado): 120 días, o el "desde" del usuario si es más viejo.
     const piso120 = new Date(Date.now() - 120*864e5).toISOString().slice(0,10);
     const pisoFetch = (desde && desde < piso120) ? desde : piso120;
-    const [inspRaw, vacRaw, planRaw] = await Promise.all([
-      fetchSupabase("inspeccion", {desde: pisoFetch}),
-      fetchSupabase("vaciados",   {desde: pisoFetch}),
+    const miToken = ++cargaToken;
+
+    // 1. CRITICO: SOLO el rango del filtro → render inmediato (~1-2s si es "hoy").
+    const [inspF, vacF, planRaw] = await Promise.all([
+      fetchSupabase("inspeccion", {desde, hasta}),
+      fetchSupabase("vaciados",   {desde, hasta}),
       fetchSupabase("plan_diario", {campoFecha:"fecha", asc:true}),
     ]);
-    PLAN    = planRaw;
-    VAC_RAW = vacRaw;
+    if (miToken !== cargaToken) return;  // el usuario ya cambió el filtro
+    PLAN = planRaw; INSP_RAW = inspF; VAC_RAW = vacF;
+    procesarYrender(desde, hasta);
 
-    // Tablas de seguimiento — NO criticas: cargan en segundo plano para no
-    // retrasar el primer render. Al llegar, se re-pinta la vista actual.
+    // 2. BACKGROUND: dataset de 120 días (historia para las alertas) + tablas
+    //    de seguimiento. NO bloquea; al llegar reemplaza los crudos y re-pinta.
+    //    Solo trae historia extra si el filtro no la cubre ya.
+    const traerHist = pisoFetch < desde;
     Promise.all([
+      traerHist ? fetchSupabase("inspeccion", {desde: pisoFetch}).catch(()=>INSP_RAW) : Promise.resolve(INSP_RAW),
+      traerHist ? fetchSupabase("vaciados",   {desde: pisoFetch}).catch(()=>VAC_RAW)  : Promise.resolve(VAC_RAW),
       fetchSupabase("liberado",{campoFecha:"fecha_liberado",desde:pisoFetch}).catch(()=>[]),
       fetchSupabase("producto_terminado",{campoFecha:"fecha_liberacion"}).catch(()=>[]),
       fetchSupabase("empaque",{campoFecha:"fecha_empaque",desde:pisoFetch}).catch(()=>[]),
       fetchSupabase("ventas").catch(()=>[]),
       fetchSupabase("plan_congelado",{campoFecha:"fecha",asc:true}).catch(()=>[]),
-    ]).then(([lib, pt, emp, ven, frozen]) => {
+    ]).then(([inspAll, vacAll, lib, pt, emp, ven, frozen]) => {
+      if (miToken !== cargaToken) return;  // carga obsoleta
+      INSP_RAW = inspAll; VAC_RAW = vacAll;
       LIB_RAW = lib; PT_RAW = pt; EMP_RAW = emp; VENTAS_RAW = ven; PLAN_FROZEN = frozen;
-      if (INSP) renderVista(INSP);  // re-pinta si la vista usa estas tablas
+      procesarYrender(desde, hasta);
     });
-
-    // SKU → {grade, fechaInsp} de todo el año (inspRaw sin filtrar)
-    SKU_INSP = {};
-    // SKUs donde TODOS sus defectos son operativos/excluidos → no contar como vaciada real
-    SKU_SOLO_EXCLUIDOS = new Set();
-    inspRaw.forEach(r => {
-      const sku = (r["SKU"]||"").trim().toUpperCase();
-      if (!sku) return;
-      SKU_INSP[sku] = { grade: r["Grado"]||"", fechaInsp: (r["Fecha"]||"").slice(0,10),
-                        detalle: r["Detalle Defecto"]||"" };
-      // Si la pieza SOLO tiene defectos excluidos → marcarla
-      const detalle = r["Detalle Defecto"]||"";
-      if (detalle && detalle !== "null" && detalle.trim() !== "") {
-        const todos = detalle.split(",").map(d=>d.trim()).filter(d=>d && d!=="null");
-        if (todos.length > 0 && todos.every(d => estaExcluido(d))) {
-          SKU_SOLO_EXCLUIDOS.add(sku);
-        }
-      }
-    });
-
-    // Vaciado: último vaciado por TAG (normalizado)
-    VACIADO = {};
-    vacRaw.forEach(r => {
-      const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
-      const fecha = r["Fecha"] || "";
-      if (!tag) return;
-      if (!VACIADO[tag] || fecha > VACIADO[tag]) VACIADO[tag] = fecha;
-    });
-
-    // Inspección: normalizar TAG y filtrar por fecha
-    const d0 = desde ? new Date(desde + "T00:00:00") : null;
-    const d1 = hasta ? new Date(hasta + "T23:59:59") : null;
-    INSP = inspRaw
-      .map(r => ({ ...r, TAG: (r["TAG"]||"").trim().toUpperCase() }))
-      .filter(r => {
-        const dt = new Date(r["Fecha"]);
-        if (d0 && dt < d0) return false;
-        if (d1 && dt > d1) return false;
-        return true;
-      });
-
-    // Conteo global de defectos para el modal
-    ALL_DEFECTS = {};
-    inspRaw.forEach(r => {
-      (r["Detalle Defecto"]||"").split(",").forEach(d => {
-        d = d.trim();
-        if (d && d !== "null") ALL_DEFECTS[d] = (ALL_DEFECTS[d]||0) + 1;
-      });
-    });
-
-    const inspContables = INSP.filter(esPiezaContable);
-    document.getElementById("topbar-sub").textContent =
-      `${inspContables.length} piezas — ${desde} → ${hasta}`;
-
-    document.getElementById("btn-wa").style.display = "flex";
-    renderVista(INSP);
   } catch(e) {
     document.getElementById("main-content").innerHTML =
       `<div class="loading" style="color:var(--danger)">
