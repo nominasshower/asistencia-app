@@ -2455,7 +2455,7 @@ function _dibujarGantt() { renderGantt(); }
 // ── Gantt Moldes: plan vs moldes activos en línea ─────────
 function renderGanttMoldes() {
   document.getElementById("topbar-title").textContent = "Gantt Moldes";
-  document.getElementById("topbar-sub").textContent   = "En línea hoy = todos los moldes con vaciado hoy · Activo ahora = últimos 45 min · actualiza cada 5 min";
+  document.getElementById("topbar-sub").textContent   = "En línea hoy = todos los moldes con vaciado hoy (sin duplicar) · Activo ahora = últimos 68 min · actualiza cada 5 min";
 
   const desde = document.getElementById("fDesde").value;
   const hasta  = document.getElementById("fHasta").value;
@@ -2524,8 +2524,8 @@ function renderGanttMoldes() {
   const ahora = Date.now();
   const hoyStr = new Date().toISOString().slice(0,10);
   const esHoy = hasta >= hoyStr;
-  const MS_30 = 45 * 60 * 1000;  // "activo ahora" = últimos 45 min
-  const MS_60 = 90 * 60 * 1000;  // se quita si lleva >90 min sin vaciado
+  const MS_30 = 68 * 60 * 1000;  // "activo ahora" = últimos 68 min (= ciclo prom. de vaciado)
+  const MS_60 = 100 * 60 * 1000; // "lento" = 68-100 min; >100 min sin vaciado = inactivo
 
   // Strip +00:00/Z → JS trata como hora local (MySQL guarda hora México, no UTC)
   const toLocalTs = s => { const clean = (s||"").replace(/\+\d{2}:\d{2}$/, "").replace(/Z$/, ""); return new Date(clean).getTime(); };
@@ -2551,9 +2551,9 @@ function renderGanttMoldes() {
   const estadoTag = ts => {
     if (!ts || isNaN(ts) || !tieneTiempo || !esHoy) return "activo";
     const d = ahora - ts;
-    if (d <= MS_30) return "activo";   // verde: últimos 30 min
-    if (d <= MS_60) return "pausa";    // amarillo: 30-60 min
-    return "inactivo";                 // fuera: >60 min
+    if (d <= MS_30) return "activo";   // verde: últimos 68 min
+    if (d <= MS_60) return "pausa";    // amarillo: 68-100 min
+    return "inactivo";                 // fuera: >100 min
   };
 
   // Tiempo relativo legible
@@ -2690,9 +2690,9 @@ function renderGanttMoldes() {
 
   let html = `
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px">
-    ${metricaCat("PAREDES",catPlan.paredes,catActivos30.paredes,catActivos60.paredes,"var(--accent2)")}
-    ${metricaCat("BASES",catPlan.bases,catActivos30.bases,catActivos60.bases,"var(--warn)")}
-    ${metricaCat("ACCESORIOS",catPlan.accesorios,catActivos30.accesorios,catActivos60.accesorios,"#a78bfa")}
+    ${metricaCat("PAREDES",catPlan.paredes,catActivos30.paredes+catActivos60.paredes,catActivos30.paredes,catActivos60.paredes,"var(--accent2)")}
+    ${metricaCat("BASES",catPlan.bases,catActivos30.bases+catActivos60.bases,catActivos30.bases,catActivos60.bases,"var(--warn)")}
+    ${metricaCat("ACCESORIOS",catPlan.accesorios,catActivos30.accesorios+catActivos60.accesorios,catActivos30.accesorios,catActivos60.accesorios,"#a78bfa")}
     <div class="metric"><div class="metric-label" style="color:var(--danger)">Sin arrancar</div>
       <div class="metric-val red">${filasConPlan.filter(f=>f.activos===0).length}</div>
       <div class="metric-sub">en plan pero 0 activos</div></div>
@@ -2832,7 +2832,7 @@ function renderGanttMoldes() {
       <div class="table-header-title">Plan vs Moldes Activos</div>
       <div style="font-size:11px;color:var(--muted)">
         ${desde}
-        ${esHoy&&tieneTiempo ? ' · <span style="color:var(--accent)">● Activo</span> = últimos 45 min · <span style="color:var(--warn)">● Lento</span> = 45-90 min' : ''}
+        ${esHoy&&tieneTiempo ? ' · <span style="color:var(--accent)">● Activo</span> = últimos 68 min · <span style="color:var(--warn)">● Lento</span> = 68-100 min' : ''}
         · ${filas.filter(f=>f.moldes>0).length} modelos en plan
       </div>
     </div>
