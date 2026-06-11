@@ -1,64 +1,39 @@
 // ============================================================
 //  INVENTARIOS SW — Google Apps Script Backend
 //  Acciones: upsert_inv, upsert_fisico, upsert_merma, delete_fisico
-//
-//  Deploy:
-//  1. script.google.com → Nuevo proyecto → pegar este código
-//  2. Implementar > Nueva implementación > Aplicación web
-//     - Ejecutar como: Yo  |  Acceso: Cualquier persona
-//  3. Copiar URL → consumos.html → GAS_INV_URL
-//  4. Trigger keepAlive: Basado en tiempo · Cada 10 min
+//  Físico: escribe SOLO a Supabase (no a Sheets)
 // ============================================================
 
 var SPREADSHEET_ID = '1N8cyjOwqXj2AZIl_sGLagyH-djM1pJTx7KRCv8VKt7c';
 var INV_SHEET      = 'INVENTARIOS';
-var FIS_SHEET      = 'FISICO_SW';
 var MERMA_SHEET    = 'MERMA_SW';
 var TIMEZONE       = 'America/Mexico_City';
 
-// ── Supabase ──────────────────────────────────────────────────
 var SUP_URL = 'https://xzwlbrirzfogbqhywtvj.supabase.co';
 var SUP_KEY = 'sb_secret_ZnXarLQFvdNjafxPOLvikQ_M92BVTDw';
 
-function supabaseUpsertFisico(fecha, linea, gc, but, res, nor, mar, obs) {
-  try {
-    var payload = JSON.stringify({
-      fecha: fecha, linea: linea,
-      gelcoat_kg: gc, butanox_kg: but, resina_kg: res,
-      norox_kg: nor, marmolina_kg: mar, observaciones: obs
-    });
-    UrlFetchApp.fetch(SUP_URL + '/rest/v1/fisico_sw', {
-      method: 'post',
-      contentType: 'application/json',
-      payload: payload,
-      headers: {
-        'apikey': SUP_KEY,
-        'Authorization': 'Bearer ' + SUP_KEY,
-        'Prefer': 'resolution=merge-duplicates'
-      },
-      muteHttpExceptions: true
-    });
-  } catch(e) {
-    Logger.log('Supabase upsert error: ' + e.message);
-  }
+// ── Supabase helpers ──────────────────────────────────────────
+function supPost(path, payload, method) {
+  method = method || 'post';
+  return UrlFetchApp.fetch(SUP_URL + path, {
+    method: method,
+    contentType: 'application/json',
+    payload: payload ? JSON.stringify(payload) : '',
+    headers: {
+      'apikey': SUP_KEY,
+      'Authorization': 'Bearer ' + SUP_KEY,
+      'Prefer': 'resolution=merge-duplicates'
+    },
+    muteHttpExceptions: true
+  });
 }
 
-function supabaseDeleteFisico(fecha, linea) {
-  try {
-    UrlFetchApp.fetch(
-      SUP_URL + '/rest/v1/fisico_sw?fecha=eq.' + encodeURIComponent(fecha) + '&linea=eq.' + encodeURIComponent(linea),
-      {
-        method: 'delete',
-        headers: {
-          'apikey': SUP_KEY,
-          'Authorization': 'Bearer ' + SUP_KEY
-        },
-        muteHttpExceptions: true
-      }
-    );
-  } catch(e) {
-    Logger.log('Supabase delete error: ' + e.message);
-  }
+function supDelete(path) {
+  return UrlFetchApp.fetch(SUP_URL + path, {
+    method: 'delete',
+    headers: { 'apikey': SUP_KEY, 'Authorization': 'Bearer ' + SUP_KEY },
+    muteHttpExceptions: true
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -70,7 +45,7 @@ function doPost(e) {
     if      (data.action === 'upsert_inv')    result = upsertInventario(data.rows);
     else if (data.action === 'upsert_fisico') result = upsertFisico(data);
     else if (data.action === 'upsert_merma')  result = upsertMerma(data);
-    else if (data.action === 'delete_fisico') result = deleteFisicoSW(data);
+    else if (data.action === 'delete_fisico') result = deleteFisico(data);
     else result = { ok: false, error: 'Accion no reconocida: ' + data.action };
   } catch(err) {
     result = { ok: false, error: err.message };
@@ -90,8 +65,42 @@ function keepAlive() {
   SpreadsheetApp.openById(SPREADSHEET_ID).getName();
 }
 
-// ── Upsert inventario ─────────────────────────────────────────────
-// Clave única: semana + material + linea
+// ── Upsert físico → solo Supabase ────────────────────────────
+function upsertFisico(data) {
+  var fecha = String(data.fecha   || '');
+  var linea = String(data.linea   || '');
+  var gc    = Number(data['Gelcoat']   || 0);
+  var but   = Number(data['Butanox']   || 0);
+  var res   = Number(data['Resina']    || 0);
+  var nor   = Number(data['Norox']     || 0);
+  var mar   = Number(data['Marmolina'] || 0);
+  var obs   = String(data.obs || '');
+
+  var r = supPost('/rest/v1/fisico_sw', {
+    fecha: fecha, linea: linea,
+    gelcoat_kg: gc, butanox_kg: but, resina_kg: res,
+    norox_kg: nor, marmolina_kg: mar, observaciones: obs
+  });
+  var code = r.getResponseCode();
+  if (code < 200 || code >= 300) {
+    return { ok: false, error: 'Supabase ' + code + ': ' + r.getContentText() };
+  }
+  return { ok: true, updated: 1 };
+}
+
+// ── Borrar físico → solo Supabase ────────────────────────────
+function deleteFisico(data) {
+  var fecha = encodeURIComponent(String(data.fecha || ''));
+  var linea = encodeURIComponent(String(data.linea || ''));
+  var r = supDelete('/rest/v1/fisico_sw?fecha=eq.' + fecha + '&linea=eq.' + linea);
+  var code = r.getResponseCode();
+  if (code < 200 || code >= 300) {
+    return { ok: false, error: 'Supabase ' + code + ': ' + r.getContentText() };
+  }
+  return { ok: true, deleted: 1 };
+}
+
+// ── Upsert inventario (sigue en Sheets) ──────────────────────
 function upsertInventario(rows) {
   if (!rows || rows.length === 0) return { ok: false, error: 'Sin filas' };
   var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -106,8 +115,7 @@ function upsertInventario(rows) {
     sheet.getRange(1, 1, 1, hdr.length)
       .setBackground('#1e2535').setFontColor('#ffffff').setFontWeight('bold');
   }
-  var lastRow  = sheet.getLastRow();
-  var existing = {};
+  var lastRow = sheet.getLastRow(), existing = {};
   if (lastRow > 1) {
     sheet.getRange(2, 1, lastRow - 1, 5).getValues().forEach(function(r, i) {
       existing[String(r[0])+'|'+String(r[3])+'|'+String(r[4])] = i + 2;
@@ -134,64 +142,7 @@ function upsertInventario(rows) {
   return { ok: true, updated: updated };
 }
 
-// ── Upsert consumo físico Shower Walls ───────────────────────────
-// POST: { action:'upsert_fisico', fecha, linea,
-//         Gelcoat, Butanox, Resina, Norox, Marmolina, obs }
-// Clave única: fecha + linea
-function upsertFisico(data) {
-  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
-  var sheet = ss.getSheetByName(FIS_SHEET);
-  var HEADERS = ['Fecha','Linea',
-    'Gelcoat (kg)','Butanox (kg)','Resina (kg)','Norox (kg)','Marmolina (kg)',
-    'Observaciones'];
-
-  if (!sheet) {
-    sheet = ss.insertSheet(FIS_SHEET);
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-    sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, HEADERS.length)
-      .setBackground('#1e2535').setFontColor('#ffffff').setFontWeight('bold');
-  }
-
-  var fecha  = String(data.fecha   || '');
-  var linea  = String(data.linea   || '');
-  var gc     = Number(data['Gelcoat']   || 0);
-  var but    = Number(data['Butanox']   || 0);
-  var res    = Number(data['Resina']    || 0);
-  var nor    = Number(data['Norox']     || 0);
-  var mar    = Number(data['Marmolina'] || 0);
-  var obs    = String(data.obs || '');
-  var key    = fecha + '|' + linea;
-
-  var lastRow  = sheet.getLastRow();
-  var existing = -1;
-  if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, 2).getValues().forEach(function(r, i) {
-      // Fix: Sheets auto-convierte fechas a Date objects
-      var f = r[0] instanceof Date
-        ? Utilities.formatDate(r[0], TIMEZONE, 'yyyy-MM-dd')
-        : String(r[0]).slice(0, 10);
-      if (f + '|' + String(r[1]) === key) existing = i + 2;
-    });
-  }
-
-  var row = [fecha, linea, gc, but, res, nor, mar, obs];
-  if (existing > 0) {
-    sheet.getRange(existing, 1, 1, row.length).setValues([row]);
-  } else {
-    sheet.appendRow(row);
-  }
-  if (sheet.getLastRow() > 1)
-    sheet.getRange(2, 3, sheet.getLastRow()-1, 5).setNumberFormat('0.00');
-
-  // ── Sync a Supabase ──────────────────────────────────────────
-  supabaseUpsertFisico(fecha, linea, gc, but, res, nor, mar, obs);
-
-  return { ok: true, updated: 1 };
-}
-
-// ── Upsert merma ──────────────────────────────────────────────────
-// POST: { action:'upsert_merma', fecha, linea, kg, obs }
+// ── Upsert merma (sigue en Sheets) ───────────────────────────
 function upsertMerma(data) {
   var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = ss.getSheetByName(MERMA_SHEET);
@@ -221,31 +172,4 @@ function upsertMerma(data) {
   if (sheet.getLastRow() > 1)
     sheet.getRange(2, 3, sheet.getLastRow()-1, 1).setNumberFormat('0.000');
   return { ok: true, updated: 1 };
-}
-
-// ── Borrar consumo físico SW ──────────────────────────────────────
-function deleteFisicoSW(data) {
-  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
-  var sheet = ss.getSheetByName(FIS_SHEET);
-  if (!sheet) return { ok: false, error: 'Hoja FISICO_SW no existe' };
-  var fecha = String(data.fecha || '');
-  var linea = String(data.linea || '');
-  var key   = fecha + '|' + linea;
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return { ok: false, error: 'Sin registros' };
-  var vals = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
-  var rowToDelete = -1;
-  vals.forEach(function(r, i) {
-    var f = r[0] instanceof Date
-      ? Utilities.formatDate(r[0], TIMEZONE, 'yyyy-MM-dd')
-      : String(r[0]).slice(0, 10);
-    if (f + '|' + String(r[1]) === key) rowToDelete = i + 2;
-  });
-  if (rowToDelete < 0) return { ok: false, error: 'Registro no encontrado: ' + key };
-  sheet.deleteRow(rowToDelete);
-
-  // ── Sync a Supabase ──────────────────────────────────────────
-  supabaseDeleteFisico(fecha, linea);
-
-  return { ok: true, deleted: 1 };
 }
