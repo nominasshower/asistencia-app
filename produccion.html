@@ -580,14 +580,18 @@ async function cargar() {
     PLAN    = planRaw;
     VAC_RAW = vacRaw;
 
-    // Tablas de seguimiento — no criticas
-    [LIB_RAW, PT_RAW, EMP_RAW, VENTAS_RAW, PLAN_FROZEN] = await Promise.all([
-      fetchSupabase("liberado",{campoFecha:"fecha_liberado"}).catch(()=>[]),
+    // Tablas de seguimiento — NO criticas: cargan en segundo plano para no
+    // retrasar el primer render. Al llegar, se re-pinta la vista actual.
+    Promise.all([
+      fetchSupabase("liberado",{campoFecha:"fecha_liberado",desde:pisoFetch}).catch(()=>[]),
       fetchSupabase("producto_terminado",{campoFecha:"fecha_liberacion"}).catch(()=>[]),
-      fetchSupabase("empaque",{campoFecha:"fecha_empaque"}).catch(()=>[]),
+      fetchSupabase("empaque",{campoFecha:"fecha_empaque",desde:pisoFetch}).catch(()=>[]),
       fetchSupabase("ventas").catch(()=>[]),
       fetchSupabase("plan_congelado",{campoFecha:"fecha",asc:true}).catch(()=>[]),
-    ]);
+    ]).then(([lib, pt, emp, ven, frozen]) => {
+      LIB_RAW = lib; PT_RAW = pt; EMP_RAW = emp; VENTAS_RAW = ven; PLAN_FROZEN = frozen;
+      if (INSP) renderVista(INSP);  // re-pinta si la vista usa estas tablas
+    });
 
     // SKU → {grade, fechaInsp} de todo el año (inspRaw sin filtrar)
     SKU_INSP = {};
