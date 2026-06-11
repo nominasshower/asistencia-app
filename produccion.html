@@ -503,6 +503,19 @@ let LIB_RAW   = [];   // hoja liberado
 let PT_RAW    = [];   // hoja PT
 let EMP_RAW   = [];   // hoja Empaque
 
+// ── Tags que cambiaron de molde a propósito ─────────────
+// Estos tags físicamente se reasignaron a otro patrón (cambio de modelo legítimo).
+// Se excluyen de la alerta "tag con patrón equivocado" del Gantt de Moldes.
+const TAGS_CAMBIO_MODELO = new Set([
+  "AABB0000A0F7B80010000000", // 1264
+  "AABB0000A1FF600000000000", // 1275
+  "AABB0000A2731A0000000000",
+  "AABB0000A0FB1A0000000000",
+  "AABB0000A5F1080000000000", // 1830
+  "AABB0000A3C3950000000000",
+  "AABB0000A5F1470000000000",
+]);
+
 // ── Exclusiones (localStorage) ──────────────────────────
 function getExcluidos() {
   try {
@@ -2461,6 +2474,52 @@ function renderGanttMoldes() {
   });
   const tagsManual = new Set(Object.entries(tagPatrones).filter(([,s])=>s.size>1).map(([t])=>t));
 
+  // ── Alerta: tag usado con un patrón distinto al de su molde ──
+  // Identidad del tag = patrón base que más usó ANTES del período (su molde real,
+  // igual criterio que Inventario de Moldes). Si hoy aparece con otro patrón base
+  // y no es un cambio de modelo conocido → error de asignación.
+  const identUsos = {};    // tag → {abrev: count}  (abrev = código canónico del patrón, ej. MO/VI/NO)
+  const abrevNombre = {};  // abrev → patrón completo más común (para mostrar legible)
+  const abrevNomCnt = {};
+  VAC_RAW.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (!f || f >= desde) return;        // solo histórico anterior al período
+    const tag = (r["TAG"]||"").trim().toUpperCase();
+    if (!tag) return;
+    const base = normAbrev(r["Patron"]||"");
+    if (!base) return;
+    (identUsos[tag] || (identUsos[tag] = {}))[base] = (identUsos[tag][base]||0) + 1;
+    const nom = basePatronMolde(r["Patron"]||"");
+    if (nom) { const k = base+"|"+nom; abrevNomCnt[k] = (abrevNomCnt[k]||0)+1;
+      if (!abrevNombre[base] || abrevNomCnt[k] > abrevNomCnt[base+"|"+abrevNombre[base]]) abrevNombre[base] = nom; }
+  });
+  const nomAbrev = ab => abrevNombre[ab] || ab;   // nombre legible de una abrev
+  const identidadTag = {}; // tag → abrev confiable (≥70% y ≥5 usos)
+  Object.entries(identUsos).forEach(([tag, bases]) => {
+    const ent = Object.entries(bases).sort((a,b)=>b[1]-a[1]);
+    const total = ent.reduce((s,[,c])=>s+c,0);
+    const [base, cnt] = ent[0];
+    if (total >= 5 && cnt/total >= 0.70) identidadTag[tag] = base;
+  });
+  // Recolectar lecturas del período cuyo patrón no coincide con la identidad del tag
+  const alertasPatronMap = {}; // tag → {tag, esperado, usados:Set<abrev>, fecha, medida, color, linea}
+  VAC_RAW.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (f < desde || f > hasta) return;
+    const tag = (r["TAG"]||"").trim().toUpperCase();
+    if (!tag || TAGS_CAMBIO_MODELO.has(tag)) return;
+    const ident = identidadTag[tag];
+    if (!ident) return;                   // sin identidad confiable → no juzgar
+    const base = normAbrev(r["Patron"]||"");
+    if (!base || base === ident) return;  // coincide → ok
+    const a = alertasPatronMap[tag] || (alertasPatronMap[tag] = {
+      tag, esperado: ident, usados: new Set(), medida: r["Medida"]||"", color: r["Color"]||"", linea: r["Linea"]||"", fecha: f});
+    a.usados.add(base);
+    if (f > a.fecha) a.fecha = f;
+  });
+  const alertasPatron = Object.values(alertasPatronMap)
+    .sort((x,y)=> (y.fecha>x.fecha?1:y.fecha<x.fecha?-1:0));
+
   // ── Timestamps por TAG (para modo en-tiempo-real) ──────
   const ahora = Date.now();
   const hoyStr = new Date().toISOString().slice(0,10);
@@ -2639,6 +2698,35 @@ function renderGanttMoldes() {
       <div class="metric-sub">en plan pero 0 activos</div></div>
   </div>
 
+
+  ${alertasPatron.length>0?`
+  <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.35);border-radius:10px;padding:12px 16px;margin-bottom:12px">
+    <div style="font-size:12px;font-weight:600;color:var(--danger);margin-bottom:8px">
+      🏷️ Tags con patrón equivocado — ${alertasPatron.length} tag${alertasPatron.length!==1?'s':''} usado${alertasPatron.length!==1?'s':''} en un molde distinto al suyo
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">TAG</th>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Su molde (histórico)</th>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Usado ahora como</th>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Medida</th>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Línea</th>
+        <th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--muted);text-transform:uppercase">Fecha</th>
+      </tr></thead>
+      <tbody>
+      ${alertasPatron.map(a=>`
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px;font-family:monospace;font-size:11px;color:var(--danger)">${a.tag.replace(/0+$/,'').slice(-8)||a.tag.slice(0,8)}</td>
+          <td style="padding:8px;font-size:12px;color:var(--accent)">${nomAbrev(a.esperado)}</td>
+          <td style="padding:8px;font-size:12px;font-weight:600;color:var(--danger)">${[...a.usados].map(b=>nomAbrev(b)).join(', ')}</td>
+          <td style="padding:8px;font-family:monospace;font-size:12px">${a.medida}</td>
+          <td style="padding:8px;font-size:12px">${normLinea(a.linea)}</td>
+          <td style="padding:8px;font-size:11px;color:var(--muted)">${a.fecha}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px">Si el cambio de modelo fue intencional, agrega el tag a <b>TAGS_CAMBIO_MODELO</b> para silenciarlo.</div>
+  </div>`:''}
 
   ${filas.filter(f=>f.activos>0&&f.moldes===0).length>0?`
   <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:12px 16px;margin-bottom:12px">
