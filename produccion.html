@@ -5052,7 +5052,7 @@ function guardarFiltros() {
   // Navegar a la vista solicitada
   const v = p.get("v");
   const vistasValidas = ["gerencia","dash","alertas","tabla","plan","comparaplanes",
-                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque"];
+                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque","reportepintura"];
   if (v && vistasValidas.includes(v)) VISTA = v;
   // Aceptar mensajes del padre para cambiar vista sin recargar
   window.addEventListener("message", e => {
