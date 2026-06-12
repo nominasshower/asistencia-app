@@ -4114,7 +4114,7 @@ function renderReportePintura() {
     const desgHtml  = desg.length
       ? desg.map(d => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">
             <span style="color:var(--muted)">${d.label}</span>
-            <span style="font-weight:600;color:var(--text)">${d.n}</span></div>`).join("")
+            <span style="font-weight:600;color:var(--text)">${d.n} <span style="color:var(--muted);font-weight:400">${pct(d.n, pintadas)}%</span></span></div>`).join("")
       : `<div style="font-size:12px;color:var(--muted)">Sin defectos de pintura</div>`;
     const lineaColor = linea === 1 ? "var(--accent2)" : "var(--accent)";
     const lineaBg    = linea === 1 ? "rgba(59,130,246,.12)" : "rgba(34,197,94,.12)";
@@ -4160,11 +4160,18 @@ function renderReportePintura() {
     </div>`;
   }).join("");
 
+  const totalVaciadas = piezas.length;
   document.getElementById("main-content").innerHTML = `
-  <div style="margin-bottom:14px">
+  <div style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
     <div style="font-size:16px;font-weight:600;color:var(--text)">Reporte de pintura</div>
     <div style="font-size:11px;color:var(--muted);margin-top:3px">
       Aplica el filtro de fechas (${desde||"—"} → ${hasta||"—"}). Piezas agrupadas por línea y cabina de pintura.
+    </div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Total vaciadas</div>
+      <div style="font-size:28px;font-weight:700;color:var(--text)">${totalVaciadas.toLocaleString()}</div>
     </div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
