@@ -249,6 +249,7 @@ let VISTA="resumen", LINEA="";
 let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[];
 let KPIS_L1=[], KPIS_L2=[], PRECIOS_RAW=[];
 let BASES_RAW=[], REF_BASES_RAW=[], FISICO_RAW=[];
+let VACIADOS_PISO_RAW=[];
 
 const MATERIALES = [
   {key:"gelcoat",   label:"Gel Coat",        col_teo:"Gelcoat",      color:"#3b82f6"},
@@ -288,6 +289,24 @@ async function fetchSheetRaw(sheetId, name) {
     if (!r.ok) return [];
     const j = await r.json();
     return j.values || [];
+  } catch(e) { return []; }
+}
+
+async function fetchVaciadosPiso(desde) {
+  let url = `${SUP_URL}/rest/v1/vaciados?select=fecha,patron,medida&tipo=eq.Piso&linea=eq.2&order=fecha.desc`;
+  if (desde) url += `&fecha=gte.${desde}`;
+  const hdr = (off) => ({apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,
+    Accept:'application/json','Range-Unit':'items',Range:`${off}-${off+999}`,Prefer:'count=exact'});
+  try {
+    const r0 = await fetch(url, {headers:hdr(0)});
+    if (!r0.ok && r0.status !== 206) return [];
+    let rows = await r0.json();
+    const total = parseInt((r0.headers.get('content-range')||'').split('/')[1]) || rows.length;
+    for (let o=1000; o<Math.min(total,20000); o+=1000) {
+      const ch = await fetch(url, {headers:hdr(o)});
+      if (ch.ok || ch.status===206) rows = rows.concat(await ch.json());
+    }
+    return rows;
   } catch(e) { return []; }
 }
 
@@ -439,6 +458,9 @@ function renderResumen(teo,fab,alm,fis,paredes){
     <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#6b7280"></span>Almacén Odoo</div><div class="metric-val" style="color:${clrP(sumTeo?(sumAlm-sumTeo)/sumTeo*100:0)}">${fmtN(sumAlm)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">${fmtP(sumTeo?(sumAlm-sumTeo)/sumTeo*100:0)} vs teórico</div></div>
   </div>`;
 
+  // fisCat necesario en el forEach de barras (declarado aquí para evitar TDZ)
+  const fisCat=fis.catalizador||0;
+
   // Tabla comparativa 4 fuentes
   const maxVal=Math.max(...MATERIALES.map(m=>Math.max(teo[m.key],fis[m.key],fab[m.key],alm[m.key])));
   html+=`<div class="card">
@@ -508,7 +530,6 @@ function renderResumen(teo,fab,alm,fis,paredes){
 
   // Card especial para Físico KPIS: catalizador como total (butanox+norox juntos en el sheet)
   const teoCat=round2((teo.butanox||0)+(teo.norox||0));
-  const fisCat=fis.catalizador||0;
   const pCat=teoCat?((fisCat-teoCat)/teoCat*100):0;
   const cardFisico=`<div class="card" style="margin:0">
     <div class="card-title" style="margin-bottom:10px"><span class="fuente-dot" style="background:#22c55e"></span>Físico (KPIS) <span>vs Teórico</span></div>
@@ -598,8 +619,8 @@ function renderResumen(teo,fab,alm,fis,paredes){
     </div>
   </div>`;
 
-  // Bases (Línea 2 o Todas)
-  if (!LINEA || LINEA === "2") html += renderBasesCard();
+  // Bases (Línea 2 o Todas) — alerta sin ref + tabla histórica
+  if (!LINEA || LINEA === "2") html += renderAlertaBasesCard() + renderBasesCard();
 
   document.getElementById("main-content").innerHTML=html;
 }
@@ -910,6 +931,68 @@ function initChartSW(datos) {
       }
     }
   });
+}
+
+// ── Helpers para referencias de peso de bases ─────────────
+function extractBaseCode(s) {
+  const m = String(s||"").match(/\(([A-Z]{1,3})\)/);
+  return m ? m[1] : "";
+}
+
+function tieneRefPeso(patron, medida) {
+  const code = extractBaseCode(patron);
+  const med  = String(medida||"").toUpperCase().replace(/\s/g,"");
+  if (!code) return false;
+  return REF_BASES_RAW.some(ref => {
+    const refCode = extractBaseCode(ref["Modelo"]||"");
+    const refMed  = String(ref["Medida"]||"").toUpperCase().replace(/\s/g,"");
+    return refCode === code && refMed === med;
+  });
+}
+
+// Card de alerta: bases vaciadas sin referencia de peso en el período
+function renderAlertaBasesCard() {
+  if (!VACIADOS_PISO_RAW.length) return "";
+  const {desde, hasta} = getFechas();
+  const seen = new Map();
+  VACIADOS_PISO_RAW.forEach(r => {
+    const f = String(r.fecha||"").slice(0,10);
+    if (desde && f < desde) return;
+    if (hasta && f > hasta) return;
+    const key = String(r.patron||"").trim() + "|" + String(r.medida||"").trim();
+    if (!seen.has(key)) seen.set(key, {patron:r.patron, medida:r.medida, count:0});
+    seen.get(key).count++;
+  });
+  const missing = [];
+  seen.forEach(v => { if (!tieneRefPeso(v.patron, v.medida)) missing.push(v); });
+  if (!missing.length) return "";
+  missing.sort((a,b) => b.count - a.count);
+  return `
+  <div class="card" style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.05);margin-bottom:12px">
+    <div class="card-title" style="color:#fbbf24;margin-bottom:8px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Bases sin referencia de peso — ${missing.length} modelo${missing.length>1?"s":""}
+      <span style="font-size:11px;font-weight:400;color:var(--muted)">vaciadas en el período · Línea 2</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+      Estos modelos se vaciaron pero no tienen peso registrado en <code style="color:var(--accent)">Copia de Peso Bases.xlsx</code>.
+      Agrega la medición y vuelve a correr <code style="color:var(--accent)">sync_bases_shower.py</code>.
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="text-align:left;font-size:10px;color:var(--muted);padding:5px 0 6px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.5px">Modelo (patrón vaciado)</th>
+        <th style="text-align:center;font-size:10px;color:var(--muted);padding:5px 0 6px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.5px">Medida</th>
+        <th style="text-align:right;font-size:10px;color:var(--muted);padding:5px 0 6px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.5px">Piezas</th>
+      </tr></thead>
+      <tbody>
+        ${missing.map(m=>`<tr>
+          <td style="font-size:12px;padding:7px 0;border-bottom:1px solid var(--border)">${m.patron}</td>
+          <td class="mono" style="text-align:center;padding:7px 0;border-bottom:1px solid var(--border);color:#fbbf24">${m.medida}</td>
+          <td class="mono" style="text-align:right;padding:7px 0;border-bottom:1px solid var(--border)">${m.count.toLocaleString()}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>`;
 }
 
 // ── Bases Línea 2 ─────────────────────────────────────────
@@ -1468,7 +1551,7 @@ async function cargar(){
   document.getElementById("main-content").innerHTML=`<div class="loading"><div class="spinner"></div><div>Cargando desde Supabase…</div></div>`;
   try{
     const inicioAnio = `${new Date().getFullYear()}-01-01`;
-    const [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9] = await Promise.allSettled([
+    const [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10] = await Promise.allSettled([
       fetchSupabase("consumos_diarios", {desde: inicioAnio}),
       fetchSupabase("salidas_fabricacion"),
       fetchSupabase("llegadas_almacen"),
@@ -1479,17 +1562,19 @@ async function cargar(){
       fetchSupabase("consumos_bases"),
       fetchSupabase("ref_peso_bases",{campoFecha:"modelo"}),
       fetchSupabase("fisico_sw"),                                // físico — Supabase
+      fetchVaciadosPiso(inicioAnio),                             // bases L2 para alerta sin ref
     ]);
-    TEORICO_RAW    = r0.status==="fulfilled" ? r0.value : [];
-    FAB_RAW        = r1.status==="fulfilled" ? r1.value : [];
-    ALM_RAW        = r2.status==="fulfilled" ? r2.value : [];
-    INVENTARIOS_RAW= r3.status==="fulfilled" ? r3.value : [];
-    KPIS_L1        = r4.status==="fulfilled" ? r4.value : [];
-    KPIS_L2        = r5.status==="fulfilled" ? r5.value : [];
-    PRECIOS_RAW    = r6.status==="fulfilled" ? r6.value : [];
-    BASES_RAW      = r7.status==="fulfilled" ? r7.value : [];
-    REF_BASES_RAW  = r8.status==="fulfilled" ? r8.value : [];
-    FISICO_RAW     = r9.status==="fulfilled" ? r9.value : [];
+    TEORICO_RAW       = r0.status==="fulfilled" ? r0.value : [];
+    FAB_RAW           = r1.status==="fulfilled" ? r1.value : [];
+    ALM_RAW           = r2.status==="fulfilled" ? r2.value : [];
+    INVENTARIOS_RAW   = r3.status==="fulfilled" ? r3.value : [];
+    KPIS_L1           = r4.status==="fulfilled" ? r4.value : [];
+    KPIS_L2           = r5.status==="fulfilled" ? r5.value : [];
+    PRECIOS_RAW       = r6.status==="fulfilled" ? r6.value : [];
+    BASES_RAW         = r7.status==="fulfilled" ? r7.value : [];
+    REF_BASES_RAW     = r8.status==="fulfilled" ? r8.value : [];
+    FISICO_RAW        = r9.status==="fulfilled" ? r9.value : [];
+    VACIADOS_PISO_RAW = r10.status==="fulfilled" ? r10.value : [];
     document.getElementById("sidebar-update").textContent=
       `Actualizado ${new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}`;
     render();
