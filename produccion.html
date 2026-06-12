@@ -4092,6 +4092,12 @@ function renderReportePintura() {
   }
   const num = v => (v === null || v === undefined || v === "") ? null : parseInt(v, 10);
   const pct = (n, d) => d ? Math.round((n*1000)/d)/10 : 0;
+  // Suma de pulgadas cuadradas (ancho x alto) de un lote de piezas
+  const pulg2 = lote => lote.reduce((s, r) => {
+    const m = (r["Medida"]||"").toLowerCase().split("x");
+    if (m.length === 2) { const a = parseFloat(m[0]), b = parseFloat(m[1]); if (!isNaN(a) && !isNaN(b)) s += a*b; }
+    return s;
+  }, 0);
 
   // 4 cabinas
   const CABINAS = [
@@ -4106,6 +4112,7 @@ function renderReportePintura() {
       num(r["Linea Pintura"]) === linea && num(r["Cabina Pintura"]) === cabina
     );
     const pintadas  = lote.length;
+    const pulgCab   = pulg2(lote);
     const gelcoat   = lote.filter(esGelcoat).length;
     const defPint   = lote.filter(tieneDefectoPintura).length;
     const pctGel    = pct(gelcoat, pintadas);
@@ -4129,9 +4136,15 @@ function renderReportePintura() {
         <span style="font-size:15px;font-weight:600;color:var(--text)">Cabina ${cabina}</span>
       </div>
 
-      <div>
-        <div class="metric-label">Piezas pintadas</div>
-        <div class="metric-val white" style="font-size:34px">${pintadas.toLocaleString()}</div>
+      <div style="display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap">
+        <div>
+          <div class="metric-label">Piezas pintadas</div>
+          <div class="metric-val white" style="font-size:34px">${pintadas.toLocaleString()}</div>
+        </div>
+        <div>
+          <div class="metric-label">Pulgadas pintadas</div>
+          <div class="metric-val white" style="font-size:22px">${Math.round(pulgCab).toLocaleString()} <span style="font-size:12px;color:var(--muted)">pulg&sup2;</span></div>
+        </div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -4161,6 +4174,9 @@ function renderReportePintura() {
   }).join("");
 
   const totalVaciadas = piezas.length;
+  const pulgL1 = pulg2(piezas.filter(r => num(r["Linea Pintura"]) === 1));
+  const pulgL2 = pulg2(piezas.filter(r => num(r["Linea Pintura"]) === 2));
+  const pulgTotal = pulgL1 + pulgL2;
   document.getElementById("main-content").innerHTML = `
   <div style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
@@ -4169,9 +4185,25 @@ function renderReportePintura() {
       Aplica el filtro de fechas (${desde||"—"} → ${hasta||"—"}). Piezas agrupadas por línea y cabina de pintura.
     </div>
     </div>
-    <div style="text-align:right;flex-shrink:0">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Total vaciadas</div>
-      <div style="font-size:28px;font-weight:700;color:var(--text)">${totalVaciadas.toLocaleString()}</div>
+    <div style="display:flex;gap:24px;flex-shrink:0;text-align:right">
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Total vaciadas</div>
+        <div style="font-size:28px;font-weight:700;color:var(--text)">${totalVaciadas.toLocaleString()}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Pulgadas pintadas</div>
+        <div style="font-size:28px;font-weight:700;color:var(--text)">${Math.round(pulgTotal).toLocaleString()} <span style="font-size:13px;color:var(--muted)">pulg&sup2;</span></div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="flex:1;min-width:150px;background:var(--bg2);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:10px 14px">
+      <div style="font-size:11px;color:var(--accent2);font-weight:600">L&Iacute;NEA 1 — pulgadas pintadas</div>
+      <div style="font-size:20px;font-weight:700;color:var(--text)">${Math.round(pulgL1).toLocaleString()} <span style="font-size:11px;color:var(--muted)">pulg&sup2;</span></div>
+    </div>
+    <div style="flex:1;min-width:150px;background:var(--bg2);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:10px 14px">
+      <div style="font-size:11px;color:var(--accent);font-weight:600">L&Iacute;NEA 2 — pulgadas pintadas</div>
+      <div style="font-size:20px;font-weight:700;color:var(--text)">${Math.round(pulgL2).toLocaleString()} <span style="font-size:11px;color:var(--muted)">pulg&sup2;</span></div>
     </div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
