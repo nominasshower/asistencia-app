@@ -447,11 +447,30 @@ function renderResumen(teo,fab,alm,fis,paredes){
       ${["Material","Barras","Teórico","Físico","Fab Odoo","Alm Odoo","Estado"].map((h,i)=>`<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:${i<2?'left':'right'}">${h}</div>`).join("")}
     </div>`;
 
+  // Materiales para tabla comparativa: butanox+norox se combinan en "Catalizador" para columna Físico KPIS
+  const MAT_COMP=[
+    {key:"gelcoat",   label:"Gel Coat",           isCat:false},
+    {key:"butanox",   label:"Butanox M-50",        isCat:false},
+    {key:"resina",    label:"Resina PMS 7103",     isCat:false},
+    {key:"norox",     label:"Norox 900",            isCat:false},
+    {key:"marmolina", label:"Marmolina Estens",    isCat:false},
+    {key:"_catal",    label:"Catalizador (But+Nor)",isCat:true},
+  ];
+  const shownKeys=new Set();
+  MAT_COMP.forEach(m=>{
+    if(m.isCat){
+      // fila combinada solo para Físico KPIS; butanox y norox ya se mostraron de Odoo
+      if(shownKeys.has("butanox")&&shownKeys.has("norox")) return;
+    }
+    if(m.key==="butanox"||m.key==="norox"){shownKeys.add(m.key);}
+  });
+
   MATERIALES.forEach(m=>{
     const t=teo[m.key],f=fis[m.key],b=fab[m.key],a=alm[m.key];
+    // Para físico KPIS: butanox y norox usan catalizador/2 — marcar columna
+    const fDisplay=(m.key==="butanox"||m.key==="norox")?`<div class="mono" style="text-align:right;color:var(--muted);font-size:10px" title="Catalizador/2 — columna mixta en sheet">${fmtN(f)}<sup>*</sup></div>`:`<div class="mono" style="text-align:right;color:${clrP(t?((f-t)/t*100):0)}">${fmtN(f)}</div>`;
     const pFis=t?((f-t)/t*100):0;
-    const pFab=t?((b-t)/t*100):0;
-    const bars=[["Teórico","#3b82f6",t],["Físico","#22c55e",f],["Fab","#f59e0b",b],["Alm","#6b7280",a]];
+    const bars=[["Teórico","#3b82f6",t],["Físico","#22c55e",m.key==="butanox"||m.key==="norox"?fisCat/2:f],["Fab","#f59e0b",b],["Alm","#6b7280",a]];
     html+=`<div style="display:grid;grid-template-columns:155px 1fr 95px 95px 95px 95px 90px;gap:6px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="abrirDetalle('${m.key}')">
       <div style="font-size:12px;font-weight:500">${m.label}</div>
       <div style="display:flex;flex-direction:column;gap:3px">
@@ -461,12 +480,14 @@ function renderResumen(teo,fab,alm,fis,paredes){
         </div>`).join("")}
       </div>
       <div class="mono" style="text-align:right;color:#3b82f6">${fmtN(t)}</div>
-      <div class="mono" style="text-align:right;color:${clrP(pFis)}">${fmtN(f)}</div>
+      ${fDisplay}
       <div class="mono" style="text-align:right;color:#f59e0b">${fmtN(b)}</div>
       <div class="mono" style="text-align:right;color:#6b7280">${fmtN(a)}</div>
       <div style="text-align:right">${badge(pFis)}</div>
     </div>`;
   });
+  // Nota al pie de la tabla sobre catalizador
+  html+=`<div style="font-size:10px;color:var(--muted);padding:6px 0">* Físico de Butanox/Norox = Catalizador÷2 (columna mixta en sheet PRODUCCION). Ver card "Físico (KPIS)" para total combinado.</div>`;
   html+=`</div>`;
 
   // 4 cards de diferencias
@@ -485,8 +506,36 @@ function renderResumen(teo,fab,alm,fis,paredes){
     }).join("")}
   </div>`;
 
+  // Card especial para Físico KPIS: catalizador como total (butanox+norox juntos en el sheet)
+  const teoCat=round2((teo.butanox||0)+(teo.norox||0));
+  const fisCat=fis.catalizador||0;
+  const pCat=teoCat?((fisCat-teoCat)/teoCat*100):0;
+  const cardFisico=`<div class="card" style="margin:0">
+    <div class="card-title" style="margin-bottom:10px"><span class="fuente-dot" style="background:#22c55e"></span>Físico (KPIS) <span>vs Teórico</span></div>
+    ${[{key:"gelcoat",label:"Gel Coat"},{key:"resina",label:"Resina PMS 7103"},{key:"marmolina",label:"Marmolina Estens"}].map(m=>{
+      const t=teo[m.key],v=fis[m.key],p=t?((v-t)/t*100):0,diff=v-t;
+      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px">${m.label}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="mono" style="color:${clrP(p)}">${diff>=0?"+":""}${fmtN(diff)} kg</span>
+          <span class="mono" style="color:${clrP(p)};width:50px;text-align:right">${fmtP(p)}</span>
+          ${badge(p)}
+        </div>
+      </div>`;
+    }).join("")}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:12px">Catalizador <span style="font-size:10px;color:var(--muted)">(But+Nor)</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="mono" style="color:${clrP(pCat)}">${fisCat-teoCat>=0?"+":""}${fmtN(fisCat-teoCat)} kg</span>
+        <span class="mono" style="color:${clrP(pCat)};width:50px;text-align:right">${fmtP(pCat)}</span>
+        ${badge(pCat)}
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);padding:5px 0">Teórico: ${fmtN(teoCat)} kg total · Físico registrado: ${fmtN(fisCat)} kg<br><span style="color:#f59e0b">⚠ El sheet mezcla Butanox+Norox en una sola columna</span></div>
+  </div>`;
+
   html+=`<div class="grid2">
-    ${cardDiff("Físico (KPIS)",k=>fis[k],"#22c55e")}
+    ${cardFisico}
     ${cardDiff("Fabricación Odoo",k=>fab[k],"#f59e0b")}
   </div>
   <div class="grid2">
