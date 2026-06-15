@@ -1000,17 +1000,17 @@ function renderFisico() {
   const htti=hist.reduce((s,r)=>s+parseFloat(r["Titanio (kg)"]||0),0);
   const htma=hist.reduce((s,r)=>s+parseFloat(r["Marmolina (kg)"]||0),0);
   const htot=round2(htgc+htgt+htcg+htre+htcr+htti+htma);
-  const hpct=(v)=>htot>0?`<div style="font-size:11px;color:var(--muted);font-weight:600">${(v/htot*100).toFixed(1)}%</div>`:'';
+  const hpct=(v,base)=>(base||htot)>0?`<div style="font-size:11px;color:var(--muted);font-weight:600">${(v/(base||htot)*100).toFixed(1)}%</div>`:'';
   const totalsRow = hist.length===0?'': `<tr style="font-weight:700;background:rgba(255,255,255,.04);border-bottom:2px solid var(--border)">
     <td colspan="2" style="font-size:11px;color:var(--muted);padding:8px 12px">TOTAL (${hist.length} reg.)</td>
     <td class="mono" style="text-align:right;color:var(--muted)">${totalPiezasHist.toLocaleString()}</td>
-    <td style="text-align:right"><div class="mono" style="color:#3b82f6">${fmtN(round2(htgc))}</div>${hpct(htgc)}</td>
-    <td style="text-align:right"><div class="mono" style="color:#38bdf8">${fmtN(round2(htgt))}</div>${hpct(htgt)}</td>
-    <td style="text-align:right"><div class="mono" style="color:#8b5cf6">${fmtN(round2(htcg))}</div>${hpct(htcg)}</td>
-    <td style="text-align:right"><div class="mono" style="color:#f59e0b">${fmtN(round2(htre))}</div>${hpct(htre)}</td>
-    <td style="text-align:right"><div class="mono" style="color:#06b6d4">${fmtN(round2(htcr))}</div>${hpct(htcr)}</td>
-    <td style="text-align:right"><div class="mono" style="color:#f97316">${fmtN(round2(htti))}</div>${hpct(htti)}</td>
-    <td style="text-align:right"><div class="mono" style="color:#22c55e">${fmtN(round2(htma))}</div>${hpct(htma)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#3b82f6">${fmtN(round2(htgc))}</div>${hpct(htgc,htgc)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#38bdf8">${fmtN(round2(htgt))}</div>${hpct(htgt,htgt)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#8b5cf6">${fmtN(round2(htcg))}</div>${hpct(htcg,htgc)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#f59e0b">${fmtN(round2(htre))}</div>${hpct(htre,htre)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#06b6d4">${fmtN(round2(htcr))}</div>${hpct(htcr,htre)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#f97316">${fmtN(round2(htti))}</div>${hpct(htti,htti)}</td>
+    <td style="text-align:right"><div class="mono" style="color:#22c55e">${fmtN(round2(htma))}</div>${hpct(htma,htma)}</td>
     <td class="mono" style="text-align:right;color:var(--accent)">${fmtN(htot)}</td>
     <td colspan="2"></td>
   </tr>`;
@@ -1121,7 +1121,7 @@ function renderFisico() {
                 re=parseFloat(r["Resina (kg)"]||0), cr=parseFloat(r["Cat. Resina (kg)"]||0),
                 ti=parseFloat(r["Titanio (kg)"]||0), ma=parseFloat(r["Marmolina (kg)"]||0);
           const tot=round2(gc+gct+cg+re+cr+ti+ma);
-          const p=(v)=>tot>0?`<div style="font-size:11px;color:var(--muted)">${(v/tot*100).toFixed(1)}%</div>`:'';
+          const p=(v,base)=>(base||tot)>0?`<div style="font-size:11px;color:var(--muted)">${(v/(base||tot)*100).toFixed(1)}%</div>`:'';
           const ln=String(r["Linea"]||r["Línea"]||"");
           const cls=ln==="L1"?"b-l1":ln==="L2"?"b-l2":ln==="L3"?"b-l3":ln==="L4"?"b-l4":"";
           const fecha=String(r["Fecha"]||"").slice(0,10);
@@ -1130,13 +1130,13 @@ function renderFisico() {
             <td class="mono">${fecha}</td>
             <td><span class="badge ${cls}">${ln||"—"}</span></td>
             <td class="mono" style="text-align:right;color:var(--muted)">${pzas?pzas.toLocaleString():"—"}</td>
-            <td style="text-align:right"><div class="mono" style="color:#3b82f6">${gc?fmtN(gc):"—"}</div>${gc?p(gc):""}</td>
-            <td style="text-align:right"><div class="mono" style="color:#38bdf8">${gct?fmtN(gct):"—"}</div>${gct?p(gct):""}</td>
-            <td style="text-align:right"><div class="mono" style="color:#8b5cf6">${cg?fmtN(cg):"—"}</div>${cg?p(cg):""}</td>
-            <td style="text-align:right"><div class="mono" style="color:#f59e0b">${re?fmtN(re):"—"}</div>${re?p(re):""}</td>
-            <td style="text-align:right"><div class="mono" style="color:#06b6d4">${cr?fmtN(cr):"—"}</div>${cr?p(cr):""}</td>
-            <td style="text-align:right"><div class="mono" style="color:#f97316">${ti?fmtN(ti):"—"}</div>${ti?p(ti):""}</td>
-            <td style="text-align:right"><div class="mono" style="color:#22c55e">${ma?fmtN(ma):"—"}</div>${ma?p(ma):""}</td>
+            <td style="text-align:right"><div class="mono" style="color:#3b82f6">${gc?fmtN(gc):"—"}</div>${gc?p(gc,gc):""}</td>
+            <td style="text-align:right"><div class="mono" style="color:#38bdf8">${gct?fmtN(gct):"—"}</div>${gct?p(gct,gct):""}</td>
+            <td style="text-align:right"><div class="mono" style="color:#8b5cf6">${cg?fmtN(cg):"—"}</div>${cg?p(cg,gc):""}</td>
+            <td style="text-align:right"><div class="mono" style="color:#f59e0b">${re?fmtN(re):"—"}</div>${re?p(re,re):""}</td>
+            <td style="text-align:right"><div class="mono" style="color:#06b6d4">${cr?fmtN(cr):"—"}</div>${cr?p(cr,re):""}</td>
+            <td style="text-align:right"><div class="mono" style="color:#f97316">${ti?fmtN(ti):"—"}</div>${ti?p(ti,ti):""}</td>
+            <td style="text-align:right"><div class="mono" style="color:#22c55e">${ma?fmtN(ma):"—"}</div>${ma?p(ma,ma):""}</td>
             <td class="mono" style="text-align:right;font-weight:600">${fmtN(tot)}</td>
             <td style="color:var(--muted);font-size:11px;max-width:160px">${r["Observaciones"]||'<span style="color:var(--border);font-style:italic">+ agregar obs</span>'}</td>
             <td onclick="event.stopPropagation()">
