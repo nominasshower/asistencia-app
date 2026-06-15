@@ -1174,6 +1174,7 @@ function renderComparaPlan() {
 
   const planAyer = {};  // fk → pzas plan congelado de ayer
   const patronAyer = {}; // fk → nombre completo del modelo (para display)
+  const odooAyer   = {}; // fk → Q de Odoo del plan congelado (para display)
   const vacAyer  = {};  // fk → pzas vaciadas ayer (sistema)
   if (ayerStr) {
     PLAN_FROZEN.forEach(r => {
@@ -1183,6 +1184,7 @@ function renderComparaPlan() {
       const fk = `${ar}||${med}`;
       planAyer[fk] = (planAyer[fk]||0) + (parseInt(r["A Producir"]||0)||0);
       if (!patronAyer[fk]) patronAyer[fk] = r["Modelo"]||"";
+      if (!odooAyer[fk] && r["Odoo"]) odooAyer[fk] = r["Odoo"];
     });
     VAC_RAW.forEach(r => {
       if ((r["Fecha"]||"").slice(0,10) !== ayerStr) return;
@@ -1241,7 +1243,7 @@ function renderComparaPlan() {
     const ap = planApp[fk];
     const patron  = (ex||ap)?.patron  || patronAyer[fk] || fk.split('||')[0];
     const medida  = (ex||ap)?.medida  || fk.split('||')[1] || '';
-    const odoo    = (ex||ap)?.odoo    || ap?.odoo || '';
+    const odoo    = (ex||ap)?.odoo    || ap?.odoo || odooAyer[fk] || '';
     const exPzas  = ex?.piezas  || 0;
     const exMoldes= ex?.moldes  || 0;
     const apPzas  = ap?.aProducir || 0;
