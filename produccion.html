@@ -149,7 +149,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <div class="nav-label">Producción</div>
     <div class="nav-item" id="nav-gerencia" onclick="navegar('gerencia',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
-      Resumen Gerencial
+      Resumen Planta
     </div>
     <div class="nav-item active" id="nav-dash" onclick="navegar('dash',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
@@ -4308,9 +4308,81 @@ function renderEmpaque() {
   ${data.length>500?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 500 de ${data.length} registros</div>`:""}`;
 }
 
+// ── Asistencia por departamento (Resumen Planta) ───────────
+async function cargarAsistenciaGerencia() {
+  const el = document.getElementById("asistencia-gerencia");
+  if (!el) return;
+  const SHEET_ID = "1H-WerDj1GFafoaqsEk7Xmjt_KAi-fwG4tMkiV1B_XUo";
+  const API_KEY  = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
+  const hoy = new Date();
+  const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent("REGISTROS")}?key=${API_KEY}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const d = await res.json();
+    const filas = d.values || [];
+    if (filas.length < 2) throw new Error("Sin datos");
+    const h = filas[0].map(x => x.trim().toLowerCase());
+    const idx = k => h.findIndex(x => x.includes(k));
+    const iF = idx("fecha"); const iA = idx("area"); const iD = idx("depto"); const iE = idx("estado");
+    const iAreaFinal = iA >= 0 ? iA : iD;
+    const filasParsed = filas.slice(1).map(f => ({
+      fecha: (f[iF]||"").trim().slice(0,10),
+      area:  (f[iAreaFinal]||"").trim() || "Sin área",
+      estado:(f[iE]||"").trim().toUpperCase(),
+    }));
+    const deHoy = filasParsed.filter(r => r.fecha === hoyStr);
+    const total = deHoy.length;
+    const porArea = {};
+    deHoy.forEach(r => {
+      if (!porArea[r.area]) porArea[r.area] = {pres:0, ret:0, aus:0};
+      const e = r.estado;
+      if (e === "NORMAL" || e === "EXTRA") porArea[r.area].pres++;
+      else if (e.includes("RETARDO"))      porArea[r.area].ret++;
+      else if (e === "AUSENTE" || e === "INCOMPLETO") porArea[r.area].aus++;
+    });
+    const areas = Object.entries(porArea).sort((a,b)=>b[1].pres+b[1].ret+b[1].aus - (a[1].pres+a[1].ret+a[1].aus));
+    const totPres = areas.reduce((s,[,v])=>s+v.pres,0);
+    const totRet  = areas.reduce((s,[,v])=>s+v.ret,0);
+    const totAus  = areas.reduce((s,[,v])=>s+v.aus,0);
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="card-title" style="margin:0">Asistencia por departamento <span>${hoyStr}</span></div>
+        <div style="display:flex;gap:12px;font-size:11px">
+          <span style="color:var(--accent)">✓ ${totPres} presentes</span>
+          <span style="color:var(--warn)">⚠ ${totRet} retardos</span>
+          <span style="color:var(--danger)">✗ ${totAus} ausentes</span>
+          <span style="color:var(--muted)">${total} registros</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">
+        ${areas.map(([area,v])=>{
+          const tot = v.pres+v.ret+v.aus;
+          const pct = tot ? Math.round(v.pres*100/tot) : 0;
+          const col = pct>=90?"var(--accent)":pct>=70?"var(--warn)":"var(--danger)";
+          return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px">
+            <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${area}">${area}</div>
+            <div style="display:flex;gap:8px;font-size:12px;font-family:'DM Mono',monospace">
+              <span style="color:var(--accent)" title="Presentes">✓${v.pres}</span>
+              ${v.ret>0?`<span style="color:var(--warn)" title="Retardos">⚠${v.ret}</span>`:""}
+              ${v.aus>0?`<span style="color:var(--danger)" title="Ausentes">✗${v.aus}</span>`:""}
+            </div>
+            <div style="margin-top:6px;height:3px;background:var(--bg3);border-radius:2px">
+              <div style="width:${pct}%;height:100%;background:${col};border-radius:2px"></div>
+            </div>
+          </div>`;
+        }).join("")}
+        ${areas.length===0?`<div style="color:var(--muted);font-size:12px">Sin registros para hoy</div>`:""}
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:12px">Asistencia no disponible: ${e.message}</div>`;
+  }
+}
+
 // ── Resumen Gerencial ─────────────────────────────────────
 function renderGerencia(data) {
-  document.getElementById("topbar-title").textContent = "Resumen Gerencial";
+  document.getElementById("topbar-title").textContent = "RESUMEN PLANTA";
   const desde = document.getElementById("fDesde").value;
   const hasta  = document.getElementById("fHasta").value;
 
@@ -4695,7 +4767,14 @@ function renderGerencia(data) {
       </div>
     </div>
 
+  </div>
+
+  <!-- ── Fila 4: Asistencia por departamento ── -->
+  <div class="card" style="margin-top:12px">
+    <div id="asistencia-gerencia" style="color:var(--muted);font-size:12px">Cargando asistencia…</div>
   </div>`;
+
+  cargarAsistenciaGerencia();
 }
 
 // ── Inventario Moldes ─────────────────────────────────────
