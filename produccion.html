@@ -1191,7 +1191,9 @@ function renderComparaPlan() {
       if (sku && SKU_SOLO_EXCLUIDOS.has(sku)) return;
       const ar = normAbrev(r["Patron"]||""), med = normMedida(r["Medida"]||"");
       if (!ar || !med) return;
-      vacAyer[`${ar}||${med}`] = (vacAyer[`${ar}||${med}`]||0) + 1;
+      const fk = `${ar}||${med}`;
+      vacAyer[fk] = (vacAyer[fk]||0) + 1;
+      if (!patronAyer[fk]) patronAyer[fk] = r["Patron"]||"";
     });
   }
 
