@@ -4317,21 +4317,38 @@ async function cargarAsistenciaGerencia() {
   const hoy = new Date();
   const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent("REGISTROS")}?key=${API_KEY}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const d = await res.json();
-    const filas = d.values || [];
+    const [resReg, resEmp] = await Promise.all([
+      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent("REGISTROS")}?key=${API_KEY}`),
+      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent("EMPLEADOS")}?key=${API_KEY}`),
+    ]);
+    if (!resReg.ok) throw new Error("HTTP " + resReg.status);
+    const [dReg, dEmp] = await Promise.all([resReg.json(), resEmp.json()]);
+    const filas = dReg.values || [];
     if (filas.length < 2) throw new Error("Sin datos");
+    // Lookup nomina → área desde EMPLEADOS
+    const empFilas = dEmp.values || [];
+    const empH = empFilas[0]?.map(x => x.trim().toLowerCase()) || [];
+    const iEN = empH.findIndex(x => x.includes("nomina"));
+    const iEA = empH.findIndex(x => x.includes("area"));
+    const empArea = {};
+    empFilas.slice(1).forEach(f => {
+      const nom = (f[iEN]||"").trim();
+      const ar  = (f[iEA]||"").trim();
+      if (nom && ar) empArea[nom] = ar;
+    });
     const h = filas[0].map(x => x.trim().toLowerCase());
     const idx = k => h.findIndex(x => x.includes(k));
-    const iF = idx("fecha"); const iA = idx("area"); const iD = idx("depto"); const iE = idx("estado");
-    const iAreaFinal = iA >= 0 ? iA : iD;
-    const filasParsed = filas.slice(1).map(f => ({
-      fecha: (f[iF]||"").trim().slice(0,10),
-      area:  (f[iAreaFinal]||"").trim() || "Sin área",
-      estado:(f[iE]||"").trim().toUpperCase(),
-    }));
+    const iF = idx("fecha"); const iA = idx("area"); const iN = idx("nomina"); const iE = idx("estado");
+    const filasParsed = filas.slice(1).map(f => {
+      const rawArea = (f[iA]||"").trim();
+      const nom = (f[iN]||"").trim();
+      const area = rawArea || empArea[nom] || "Sin área";
+      return {
+        fecha: (f[iF]||"").trim().slice(0,10),
+        area,
+        estado:(f[iE]||"").trim().toUpperCase(),
+      };
+    });
     const deHoy = filasParsed.filter(r => r.fecha === hoyStr);
     const total = deHoy.length;
     const porArea = {};
