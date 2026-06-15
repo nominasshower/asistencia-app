@@ -4338,9 +4338,9 @@ async function cargarAsistenciaGerencia() {
     deHoy.forEach(r => {
       if (!porArea[r.area]) porArea[r.area] = {pres:0, ret:0, aus:0};
       const e = r.estado;
-      if (e === "NORMAL" || e === "EXTRA") porArea[r.area].pres++;
-      else if (e.includes("RETARDO"))      porArea[r.area].ret++;
-      else if (e === "AUSENTE" || e === "INCOMPLETO") porArea[r.area].aus++;
+      if (e === "AUSENTE") porArea[r.area].aus++;
+      else if (e === "RETARDO" || e === "RETARDO CON EXTRA") porArea[r.area].ret++;
+      else porArea[r.area].pres++;  // NORMAL, EXTRA, INCOMPLETO (turno en curso) = presente
     });
     const areas = Object.entries(porArea).sort((a,b)=>b[1].pres+b[1].ret+b[1].aus - (a[1].pres+a[1].ret+a[1].aus));
     const totPres = areas.reduce((s,[,v])=>s+v.pres,0);
