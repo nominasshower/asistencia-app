@@ -314,15 +314,16 @@ const COL_MAP = {
   ventas:            {fecha:'Fecha',fecha_entrega:'Fecha Entrega',pedido:'Pedido',cliente:'Cliente',sku:'SKU',producto:'Producto',cantidad:'Cantidad',precio_unit:'Precio Unit',subtotal:'Subtotal',moneda:'Moneda',estado:'Estado',entregado:'Entregado',pendiente:'Pendiente',linea_odoo:'Línea Odoo'},
 };
 
-async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',limit=200000,asc=false}={}) {
+async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',limit=200000,asc=false,campos=null}={}) {
   // Supabase regresa máximo ~1000 filas por request — hay que paginar SIEMPRE.
   let filtros = '';
   if (desde) filtros += `&${campoFecha}=gte.${desde}`;
   // hasta incluye el día completo (las columnas de fecha son timestamp)
   if (hasta) filtros += `&${campoFecha}=lte.${/T/.test(hasta)?hasta:hasta+'T23:59:59'}`;
   const dir = asc ? 'asc' : 'desc';
+  const sel = campos || '*';
   // Orden secundario por id = paginación estable (sin filas duplicadas/perdidas entre páginas)
-  let url = `${SUP_URL}/rest/v1/${tabla}?select=*&order=${campoFecha}.${dir},id.${dir}${filtros}`;
+  let url = `${SUP_URL}/rest/v1/${tabla}?select=${sel}&order=${campoFecha}.${dir},id.${dir}${filtros}`;
   const PG = 1000;
   const hdr = off => ({apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
                        'Range-Unit':'items','Range':`${off}-${off+PG-1}`,'Prefer':'count=exact'});
@@ -4948,27 +4949,33 @@ function getSideTipo(patron) {
   return "CENTER";
 }
 
-function renderMoldes() {
+async function renderMoldes() {
   document.getElementById("topbar-title").textContent = "Inventario de Moldes";
-  const ventana = VAC_RAW.length > 0
-    ? VAC_RAW.reduce((m,r)=>{ const f=(r["Fecha"]||"").slice(0,10); return (!m||f<m)?f:m; }, "")
-    : "—";
-  document.getElementById("topbar-sub").textContent = `Moldes en VAC_RAW desde ${ventana}`;
+  document.getElementById("topbar-sub").textContent = "Cargando últimos 6 meses…";
+  document.getElementById("main-content").innerHTML =
+    '<div class="loading"><div class="spinner"></div><div>Cargando inventario…</div></div>';
 
-  // Agrupar por TAG: patrón más frecuente, último vaciado, medida, usos
+  const desde6m = new Date(Date.now() - 182*864e5).toISOString().slice(0,10);
+  let rows = [];
+  try {
+    rows = await fetchSupabase("vaciados", {desde: desde6m, campos: "tag,patron,medida,linea,fecha,id"});
+  } catch(e) { rows = VAC_RAW; }
+
+  document.getElementById("topbar-sub").textContent = `Últimos 6 meses (desde ${desde6m})`;
+
   const tagMap = {};
-  VAC_RAW.forEach(r => {
-    const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
+  rows.forEach(r => {
+    const tag = (r["TAG"] || r["tag"] || r["Tag"] || "").trim().toUpperCase();
     if (!tag) return;
-    const patron = (r["Patron"] || "").trim();
+    const patron = (r["Patron"] || r["patron"] || "").trim();
     if (!patron) return;
     if (!tagMap[tag]) tagMap[tag] = {patrones: {}, ultimaFecha: "", medida: "", linea: ""};
     tagMap[tag].patrones[patron] = (tagMap[tag].patrones[patron] || 0) + 1;
-    const f = (r["Fecha"] || "").slice(0,10);
+    const f = (r["Fecha"] || r["fecha"] || "").slice(0,10);
     if (f > tagMap[tag].ultimaFecha) {
       tagMap[tag].ultimaFecha = f;
-      tagMap[tag].medida = r["Medida"] || "";
-      tagMap[tag].linea  = r["Linea"]  || "";
+      tagMap[tag].medida = r["Medida"] || r["medida"] || "";
+      tagMap[tag].linea  = r["Linea"]  || r["linea"]  || "";
     }
   });
 
