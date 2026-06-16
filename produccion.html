@@ -198,6 +198,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7V4a1 1 0 00-1-1H5a2 2 0 000 4h15a1 1 0 011 1v4a1 1 0 01-1 1h-3"/><rect x="3" y="11" width="9" height="9" rx="1"/></svg>
       Reporte de Pintura
     </div>
+    <div class="nav-item" id="nav-wip" onclick="navegar('wip',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      WIP
+    </div>
     <div class="nav-item" id="nav-pt" onclick="navegar('pt',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
       PT
@@ -698,6 +702,7 @@ function renderVista(data) {
   else if (VISTA === "gantt")    renderGantt();
   else if (VISTA === "liberado") renderLiberado();
   else if (VISTA === "reportepintura") renderReportePintura();
+  else if (VISTA === "wip")      renderWIP();
   else if (VISTA === "pt")       renderPT();
   else if (VISTA === "empaque")  renderEmpaque();
   else if (VISTA === "moldes")   renderMoldes();
@@ -4027,6 +4032,107 @@ function renderLiberado() {
   ${data.length>500?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Mostrando 500 de ${data.length} registros</div>`:""}`;
 }
 
+// ── Reporte WIP ───────────────────────────────────────────
+let WIP_FILTRO = "todos";
+
+function renderWIP() {
+  document.getElementById("topbar-title").textContent = "Reporte WIP";
+  const mc = document.getElementById("main-content");
+
+  const hoy  = new Date();
+  const hoyS = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+  const mes1 = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-01`;
+
+  const libSet = new Set(LIB_RAW.map(r => r["SKU"]).filter(Boolean));
+  const wipAll = VAC_RAW.filter(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    return f >= mes1 && f <= hoyS && !libSet.has(r["SKU"]);
+  });
+
+  function matchTipo(r, filtro) {
+    const t = (r["Tipo"]||"").toLowerCase();
+    if (filtro === "paredes")    return t === "pared";
+    if (filtro === "bases")      return t === "piso" || t === "base";
+    if (filtro === "accesorios") return t !== "pared" && t !== "piso" && t !== "base";
+    return true;
+  }
+
+  const tots = {
+    todos:       wipAll.length,
+    paredes:     wipAll.filter(r => matchTipo(r,"paredes")).length,
+    bases:       wipAll.filter(r => matchTipo(r,"bases")).length,
+    accesorios:  wipAll.filter(r => matchTipo(r,"accesorios")).length,
+  };
+
+  const wip = wipAll.filter(r => matchTipo(r, WIP_FILTRO));
+
+  const grupos = {};
+  wip.forEach(r => {
+    const k = [r["Patron"]||"—", r["Medida"]||"—", r["Acabado"]||"—", r["Color"]||"—", r["Tipo"]||"—"].join("||");
+    if (!grupos[k]) grupos[k] = {patron: r["Patron"]||"—", medida: r["Medida"]||"—",
+                                  acabado: r["Acabado"]||"—", color: r["Color"]||"—",
+                                  tipo: r["Tipo"]||"—", total: 0};
+    grupos[k].total++;
+  });
+
+  const filas = Object.values(grupos).sort((a,b) => b.total - a.total);
+  const totalFiltrado = wip.length;
+
+  const TABS = [
+    {id:"todos",       label:"Todos",       n: tots.todos},
+    {id:"paredes",     label:"Paredes",     n: tots.paredes},
+    {id:"bases",       label:"Bases",       n: tots.bases},
+    {id:"accesorios",  label:"Accesorios",  n: tots.accesorios},
+  ];
+
+  const tabsHTML = TABS.map(t => {
+    const act = WIP_FILTRO === t.id;
+    return `<button onclick="WIP_FILTRO='${t.id}';renderWIP()"
+      style="padding:7px 16px;border:1px solid ${act?'var(--accent)':'var(--border)'};border-radius:20px;
+             cursor:pointer;font-size:13px;background:${act?'var(--accent)':'transparent'};
+             color:${act?'#fff':'var(--fg)'};font-weight:${act?'600':'400'}">
+      ${t.label} <span style="opacity:.7">${t.n.toLocaleString()}</span>
+    </button>`;
+  }).join("");
+
+  const tbody = filas.length ? filas.map(f => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px 16px">
+        <div style="font-size:13px;font-weight:600">${f.patron}
+          <span style="color:var(--muted);font-weight:400"> ${f.tipo} &nbsp; ${f.medida}</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">${f.color} &nbsp;&nbsp; ${f.acabado}</div>
+      </td>
+      <td style="padding:10px 16px;text-align:right;font-size:15px;font-weight:700;
+                 color:${f.total>=10?'var(--accent)':'var(--muted)'};white-space:nowrap">${f.total}</td>
+    </tr>`).join("")
+  : `<tr><td colspan="2" style="padding:32px;text-align:center;color:var(--muted)">Sin piezas en este filtro</td></tr>`;
+
+  mc.innerHTML = `
+    <div style="padding:16px 20px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${tabsHTML}</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);background:var(--surface2)">
+              <th style="padding:10px 16px;text-align:left;font-weight:600">Producto</th>
+              <th style="padding:10px 16px;text-align:right;font-weight:600">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:9px 16px;color:var(--muted);font-size:12px">
+                Vaciadas ${mes1} → ${hoyS} · pendientes de liberar
+              </td>
+              <td style="padding:9px 16px;text-align:right;font-weight:700;font-size:16px">${totalFiltrado.toLocaleString()}</td>
+            </tr>
+            ${tbody}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 // ── Reporte de Pintura ────────────────────────────────────
 // Normaliza texto: minúsculas + sin acentos + trim (comparación robusta de defectos)
 function normDefectoPintura(s) {
@@ -4489,6 +4595,19 @@ function renderGerencia(data) {
   const pctAB = totalInsp ? Math.round((cA+cB)*100/totalInsp) : 0;
   const pctC  = totalInsp ? Math.round(cC*100/totalInsp) : 0;
 
+  // ── WIP DEL DÍA ──────────────────────────────────────────
+  // SKUs vaciados hoy
+  const skusVacHoy = new Set(
+    VAC_RAW.filter(r => (r["Fecha"]||"").slice(0,10) === hoyLocalG)
+            .map(r => r["SKU"]).filter(Boolean)
+  );
+  const wip_vacHoy = skusVacHoy.size;
+  // Liberadas hoy cuyo SKU también fue vaciado hoy
+  const wip_libHoy = LIB_RAW.filter(r =>
+    (r["Fecha Liberado"]||"").slice(0,10) === hoyLocalG && skusVacHoy.has(r["SKU"])
+  ).length;
+  const wip_hoy    = Math.max(0, wip_vacHoy - wip_libHoy);
+
   // Top 3 defectos
   const defCounts = {};
   data.forEach(r => defectosActivos(r["Detalle Defecto"]).forEach(d => defCounts[d]=(defCounts[d]||0)+1));
@@ -4518,26 +4637,30 @@ function renderGerencia(data) {
     : `<span style="color:var(--danger)">⚠ ${alertasMolde.length} molde${alertasMolde.length!==1?"s":""} · ${alertasGelcoat.length} línea${alertasGelcoat.length!==1?"s":""} gelcoat</span>`;
 
   // ── PAREDES / BASES / ACCESORIOS ─────────────────────────────────────────
-  // Usa esParedes()/esBases()/catPatron() globales — misma lógica que Gantt Moldes
-  const planPorCat = {paredes:0, bases:0, accesorios:0};
+  // Plan y vaciados por categoría usando días con plan ESPECÍFICO de esa categoría
+  // (evita mezclar: bases producidas en días con plan de paredes no cuentan como cumplimiento de bases)
+  const planGruposCat = {paredes:{}, bases:{}, accesorios:{}};
   const acumPlanCat = (rows, esFrozen) => rows.forEach(r => {
     const f = parsePlanFecha(r["Fecha"]);
     if (!f || f < desde || f > hasta) return;
-    if (esFrozen && f >= hoyLocalG) return;        // hoy usa plan vivo, no la foto congelada
-    if (!esFrozen && diasFrozen.has(f)) return;    // día congelado → ignora gantt vivo
-    if (!diasConPlan.has(f)) return; // solo días comparables (mismo criterio que % cumplimiento)
-    planPorCat[catPatron(r["Modelo"]||"")] += parseInt(r["A Producir"]||0)||0;
+    if (esFrozen && f >= hoyLocalG) return;
+    if (!esFrozen && diasFrozen.has(f)) return;
+    const cat = catPatron(r["Modelo"]||"");
+    planGruposCat[cat][f] = (planGruposCat[cat][f]||0) + (parseInt(r["A Producir"]||0)||0);
   });
   acumPlanCat(PLAN_FROZEN, true);
   acumPlanCat(PLAN, false);
-  const planParedes    = planPorCat.paredes;
-  const planBases      = planPorCat.bases;
-  const planAccesorios = planPorCat.accesorios;
+  const planParedes    = Object.values(planGruposCat.paredes).reduce((s,v)=>s+v,0);
+  const planBases      = Object.values(planGruposCat.bases).reduce((s,v)=>s+v,0);
+  const planAccesorios = Object.values(planGruposCat.accesorios).reduce((s,v)=>s+v,0);
 
-  // Solo días con plan — mismo criterio que % cumplimiento
-  const vacParedes    = vacConPlan.filter(r => esParedes(r["Patron"]||"")).length;
-  const vacBases      = vacConPlan.filter(r => esBases(r["Patron"]||"")).length;
-  const vacAccesorios = vacConPlan.filter(r => !esParedes(r["Patron"]||"") && !esBases(r["Patron"]||"")).length;
+  // Días con plan por categoría — vaciados solo en días donde esa categoría estaba planeada
+  const diasConPlanP = new Set(Object.keys(planGruposCat.paredes).filter(f => planGruposCat.paredes[f]>0));
+  const diasConPlanB = new Set(Object.keys(planGruposCat.bases).filter(f => planGruposCat.bases[f]>0));
+  const diasConPlanA = new Set(Object.keys(planGruposCat.accesorios).filter(f => planGruposCat.accesorios[f]>0));
+  const vacParedes    = vacPeriodo.filter(r => diasConPlanP.has((r["Fecha"]||"").slice(0,10)) && esParedes(r["Patron"]||"")).length;
+  const vacBases      = vacPeriodo.filter(r => diasConPlanB.has((r["Fecha"]||"").slice(0,10)) && esBases(r["Patron"]||"")).length;
+  const vacAccesorios = vacPeriodo.filter(r => diasConPlanA.has((r["Fecha"]||"").slice(0,10)) && !esParedes(r["Patron"]||"") && !esBases(r["Patron"]||"")).length;
 
   const cumplP = planParedes    > 0 ? Math.round(vacParedes   *100/planParedes)    : null;
   const cumplB = planBases      > 0 ? Math.round(vacBases     *100/planBases)      : null;
@@ -4580,7 +4703,7 @@ function renderGerencia(data) {
   </div>
 
   <!-- ── Fila 1: KPIs grandes ── -->
-  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px">
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:14px">
 
     <div class="metric" style="grid-column:span 2;position:relative;overflow:hidden">
       <div class="metric-label">% Cumplimiento producción</div>
@@ -4610,6 +4733,12 @@ function renderGerencia(data) {
       <div class="metric-label">Moldes activos</div>
       <div class="metric-val white">${moldesActivos.toLocaleString()}</div>
       <div class="metric-sub">${eficiencia} piezas/molde</div>
+    </div>
+
+    <div class="metric" style="border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.04)">
+      <div class="metric-label" style="color:var(--amber)">Piezas en WIP — hoy</div>
+      <div class="metric-val amber">${wip_hoy.toLocaleString()}</div>
+      <div class="metric-sub">${wip_vacHoy} vac. · ${wip_libHoy} lib.</div>
     </div>
 
   </div>
@@ -5175,7 +5304,7 @@ function guardarFiltros() {
   // Navegar a la vista solicitada
   const v = p.get("v");
   const vistasValidas = ["gerencia","dash","alertas","tabla","plan","comparaplanes",
-                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque","reportepintura"];
+                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque","reportepintura","wip"];
   if (v && vistasValidas.includes(v)) VISTA = v;
   // Aceptar mensajes del padre para cambiar vista sin recargar
   window.addEventListener("message", e => {
