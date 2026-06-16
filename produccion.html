@@ -638,10 +638,9 @@ async function cargar() {
   document.getElementById("btn-wa").style.display = "none";
 
   try {
-    // Piso para la HISTORIA (alertas de Gantt/inventario que comparan con el
-    // pasado): 120 días, o el "desde" del usuario si es más viejo.
-    const piso120 = new Date(Date.now() - 120*864e5).toISOString().slice(0,10);
-    const pisoFetch = (desde && desde < piso120) ? desde : piso120;
+    // Piso para la HISTORIA: 45 días, o el "desde" del usuario si es más viejo.
+    const piso45 = new Date(Date.now() - 45*864e5).toISOString().slice(0,10);
+    const pisoFetch = (desde && desde < piso45) ? desde : piso45;
     const miToken = ++cargaToken;
 
     // 1. CRITICO: SOLO el rango del filtro → render inmediato (~1-2s si es "hoy").
@@ -658,13 +657,17 @@ async function cargar() {
     //    de seguimiento. NO bloquea; al llegar reemplaza los crudos y re-pinta.
     //    Solo trae historia extra si el filtro no la cubre ya.
     const traerHist = pisoFetch < desde;
+    // LIB_RAW: solo mes actual (WIP) + 15 días buffer para Liberado tab
+    const pisoLib = new Date(Date.now() - 45*864e5).toISOString().slice(0,10);
+    // ventas: último año
+    const pisoVentas = new Date(Date.now() - 365*864e5).toISOString().slice(0,10);
     Promise.all([
       traerHist ? fetchSupabase("inspeccion", {desde: pisoFetch}).catch(()=>INSP_RAW) : Promise.resolve(INSP_RAW),
       traerHist ? fetchSupabase("vaciados",   {desde: pisoFetch}).catch(()=>VAC_RAW)  : Promise.resolve(VAC_RAW),
-      fetchSupabase("liberado",{campoFecha:"fecha_liberado",desde:pisoFetch}).catch(()=>[]),
+      fetchSupabase("liberado",{campoFecha:"fecha_liberado",desde:pisoLib}).catch(()=>[]),
       fetchSupabase("producto_terminado",{campoFecha:"fecha_liberacion"}).catch(()=>[]),
       fetchSupabase("empaque",{campoFecha:"fecha_empaque",desde:pisoFetch}).catch(()=>[]),
-      fetchSupabase("ventas").catch(()=>[]),
+      fetchSupabase("ventas",{campoFecha:"fecha",desde:pisoVentas}).catch(()=>[]),
       fetchSupabase("plan_congelado",{campoFecha:"fecha",asc:true}).catch(()=>[]),
     ]).then(([inspAll, vacAll, lib, pt, emp, ven, frozen]) => {
       if (miToken !== cargaToken) return;  // carga obsoleta
