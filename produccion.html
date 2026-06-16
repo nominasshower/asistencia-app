@@ -4979,11 +4979,12 @@ async function renderMoldes() {
     }
   });
 
-  const moldes = Object.entries(tagMap).map(([tag, d]) => {
+  const moldes = Object.entries(tagMap).flatMap(([tag, d]) => {
     const sorted = Object.entries(d.patrones).sort((a,b) => b[1]-a[1]);
     const usos   = sorted.reduce((s,[,c])=>s+c, 0);
-    return { tag, patron: sorted[0][0], medida: d.medida, linea: d.linea,
-             usos, ultimaFecha: d.ultimaFecha };
+    if (sorted[0][1] / usos < 0.80) return []; // TAG inestable — cambia de molde
+    return [{ tag, patron: sorted[0][0], medida: d.medida, linea: d.linea,
+              usos, ultimaFecha: d.ultimaFecha }];
   }).sort((a,b) => a.patron.localeCompare(b.patron));
 
   const totalMoldes  = moldes.length;
