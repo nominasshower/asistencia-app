@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Área WIP — Shower Walls</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 :root {
   --bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;
@@ -52,6 +53,17 @@ tr:last-child td{border-bottom:none;}
 .del-btn:active{color:var(--danger);}
 .mono{font-family:'DM Mono',monospace;font-size:11px;}
 .empty{text-align:center;color:var(--muted);padding:28px;font-size:13px;}
+.btn-cam{padding:12px 16px;border-radius:8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.btn-cam:active{background:var(--accent2);border-color:var(--accent2);}
+/* Modal cámara */
+.cam-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;flex-direction:column;align-items:center;justify-content:center;padding:16px;}
+.cam-overlay.open{display:flex;}
+.cam-box{background:var(--bg2);border-radius:16px;padding:20px;width:100%;max-width:480px;}
+.cam-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.cam-title{font-size:14px;font-weight:600;}
+.cam-close{background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:0 4px;line-height:1;}
+#cam-reader{width:100%;border-radius:8px;overflow:hidden;}
+.cam-hint{font-size:11px;color:var(--muted);text-align:center;margin-top:10px;}
 @media(max-width:500px){
   .burrito-num{font-size:42px;}
   th:nth-child(4),td:nth-child(4),th:nth-child(5),td:nth-child(5){display:none;}
@@ -85,11 +97,24 @@ tr:last-child td{border-bottom:none;}
     <button id="btn-ret" class="tipo-btn" onclick="selTipo('retrabajo')">Retrabajo</button>
   </div>
   <div class="sku-row">
-    <input id="sku-input" class="sku-input" type="text" placeholder="Escanea SKU…" autocomplete="off" autocorrect="off" spellcheck="false"
+    <button class="btn-cam" onclick="abrirCamara()" title="Escanear con cámara">📷</button>
+    <input id="sku-input" class="sku-input" type="text" placeholder="SKU…" autocomplete="off" autocorrect="off" spellcheck="false"
       onkeydown="if(event.key==='Enter')agregarPieza()">
     <button class="btn-add" onclick="agregarPieza()">Agregar</button>
   </div>
   <div class="msg" id="msg"></div>
+</div>
+
+<!-- Modal cámara -->
+<div class="cam-overlay" id="cam-overlay">
+  <div class="cam-box">
+    <div class="cam-header">
+      <div class="cam-title">Apunta al código de barras</div>
+      <button class="cam-close" onclick="cerrarCamara()">✕</button>
+    </div>
+    <div id="cam-reader"></div>
+    <div class="cam-hint">Detecta automáticamente al enfocar</div>
+  </div>
 </div>
 
 <div class="tabla-wrap">
@@ -239,6 +264,33 @@ async function eliminar(id) {
 }
 
 function recargar() { cargarDatos(); }
+
+// ── Cámara (html5-qrcode) ──────────────────────────────────
+let _scanner = null;
+
+function abrirCamara() {
+  document.getElementById('cam-overlay').classList.add('open');
+  if (_scanner) { _scanner.clear().catch(()=>{}); }
+  _scanner = new Html5Qrcode('cam-reader');
+  _scanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 280, height: 120 }, supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] },
+    (decodedText) => {
+      cerrarCamara();
+      document.getElementById('sku-input').value = decodedText.trim();
+      agregarPieza();
+    },
+    () => {}
+  ).catch(err => {
+    document.getElementById('cam-reader').innerHTML =
+      `<div style="color:var(--danger);padding:20px;text-align:center;font-size:13px">No se pudo acceder a la cámara.<br><small>${err}</small></div>`;
+  });
+}
+
+function cerrarCamara() {
+  document.getElementById('cam-overlay').classList.remove('open');
+  if (_scanner) { _scanner.stop().catch(()=>{}); _scanner = null; }
+}
 
 cargarDatos();
 </script>
