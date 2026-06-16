@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Área WIP — Shower Walls</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;
+  --border:rgba(255,255,255,0.07);--text:#e8eaf0;--muted:#6b7280;
+  --accent:#22c55e;--accent2:#3b82f6;--warn:#f59e0b;--danger:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:16px;}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border);}
+.top-logo{font-size:14px;font-weight:600;color:var(--accent);}
+.top-logo span{color:var(--muted);font-weight:400;font-size:12px;margin-left:6px;}
+.burritos{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+.burrito{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:border-color .15s;}
+.burrito.wip{border-color:rgba(59,130,246,.3);}
+.burrito.ret{border-color:rgba(245,158,11,.3);}
+.burrito-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;}
+.burrito-num{font-size:52px;font-weight:700;line-height:1;}
+.burrito.wip .burrito-num{color:#93c5fd;}
+.burrito.ret .burrito-num{color:#fbbf24;}
+.burrito-sub{font-size:11px;color:var(--muted);margin-top:6px;}
+.scan-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;}
+.scan-title{font-size:13px;font-weight:600;margin-bottom:14px;}
+.tipo-btns{display:flex;gap:8px;margin-bottom:14px;}
+.tipo-btn{flex:1;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;}
+.tipo-btn.active-wip{background:rgba(59,130,246,.2);color:#93c5fd;border-color:rgba(59,130,246,.5);}
+.tipo-btn.active-ret{background:rgba(245,158,11,.2);color:#fbbf24;border-color:rgba(245,158,11,.5);}
+.sku-row{display:flex;gap:8px;}
+.sku-input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-family:'DM Mono',monospace;font-size:15px;outline:none;-webkit-appearance:none;}
+.sku-input:focus{border-color:var(--accent2);}
+.btn-add{padding:12px 20px;border-radius:8px;background:var(--accent);color:#000;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;}
+.btn-add:active{background:#16a34a;}
+.msg{min-height:24px;font-size:13px;margin-top:10px;}
+.tabs{display:flex;gap:6px;margin-bottom:0;padding:12px 16px;border-bottom:1px solid var(--border);}
+.tab-btn{padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.tab-btn.active{background:rgba(34,197,94,.15);color:var(--accent);border-color:rgba(34,197,94,.3);font-weight:600;}
+.tabla-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+th{padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:10px 12px;font-size:12px;border-bottom:1px solid var(--border);}
+tr:last-child td{border-bottom:none;}
+.badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;}
+.b-wip{background:rgba(59,130,246,.15);color:#93c5fd;}
+.b-ret{background:rgba(245,158,11,.15);color:#fbbf24;}
+.del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:2px 8px;}
+.del-btn:active{color:var(--danger);}
+.mono{font-family:'DM Mono',monospace;font-size:11px;}
+.empty{text-align:center;color:var(--muted);padding:28px;font-size:13px;}
+@media(max-width:500px){
+  .burrito-num{font-size:42px;}
+  th:nth-child(4),td:nth-child(4),th:nth-child(5),td:nth-child(5){display:none;}
+}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="top-logo">Área WIP <span>Shower Walls</span></div>
+  <button onclick="recargar()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif">↺ Actualizar</button>
+</div>
+
+<div class="burritos">
+  <div class="burrito wip" onclick="verTab('wip')">
+    <div class="burrito-label">WIP</div>
+    <div class="burrito-num" id="cnt-wip">—</div>
+    <div class="burrito-sub">piezas en proceso</div>
+  </div>
+  <div class="burrito ret" onclick="verTab('retrabajo')">
+    <div class="burrito-label">Retrabajo</div>
+    <div class="burrito-num" id="cnt-ret">—</div>
+    <div class="burrito-sub">piezas en retrabajo</div>
+  </div>
+</div>
+
+<div class="scan-card">
+  <div class="scan-title">Capturar pieza</div>
+  <div class="tipo-btns">
+    <button id="btn-wip" class="tipo-btn active-wip" onclick="selTipo('wip')">WIP</button>
+    <button id="btn-ret" class="tipo-btn" onclick="selTipo('retrabajo')">Retrabajo</button>
+  </div>
+  <div class="sku-row">
+    <input id="sku-input" class="sku-input" type="text" placeholder="Escanea SKU…" autocomplete="off" autocorrect="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter')agregarPieza()">
+    <button class="btn-add" onclick="agregarPieza()">Agregar</button>
+  </div>
+  <div class="msg" id="msg"></div>
+</div>
+
+<div class="tabla-wrap">
+  <div class="tabs">
+    <button id="tab-wip" class="tab-btn active" onclick="verTab('wip')">WIP (<span id="tc-wip">0</span>)</button>
+    <button id="tab-ret" class="tab-btn" onclick="verTab('retrabajo')">Retrabajo (<span id="tc-ret">0</span>)</button>
+    <button id="tab-all" class="tab-btn" onclick="verTab('todos')">Todos (<span id="tc-all">0</span>)</button>
+  </div>
+  <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th>Tipo</th><th>Patrón</th><th>Medida</th><th>Color</th><th>Acabado</th><th>Fecha</th><th></th>
+      </tr></thead>
+      <tbody id="tbody"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+const HDR = { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, 'Content-Type': 'application/json' };
+
+let AREA_WIP = [];
+let LIB_SET  = new Set();
+let TIPO     = 'wip';
+let TAB      = 'wip';
+
+async function cargarDatos() {
+  try {
+    const [awip, lib] = await Promise.all([
+      fetch(`${SUP_URL}/rest/v1/area_wip?select=*&order=created_at.desc&limit=5000`, {headers: HDR}).then(r => r.json()),
+      fetch(`${SUP_URL}/rest/v1/liberado?select=SKU&order=fecha_liberado.desc&limit=50000`, {headers: HDR}).then(r => r.json()),
+    ]);
+    AREA_WIP = Array.isArray(awip) ? awip : [];
+    LIB_SET  = new Set((Array.isArray(lib) ? lib : []).map(r => r.SKU).filter(Boolean));
+    actualizarVista();
+  } catch(e) {
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="7" class="empty" style="color:var(--danger)">Error al cargar: ${e.message}</td></tr>`;
+  }
+}
+
+function activos() {
+  return AREA_WIP.filter(r => !LIB_SET.has(r.sku));
+}
+
+function actualizarVista() {
+  const all = activos();
+  const wip = all.filter(r => r.tipo === 'wip');
+  const ret = all.filter(r => r.tipo === 'retrabajo');
+
+  document.getElementById('cnt-wip').textContent = wip.length;
+  document.getElementById('cnt-ret').textContent = ret.length;
+  document.getElementById('tc-wip').textContent  = wip.length;
+  document.getElementById('tc-ret').textContent  = ret.length;
+  document.getElementById('tc-all').textContent  = all.length;
+
+  const items = TAB === 'wip' ? wip : TAB === 'retrabajo' ? ret : all;
+  const tbody = document.getElementById('tbody');
+
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">Sin piezas</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = items.map(r => `
+    <tr>
+      <td><span class="badge ${r.tipo === 'wip' ? 'b-wip' : 'b-ret'}">${r.tipo.toUpperCase()}</span></td>
+      <td style="max-width:140px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r.patron||''}">${r.patron||'—'}</td>
+      <td class="mono">${r.medida||'—'}</td>
+      <td>${r.color||'—'}</td>
+      <td>${r.acabado||'—'}</td>
+      <td class="mono" style="color:var(--muted)">${(r.created_at||'').slice(5,10)}</td>
+      <td><button class="del-btn" onclick="eliminar(${r.id})">✕</button></td>
+    </tr>`).join('');
+
+  // activar tab
+  ['wip','ret','all'].forEach(k => document.getElementById('tab-'+k).classList.remove('active'));
+  const actKey = TAB === 'todos' ? 'all' : TAB === 'wip' ? 'wip' : 'ret';
+  document.getElementById('tab-'+actKey).classList.add('active');
+}
+
+function selTipo(t) {
+  TIPO = t;
+  document.getElementById('btn-wip').className = 'tipo-btn' + (t === 'wip' ? ' active-wip' : '');
+  document.getElementById('btn-ret').className = 'tipo-btn' + (t === 'retrabajo' ? ' active-ret' : '');
+  document.getElementById('sku-input').focus();
+}
+
+function verTab(t) {
+  TAB = t;
+  actualizarVista();
+}
+
+async function agregarPieza() {
+  const sku = document.getElementById('sku-input').value.trim();
+  const msg = document.getElementById('msg');
+  if (!sku) return;
+
+  if (LIB_SET.has(sku)) {
+    msg.innerHTML = `<span style="color:var(--warn)">⚠ Ya fue liberada</span>`;
+    return;
+  }
+  if (AREA_WIP.some(r => r.sku === sku && !LIB_SET.has(r.sku))) {
+    msg.innerHTML = `<span style="color:var(--warn)">⚠ Ya está registrada en el área</span>`;
+    return;
+  }
+
+  msg.innerHTML = `<span style="color:var(--muted)">Buscando pieza…</span>`;
+
+  // buscar info en vaciados
+  let patron = null, medida = null, color = null, acabado = null;
+  try {
+    const vacs = await fetch(
+      `${SUP_URL}/rest/v1/vaciados?sku=eq.${encodeURIComponent(sku)}&select=patron,medida,color,acabado&limit=1`,
+      { headers: HDR }
+    ).then(r => r.json());
+    if (vacs && vacs[0]) { patron = vacs[0].patron; medida = vacs[0].medida; color = vacs[0].color; acabado = vacs[0].acabado; }
+  } catch(e) {}
+
+  msg.innerHTML = `<span style="color:var(--muted)">Guardando…</span>`;
+  try {
+    const res = await fetch(`${SUP_URL}/rest/v1/area_wip`, {
+      method: 'POST',
+      headers: { ...HDR, Prefer: 'return=representation' },
+      body: JSON.stringify({ sku, tipo: TIPO, patron, medida, color, acabado }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const [saved] = await res.json();
+    AREA_WIP.unshift(saved);
+    document.getElementById('sku-input').value = '';
+    msg.innerHTML = `<span style="color:var(--accent)">✓ ${patron||sku} agregada a ${TIPO.toUpperCase()}</span>`;
+    setTimeout(() => { const m = document.getElementById('msg'); if(m) m.innerHTML=''; }, 4000);
+    actualizarVista();
+    document.getElementById('sku-input').focus();
+  } catch(e) {
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+  }
+}
+
+async function eliminar(id) {
+  if (!confirm('¿Quitar esta pieza?')) return;
+  await fetch(`${SUP_URL}/rest/v1/area_wip?id=eq.${id}`, {
+    method: 'DELETE', headers: { ...HDR, Prefer: 'return=minimal' }
+  });
+  AREA_WIP = AREA_WIP.filter(r => r.id !== id);
+  actualizarVista();
+}
+
+function recargar() { cargarDatos(); }
+
+cargarDatos();
+</script>
+</body>
+</html>
