@@ -4948,152 +4948,76 @@ function getSideTipo(patron) {
   return "CENTER";
 }
 
-async function renderMoldes() {
+function renderMoldes() {
   document.getElementById("topbar-title").textContent = "Inventario de Moldes";
-  document.getElementById("topbar-sub").textContent = "Moldes activos — ultimos 90 dias";
-  document.getElementById("main-content").innerHTML = '<div class="loading"><div class="spinner"></div><div>Cargando inventario...</div></div>';
+  const ventana = VAC_RAW.length > 0
+    ? VAC_RAW.reduce((m,r)=>{ const f=(r["Fecha"]||"").slice(0,10); return (!m||f<m)?f:m; }, "")
+    : "—";
+  document.getElementById("topbar-sub").textContent = `Moldes en VAC_RAW desde ${ventana}`;
 
-  // Cargar ultimos 90 dias — suficiente para capturar todos los moldes en uso
-  // (no se dan de alta moldes nuevos a diario)
-  const fecha90 = new Date(); fecha90.setDate(fecha90.getDate()-90);
-  const desde90 = fecha90.toISOString().slice(0,10);
-  let todosVac = [];
-  try {
-    let offset = 0; const pgSize = 1000;
-    while(true) {
-      const r = await fetch(
-        `${SUP_URL}/rest/v1/vaciados?select=tag,patron,medida,linea,fecha&fecha=gte.${desde90}&order=fecha.desc`,
-        {headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
-                  'Range-Unit':'items', Range:`${offset}-${offset+pgSize-1}`}}
-      );
-      const chunk = await r.json();
-      todosVac.push(...chunk);
-      if (chunk.length < pgSize) break;
-      offset += pgSize;
-    }
-  } catch(e) { todosVac = VAC_RAW; }
-
-  const vacData = todosVac.map(r => ({"TAG":r.tag||"","Patron":r.patron||"","Medida":r.medida||"","Linea":r.linea||"","Fecha":r.fecha||""}));
-
-  // Agrupar vaciado por TAG
+  // Agrupar por TAG: patrón más frecuente, último vaciado, medida, usos
   const tagMap = {};
-  vacData.forEach(r => {
+  VAC_RAW.forEach(r => {
     const tag = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
     if (!tag) return;
-    const patron = r["Patron"] || "";
-    const base   = basePatronMolde(patron);
-    if (!base) return;
-    if (!tagMap[tag]) tagMap[tag] = {};
-    tagMap[tag][base] = (tagMap[tag][base] || 0) + 1;
+    const patron = (r["Patron"] || "").trim();
+    if (!patron) return;
+    if (!tagMap[tag]) tagMap[tag] = {patrones: {}, ultimaFecha: "", medida: "", linea: ""};
+    tagMap[tag].patrones[patron] = (tagMap[tag].patrones[patron] || 0) + 1;
+    const f = (r["Fecha"] || "").slice(0,10);
+    if (f > tagMap[tag].ultimaFecha) {
+      tagMap[tag].ultimaFecha = f;
+      tagMap[tag].medida = r["Medida"] || "";
+      tagMap[tag].linea  = r["Linea"]  || "";
+    }
   });
 
-  // Construir inventario filtrando TAGs inestables
-  const UMBRAL_ESTABILIDAD = 0.80; // el patrón principal debe ser ≥80% de usos
-  const moldes = [];
+  const moldes = Object.entries(tagMap).map(([tag, d]) => {
+    const sorted = Object.entries(d.patrones).sort((a,b) => b[1]-a[1]);
+    const usos   = sorted.reduce((s,[,c])=>s+c, 0);
+    return { tag, patron: sorted[0][0], medida: d.medida, linea: d.linea,
+             usos, ultimaFecha: d.ultimaFecha };
+  }).sort((a,b) => a.patron.localeCompare(b.patron));
 
-  Object.entries(tagMap).forEach(([tag, patrones]) => {
-    const entradas = Object.entries(patrones).sort((a,b) => b[1] - a[1]);
-    const totalUsos = entradas.reduce((s,[,c]) => s + c, 0);
-    const [basePrincipal, countPrincipal] = entradas[0];
-    const pct = countPrincipal / totalUsos;
+  const totalMoldes  = moldes.length;
+  const patronesUniq = new Set(moldes.map(m => m.patron)).size;
 
-    if (pct < UMBRAL_ESTABILIDAD) return; // cambia de patrón constantemente → ignorar
-
-    // Determinar tipo de lado mirando los registros de este TAG con el patrón principal
-    const sidesUsados = new Set();
-    VAC_RAW.forEach(r => {
-      const t = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
-      if (t !== tag) return;
-      if (basePatronMolde(r["Patron"] || "") !== basePrincipal) return;
-      sidesUsados.add(getSideTipo(r["Patron"] || ""));
-    });
-
-    // Si tiene SIDE (izq o der), etiquetar SIDE aunque también haya CENTER (datos mixtos)
-    let lado;
-    if (sidesUsados.has("SIDE"))        lado = "SIDE";
-    else if (sidesUsados.has("UPPER"))  lado = "UPPER";
-    else if (sidesUsados.has("LOWER"))  lado = "LOWER";
-    else                                lado = "CENTER";
-
-    const nombreDisplay = `${basePrincipal} ${lado}`;
-
-    // Último vaciado
-    let ultimaFecha = "";
-    VAC_RAW.forEach(r => {
-      const t = (r["TAG"] || r["Tag"] || "").trim().toUpperCase();
-      if (t !== tag) return;
-      const f = r["Fecha"] || "";
-      if (f > ultimaFecha) ultimaFecha = f;
-    });
-
-    moldes.push({
-      tag,
-      patron: nombreDisplay,
-      base: basePrincipal,
-      lado,
-      usos: totalUsos,
-      inestabilidad: Math.round((1 - pct) * 100),
-      ultimaFecha,
-    });
-  });
-
-  // Ordenar por patrón base luego por lado
-  moldes.sort((a,b) => a.patron.localeCompare(b.patron));
-
-  // Agrupar por base para mostrar familia
-  const familias = {};
-  moldes.forEach(m => {
-    if (!familias[m.base]) familias[m.base] = [];
-    familias[m.base].push(m);
-  });
-
-  const totalMoldes = moldes.length;
-  const totalFamilias = Object.keys(familias).length;
-  const conSide   = moldes.filter(m => m.lado === "SIDE").length;
-  const conCenter = moldes.filter(m => m.lado === "CENTER").length;
+  const tbody = moldes.map((m, i) => `
+    <tr data-patron="${m.patron.toLowerCase()}" data-tag="${m.tag.toLowerCase()}">
+      <td class="mono" style="color:var(--muted);font-size:10px">${i+1}</td>
+      <td class="mono" style="font-size:11px">${tagCorto(m.tag)}</td>
+      <td style="max-width:280px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${m.patron}">${m.patron}</td>
+      <td style="color:var(--muted)">${m.medida}</td>
+      <td style="color:var(--muted)">${m.linea}</td>
+      <td style="text-align:center;font-family:'DM Mono',monospace">${m.usos}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted)">${m.ultimaFecha ? fmt(m.ultimaFecha) : "—"}</td>
+    </tr>`).join("") || `<tr><td colspan="7" class="empty">Sin datos — espera que cargue VAC_RAW</td></tr>`;
 
   document.getElementById("main-content").innerHTML = `
-  <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-    <div class="metric"><div class="metric-label">Total moldes</div><div class="metric-val white">${totalMoldes.toLocaleString()}</div><div class="metric-sub">TAGs estables</div></div>
-    <div class="metric"><div class="metric-label">Familias / Patrones</div><div class="metric-val blue">${totalFamilias.toLocaleString()}</div><div class="metric-sub">diseños distintos</div></div>
-    <div class="metric"><div class="metric-label">SIDE (laterales)</div><div class="metric-val amber">${conSide.toLocaleString()}</div><div class="metric-sub">izq + der</div></div>
-    <div class="metric"><div class="metric-label">CENTER / otros</div><div class="metric-val green">${conCenter.toLocaleString()}</div><div class="metric-sub">sin lados</div></div>
+  <div class="metrics" style="grid-template-columns:repeat(2,1fr);max-width:420px;margin-bottom:16px">
+    <div class="metric"><div class="metric-label">Total moldes</div><div class="metric-val white">${totalMoldes.toLocaleString()}</div><div class="metric-sub">TAGs únicos</div></div>
+    <div class="metric"><div class="metric-label">Patrones distintos</div><div class="metric-val blue">${patronesUniq.toLocaleString()}</div><div class="metric-sub">diseños</div></div>
   </div>
-
   <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <input id="molde-buscar" type="text" placeholder="Buscar patrón o TAG…"
-      style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;width:260px"
+      style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 12px;
+             color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;width:260px"
       oninput="filtrarMoldes()">
     <button class="btn btn-green" onclick="descargarMoldes()">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Descargar Excel
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg> Descargar CSV
     </button>
-    <div style="font-size:11px;color:var(--muted)" id="molde-count">${totalMoldes} moldes · ${totalFamilias} familias</div>
+    <span style="font-size:11px;color:var(--muted)" id="molde-count">${totalMoldes} moldes</span>
   </div>
-
   <div class="table-wrap" style="overflow-x:auto">
     <table id="tabla-moldes">
       <thead><tr>
-        <th>#</th>
-        <th>TAG</th>
-        <th>Patrón</th>
-        <th style="text-align:center">Lado</th>
-        <th style="text-align:center">Usos</th>
-        <th>Último vaciado</th>
+        <th>#</th><th>TAG</th><th>Patrón</th><th>Medida</th><th>Línea</th>
+        <th style="text-align:center">Usos</th><th>Último vaciado</th>
       </tr></thead>
-      <tbody id="tbody-moldes">
-        ${moldes.map((m,i) => `<tr data-patron="${m.patron.toLowerCase()}" data-tag="${m.tag.toLowerCase()}">
-          <td class="mono" style="color:var(--muted);font-size:10px">${i+1}</td>
-          <td class="mono" style="font-size:10px">${tagCorto(m.tag)}</td>
-          <td style="max-width:260px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${m.patron}">${m.patron}</td>
-          <td style="text-align:center">
-            <span class="badge ${m.lado==='SIDE'?'b-b':m.lado==='CENTER'?'b-a':'b-sin'}">${m.lado}</span>
-          </td>
-          <td style="text-align:center;font-family:'DM Mono',monospace">${m.usos}</td>
-          <td class="mono" style="font-size:11px;color:var(--muted)">${m.ultimaFecha ? fmt(m.ultimaFecha) : "—"}</td>
-        </tr>`).join("")}
-        ${moldes.length===0?`<tr><td colspan="6" class="empty">Sin datos en VACIADO</td></tr>`:""}
-      </tbody>
+      <tbody id="tbody-moldes">${tbody}</tbody>
     </table>
   </div>`;
 }
@@ -5118,22 +5042,19 @@ function descargarMoldes() {
 
   // BOM para que Excel lo abra con tildes/ñ correctamente
   let csv = "﻿";
-  csv += "#,TAG,TAG Completo,Patron,Lado,Usos,Ultimo Vaciado\n";
+  csv += "#,TAG,TAG Completo,Patron,Medida,Linea,Usos,Ultimo Vaciado\n";
 
   let i = 0;
   filas.forEach(tr => {
     if (tr.style.display === "none") return;
     i++;
     const celdas = tr.querySelectorAll("td");
-    const num      = celdas[0].textContent.trim();
-    const tagCorto = celdas[1].textContent.trim();
-    const tagFull  = tr.dataset.tag.toUpperCase();
-    const patron   = celdas[2].title || celdas[2].textContent.trim();
-    const lado     = celdas[3].textContent.trim();
-    const usos     = celdas[4].textContent.trim();
-    const ultimo   = celdas[5].textContent.trim();
+    const tagFull = tr.dataset.tag.toUpperCase();
+    const patron  = celdas[2].title || celdas[2].textContent.trim();
     const esc = v => `"${(v||"").replace(/"/g,'""')}"`;
-    csv += `${num},${esc(tagCorto)},${esc(tagFull)},${esc(patron)},${esc(lado)},${usos},${esc(ultimo)}\n`;
+    csv += `${i},${esc(celdas[1].textContent.trim())},${esc(tagFull)},${esc(patron)},`
+         + `${esc(celdas[3].textContent.trim())},${esc(celdas[4].textContent.trim())},`
+         + `${celdas[5].textContent.trim()},${esc(celdas[6].textContent.trim())}\n`;
   });
 
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
