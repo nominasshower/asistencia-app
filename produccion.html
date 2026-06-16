@@ -202,6 +202,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       WIP
     </div>
+    <div class="nav-item" id="nav-areawip" onclick="navegar('areawip',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Área WIP
+    </div>
     <div class="nav-item" id="nav-pt" onclick="navegar('pt',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
       PT
@@ -514,6 +518,8 @@ let ALL_DEFECTS = {};
 let LIB_RAW   = [];   // hoja liberado
 let PT_RAW    = [];   // hoja PT
 let EMP_RAW   = [];   // hoja Empaque
+let AREA_WIP_RAW  = [];   // piezas capturadas en área WIP/retrabajo
+let AREA_WIP_TIPO = 'wip'; // selección activa en captura
 
 // ── Tags que cambiaron de molde a propósito ─────────────
 // Estos tags físicamente se reasignaron a otro patrón (cambio de modelo legítimo).
@@ -670,10 +676,12 @@ async function cargar() {
       fetchSupabase("empaque",{campoFecha:"fecha_empaque",desde:pisoFetch}).catch(()=>[]),
       fetchSupabase("ventas",{campoFecha:"fecha",desde:pisoVentas}).catch(()=>[]),
       fetchSupabase("plan_congelado",{campoFecha:"fecha",asc:true}).catch(()=>[]),
-    ]).then(([inspAll, vacAll, lib, pt, emp, ven, frozen]) => {
+      fetchSupabase("area_wip",{campoFecha:"created_at",limit:10000}).catch(()=>[]),
+    ]).then(([inspAll, vacAll, lib, pt, emp, ven, frozen, awip]) => {
       if (miToken !== cargaToken) return;  // carga obsoleta
       INSP_RAW = inspAll; VAC_RAW = vacAll;
       LIB_RAW = lib; PT_RAW = pt; EMP_RAW = emp; VENTAS_RAW = ven; PLAN_FROZEN = frozen;
+      AREA_WIP_RAW = awip;
       procesarYrender(desde, hasta);
     });
   } catch(e) {
@@ -707,6 +715,7 @@ function renderVista(data) {
   else if (VISTA === "liberado") renderLiberado();
   else if (VISTA === "reportepintura") renderReportePintura();
   else if (VISTA === "wip")      renderWIP();
+  else if (VISTA === "areawip")  renderAreaWIP();
   else if (VISTA === "pt")       renderPT();
   else if (VISTA === "empaque")  renderEmpaque();
   else if (VISTA === "moldes")   renderMoldes();
@@ -4311,6 +4320,179 @@ function renderReportePintura() {
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
     ${tarjetas}
   </div>`;
+}
+
+// ── Área WIP / Retrabajo ──────────────────────────────────
+function renderAreaWIP() {
+  document.getElementById("topbar-title").textContent = "Área WIP";
+  const mc = document.getElementById("main-content");
+  const libSet = new Set(LIB_RAW.map(r => r["SKU"]).filter(Boolean));
+  const activos = AREA_WIP_RAW.filter(r => !libSet.has(r.sku));
+  const wipItems = activos.filter(r => r.tipo === 'wip');
+  const retItems = activos.filter(r => r.tipo === 'retrabajo');
+
+  function filasPiezas(items) {
+    if (!items.length) return `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px;font-size:12px">Sin piezas registradas</td></tr>`;
+    return items.map(r => `
+      <tr>
+        <td><span class="badge" style="background:rgba(${r.tipo==='wip'?'59,130,246':'245,158,11'},.15);color:${r.tipo==='wip'?'#93c5fd':'#fbbf24'}">${r.tipo.toUpperCase()}</span></td>
+        <td style="max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r.patron||''}">${r.patron||'—'}</td>
+        <td class="mono">${r.medida||'—'}</td>
+        <td>${r.color||'—'}</td>
+        <td>${r.acabado||'—'}</td>
+        <td class="mono" style="color:var(--muted)">${(r.created_at||'').slice(0,10)}</td>
+        <td class="mono" style="font-size:10px;color:var(--muted)">${r.sku}</td>
+        <td style="text-align:center">
+          <button onclick="eliminarAreaWIP(${r.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px" title="Quitar">✕</button>
+        </td>
+      </tr>`).join('');
+  }
+
+  mc.innerHTML = `
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+    <div class="card" style="text-align:center;cursor:pointer;border-color:rgba(59,130,246,.3)" onclick="document.getElementById('awip-tab-wip').click()">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">WIP</div>
+      <div style="font-size:48px;font-weight:700;color:#93c5fd;line-height:1">${wipItems.length}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">piezas en proceso</div>
+    </div>
+    <div class="card" style="text-align:center;cursor:pointer;border-color:rgba(245,158,11,.3)" onclick="document.getElementById('awip-tab-ret').click()">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Retrabajo</div>
+      <div style="font-size:48px;font-weight:700;color:#fbbf24;line-height:1">${retItems.length}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">piezas en retrabajo</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:14px">Capturar pieza</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <button id="awip-btn-wip" onclick="awipSelTipo('wip')" class="btn" style="background:rgba(59,130,246,.2);color:#93c5fd;border-color:rgba(59,130,246,.4);font-weight:600">WIP</button>
+      <button id="awip-btn-ret" onclick="awipSelTipo('retrabajo')" class="btn" style="background:var(--bg3);color:var(--muted)">Retrabajo</button>
+      <input id="awip-sku-input" type="text" placeholder="Escanea o escribe el SKU…"
+        style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none"
+        onkeydown="if(event.key==='Enter')awipScanear(this.value.trim())"
+        onfocus="this.style.borderColor='var(--accent2)'" onblur="this.style.borderColor='var(--border)'">
+      <button class="btn btn-green" onclick="awipScanear(document.getElementById('awip-sku-input').value.trim())">Agregar</button>
+    </div>
+    <div id="awip-msg" style="min-height:22px;font-size:12px"></div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <div style="display:flex;gap:6px">
+        <button id="awip-tab-wip" onclick="awipVerTab('wip')" class="btn" style="background:rgba(59,130,246,.2);color:#93c5fd;border-color:rgba(59,130,246,.4)">WIP (${wipItems.length})</button>
+        <button id="awip-tab-ret" onclick="awipVerTab('retrabajo')" class="btn" style="background:var(--bg3);color:var(--muted)">Retrabajo (${retItems.length})</button>
+        <button id="awip-tab-all" onclick="awipVerTab('todos')" class="btn" style="background:var(--bg3);color:var(--muted)">Todos (${activos.length})</button>
+      </div>
+    </div>
+    <div id="awip-tabla-wrap" style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Tipo</th><th>Patrón</th><th>Medida</th><th>Color</th><th>Acabado</th><th>Fecha</th><th>SKU</th><th></th>
+        </tr></thead>
+        <tbody id="awip-tbody">${filasPiezas(wipItems)}</tbody>
+      </table>
+    </div>
+  </div>`;
+
+  // inicializar estado de selección visual
+  awipSelTipo(AREA_WIP_TIPO, true);
+  window._awipTabActual = 'wip';
+  window._awipActivos   = activos;
+  window._awipWip       = wipItems;
+  window._awipRet       = retItems;
+  window._awipFilasFn   = filasPiezas;
+}
+
+function awipSelTipo(tipo, silent) {
+  AREA_WIP_TIPO = tipo;
+  const bw = document.getElementById('awip-btn-wip');
+  const br = document.getElementById('awip-btn-ret');
+  if (!bw || !br) return;
+  if (tipo === 'wip') {
+    bw.style.cssText = 'background:rgba(59,130,246,.2);color:#93c5fd;border-color:rgba(59,130,246,.4);font-weight:600;font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px';
+    br.style.cssText = 'background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px';
+  } else {
+    br.style.cssText = 'background:rgba(245,158,11,.2);color:#fbbf24;border-color:rgba(245,158,11,.4);font-weight:600;font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px';
+    bw.style.cssText = 'background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px';
+  }
+}
+
+function awipVerTab(tab) {
+  window._awipTabActual = tab;
+  const tbody = document.getElementById('awip-tbody');
+  if (!tbody) return;
+  const items = tab === 'wip' ? window._awipWip : tab === 'retrabajo' ? window._awipRet : window._awipActivos;
+  tbody.innerHTML = window._awipFilasFn(items);
+  ['wip','ret','all'].forEach(k => {
+    const b = document.getElementById('awip-tab-' + k);
+    if (b) b.style.cssText = 'background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px';
+  });
+  const actBtn = document.getElementById('awip-tab-' + (tab === 'todos' ? 'all' : tab));
+  if (actBtn) actBtn.style.cssText = 'background:rgba(34,197,94,.15);color:var(--accent);border-color:rgba(34,197,94,.3);font-weight:600;font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px';
+}
+
+async function awipScanear(sku) {
+  if (!sku) return;
+  const msg = document.getElementById('awip-msg');
+  const input = document.getElementById('awip-sku-input');
+
+  // ya liberada?
+  const libSet = new Set(LIB_RAW.map(r => r["SKU"]).filter(Boolean));
+  if (libSet.has(sku)) {
+    msg.innerHTML = `<span style="color:var(--warn)">⚠ SKU <b>${sku}</b> ya fue liberado — no se agrega.</span>`;
+    return;
+  }
+  // ya registrada?
+  if (AREA_WIP_RAW.some(r => r.sku === sku)) {
+    msg.innerHTML = `<span style="color:var(--warn)">⚠ SKU <b>${sku}</b> ya está en el área WIP.</span>`;
+    return;
+  }
+  // buscar en VAC_RAW
+  const vac = VAC_RAW.find(r => r["SKU"] === sku);
+  if (!vac) {
+    msg.innerHTML = `<span style="color:var(--danger)">✕ SKU <b>${sku}</b> no encontrado en vaciados.</span>`;
+    return;
+  }
+  msg.innerHTML = `<span style="color:var(--muted)">Guardando…</span>`;
+  const item = {
+    sku,
+    tipo: AREA_WIP_TIPO,
+    patron:  vac["Patron"]  || vac["patron"]  || null,
+    medida:  vac["Medida"]  || vac["medida"]  || null,
+    color:   vac["Color"]   || vac["color"]   || null,
+    acabado: vac["Acabado"] || vac["acabado"] || null,
+  };
+  try {
+    const res = await fetch(`${SUP_URL}/rest/v1/area_wip`, {
+      method: 'POST',
+      headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`,
+                 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify(item),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const [saved] = await res.json();
+    AREA_WIP_RAW.push(saved);
+    if (input) input.value = '';
+    msg.innerHTML = `<span style="color:var(--accent)">✓ <b>${item.patron||sku}</b> · ${item.medida||''} agregado a <b>${AREA_WIP_TIPO.toUpperCase()}</b></span>`;
+    renderAreaWIP();
+    awipSelTipo(AREA_WIP_TIPO, true);
+    setTimeout(() => { const m = document.getElementById('awip-msg'); if(m) m.innerHTML=''; }, 4000);
+    const inp = document.getElementById('awip-sku-input');
+    if (inp) inp.focus();
+  } catch(e) {
+    msg.innerHTML = `<span style="color:var(--danger)">Error al guardar: ${e.message}</span>`;
+  }
+}
+
+async function eliminarAreaWIP(id) {
+  try {
+    await fetch(`${SUP_URL}/rest/v1/area_wip?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, Prefer: 'return=minimal' },
+    });
+    AREA_WIP_RAW = AREA_WIP_RAW.filter(r => r.id !== id);
+    renderAreaWIP();
+  } catch(e) { alert('Error al eliminar: ' + e.message); }
 }
 
 // ── PT (Producto Terminado) ───────────────────────────────
