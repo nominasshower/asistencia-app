@@ -2261,6 +2261,7 @@ function renderGantt() {
     const key = `${r["Odoo"]||""}||${normKey(r["PATRON"]||r["Modelo"]||"")}||${normMedida(r["Medida"]||"")}`;
     if (!filasMap[key]) filasMap[key] = {
       odoo: r["Odoo"]||"", cliente: r["Cliente"]||"",
+      compromiso: (r["Compromiso"]||r["compromiso"]||"").slice(0,10),
       modelo: r["PATRON"]||r["Modelo"]||"",
       medida: r["Medida"]||"", lado: r["Lado"]||"",
       color: r["Color"]||"", acabado: r["Acabado"]||"",
@@ -2420,24 +2421,27 @@ function renderGantt() {
     <table class="gantt-table">
       <thead>
         <tr>
-          <th class="col-fija" style="min-width:200px">Modelo / Patrón</th>
-          <th class="col-fija2" style="min-width:120px">Medida · Lado</th>
-          <th class="col-fija3" style="min-width:50px">Total</th>
+          <th class="col-fija" style="min-width:60px">Pedido</th>
+          <th class="col-fija2" style="min-width:110px">Cliente</th>
+          <th class="col-fija3" style="min-width:80px">Compromiso</th>
+          <th style="min-width:180px">Modelo / Patrón</th>
+          <th style="min-width:110px">Medida · Lado</th>
+          <th style="min-width:50px;text-align:center">Total</th>
           ${fechas.map(f=>`<th class="${f===hoy?'hoy':''}">${fmtDia(f)}</th>`).join('')}
         </tr>
         <tr style="background:var(--bg3)">
-          <th class="col-fija" style="font-size:10px;color:var(--muted)">🔲 Moldes plan</th>
-          <th class="col-fija2"></th><th class="col-fija3"></th>
+          <th class="col-fija" style="font-size:10px;color:var(--muted)">🔲 Moldes</th>
+          <th class="col-fija2"></th><th class="col-fija3"></th><th></th><th></th><th></th>
           ${fechas.map(f=>`<th style="color:${totMoldes[f]>0?'var(--muted)':'rgba(255,255,255,.2)'};font-size:10px">${totMoldes[f]||''}</th>`).join('')}
         </tr>
         <tr style="background:var(--bg3)">
-          <th class="col-fija" style="font-size:10px;color:var(--accent)">▲ Piezas plan</th>
-          <th class="col-fija2"></th><th class="col-fija3"></th>
+          <th class="col-fija" style="font-size:10px;color:var(--accent)">▲ Plan</th>
+          <th class="col-fija2"></th><th class="col-fija3"></th><th></th><th></th><th></th>
           ${fechas.map(f=>`<th style="color:${totPlan[f]>0?'var(--text)':'var(--muted)'};font-weight:${f===hoy?700:400}">${totPlan[f]||''}</th>`).join('')}
         </tr>
         <tr style="background:var(--bg3)">
-          <th class="col-fija" style="font-size:10px;color:var(--accent2)">● Real vaciado</th>
-          <th class="col-fija2"></th><th class="col-fija3"></th>
+          <th class="col-fija" style="font-size:10px;color:var(--accent2)">● Real</th>
+          <th class="col-fija2"></th><th class="col-fija3"></th><th></th><th></th><th></th>
           ${fechas.map(f=>`<th style="color:${totReal[f]>0?'var(--accent2)':'var(--muted)'};font-weight:${f===hoy?700:400}">${totReal[f]||''}</th>`).join('')}
         </tr>
       </thead>
@@ -2448,23 +2452,23 @@ function renderGantt() {
             : fila.pendienteHoy
             ? 'border-left:3px solid var(--warn)'
             : 'border-left:3px solid transparent';
+          const comprAtras = fila.compromiso && fila.compromiso < hoy;
+          const comprColor = comprAtras ? 'var(--danger)' : 'var(--muted)';
           return `<tr style="${rowStyle}">
-            <td class="col-fija" title="${fila.modelo} — ${fila.cliente}" style="font-size:11px">
-              <div style="display:flex;align-items:center;gap:4px">
-                <div style="flex:1;min-width:0">
-                  <div style="font-weight:600">${fila.modelo.slice(0,26)||'—'}</div>
-                  <div style="font-size:10px;color:var(--muted)">${fila.odoo} · ${fila.cliente.slice(0,18)}</div>
-                </div>
-                ${ganttEditMode?`<button onclick="eliminarFilaGantt('${fila.odoo}','${normMedida(fila.medida)}')" title="Eliminar orden del plan"
-                  style="background:rgba(239,68,68,.15);border:none;border-radius:4px;color:var(--danger);cursor:pointer;padding:2px 5px;font-size:11px;flex-shrink:0">✕</button>`:''}
-              </div>
+            <td class="col-fija" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent)">
+              ${fila.odoo||'—'}
+              ${ganttEditMode?`<button onclick="eliminarFilaGantt('${fila.odoo}','${normMedida(fila.medida)}')" title="Eliminar"
+                style="background:rgba(239,68,68,.15);border:none;border-radius:4px;color:var(--danger);cursor:pointer;padding:1px 4px;font-size:10px;margin-left:2px">✕</button>`:''}
             </td>
-            <td class="col-fija2" style="font-size:11px;color:var(--muted)">${normMedida(fila.medida)||'—'}${fila.lado?' · '+fila.lado:''}</td>
-            <td class="col-fija3" style="color:var(--muted);font-size:11px;text-align:center">${fila.total||'—'}</td>
+            <td class="col-fija2" style="font-size:11px" title="${fila.cliente}">${fila.cliente.slice(0,16)||'—'}</td>
+            <td class="col-fija3" style="font-size:11px;color:${comprColor};white-space:nowrap">${fila.compromiso||'—'}</td>
+            <td style="font-size:11px;font-weight:600;max-width:200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${fila.modelo}">${fila.modelo||'—'}</td>
+            <td style="font-size:11px;color:var(--muted)">${normMedida(fila.medida)||'—'}${fila.lado?' · '+fila.lado:''}</td>
+            <td style="font-size:11px;color:var(--muted);text-align:center">${fila.total||'—'}</td>
             ${fechas.map(f=>celda(fila,f)).join('')}
           </tr>`;
         }).join('')}
-        ${todasFilas.length===0?`<tr><td colspan="${fechas.length+3}" class="empty">Sin resultados para los filtros aplicados</td></tr>`:''}
+        ${todasFilas.length===0?`<tr><td colspan="${fechas.length+6}" class="empty">Sin resultados para los filtros aplicados</td></tr>`:''}
       </tbody>
     </table>
   </div>`;
