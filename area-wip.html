@@ -150,7 +150,7 @@ async function cargarDatos() {
       fetch(`${SUP_URL}/rest/v1/liberado?select=SKU&order=fecha_liberado.desc&limit=50000`, {headers: HDR}).then(r => r.json()),
     ]);
     AREA_WIP = Array.isArray(awip) ? awip : [];
-    LIB_SET  = new Set((Array.isArray(lib) ? lib : []).map(r => r.SKU).filter(Boolean));
+    LIB_SET  = new Set((Array.isArray(lib) ? lib : []).map(r => (r.SKU||'').toLowerCase()).filter(Boolean));
     actualizarVista();
   } catch(e) {
     document.getElementById('tbody').innerHTML = `<tr><td colspan="7" class="empty" style="color:var(--danger)">Error al cargar: ${e.message}</td></tr>`;
@@ -213,22 +213,23 @@ async function agregarPieza() {
   const msg = document.getElementById('msg');
   if (!sku) return;
 
-  if (LIB_SET.has(sku)) {
+  // normalizar a minúsculas — vaciados y liberado guardan SKU en lower
+  const skuNorm = sku.toLowerCase();
+
+  if (LIB_SET.has(skuNorm)) {
     msg.innerHTML = `<span style="color:var(--warn)">⚠ Ya fue liberada</span>`;
     return;
   }
-  if (AREA_WIP.some(r => r.sku === sku && !LIB_SET.has(r.sku))) {
+  if (AREA_WIP.some(r => r.sku.toLowerCase() === skuNorm && !LIB_SET.has(r.sku.toLowerCase()))) {
     msg.innerHTML = `<span style="color:var(--warn)">⚠ Ya está registrada en el área</span>`;
     return;
   }
 
   msg.innerHTML = `<span style="color:var(--muted)">Buscando pieza…</span>`;
-
-  // buscar info en vaciados
   let patron = null, medida = null, color = null, acabado = null;
   try {
     const vacs = await fetch(
-      `${SUP_URL}/rest/v1/vaciados?sku=eq.${encodeURIComponent(sku)}&select=patron,medida,color,acabado&limit=1`,
+      `${SUP_URL}/rest/v1/vaciados?sku=eq.${encodeURIComponent(skuNorm)}&select=patron,medida,color,acabado&limit=1`,
       { headers: HDR }
     ).then(r => r.json());
     if (vacs && vacs[0]) { patron = vacs[0].patron; medida = vacs[0].medida; color = vacs[0].color; acabado = vacs[0].acabado; }
@@ -239,7 +240,7 @@ async function agregarPieza() {
     const res = await fetch(`${SUP_URL}/rest/v1/area_wip`, {
       method: 'POST',
       headers: { ...HDR, Prefer: 'return=representation' },
-      body: JSON.stringify({ sku, tipo: TIPO, patron, medida, color, acabado }),
+      body: JSON.stringify({ sku: skuNorm, tipo: TIPO, patron, medida, color, acabado }),
     });
     if (!res.ok) throw new Error(await res.text());
     const [saved] = await res.json();

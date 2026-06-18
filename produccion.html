@@ -279,6 +279,17 @@ tr:hover td{background:rgba(255,255,255,.02);}
   </div>
 </div>
 
+<!-- ── Modal piezas Reporte Pintura ───────────────────── -->
+<div class="modal-overlay" id="modal-pintura" style="display:none" onclick="if(event.target===this)cerrarModalPintura()">
+  <div class="modal" style="width:680px;max-width:95vw">
+    <div class="modal-head">
+      <h3 id="modal-pintura-title">Piezas</h3>
+      <button class="btn" onclick="cerrarModalPintura()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-pintura-body" style="padding:0"></div>
+  </div>
+</div>
+
 <!-- ── Modal filtros ────────────────────────────────────── -->
 <div class="modal-overlay" id="modal-filtros" style="display:none" onclick="if(event.target===this)cerrarFiltros()">
   <div class="modal">
@@ -589,9 +600,20 @@ function procesarYrender(desde, hasta) {
   INSP_RAW.forEach(r => {
     const sku = (r["SKU"]||"").trim().toUpperCase();
     if (!sku) return;
-    SKU_INSP[sku] = { grade: r["Grado"]||"", fechaInsp: (r["Fecha"]||"").slice(0,10),
-                      detalle: r["Detalle Defecto"]||"" };
+    const grade   = r["Grado"]||"";
     const detalle = r["Detalle Defecto"]||"";
+    const fecha   = (r["Fecha"]||"").slice(0,10);
+    if (!SKU_INSP[sku]) {
+      SKU_INSP[sku] = { grade, fechaInsp: fecha, detalle };
+    } else {
+      // Acumular todos los defectos; conservar el grado más severo (C > B > A)
+      const prev = SKU_INSP[sku];
+      const worstGrade = grade === "C" ? "C"
+                       : grade === "B" && prev.grade !== "C" ? "B"
+                       : prev.grade;
+      const combined = [prev.detalle, detalle].filter(Boolean).join(",");
+      SKU_INSP[sku] = { grade: worstGrade, fechaInsp: prev.fechaInsp, detalle: combined };
+    }
     if (detalle && detalle !== "null" && detalle.trim() !== "") {
       const todos = detalle.split(",").map(d=>d.trim()).filter(d=>d && d!=="null");
       if (todos.length > 0 && todos.every(d => estaExcluido(d))) {
@@ -4190,36 +4212,57 @@ function renderReportePintura() {
   });
 
   // ¿La pieza tiene al menos un defecto de pintura (según su inspección)?
+  // Defecto de pintura = Grade B en inspección Y al menos un defecto de pintura
   function tieneDefectoPintura(r) {
     const sku = (r["SKU"]||"").trim().toUpperCase();
     const insp = sku ? SKU_INSP[sku] : null;
-    if (!insp || !insp.detalle) return false;
+    if (!insp || insp.grade !== "B" || !insp.detalle) return false;
     return insp.detalle.split(",")
       .map(normDefectoPintura)
       .some(d => d && DEFECTOS_PINTURA_SET.has(d));
   }
+  const GELCOAT_KEYS_NORM = new Set(GELCOAT_KEYS.map(normDefectoPintura));
+  // Rechazo de gelcoat = Grade C en inspección Y al menos un defecto de gelcoat
   function esGelcoat(r) {
-    const v = r["Es Gelcoat"];
-    return v === true || v === "SI" || v === "si" || v === "TRUE" || v === "true" || v === 1 || v === "1";
+    const sku  = (r["SKU"]||"").trim().toUpperCase();
+    const insp = sku ? SKU_INSP[sku] : null;
+    if (!insp || insp.grade !== "C") return false;
+    return (insp.detalle||"").split(",").map(normDefectoPintura).some(d => d && GELCOAT_KEYS_NORM.has(d));
   }
-  // Desglose: cada defecto de pintura que aparece en el lote, con su conteo (por ocurrencia).
-  // Agrupa por nombre normalizado (evita duplicar "Gelcoat poroso"/"Gelcoat Poroso"); muestra etiqueta legible.
-  function desgloseDefectosPintura(lote) {
-    const cuenta = {};
-    lote.forEach(r => {
-      const sku = (r["SKU"]||"").trim().toUpperCase();
+  // Desglose gelcoat: agrupado por tipo de defecto → {label, n, piezas[]}
+  function desgloseDefectosGelcoat(lote) {
+    const grupos = {};
+    lote.filter(esGelcoat).forEach(r => {
+      const sku  = (r["SKU"]||"").trim().toUpperCase();
       const insp = sku ? SKU_INSP[sku] : null;
       if (!insp || !insp.detalle) return;
-      insp.detalle.split(",").forEach(d => {
-        const label = d.trim();
-        const norm = normDefectoPintura(label);
-        if (norm && DEFECTOS_PINTURA_SET.has(norm)) {
-          if (!cuenta[norm]) cuenta[norm] = { label, n: 0 };
-          cuenta[norm].n++;
-        }
+      (insp.detalle||"").split(",").forEach(d => {
+        const norm = normDefectoPintura(d.trim());
+        if (!norm || !GELCOAT_KEYS_NORM.has(norm)) return;
+        if (!grupos[norm]) grupos[norm] = { label: d.trim(), n: 0, piezas: [] };
+        grupos[norm].n++;
+        if (!grupos[norm].piezas.includes(r)) grupos[norm].piezas.push(r);
       });
     });
-    return Object.values(cuenta).sort((a,b) => b.n - a.n);
+    return Object.values(grupos).sort((a,b) => b.n - a.n);
+  }
+
+  // Desglose pintura: agrupado por tipo de defecto → {label, n, piezas[]}
+  function desgloseDefectosPintura(lote) {
+    const grupos = {};
+    lote.filter(tieneDefectoPintura).forEach(r => {
+      const sku  = (r["SKU"]||"").trim().toUpperCase();
+      const insp = sku ? SKU_INSP[sku] : null;
+      if (!insp || !insp.detalle) return;
+      (insp.detalle||"").split(",").forEach(d => {
+        const norm = normDefectoPintura(d.trim());
+        if (!norm || !DEFECTOS_PINTURA_SET.has(norm)) return;
+        if (!grupos[norm]) grupos[norm] = { label: d.trim(), n: 0, piezas: [] };
+        grupos[norm].n++;
+        if (!grupos[norm].piezas.includes(r)) grupos[norm].piezas.push(r);
+      });
+    });
+    return Object.values(grupos).sort((a,b) => b.n - a.n);
   }
   const num = v => (v === null || v === undefined || v === "") ? null : parseInt(v, 10);
   const pct = (n, d) => d ? Math.round((n*1000)/d)/10 : 0;
@@ -4238,10 +4281,21 @@ function renderReportePintura() {
     { linea:2, cabina:2 },
   ];
 
+  // Cabina 2 (antena 2) queda grabada con linea=6 (L1) o 7 (L2) por el bug de effective_line_id.
+  // Normalizar aquí hasta que el fix de servidor esté desplegado.
+  function normLinCab(r) {
+    const lp = num(r["Linea Pintura"]);
+    const cp = num(r["Cabina Pintura"]);
+    if (lp === 6) return { linea: 1, cabina: 2 };
+    if (lp === 7) return { linea: 2, cabina: 2 };
+    return { linea: lp, cabina: cp };
+  }
+
   const tarjetas = CABINAS.map(({linea, cabina}) => {
-    const lote = piezas.filter(r =>
-      num(r["Linea Pintura"]) === linea && num(r["Cabina Pintura"]) === cabina
-    );
+    const lote = piezas.filter(r => {
+      const { linea: nl, cabina: nc } = normLinCab(r);
+      return nl === linea && nc === cabina;
+    });
     const pintadas  = lote.length;
     const pulgCab   = pulg2(lote);
     const gelcoat   = lote.filter(esGelcoat).length;
@@ -4250,11 +4304,40 @@ function renderReportePintura() {
     const defPint   = loteB.filter(tieneDefectoPintura).length;
     const pctGel    = pct(gelcoat, pintadas);
     const pctDef    = pct(defPint, pintadas);
-    const desg      = desgloseDefectosPintura(loteB);
-    const desgHtml  = desg.length
-      ? desg.map(d => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">
-            <span style="color:var(--muted)">${d.label}</span>
-            <span style="font-weight:600;color:var(--text)">${d.n} <span style="color:var(--muted);font-weight:400">${pct(d.n, pintadas)}%</span></span></div>`).join("")
+
+    // Desglose gelcoat (Grade C)
+    const desgGel = desgloseDefectosGelcoat(lote);
+    const gelKey  = `gel_${linea}_${cabina}`;
+    if (!window._PIN_DATA) window._PIN_DATA = {};
+    window._PIN_DATA[gelKey] = desgGel;
+    const desgGelHtml = desgGel.length
+      ? desgGel.map((g, i) => `
+        <div onclick="abrirModalPintura('${gelKey}',${i})"
+             style="display:flex;justify-content:space-between;align-items:center;font-size:12px;
+                    padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;
+                    transition:background .1s;border-radius:4px;padding-left:4px"
+             onmouseover="this.style.background='rgba(245,158,11,.08)'" onmouseout="this.style.background=''">
+          <span style="color:var(--muted)">${g.label}</span>
+          <span style="font-size:11px;font-weight:700;color:#fbbf24;background:rgba(245,158,11,.15);
+                       padding:1px 8px;border-radius:10px;flex-shrink:0">${g.n}</span>
+        </div>`).join("")
+      : `<div style="font-size:12px;color:var(--muted)">Sin rechazos de gelcoat</div>`;
+
+    // Desglose defectos de pintura (Grade B)
+    const desg    = desgloseDefectosPintura(loteB);
+    const pintKey = `pint_${linea}_${cabina}`;
+    window._PIN_DATA[pintKey] = desg;
+    const desgHtml = desg.length
+      ? desg.map((g, i) => `
+        <div onclick="abrirModalPintura('${pintKey}',${i})"
+             style="display:flex;justify-content:space-between;align-items:center;font-size:12px;
+                    padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;
+                    transition:background .1s;border-radius:4px;padding-left:4px"
+             onmouseover="this.style.background='rgba(239,68,68,.08)'" onmouseout="this.style.background=''">
+          <span style="color:var(--muted)">${g.label}</span>
+          <span style="font-size:11px;font-weight:700;color:var(--danger);background:rgba(239,68,68,.15);
+                       padding:1px 8px;border-radius:10px;flex-shrink:0">${g.n}</span>
+        </div>`).join("")
       : `<div style="font-size:12px;color:var(--muted)">Sin defectos de pintura</div>`;
     const lineaColor = linea === 1 ? "var(--accent2)" : "var(--accent)";
     const lineaBg    = linea === 1 ? "rgba(59,130,246,.12)" : "rgba(34,197,94,.12)";
@@ -4280,28 +4363,26 @@ function renderReportePintura() {
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div style="background:var(--bg3);border-radius:8px;padding:10px 12px">
-          <div class="metric-label">Rechazos de gelcoat</div>
-          <div class="metric-val amber" style="font-size:22px">${gelcoat.toLocaleString()}</div>
-          <div class="metric-sub">${pctGel}% de pintadas</div>
+      <div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 12px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
+          <div class="metric-label" style="color:#fbbf24;margin:0">Rechazos de gelcoat — Grado C</div>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <span style="font-size:22px;font-weight:700;color:#fbbf24">${gelcoat.toLocaleString()}</span>
+            <span style="font-size:11px;color:var(--muted)">${pctGel}%</span>
+          </div>
         </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:10px 12px">
-          <div class="metric-label">Defectos de pintura</div>
-          <div class="metric-val red" style="font-size:22px">${defPint.toLocaleString()}</div>
-          <div class="metric-sub">${pctDef}% de pintadas</div>
-        </div>
+        ${desgGelHtml}
       </div>
 
-      <div>
-        <div class="metric-label" style="margin-bottom:4px">Defectos de pintura encontrados</div>
+      <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:10px 12px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
+          <div class="metric-label" style="color:var(--danger);margin:0">Defectos de pintura — Grado B</div>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <span style="font-size:22px;font-weight:700;color:var(--danger)">${defPint.toLocaleString()}</span>
+            <span style="font-size:11px;color:var(--muted)">${pctDef}%</span>
+          </div>
+        </div>
         ${desgHtml}
-      </div>
-
-      <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;
-                  align-items:baseline;justify-content:space-between;gap:8px">
-        <span class="metric-label" style="margin:0">% total de defectos por pieza</span>
-        <span style="font-size:18px;font-weight:600;color:${pctDef>0?'var(--danger)':'var(--muted)'}">${pctDef}%</span>
       </div>
     </div>`;
   }).join("");
@@ -5414,6 +5495,45 @@ function abrirFiltros() {
 
 function cerrarFiltros() {
   document.getElementById("modal-filtros").style.display = "none";
+}
+
+// ── Modal piezas Reporte Pintura ──────────────────────────
+function abrirModalPintura(key, idx) {
+  const grupos = window._PIN_DATA && window._PIN_DATA[key];
+  if (!grupos || !grupos[idx]) return;
+  const g = grupos[idx];
+  document.getElementById("modal-pintura-title").textContent =
+    `${g.label} — ${g.n} ${g.n === 1 ? "pieza" : "piezas"}`;
+  const filas = g.piezas.map(r => {
+    const sku  = (r["SKU"]||"").trim().toUpperCase();
+    const insp = SKU_INSP[sku];
+    const det  = (insp?.detalle||"").split(",").map(d=>d.trim()).filter(Boolean).join(", ");
+    const tag  = (r["TAG"]||r["Tag"]||"").trim().slice(-6).toUpperCase();
+    const fecha = (r["Fecha"]||"").slice(5,16).replace("T"," ");
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 10px;font-size:11px;color:var(--muted);white-space:nowrap">${fecha}</td>
+      <td style="padding:8px 10px;font-family:'DM Mono',monospace;font-size:11px">${tag}</td>
+      <td style="padding:8px 10px;font-size:12px;max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
+      <td style="padding:8px 10px;font-family:'DM Mono',monospace;font-size:11px">${r["Medida"]||"—"}</td>
+      <td style="padding:8px 10px;font-size:11px;color:var(--muted)">${det||"—"}</td>
+    </tr>`;
+  }).join("");
+  document.getElementById("modal-pintura-body").innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Fecha</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">TAG</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Patrón</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Medida</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Todos los defectos</th>
+      </tr></thead>
+      <tbody>${filas}</tbody>
+    </table>`;
+  document.getElementById("modal-pintura").style.display = "flex";
+}
+
+function cerrarModalPintura() {
+  document.getElementById("modal-pintura").style.display = "none";
 }
 
 function guardarFiltros() {
