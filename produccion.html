@@ -4328,6 +4328,18 @@ function renderReportePintura() {
 function renderAreaWIP() {
   document.getElementById("topbar-title").textContent = "Área WIP";
   const mc = document.getElementById("main-content");
+  mc.innerHTML = `<div class="loading">Cargando área WIP…</div>`;
+  // Fetch directo — sin filtro de fechas, siempre fresco
+  fetchSupabase("area_wip", {campoFecha:"created_at", limit:10000})
+    .then(rows => {
+      AREA_WIP_RAW = rows;
+      _renderAreaWIPConDatos();
+    })
+    .catch(() => _renderAreaWIPConDatos());
+}
+
+function _renderAreaWIPConDatos() {
+  const mc = document.getElementById("main-content");
   const libSet = new Set(LIB_RAW.map(r => r["SKU"]).filter(Boolean));
   const activos = AREA_WIP_RAW.filter(r => !libSet.has(r.sku));
   const wipItems = activos.filter(r => r.tipo === 'wip');
