@@ -824,6 +824,65 @@ function verDetalle(filtro, titulo) {
   document.getElementById("modal-metrica").style.display = "flex";
 }
 
+// ── Detalle asistencia por área ──────────────────────────
+function verDetalleAsist(area) {
+  const empleados = ((window._ASIST || {})[area] || [])
+    .slice().sort((a,b) => {
+      const ord = {AUSENTE:0,'RETARDO CON EXTRA':1,RETARDO:1};
+      return (ord[a.estado]??2) - (ord[b.estado]??2) || a.nombre.localeCompare(b.nombre);
+    });
+  const colEstado = e => e==="AUSENTE"?"var(--danger)":e.startsWith("RETARDO")?"var(--warn)":"var(--accent)";
+  document.getElementById("modal-metrica-title").textContent = `${area} — ${empleados.length} empleados`;
+  document.getElementById("modal-metrica-body").innerHTML = `
+  <table style="width:100%;border-collapse:collapse">
+    <thead><tr style="position:sticky;top:0;background:var(--bg2)">
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Nombre</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">N\xF3mina</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Estado</th>
+    </tr></thead>
+    <tbody>
+      ${empleados.map(r => `<tr>
+        <td style="padding:7px 12px;font-size:12px;border-bottom:1px solid var(--border)">${r.nombre}</td>
+        <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border)">${r.nomina||'&mdash;'}</td>
+        <td style="padding:7px 12px;border-bottom:1px solid var(--border)"><span style="font-size:11px;font-weight:600;color:${colEstado(r.estado)}">${r.estado||'&mdash;'}</span></td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+  document.getElementById("modal-metrica").style.display = "flex";
+}
+
+// ── Detalle vaciados (Resumen Planta) ────────────────────
+function verDetalleVac(key, titulo) {
+  const piezas = (window._GER || {})[key] || [];
+  const sorted = [...piezas].sort((a,b)=>(b["Fecha"]||"").localeCompare(a["Fecha"]||""));
+  document.getElementById("modal-metrica-title").textContent = `${titulo} — ${sorted.length.toLocaleString()} piezas`;
+  document.getElementById("modal-metrica-body").innerHTML = `
+  <table style="width:100%;border-collapse:collapse">
+    <thead><tr style="position:sticky;top:0;background:var(--bg2)">
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Fecha</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">TAG</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Patr\xF3n</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Medida</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">L\xEDnea</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Grado C</th>
+    </tr></thead>
+    <tbody>
+      ${sorted.map(r => {
+        const esC = r["Es Grado C"] === true || r["Es Grado C"] === "SI";
+        return `<tr>
+          <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${fmt(r["Fecha"])}</td>
+          <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)" title="${r["TAG"]||""}">${tagCorto(r["TAG"]||"")}</td>
+          <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);max-width:180px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"&mdash;"}</td>
+          <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["Medida"]||"&mdash;"}</td>
+          <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${r["Linea"]||"&mdash;"}</td>
+          <td style="padding:7px 12px;border-bottom:1px solid var(--border)">${esC ? '<span class="badge b-c">C</span>' : '<span style="color:var(--muted);font-size:11px">&mdash;</span>'}</td>
+        </tr>`;
+      }).join("")}
+    </tbody>
+  </table>`;
+  document.getElementById("modal-metrica").style.display = "flex";
+}
+
 // ── Helpers visuales ─────────────────────────────────────
 function fmt(d) {
   if (!d) return "—";
@@ -3702,9 +3761,11 @@ function renderPlan() {
     if (_planKeys.has(vacKey)) return;     // ya tiene match exacto
     const [fechaVac] = vacKey.split("||");
     const ar  = normAbrev(v.patron);
+    const arFull = normPatron(v.patron); // nombre completo sin abreviatura — para planes sin (XX)
     const med = normMedida(v.medida || '');
     if (!ar || !med) return;
-    const planKey = planKeyPorArMed[`${fechaVac}||${ar}||${med}`];
+    const planKey = planKeyPorArMed[`${fechaVac}||${ar}||${med}`]
+                 || (arFull !== ar ? planKeyPorArMed[`${fechaVac}||${arFull}||${med}`] : null);
     if (!planKey) return; // sin plan del mismo día para este AR+medida
     // Fusionar conteos en el plan correspondiente
     if (!vacMerge[planKey]) vacMerge[planKey] = {vaciado:0, ab:0, cMismo:0, cOtro:0, sinInsp:0};
@@ -4762,13 +4823,16 @@ async function cargarAsistenciaGerencia() {
     // Lookup nomina → área desde EMPLEADOS
     const empFilas = dEmp.values || [];
     const empH = empFilas[0]?.map(x => x.trim().toLowerCase()) || [];
-    const iEN = empH.findIndex(x => x.includes("nomina"));
-    const iEA = empH.findIndex(x => x.includes("area"));
-    const empArea = {};
+    const iEN  = empH.findIndex(x => x === "nom" || x === "nomina");
+    const iEA  = empH.findIndex(x => x.includes("area"));
+    const iENom = empH.findIndex(x => x.includes("nomb")); // "nombe" o "nombre"
+    const empArea = {}, empNombre = {};
     empFilas.slice(1).forEach(f => {
       const nom = (f[iEN]||"").trim();
       const ar  = (f[iEA]||"").trim();
-      if (nom && ar) empArea[nom] = ar;
+      const nb  = (f[iENom >= 0 ? iENom : -1]||"").trim();
+      if (nom && ar)  empArea[nom]   = ar;
+      if (nom && nb)  empNombre[nom] = nb;
     });
     const h = filas[0].map(x => x.trim().toLowerCase());
     const idx = k => h.findIndex(x => x.includes(k));
@@ -4778,21 +4842,28 @@ async function cargarAsistenciaGerencia() {
       const nom = (f[iN]||"").trim();
       const area = rawArea || empArea[nom] || "Sin área";
       return {
-        fecha: (f[iF]||"").trim().slice(0,10),
+        fecha:  (f[iF]||"").trim().slice(0,10),
         area,
-        estado:(f[iE]||"").trim().toUpperCase(),
+        nomina: nom,
+        nombre: empNombre[nom] || nom || "—",
+        estado: (f[iE]||"").trim().toUpperCase(),
       };
     });
     const deHoy = filasParsed.filter(r => r.fecha === hoyStr);
     const total = deHoy.length;
+    // Guardar por área para el modal de drill-down
+    const porAreaLista = {};
     const porArea = {};
     deHoy.forEach(r => {
-      if (!porArea[r.area]) porArea[r.area] = {pres:0, ret:0, aus:0};
+      if (!porArea[r.area])     porArea[r.area]     = {pres:0, ret:0, aus:0};
+      if (!porAreaLista[r.area]) porAreaLista[r.area] = [];
+      porAreaLista[r.area].push(r);
       const e = r.estado;
       if (e === "AUSENTE") porArea[r.area].aus++;
       else if (e === "RETARDO" || e === "RETARDO CON EXTRA") porArea[r.area].ret++;
-      else porArea[r.area].pres++;  // NORMAL, EXTRA, INCOMPLETO (turno en curso) = presente
+      else porArea[r.area].pres++;
     });
+    window._ASIST = porAreaLista;
     const areas = Object.entries(porArea).sort((a,b)=>b[1].pres+b[1].ret+b[1].aus - (a[1].pres+a[1].ret+a[1].aus));
     const totPres = areas.reduce((s,[,v])=>s+v.pres,0);
     const totRet  = areas.reduce((s,[,v])=>s+v.ret,0);
@@ -4812,7 +4883,8 @@ async function cargarAsistenciaGerencia() {
           const tot = v.pres+v.ret+v.aus;
           const pct = tot ? Math.round(v.pres*100/tot) : 0;
           const col = pct>=90?"var(--accent)":pct>=70?"var(--warn)":"var(--danger)";
-          return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px">
+          const areaEnc = area.replace(/'/g,"\\'");
+          return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;cursor:pointer" onclick="verDetalleAsist('${areaEnc}')">
             <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${area}">${area}</div>
             <div style="display:flex;gap:8px;font-size:12px;font-family:'DM Mono',monospace">
               <span style="color:var(--accent)" title="Presentes">✓${v.pres}</span>
@@ -4838,20 +4910,22 @@ function renderGerencia(data) {
   const hasta  = document.getElementById("fHasta").value;
 
   // ── PRODUCCIÓN ───────────────────────────────────────────
-  const vacPeriodo = VAC_RAW.filter(r => {
+  // Todas las piezas del período (sin importar grado) — para totales de producción
+  const vacPeriodoAll = VAC_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
-    if (f < desde || f > hasta) return false;
-    // Excluir Grado C directamente del campo es_grado_c de vaciados
+    return f >= desde && f <= hasta;
+  });
+  // Solo buenas (sin Grado C ni SKU operativos) — para cumplimiento y calidad
+  const vacPeriodo = vacPeriodoAll.filter(r => {
     if (r["Es Grado C"] === true || r["Es Grado C"] === "SI") return false;
-    // Excluir piezas con SOLO defectos operativos (Molde Vacio, Etiqueta Incorrecta, etc.)
     const sku = (r["SKU"]||"").trim().toUpperCase();
     if (sku && typeof SKU_SOLO_EXCLUIDOS !== "undefined" && SKU_SOLO_EXCLUIDOS.has(sku)) return false;
     return true;
   });
   const totalVac = vacPeriodo.length;
 
-  // Moldes activos (TAGs distintos en el período)
-  const tagsActivos = new Set(vacPeriodo.map(r=>(r["TAG"]||r["Tag"]||"").trim().toUpperCase()).filter(Boolean));
+  // Moldes activos (TAGs distintos en el período — incluye todos los vaciados)
+  const tagsActivos = new Set(vacPeriodoAll.map(r=>(r["TAG"]||r["Tag"]||"").trim().toUpperCase()).filter(Boolean));
   const moldesActivos = tagsActivos.size;
 
   // Por línea — vaciado
@@ -4994,11 +5068,20 @@ function renderGerencia(data) {
   const cumplB = planBases      > 0 ? Math.round(vacBases     *100/planBases)      : null;
   const cumplA = planAccesorios > 0 ? Math.round(vacAccesorios*100/planAccesorios) : null;
 
+  // Guardar arrays para drill-down en modal
+  window._GER = {
+    all:        vacPeriodo,
+    paredes:    vacPeriodo.filter(r => esParedes(r["Patron"]||"")),
+    bases:      vacPeriodo.filter(r => esBases(r["Patron"]||"")),
+    accesorios: vacPeriodo.filter(r => !esParedes(r["Patron"]||"") && !esBases(r["Patron"]||"")),
+    conplan:    vacConPlan,
+  };
+
   document.getElementById("main-content").innerHTML = `
 
   <!-- ── Fila 0: Paredes vs Bases ── -->
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
-    <div class="metric" style="position:relative;overflow:hidden;border-color:rgba(59,130,246,.3)">
+    <div class="metric" style="position:relative;overflow:hidden;border-color:rgba(59,130,246,.3);cursor:pointer" onclick="verDetalleVac('paredes','PAREDES — Vaciados')">
       <div class="metric-label" style="color:var(--accent2)">PAREDES &mdash; cumplimiento</div>
       <div style="display:flex;align-items:baseline;gap:12px">
         <div style="font-size:40px;font-weight:700;color:${colCumpl(cumplP)}">${cumplP!==null?cumplP+"%":"—"}</div>
@@ -5008,7 +5091,7 @@ function renderGerencia(data) {
         <div style="width:${Math.min(cumplP||0,100)}%;height:100%;background:${colCumpl(cumplP)};border-radius:2px;transition:width .6s"></div>
       </div>
     </div>
-    <div class="metric" style="position:relative;overflow:hidden;border-color:rgba(251,191,36,.3)">
+    <div class="metric" style="position:relative;overflow:hidden;border-color:rgba(251,191,36,.3);cursor:pointer" onclick="verDetalleVac('bases','BASES — Vaciados')">
       <div class="metric-label" style="color:var(--warn)">BASES &mdash; cumplimiento</div>
       <div style="display:flex;align-items:baseline;gap:12px">
         <div style="font-size:40px;font-weight:700;color:${colCumpl(cumplB)}">${cumplB!==null?cumplB+"%":"—"}</div>
@@ -5018,7 +5101,7 @@ function renderGerencia(data) {
         <div style="width:${Math.min(cumplB||0,100)}%;height:100%;background:${colCumpl(cumplB)};border-radius:2px;transition:width .6s"></div>
       </div>
     </div>
-    <div class="metric" style="position:relative;overflow:hidden;border-color:rgba(139,92,246,.3)">
+    <div class="metric" style="position:relative;overflow:hidden;border-color:rgba(139,92,246,.3);cursor:pointer" onclick="verDetalleVac('accesorios','ACCESORIOS — Vaciados')">
       <div class="metric-label" style="color:#a78bfa">ACCESORIOS &mdash; cumplimiento</div>
       <div style="display:flex;align-items:baseline;gap:12px">
         <div style="font-size:40px;font-weight:700;color:${colCumpl(cumplA)}">${cumplA!==null?cumplA+"%":"&mdash;"}</div>
@@ -5033,7 +5116,7 @@ function renderGerencia(data) {
   <!-- ── Fila 1: KPIs grandes ── -->
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:14px">
 
-    <div class="metric" style="grid-column:span 2;position:relative;overflow:hidden">
+    <div class="metric" style="grid-column:span 2;position:relative;overflow:hidden;cursor:pointer" onclick="verDetalleVac('conplan','Vaciados con plan')">
       <div class="metric-label">% Cumplimiento producción</div>
       <div style="font-size:48px;font-weight:700;line-height:1;color:${colCumpl(cumplPlan)}">${cumplPlan!==null?cumplPlan+"%":"—"}</div>
       <div class="metric-sub">${vacConPlan.length.toLocaleString()} vaciadas de ${planComparable.toLocaleString()} planeadas${diasConPlan.size < diasOrden.length ? ` · ${diasConPlan.size} día${diasConPlan.size!==1?"s":""} con plan` : ""}</div>
@@ -5042,7 +5125,7 @@ function renderGerencia(data) {
       </div>
     </div>
 
-    <div class="metric" style="grid-column:span 2;position:relative;overflow:hidden">
+    <div class="metric" style="grid-column:span 2;position:relative;overflow:hidden;cursor:pointer" onclick="verDetalle('AB','% Calidad A+B')">
       <div class="metric-label">% Calidad A+B (aceptación)</div>
       <div style="font-size:48px;font-weight:700;line-height:1;color:${colCal(pctAB)}">${pctAB}%</div>
       <div class="metric-sub">${(cA+cB).toLocaleString()} buenas · ${cC} rechazos · ${totalInsp} insp.</div>
@@ -5051,7 +5134,7 @@ function renderGerencia(data) {
       </div>
     </div>
 
-    <div class="metric">
+    <div class="metric" style="cursor:pointer" onclick="verDetalleVac('all','Vaciado Total')">
       <div class="metric-label">Vaciado total</div>
       <div class="metric-val blue">${totalVac.toLocaleString()}</div>
       <div class="metric-sub">piezas fabricadas</div>
