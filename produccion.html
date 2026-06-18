@@ -5516,6 +5516,7 @@ function abrirModalPintura(key, idx) {
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:8px 10px;font-size:11px;color:var(--muted);white-space:nowrap">${fecha}</td>
       <td style="padding:8px 10px;font-family:'DM Mono',monospace;font-size:11px">${tag}</td>
+      <td style="padding:8px 10px;font-family:'DM Mono',monospace;font-size:11px">${(r["SKU"]||"").toUpperCase().slice(0,12)}</td>
       <td style="padding:8px 10px;font-size:12px;max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r["Patron"]||""}">${r["Patron"]||"—"}</td>
       <td style="padding:8px 10px;font-family:'DM Mono',monospace;font-size:11px">${r["Medida"]||"—"}</td>
       <td style="padding:8px 10px;font-size:11px;color:var(--muted)">${det||"—"}</td>
@@ -5526,6 +5527,7 @@ function abrirModalPintura(key, idx) {
       <thead><tr style="border-bottom:1px solid var(--border)">
         <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Fecha</th>
         <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">TAG</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">SKU</th>
         <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Patrón</th>
         <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Medida</th>
         <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px">Todos los defectos</th>
