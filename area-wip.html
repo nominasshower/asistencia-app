@@ -145,12 +145,21 @@ let TAB      = 'wip';
 
 async function cargarDatos() {
   try {
-    const [awip, lib] = await Promise.all([
-      fetch(`${SUP_URL}/rest/v1/area_wip?select=*&order=created_at.desc&limit=5000`, {headers: HDR}).then(r => r.json()),
-      fetch(`${SUP_URL}/rest/v1/liberado?select=SKU&order=fecha_liberado.desc&limit=50000`, {headers: HDR}).then(r => r.json()),
-    ]);
+    // 1. Traer solo area_wip
+    const awip = await fetch(`${SUP_URL}/rest/v1/area_wip?select=*&order=created_at.desc&limit=5000`, {headers: HDR}).then(r => r.json());
     AREA_WIP = Array.isArray(awip) ? awip : [];
-    LIB_SET  = new Set((Array.isArray(lib) ? lib : []).map(r => (r.SKU||'').toLowerCase()).filter(Boolean));
+
+    // 2. Consultar liberado SOLO para los SKUs en area_wip (evita jalarse 50k registros)
+    LIB_SET = new Set();
+    if (AREA_WIP.length > 0) {
+      const skus = [...new Set(AREA_WIP.map(r => r.sku).filter(Boolean))];
+      const inFilter = skus.join(',');
+      const lib = await fetch(
+        `${SUP_URL}/rest/v1/liberado?SKU=in.(${encodeURIComponent(inFilter)})&select=SKU&limit=1000`,
+        {headers: HDR}
+      ).then(r => r.json());
+      LIB_SET = new Set((Array.isArray(lib) ? lib : []).map(r => (r.SKU||'').toLowerCase()).filter(Boolean));
+    }
     actualizarVista();
   } catch(e) {
     document.getElementById('tbody').innerHTML = `<tr><td colspan="7" class="empty" style="color:var(--danger)">Error al cargar: ${e.message}</td></tr>`;
