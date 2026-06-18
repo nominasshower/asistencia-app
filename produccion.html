@@ -4229,38 +4229,41 @@ function renderReportePintura() {
     if (!insp || insp.grade !== "C") return false;
     return (insp.detalle||"").split(",").map(normDefectoPintura).some(d => d && GELCOAT_KEYS_NORM.has(d));
   }
-  // Desglose gelcoat: agrupado por tipo de defecto → {label, n, piezas[]}
+  // Desglose gelcoat: agrupado por combinación de defectos por pieza → {label, n, piezas[]}
+  // Una pieza con "Rechazo de gelcoat + Gelcoat levantado" = UN renglón con ambos juntos.
   function desgloseDefectosGelcoat(lote) {
     const grupos = {};
     lote.filter(esGelcoat).forEach(r => {
       const sku  = (r["SKU"]||"").trim().toUpperCase();
       const insp = sku ? SKU_INSP[sku] : null;
       if (!insp || !insp.detalle) return;
-      (insp.detalle||"").split(",").forEach(d => {
-        const norm = normDefectoPintura(d.trim());
-        if (!norm || !GELCOAT_KEYS_NORM.has(norm)) return;
-        if (!grupos[norm]) grupos[norm] = { label: d.trim(), n: 0, piezas: [] };
-        grupos[norm].n++;
-        if (!grupos[norm].piezas.includes(r)) grupos[norm].piezas.push(r);
-      });
+      const defs = (insp.detalle||"").split(",").map(d => d.trim())
+        .filter(d => d && GELCOAT_KEYS_NORM.has(normDefectoPintura(d)));
+      if (!defs.length) return;
+      const key   = defs.map(normDefectoPintura).sort().join("|");
+      const label = defs.join(", ");
+      if (!grupos[key]) grupos[key] = { label, n: 0, piezas: [] };
+      grupos[key].n++;
+      grupos[key].piezas.push(r);
     });
     return Object.values(grupos).sort((a,b) => b.n - a.n);
   }
 
-  // Desglose pintura: agrupado por tipo de defecto → {label, n, piezas[]}
+  // Desglose pintura: agrupado por combinación de defectos por pieza → {label, n, piezas[]}
   function desgloseDefectosPintura(lote) {
     const grupos = {};
     lote.filter(tieneDefectoPintura).forEach(r => {
       const sku  = (r["SKU"]||"").trim().toUpperCase();
       const insp = sku ? SKU_INSP[sku] : null;
       if (!insp || !insp.detalle) return;
-      (insp.detalle||"").split(",").forEach(d => {
-        const norm = normDefectoPintura(d.trim());
-        if (!norm || !DEFECTOS_PINTURA_SET.has(norm)) return;
-        if (!grupos[norm]) grupos[norm] = { label: d.trim(), n: 0, piezas: [] };
-        grupos[norm].n++;
-        if (!grupos[norm].piezas.includes(r)) grupos[norm].piezas.push(r);
-      });
+      const defs = (insp.detalle||"").split(",").map(d => d.trim())
+        .filter(d => d && DEFECTOS_PINTURA_SET.has(normDefectoPintura(d)));
+      if (!defs.length) return;
+      const key   = defs.map(normDefectoPintura).sort().join("|");
+      const label = defs.join(", ");
+      if (!grupos[key]) grupos[key] = { label, n: 0, piezas: [] };
+      grupos[key].n++;
+      grupos[key].piezas.push(r);
     });
     return Object.values(grupos).sort((a,b) => b.n - a.n);
   }
