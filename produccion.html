@@ -4244,10 +4244,12 @@ function renderReportePintura() {
     const pintadas  = lote.length;
     const pulgCab   = pulg2(lote);
     const gelcoat   = lote.filter(esGelcoat).length;
-    const defPint   = lote.filter(tieneDefectoPintura).length;
+    // Solo piezas NO rechazadas por gelcoat (evita doble conteo Grade C)
+    const loteB     = lote.filter(r => !esGelcoat(r));
+    const defPint   = loteB.filter(tieneDefectoPintura).length;
     const pctGel    = pct(gelcoat, pintadas);
     const pctDef    = pct(defPint, pintadas);
-    const desg      = desgloseDefectosPintura(lote);
+    const desg      = desgloseDefectosPintura(loteB);
     const desgHtml  = desg.length
       ? desg.map(d => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">
             <span style="color:var(--muted)">${d.label}</span>
