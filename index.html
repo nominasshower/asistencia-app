@@ -428,6 +428,26 @@ function renderDashboard() {
   const conHoras = hoy.filter(r => calcHoras(r) > 0);
   const promHoras = conHoras.length ? (conHoras.reduce((s,r) => s + calcHoras(r), 0) / conHoras.length).toFixed(2) : "0.00";
 
+  // mano directa: cruzar REGISTROS con catálogo EMPLEADOS
+  let modPresentes = 0, modTotal = 0;
+  if (datosEmpleados) {
+    const empMap = {};
+    datosEmpleados.forEach(e => {
+      const nom = String(e.nomina||e.NOMINA||"").trim();
+      const mano = String(e["mano de obra"]||e.mano_obra||e["MANO DE OBRA"]||"").trim().toUpperCase();
+      if (nom) empMap[nom] = mano;
+    });
+    modTotal = datosEmpleados.filter(e => {
+      const mano = String(e["mano de obra"]||e.mano_obra||e["MANO DE OBRA"]||"").trim().toUpperCase();
+      return mano === "MOD" || mano === "DIRECTA" || mano === "MOD.";
+    }).length;
+    const nominasHoy = new Set(hoy.map(r => String(g(r,"nomina")||"").trim()));
+    modPresentes = [...nominasHoy].filter(n => {
+      const mano = empMap[n] || "";
+      return mano === "MOD" || mano === "DIRECTA" || mano === "MOD.";
+    }).length;
+  }
+
   // por área
   const porArea = {};
   hoy.forEach(r => {
@@ -455,6 +475,7 @@ function renderDashboard() {
       <div class="metric"><div class="metric-label">Normales</div><div class="metric-val blue">${norm}</div><div class="metric-sub">${total?Math.round(norm/total*100):0}% del total</div></div>
       <div class="metric"><div class="metric-label">Retardos</div><div class="metric-val amber">${ret + retExt}</div><div class="metric-sub">llegadas tarde</div></div>
       <div class="metric"><div class="metric-label">Prom. horas</div><div class="metric-val">${promHoras}</div><div class="metric-sub">hrs trabajadas</div></div>
+      ${datosEmpleados ? `<div class="metric"><div class="metric-label">Mano Directa</div><div class="metric-val" style="color:var(--accent2)">${modPresentes}</div><div class="metric-sub">${modTotal ? `de ${modTotal} en plantilla` : 'presentes hoy'}</div></div>` : ''}
     </div>
 
     <div class="grid2">
