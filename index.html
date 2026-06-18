@@ -763,23 +763,25 @@ async function renderAltaEmpleado() {
 
   if (!catalogosCache[key]) {
     document.getElementById("content").innerHTML = `<div class="loading"><div class="spinner"></div><div>Cargando catálogos de ${emp.nombre}...</div></div>`;
-    const cats = { areas:[], turnos:[], manosObra:[] };
+    const cats = { areas:[], turnos:[], manosObra:[], puestos:[] };
     try {
       const base = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/`;
-      const [rA,rT,rM] = await Promise.all([
+      const [rA,rT,rM,rE] = await Promise.all([
         fetch(`${base}AREA?key=${API_KEY}`),
         fetch(`${base}TURNOS?key=${API_KEY}`),
-        fetch(`${base}${encodeURIComponent("MANO DE OBRA")}?key=${API_KEY}`)
+        fetch(`${base}${encodeURIComponent("MANO DE OBRA")}?key=${API_KEY}`),
+        fetch(`${base}EMPLEADOS?key=${API_KEY}`)
       ]);
       if (rA.ok) { const d=await rA.json(); cats.areas=(d.values||[]).slice(1).map(r=>r[1]||"").filter(Boolean); }
-      if (rT.ok) { const d=await rT.json(); cats.turnos=(d.values||[]).slice(1).map(r=>r[1]||"").filter(Boolean); }
+      if (rT.ok) { const d=await rT.json(); cats.turnos=(d.values||[]).slice(1).map(r=>r[0]||"").filter(Boolean); }
       if (rM.ok) { const d=await rM.json(); cats.manosObra=(d.values||[]).slice(1).map(r=>r[1]||"").filter(Boolean); }
+      if (rE.ok) { const d=await rE.json(); const seen=new Set(); cats.puestos=(d.values||[]).slice(1).map(r=>(r[3]||"").trim().toUpperCase()).filter(p=>p&&!seen.has(p)&&seen.add(p)).sort(); }
     } catch(e) {}
     if (!cats.manosObra.length) cats.manosObra = ["MOD","MOI","ADMIN","STAFF"];
     catalogosCache[key] = cats;
   }
 
-  const {areas,turnos,manosObra} = catalogosCache[key];
+  const {areas,turnos,manosObra,puestos} = catalogosCache[key];
   const inp = `background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;width:100%;`;
   const lbl = `font-size:10px;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;`;
   const syncNota = {
@@ -816,26 +818,33 @@ async function renderAltaEmpleado() {
             </div>
             <div>
               <label style="${lbl}">Área *</label>
-              <select id="f-area" required style="${inp}">
+              <select id="f-area" required style="${inp}" onchange="altaNuevoOpt(this,'areas')">
                 <option value="">— Selecciona —</option>
                 ${areas.map(a=>`<option>${a}</option>`).join("")}
+                <option value="__nuevo__">➕ Crear nueva área...</option>
               </select>
             </div>
             <div>
               <label style="${lbl}">Puesto</label>
-              <input type="text" id="f-puesto" style="${inp}" placeholder="AYUDANTE GENERAL">
+              <select id="f-puesto" style="${inp}" onchange="altaNuevoOpt(this,'puestos')">
+                <option value="">— Selecciona —</option>
+                ${puestos.map(p=>`<option>${p}</option>`).join("")}
+                <option value="__nuevo__">➕ Crear nuevo puesto...</option>
+              </select>
             </div>
             <div>
               <label style="${lbl}">Turno *</label>
-              <select id="f-turno" required style="${inp}">
+              <select id="f-turno" required style="${inp}" onchange="altaNuevoOpt(this,'turnos')">
                 <option value="">— Selecciona —</option>
                 ${turnos.map(t=>`<option>${t}</option>`).join("")}
+                <option value="__nuevo__">➕ Crear nuevo turno...</option>
               </select>
             </div>
             <div>
               <label style="${lbl}">Mano de Obra</label>
-              <select id="f-mano" style="${inp}">
+              <select id="f-mano" style="${inp}" onchange="altaNuevoOpt(this,'manosObra')">
                 ${manosObra.map(m=>`<option>${m}</option>`).join("")}
+                <option value="__nuevo__">➕ Crear nueva...</option>
               </select>
             </div>
             <div>
@@ -863,6 +872,20 @@ async function renderAltaEmpleado() {
         </form>
       </div>
     </div>`;
+}
+
+function altaNuevoOpt(sel, listKey) {
+  if (sel.value !== "__nuevo__") return;
+  const nuevo = prompt("Escribe el nuevo valor:");
+  if (nuevo && nuevo.trim()) {
+    const val = nuevo.trim().toUpperCase();
+    catalogosCache[empresaActual][listKey].push(val);
+    const opt = new Option(val, val);
+    sel.insertBefore(opt, sel.lastElementChild);
+    sel.value = val;
+  } else {
+    sel.value = "";
+  }
 }
 
 async function guardarEmpleado(e) {
