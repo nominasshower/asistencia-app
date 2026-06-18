@@ -527,11 +527,16 @@ let ganttEditMode = false; // true = modo edición del plan
 let planDirty     = false; // hay cambios sin guardar
 let VISTA     = "dash";
 let ALL_DEFECTS = {};
-let LIB_RAW   = [];   // hoja liberado
-let PT_RAW    = [];   // hoja PT
-let EMP_RAW   = [];   // hoja Empaque
+let LIB_RAW   = [];   // hoja liberado (cargado lazy: mes en curso ∪ rango filtro)
+let PT_RAW    = [];   // hoja PT (cargado lazy al abrir pestaña PT/Empaque)
+let EMP_RAW   = [];   // hoja Empaque (cargado lazy)
+let WIPVAC_RAW = [];  // vaciados del mes en curso — solo para WIP (no pisa VAC_RAW del filtro)
 let AREA_WIP_RAW  = [];   // piezas capturadas en área WIP/retrabajo
 let AREA_WIP_TIPO = 'wip'; // selección activa en captura
+
+// Caché de carga perezosa: marca qué tablas pesadas ya se trajeron en esta sesión.
+// libFrom/libTo guardan el rango de fechas ya cargado de 'liberado' (para ampliar si el filtro crece).
+let _lazy = { frozen:false, ventas:false, pt:false, emp:false, wipvac:false, libFrom:null, libTo:null };
 
 // ── Tags que cambiaron de molde a propósito ─────────────
 // Estos tags físicamente se reasignaron a otro patrón (cambio de modelo legítimo).
@@ -668,9 +673,6 @@ async function cargar() {
   document.getElementById("btn-wa").style.display = "none";
 
   try {
-    // Piso para la HISTORIA: 45 días, o el "desde" del usuario si es más viejo.
-    const piso45 = new Date(Date.now() - 45*864e5).toISOString().slice(0,10);
-    const pisoFetch = (desde && desde < piso45) ? desde : piso45;
     const miToken = ++cargaToken;
 
     // 1. CRITICO: SOLO el rango del filtro → render inmediato (~1-2s si es "hoy").
@@ -681,31 +683,16 @@ async function cargar() {
     ]);
     if (miToken !== cargaToken) return;  // el usuario ya cambió el filtro
     PLAN = planRaw; INSP_RAW = inspF; VAC_RAW = vacF;
+    // El rango de 'liberado' depende del filtro; si cambió, invalidar su caché
+    // para que la próxima pestaña que lo use vuelva a traer el rango correcto.
+    _lazy.libFrom = _lazy.libTo = null;
     procesarYrender(desde, hasta);
-
-    // 2. BACKGROUND: dataset de 120 días (historia para las alertas) + tablas
-    //    de seguimiento. NO bloquea; al llegar reemplaza los crudos y re-pinta.
-    //    Solo trae historia extra si el filtro no la cubre ya.
-    const traerHist = pisoFetch < desde;
-    // LIB_RAW: solo mes actual (WIP) + 15 días buffer para Liberado tab
-    const pisoLib = new Date(Date.now() - 45*864e5).toISOString().slice(0,10);
-    // ventas: último año
-    const pisoVentas = new Date(Date.now() - 365*864e5).toISOString().slice(0,10);
-    Promise.all([
-      traerHist ? fetchSupabase("inspeccion", {desde: pisoFetch}).catch(()=>INSP_RAW) : Promise.resolve(INSP_RAW),
-      traerHist ? fetchSupabase("vaciados",   {desde: pisoFetch}).catch(()=>VAC_RAW)  : Promise.resolve(VAC_RAW),
-      fetchSupabase("liberado",{campoFecha:"fecha_liberado",desde:pisoLib}).catch(()=>[]),
-      fetchSupabase("producto_terminado",{campoFecha:"fecha_liberacion"}).catch(()=>[]),
-      fetchSupabase("empaque",{campoFecha:"fecha_empaque",desde:pisoFetch}).catch(()=>[]),
-      fetchSupabase("ventas",{campoFecha:"fecha",desde:pisoVentas}).catch(()=>[]),
-      fetchSupabase("plan_congelado",{campoFecha:"fecha",asc:true}).catch(()=>[]),
-      fetchSupabase("area_wip",{campoFecha:"created_at",limit:10000}).catch(()=>[]),
-    ]).then(([inspAll, vacAll, lib, pt, emp, ven, frozen, awip]) => {
-      if (miToken !== cargaToken) return;  // carga obsoleta
-      INSP_RAW = inspAll; VAC_RAW = vacAll;
-      LIB_RAW = lib; PT_RAW = pt; EMP_RAW = emp; VENTAS_RAW = ven; PLAN_FROZEN = frozen;
-      AREA_WIP_RAW = awip;
-      procesarYrender(desde, hasta);
+    // Las tablas pesadas (liberado, PT, empaque, ventas, plan_congelado, vaciados-mes)
+    // se cargan PEREZOSAMENTE al abrir su pestaña — ver asegurarDatosTab().
+    // Si la vista activa NO es una de hoy (p.ej. el usuario está en WIP y cambió fechas),
+    // recargar sus datos lazy y re-pintar.
+    asegurarDatosTab(VISTA).then(fetched => {
+      if (fetched && miToken === cargaToken) renderVista(INSP);
     });
   } catch(e) {
     document.getElementById("main-content").innerHTML =
@@ -717,11 +704,63 @@ async function cargar() {
 }
 
 // ── Nav ──────────────────────────────────────────────────
-function navegar(id, el) {
+async function navegar(id, el) {
   VISTA = id;
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
   el.classList.add("active");
+  await asegurarDatosTab(id);
+  if (VISTA !== id) return;  // el usuario ya cambió de pestaña mientras cargaba
   renderVista(INSP);
+}
+
+// Carga PEREZOSA: trae solo las tablas que la pestaña necesita, una vez por sesión
+// (cacheadas en _lazy). Evita jalar PT/plan_congelado/ventas en cada apertura.
+async function asegurarDatosTab(id) {
+  const desde = document.getElementById("fDesde").value;
+  const hasta = document.getElementById("fHasta").value;
+  const hoy   = new Date();
+  const hoyS  = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+  const mes1  = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-01`;
+
+  const needLib    = ["liberado","wip","areawip","gerencia"].includes(id);
+  const needFrozen = ["plan","comparaplanes","gerencia"].includes(id);
+  const needVentas = id === "ventas";
+  const needPT     = id === "pt";
+  const needEmp    = ["pt","empaque"].includes(id);
+  const needWipVac = id === "wip";
+
+  // 'liberado' abarca: mes en curso (para WIP) ∪ rango del filtro (para pestaña Liberado)
+  const libFrom = (desde && desde < mes1) ? desde : mes1;
+  const libTo   = (hasta && hasta > hoyS) ? hasta : hoyS;
+  const libCubierto = _lazy.libFrom && _lazy.libFrom <= libFrom && _lazy.libTo >= libTo;
+
+  const jobs = [];
+  if (needLib && !libCubierto)
+    jobs.push(fetchSupabase("liberado",{campoFecha:"fecha_liberado",desde:libFrom,hasta:libTo})
+      .then(d => { LIB_RAW = d; _lazy.libFrom = libFrom; _lazy.libTo = libTo; }).catch(()=>{}));
+  if (needWipVac && !_lazy.wipvac)
+    jobs.push(fetchSupabase("vaciados",{desde:mes1,hasta:hoyS})
+      .then(d => { WIPVAC_RAW = d; _lazy.wipvac = true; }).catch(()=>{}));
+  if (needFrozen && !_lazy.frozen)
+    jobs.push(fetchSupabase("plan_congelado",{campoFecha:"fecha",asc:true})
+      .then(d => { PLAN_FROZEN = d; _lazy.frozen = true; }).catch(()=>{}));
+  if (needVentas && !_lazy.ventas)
+    jobs.push(fetchSupabase("ventas",{campoFecha:"fecha"})
+      .then(d => { VENTAS_RAW = d; _lazy.ventas = true; }).catch(()=>{}));
+  if (needPT && !_lazy.pt)
+    jobs.push(fetchSupabase("producto_terminado",{campoFecha:"fecha_liberacion"})
+      .then(d => { PT_RAW = d; _lazy.pt = true; }).catch(()=>{}));
+  if (needEmp && !_lazy.emp)
+    jobs.push(fetchSupabase("empaque",{campoFecha:"fecha_empaque"})
+      .then(d => { EMP_RAW = d; _lazy.emp = true; }).catch(()=>{}));
+
+  if (jobs.length) {
+    document.getElementById("main-content").innerHTML =
+      `<div class="loading"><div class="spinner"></div><div>Cargando datos…</div></div>`;
+    await Promise.all(jobs);
+    return true;
+  }
+  return false;
 }
 
 function renderVista(data) {
@@ -4084,7 +4123,7 @@ function renderWIP() {
   const mes1 = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-01`;
 
   const libSet = new Set(LIB_RAW.map(r => r["SKU"]).filter(Boolean));
-  const wipAll = VAC_RAW.filter(r => {
+  const wipAll = WIPVAC_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     return f >= mes1 && f <= hoyS && !libSet.has(r["SKU"]);
   });
