@@ -316,6 +316,7 @@ const COL_MAP = {
   producto_terminado:{sku:'SKU',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',fecha_liberacion:'Fecha Liberacion',po_cliente:'PO Cliente'},
   empaque:           {sku:'SKU',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',fecha_liberacion:'Fecha Liberacion',fecha_empaque:'Fecha Empaque',po_cliente:'PO Cliente'},
   ventas:            {fecha:'Fecha',fecha_entrega:'Fecha Entrega',pedido:'Pedido',cliente:'Cliente',sku:'SKU',producto:'Producto',cantidad:'Cantidad',precio_unit:'Precio Unit',subtotal:'Subtotal',moneda:'Moneda',estado:'Estado',entregado:'Entregado',pendiente:'Pendiente',linea_odoo:'Línea Odoo'},
+  area_wip:          {id:'id',sku:'sku',tipo:'tipo',patron:'patron',medida:'medida',color:'color',acabado:'acabado',created_at:'created_at'},
 };
 
 async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',limit=200000,asc=false,campos=null}={}) {
