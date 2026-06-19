@@ -250,6 +250,7 @@ let TEORICO_RAW=[], FAB_RAW=[], ALM_RAW=[], COMP_RAW=[], INVENTARIOS_RAW=[];
 let KPIS_L1=[], KPIS_L2=[], PRECIOS_RAW=[];
 let BASES_RAW=[], REF_BASES_RAW=[], FISICO_RAW=[];
 let VACIADOS_PISO_RAW=[];
+let PLAN_RAW=[];
 
 const MATERIALES = [
   {key:"gelcoat",   label:"Gel Coat",        col_teo:"Gelcoat",      color:"#3b82f6"},
@@ -307,6 +308,16 @@ async function fetchVaciadosPiso(desde) {
       if (ch.ok || ch.status===206) rows = rows.concat(await ch.json());
     }
     return rows;
+  } catch(e) { return []; }
+}
+
+async function fetchPlanHoy() {
+  const hoy = new Date().toISOString().slice(0,10);
+  const url = `${SUP_URL}/rest/v1/plan_diario?select=modelo,medida,lado,a_producir&fecha=eq.${hoy}`;
+  try {
+    const r = await fetch(url, {headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json'}});
+    if (!r.ok) return [];
+    return await r.json();
   } catch(e) { return []; }
 }
 
@@ -440,6 +451,42 @@ function render(){
   else renderMovimientos(movsAlm,alm,teo,"Llegadas al Almacén",true);
 }
 
+// ── Meta Gantt hoy ───────────────────────────────────────
+function calcMetaGantt() {
+  if (!PLAN_RAW.length) return { metaL1:0, metaL2:0, pzL1:0, pzL2:0, tiene:false };
+  // peso promedio por patron+medida desde consumos_diarios
+  const pesoMap = {};
+  TEORICO_RAW.forEach(r => {
+    const key = `${String(r["Patron"]||"").trim()}__${String(r["Medida"]||"").trim()}`;
+    const k = parseFloat(r["Kilos"]||0);
+    if (!k) return;
+    if (!pesoMap[key]) pesoMap[key] = {sum:0,n:0};
+    pesoMap[key].sum += k; pesoMap[key].n++;
+  });
+  // peso exacto de bases desde ref_peso_bases
+  const basesMap = {};
+  REF_BASES_RAW.forEach(r => {
+    const key = `${String(r["Modelo"]||"").trim()}__${String(r["Medida"]||"").trim()}`;
+    basesMap[key] = parseFloat(r["Peso Prom Kg"]||0);
+  });
+  let metaL1=0, metaL2=0, pzL1=0, pzL2=0;
+  PLAN_RAW.forEach(r => {
+    const modelo = String(r.modelo||"").trim();
+    const medida = String(r.medida||"").trim();
+    const ap = parseInt(r.a_producir||0);
+    if (!ap || !modelo) return;
+    const esL1 = !!(r.lado);   // paredes tienen lado (I/D); bases/acc no
+    const key = `${modelo}__${medida}`;
+    let avgPeso = 0;
+    if (pesoMap[key]) avgPeso = pesoMap[key].sum / pesoMap[key].n;
+    else if (basesMap[key]) avgPeso = basesMap[key];
+    const kg = round2(avgPeso * ap);
+    if (esL1) { metaL1=round2(metaL1+kg); pzL1+=ap; }
+    else       { metaL2=round2(metaL2+kg); pzL2+=ap; }
+  });
+  return { metaL1, metaL2, pzL1, pzL2, tiene:true };
+}
+
 // ── Resumen ──────────────────────────────────────────────
 function renderResumen(teo,fab,alm,fis,paredes){
   const sumTeo=MATERIALES.reduce((s,m)=>s+teo[m.key],0);
@@ -447,11 +494,14 @@ function renderResumen(teo,fab,alm,fis,paredes){
   const sumFab=MATERIALES.reduce((s,m)=>s+fab[m.key],0);
   const sumAlm=MATERIALES.reduce((s,m)=>s+alm[m.key],0);
   const linLbl=LINEA?`Línea ${LINEA}`:"Todas las líneas";
+  const {metaL1,metaL2,pzL1,pzL2,tiene}=calcMetaGantt();
+  const metaTot=round2(metaL1+metaL2);
 
   // KPIs top
-  let html=`<div class="metrics" style="grid-template-columns:repeat(6,1fr)">
+  let html=`<div class="metrics" style="grid-template-columns:repeat(7,1fr)">
     <div class="metric"><div class="metric-label">Paredes</div><div class="metric-val white">${paredes.toLocaleString()}</div><div class="metric-sub">${linLbl}</div></div>
     <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#3b82f6"></span>Teórico total</div><div class="metric-val" style="color:#3b82f6">${fmtN(sumTeo)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">calculado</div></div>
+    <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#a78bfa"></span>Meta Gantt hoy</div><div class="metric-val" style="color:#a78bfa">${tiene?fmtN(metaTot):"—"}<span style="font-size:12px">${tiene?" kg":""}</span></div><div class="metric-sub">${tiene?`L1 ${fmtN(metaL1)} · L2 ${fmtN(metaL2)} kg`:"Sin plan cargado"}</div></div>
     <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#22c55e"></span>Físico total</div><div class="metric-val" style="color:${clrP(sumTeo?(sumFis-sumTeo)/sumTeo*100:0)}">${fmtN(sumFis)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">${fmtP(sumTeo?(sumFis-sumTeo)/sumTeo*100:0)} vs teórico</div></div>
     <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#ef4444"></span>Merma física</div><div class="metric-val" style="color:#ef4444">${fmtN(fis.merma||0)}<span style="font-size:12px"> kg</span></div><div class="metric-sub" style="color:#ef4444">${fmtN(sumFis>0?(fis.merma||0)/sumFis*100:0)}% de físico</div></div>
     <div class="metric"><div class="metric-label"><span class="fuente-dot" style="background:#f59e0b"></span>Fab Odoo</div><div class="metric-val" style="color:${clrP(sumTeo?(sumFab-sumTeo)/sumTeo*100:0)}">${fmtN(sumFab)}<span style="font-size:12px"> kg</span></div><div class="metric-sub">${fmtP(sumTeo?(sumFab-sumTeo)/sumTeo*100:0)} vs teórico</div></div>
@@ -1551,7 +1601,7 @@ async function cargar(){
   document.getElementById("main-content").innerHTML=`<div class="loading"><div class="spinner"></div><div>Cargando desde Supabase…</div></div>`;
   try{
     const inicioAnio = `${new Date().getFullYear()}-01-01`;
-    const [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10] = await Promise.allSettled([
+    const [r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11] = await Promise.allSettled([
       fetchSupabase("consumos_diarios", {desde: inicioAnio}),
       fetchSupabase("salidas_fabricacion"),
       fetchSupabase("llegadas_almacen"),
@@ -1563,6 +1613,7 @@ async function cargar(){
       fetchSupabase("ref_peso_bases",{campoFecha:"modelo"}),
       fetchSupabase("fisico_sw"),                                // físico — Supabase
       fetchVaciadosPiso(inicioAnio),                             // bases L2 para alerta sin ref
+      fetchPlanHoy(),                                            // meta Gantt hoy
     ]);
     TEORICO_RAW       = r0.status==="fulfilled" ? r0.value : [];
     FAB_RAW           = r1.status==="fulfilled" ? r1.value : [];
@@ -1575,6 +1626,7 @@ async function cargar(){
     REF_BASES_RAW     = r8.status==="fulfilled" ? r8.value : [];
     FISICO_RAW        = r9.status==="fulfilled" ? r9.value : [];
     VACIADOS_PISO_RAW = r10.status==="fulfilled" ? r10.value : [];
+    PLAN_RAW          = r11.status==="fulfilled" ? r11.value : [];
     document.getElementById("sidebar-update").textContent=
       `Actualizado ${new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}`;
     render();
