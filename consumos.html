@@ -452,34 +452,35 @@ function render(){
 }
 
 // ── Meta Gantt hoy ───────────────────────────────────────
+// Normaliza medida: '30"X72"' → '30x72', '30x72' → '30x72'
+const normMed = s => String(s||"").replace(/"/g,"").replace(/X/g,"x").replace(/\s/g,"").toLowerCase();
+
 function calcMetaGantt() {
   if (!PLAN_RAW.length) return { metaL1:0, metaL2:0, pzL1:0, pzL2:0, tiene:false };
-  // peso promedio por patron+medida desde consumos_diarios
+  // peso promedio por medida normalizada desde consumos_diarios
+  // (el peso depende de dimensiones; el nombre del lado puede variar entre plan y produccion)
   const pesoMap = {};
   TEORICO_RAW.forEach(r => {
-    const key = `${String(r["Patron"]||"").trim()}__${String(r["Medida"]||"").trim()}`;
+    const med = normMed(r["Medida"]);
     const k = parseFloat(r["Kilos"]||0);
-    if (!k) return;
-    if (!pesoMap[key]) pesoMap[key] = {sum:0,n:0};
-    pesoMap[key].sum += k; pesoMap[key].n++;
+    if (!med || !k) return;
+    if (!pesoMap[med]) pesoMap[med] = {sum:0,n:0};
+    pesoMap[med].sum += k; pesoMap[med].n++;
   });
-  // peso exacto de bases desde ref_peso_bases
+  // bases: ref_peso_bases indexado por medida normalizada
   const basesMap = {};
   REF_BASES_RAW.forEach(r => {
-    const key = `${String(r["Modelo"]||"").trim()}__${String(r["Medida"]||"").trim()}`;
-    basesMap[key] = parseFloat(r["Peso Prom Kg"]||0);
+    basesMap[normMed(r["Medida"])] = parseFloat(r["Peso Prom Kg"]||0);
   });
   let metaL1=0, metaL2=0, pzL1=0, pzL2=0;
   PLAN_RAW.forEach(r => {
-    const modelo = String(r.modelo||"").trim();
-    const medida = String(r.medida||"").trim();
     const ap = parseInt(r.a_producir||0);
-    if (!ap || !modelo) return;
-    const esL1 = !!(r.lado);   // paredes tienen lado (I/D); bases/acc no
-    const key = `${modelo}__${medida}`;
+    if (!ap) return;
+    const esL1 = !!(r.lado);   // paredes tienen lado (LEFT/RIGHT/CENTER con lado); bases no
+    const med = normMed(r.medida);
     let avgPeso = 0;
-    if (pesoMap[key]) avgPeso = pesoMap[key].sum / pesoMap[key].n;
-    else if (basesMap[key]) avgPeso = basesMap[key];
+    if (pesoMap[med]) avgPeso = pesoMap[med].sum / pesoMap[med].n;
+    else if (basesMap[med]) avgPeso = basesMap[med];
     const kg = round2(avgPeso * ap);
     if (esL1) { metaL1=round2(metaL1+kg); pzL1+=ap; }
     else       { metaL2=round2(metaL2+kg); pzL2+=ap; }
