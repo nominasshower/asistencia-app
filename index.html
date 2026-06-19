@@ -208,7 +208,8 @@ const EMPRESAS = {
   modular: {
     nombre: "Modular",
     sheets_id: "1cL2rzLR0eJ4zsyimFO9sPqACx6iWF4cCwI06yrI7j4Y",
-    hoja: "REGISTROS"
+    hoja: "REGISTROS",
+    script_url: "https://script.google.com/macros/s/AKfycbyQQAQb8MKNJGoJ_MIRiWQa7UNUn9pUesixXIy-Y9KqLsFpbv05l254r7aKyYtpLyqnnA/exec"
   },
   kuartz: {
     nombre: "Kuartz",
@@ -912,7 +913,7 @@ async function guardarEdicion(e, nomina) {
     sexo:      document.getElementById("ef-sexo").value,
   };
   try {
-    const resp = await fetch(APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload) });
+    const resp = await fetch(EMPRESAS[empresaActual].script_url || APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload) });
     const result = await resp.json();
     msg.style.display = "block";
     if (result.ok) {
@@ -1088,7 +1089,7 @@ async function guardarEmpleado(e) {
   };
 
   try {
-    const resp   = await fetch(APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload) });
+    const resp   = await fetch(EMPRESAS[empresaActual].script_url || APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload) });
     const result = await resp.json();
     msg.style.display = "block";
     if (result.ok) {
@@ -1240,7 +1241,7 @@ async function confirmarBaja() {
   };
 
   try {
-    const resp   = await fetch(APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload) });
+    const resp   = await fetch(EMPRESAS[empresaActual].script_url || APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload) });
     const result = await resp.json();
     msg.style.display = "block";
     if (result.ok) {
