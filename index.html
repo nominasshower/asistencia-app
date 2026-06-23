@@ -1538,37 +1538,76 @@ function renderNomina() {
 function exportarNominaCSV() {
   const sem = getSemanaNomina(nominaOffset);
   const diasNombres = { 0:"Dom",1:"Lun",2:"Mar",3:"Mié",4:"Jue",5:"Vie",6:"Sáb" };
-  const filas = [
-    ["Nomina","Nombre","Area","Turno","Fecha","Dia","Entrada","Salida","Inicio Comida","Regreso Comida","Hrs Trabajadas","Hrs Extra","Min Retardo","Estado"],
-    ...nominaExportData.map(r => {
+  const HDR = ["Nomina","Nombre","Area","Turno","Fecha","Dia","Entrada","Salida","I.Comida","R.Comida","Hrs.Trab","Hrs.Extra","Retardo","Estado"];
+
+  // Agrupar por nomina manteniendo orden
+  const grupos = [];
+  const orden  = [];
+  nominaExportData.forEach(r => {
+    const nom = g(r,"nomina","NOMINA");
+    if (!grupos[nom]) { grupos[nom] = []; orden.push(nom); }
+    grupos[nom].push(r);
+  });
+
+  // Construir filas con separador entre empleados
+  const aoa = [HDR];
+  const estilos = {}; // mapa fila -> estilo
+
+  orden.forEach((nom, gi) => {
+    const regs = grupos[nom];
+    const nombre = `${g(regs[0],"nombre","Nombre")} ${g(regs[0],"apellido","Apellido")}`.trim();
+    const area  = g(regs[0],"area","Departamento");
+    const turno = g(regs[0],"turno","Turno");
+
+    regs.forEach(r => {
       const fecha = g(r,"fecha","Fecha");
       const dow   = fecha ? diasNombres[new Date(fecha+"T12:00:00").getDay()] : "";
-      const ht    = calcHoras(r);
-      const he    = parseHoras(g(r,"horas_extra","HorasExtra"));
-      const ret   = parseRetardo(g(r,"minutos_retardo","MinutosRetardo"));
-      return [
-        g(r,"nomina","NOMINA"),
-        `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}`.trim(),
-        g(r,"area","Departamento"),
-        g(r,"turno","Turno"),
-        fecha, dow,
-        g(r,"entrada_real","EntradaReal"),
-        g(r,"salida_real","SalidaFinalReal"),
-        g(r,"inicio_comer") || "",
-        g(r,"regreso_comer") || "",
-        ht>0 ? ht.toFixed(2) : "",
-        he>0 ? he.toFixed(2) : "",
-        ret>0 ? ret : "",
+      const ht = calcHoras(r), he = parseHoras(g(r,"horas_extra","HorasExtra")), ret = parseRetardo(g(r,"minutos_retardo","MinutosRetardo"));
+      aoa.push([
+        nom, nombre, area, turno, fecha, dow,
+        g(r,"entrada_real","EntradaReal"), g(r,"salida_real","SalidaFinalReal"),
+        g(r,"inicio_comer")||"", g(r,"regreso_comer")||"",
+        ht>0?ht.toFixed(2):"", he>0?he.toFixed(2):"", ret>0?ret:"",
         g(r,"estado","EstadoAsistencia")
-      ];
-    })
-  ];
-  const csv  = filas.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob = new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8"});
-  const a    = document.createElement("a");
-  a.href     = URL.createObjectURL(blob);
-  a.download = `nomina_${sem.desde}_${sem.hasta}.csv`;
-  a.click();
+      ]);
+    });
+
+    // Fila vacía separadora (excepto al final)
+    if (gi < orden.length - 1) aoa.push(new Array(HDR.length).fill(""));
+  });
+
+  // Crear hoja y aplicar estilos
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const cols = HDR.map((_,i) => ({wch: [8,28,18,12,12,5,9,9,9,9,9,9,8,12][i]||10}));
+  ws['!cols'] = cols;
+
+  // Estilos: encabezado azul, filas alternadas por empleado
+  const colores = ["FFFFFF","F0F4FF"]; // blanco y azul muy suave
+  let empIdx = -1, ultimaNom = null;
+  for (let ri = 0; ri < aoa.length; ri++) {
+    const isHdr = ri === 0;
+    const isEmpty = !isHdr && aoa[ri].every(v => v === "");
+    if (!isHdr && !isEmpty) {
+      const nomFila = aoa[ri][0];
+      if (nomFila !== ultimaNom) { empIdx++; ultimaNom = nomFila; }
+    }
+    for (let ci = 0; ci < HDR.length; ci++) {
+      const addr = XLSX.utils.encode_cell({r:ri, c:ci});
+      if (!ws[addr]) ws[addr] = {v:"", t:"s"};
+      const fill = isHdr ? "1F3864" : isEmpty ? "E8E8E8" : (empIdx%2===0 ? "FFFFFF" : "EEF3FF");
+      const fontColor = isHdr ? "FFFFFF" : "000000";
+      ws[addr].s = {
+        fill: {fgColor:{rgb:fill}},
+        font: {bold: isHdr, color:{rgb:fontColor}, sz:10},
+        border: isHdr ? {} : {bottom:{style:"thin",color:{rgb:"DDDDDD"}}},
+        alignment: {vertical:"center"}
+      };
+    }
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `SEM_${sem.desde}`);
+  XLSX.writeFile(wb, `nomina_${sem.desde}_${sem.hasta}.xlsx`);
 }
 
 cargarDatos();
