@@ -113,19 +113,20 @@ input,select,textarea,button{font-family:inherit;}
       <p style="font-size:clamp(15px,1.1vw,17px);line-height:1.75;color:#55554F;margin:20px 0 0;font-weight:300;max-width:420px;">Tell us about your project and an advisor will contact you with availability and pricing.</p>
       <div style="margin-top:38px;display:flex;flex-direction:column;gap:24px;">
         <div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#9A988F;">Plant</div><div style="font-family:'Marcellus',serif;font-size:1.25rem;margin-top:6px;">Juárez, Nuevo León, México</div></div>
-        <div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#9A988F;">Email</div><div style="font-family:'Marcellus',serif;font-size:1.25rem;margin-top:6px;"><a href="/cdn-cgi/l/email-protection#57213239233624173c223625232d24222531363432247934383a" style="color:inherit;"><span class="__cf_email__" data-cfemail="eb9d8e859f8a98ab809e8a999f91989e998d8a888e98c5888486">[email&#160;protected]</span></a></div></div>
+        <div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#9A988F;">Email</div><div style="font-family:'Marcellus',serif;font-size:1.25rem;margin-top:6px;"><a href="mailto:sales@kuartzsurfaces.com" style="color:inherit;">sales@kuartzsurfaces.com</a></div></div>
         <div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#9A988F;">Hours</div><div style="font-family:'Marcellus',serif;font-size:1.2rem;margin-top:6px;">Mon – Fri · 9:00 – 18:00</div></div>
       </div>
     </div>
-    <form style="background:#FFFFFF;border:1px solid #E8E6E0;border-radius:var(--radius);padding:clamp(28px,4vw,44px);display:flex;flex-direction:column;gap:18px;max-width:500px;">
+    <form id="kz-form" action="https://formspree.io/f/xwvdlypy" method="POST" style="background:#FFFFFF;border:1px solid #E8E6E0;border-radius:var(--radius);padding:clamp(28px,4vw,44px);display:flex;flex-direction:column;gap:18px;max-width:500px;">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:18px;">
-        <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Name<input required type="text" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"></label>
-        <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Phone<input type="tel" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"></label>
+        <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Name<input required type="text" name="name" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"></label>
+        <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Phone<input type="tel" name="phone" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"></label>
       </div>
-      <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Email<input required type="email" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"></label>
-      <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Color of interest<select style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"><option>Undecided</option><option>Calacatta Bengala</option><option>Marquina</option><option>Galaxy White</option><option>Pure White</option><option>Other</option></select></label>
-      <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Message<textarea rows="4" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);resize:vertical;"></textarea></label>
+      <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Email<input required type="email" name="email" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"></label>
+      <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Color of interest<select name="color" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"><option>Undecided</option><option>Calacatta Bengala</option><option>Marquina</option><option>Galaxy White</option><option>Pure White</option><option>Other</option></select></label>
+      <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Message<textarea rows="4" name="message" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);resize:vertical;"></textarea></label>
       <button type="submit" style="background:var(--accent);color:#fff;padding:16px;font-size:13px;letter-spacing:0.18em;text-transform:uppercase;font-weight:500;border:none;border-radius:var(--radius);cursor:pointer;">Send request</button>
+      <div id="kz-success" style="display:none;text-align:center;padding:16px;background:#F0F7F2;border:1px solid #C3DFC9;border-radius:var(--radius);color:#2E6B3C;font-size:14px;letter-spacing:0.06em;">Thank you! We'll be in touch shortly.</div>
     </form>
   </div>
 </section>
@@ -150,7 +151,7 @@ input,select,textarea,button{font-family:inherit;}
   </div>
 </footer>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
 document.querySelectorAll('a[href^="#"]').forEach(link => {
   link.addEventListener('click', e => {
     const id = link.getAttribute('href').slice(1);
@@ -161,6 +162,30 @@ document.querySelectorAll('a[href^="#"]').forEach(link => {
     }
   });
 });
+
+const form = document.getElementById('kz-form');
+if (form) {
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    const res = await fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { Accept: 'application/json' }
+    });
+    if (res.ok) {
+      form.reset();
+      form.querySelector('#kz-success').style.display = 'block';
+      btn.style.display = 'none';
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Send request';
+      alert('Something went wrong. Please try again or email us directly.');
+    }
+  });
+}
 </script>
 
 </body>
