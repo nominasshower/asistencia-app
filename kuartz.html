@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Küartz Surfaces — Engineered Quartz</title>
+<link rel="icon" href="https://nominasshower.github.io/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Marcellus&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;scroll-padding-top:84px;}
+body{margin:0;background:#F6F5F2;font-family:'Jost',sans-serif;color:#1A1A1C;}
+img{display:block;max-width:100%;}
+a{text-decoration:none;color:inherit;}
+input,select,textarea,button{font-family:inherit;}
+@keyframes kzfade{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+@keyframes kzoverlay{from{opacity:0;}to{opacity:1;}}
+:root{--accent:#2E6B3C;--radius:2px;--overlay:0.5;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header style="position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px clamp(20px,5vw,64px);background:rgba(18,20,22,0.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);">
+  <a href="#top" style="display:flex;align-items:center;gap:8px;flex-shrink:0;text-decoration:none;">
+    <svg width="44" height="44" viewBox="0 0 44 44" style="flex-shrink:0;">
+      <rect width="44" height="44" fill="none"/>
+      <path d="M10 22C10 15.4 15.4 10 22 10s12 5.4 12 12-5.4 12-12 12-12-5.4-12-12z" fill="none" stroke="white" stroke-width="1.5"/>
+      <text x="22" y="28" text-anchor="middle" font-size="18" font-weight="700" fill="white" font-family="'Jost',sans-serif">K</text>
+    </svg>
+    <span style="display:flex;flex-direction:column;gap:3px;margin-top:1px;">
+      <span style="font-family:'Jost',sans-serif;font-weight:700;font-size:26px;letter-spacing:0.09em;color:#fff;line-height:1;">KÜARTZ</span>
+      <span style="font-family:'Jost',sans-serif;font-size:9.5px;letter-spacing:0.35em;text-transform:uppercase;color:rgba(255,255,255,0.52);font-weight:400;line-height:1;">SURFACES</span>
+    </span>
+  </a>
+  <nav style="display:flex;align-items:center;gap:clamp(12px,2vw,28px);font-size:12.5px;letter-spacing:0.12em;text-transform:uppercase;font-weight:400;">
+    <a href="#about" style="color:rgba(255,255,255,0.78);">About</a>
+    <a href="#apps" style="color:rgba(255,255,255,0.78);">Applications</a>
+    <a href="#collections" style="color:rgba(255,255,255,0.78);">Collections</a>
+    <a href="#catalog" style="color:rgba(255,255,255,0.78);">Catalog</a>
+    <a href="#contact" style="color:rgba(255,255,255,0.78);">Contact</a>
+  </nav>
+  <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+    <a href="#contact" style="background:var(--accent);color:#fff;padding:11px 22px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;font-weight:500;border-radius:var(--radius);">Get a quote</a>
+  </div>
+</header>
+
+<!-- HERO -->
+<section id="top" style="position:relative;min-height:90vh;display:flex;align-items:center;padding:150px clamp(20px,5vw,64px) 90px;background-image:linear-gradient(95deg,rgba(16,17,18,0.80) 0%,rgba(16,17,18,0.5) 52%,rgba(16,17,18,0.08) 100%),url('https://nominasshower.github.io/img/hero-quartz.jpg');background-size:cover;background-position:center;background-color:#16181A;">
+  <div style="max-width:1280px;margin:0 auto;width:100%;">
+    <div style="max-width:700px;animation:kzfade 0.9s ease both;">
+      <div style="font-size:12.5px;letter-spacing:0.32em;text-transform:uppercase;color:rgba(255,255,255,0.80);font-weight:500;margin-bottom:24px;">KÜARTZ SURFACES · ENGINEERED STONE</div>
+      <h1 style="font-family:'Marcellus',serif;font-weight:400;color:#fff;font-size:clamp(2.6rem,6vw,5rem);line-height:1.03;margin:0;">Refresh your space with engineered stone.</h1>
+      <p style="font-size:clamp(15px,1.2vw,18px);line-height:1.72;color:rgba(255,255,255,0.84);max-width:540px;margin:26px 0 0;font-weight:300;">The first and only quartz slab factory in Mexico. Kitchen countertops, vanity tops, and surfaces crafted with precision and natural beauty.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:38px;">
+        <a href="#collections" style="background:var(--accent);color:#fff;padding:16px 34px;font-size:13px;letter-spacing:0.18em;text-transform:uppercase;font-weight:500;border-radius:var(--radius);">See collections</a>
+        <a href="#contact" style="border:1px solid rgba(255,255,255,0.55);color:#fff;padding:16px 34px;font-size:13px;letter-spacing:0.18em;text-transform:uppercase;font-weight:400;border-radius:var(--radius);">Request a quote</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section style="background:#16181A;color:#fff;padding:40px clamp(20px,5vw,64px);">
+  <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;gap:30px 60px;justify-content:space-between;">
+    <div style="min-width:140px;"><div style="font-family:'Marcellus',serif;font-size:clamp(2rem,3vw,2.8rem);line-height:1;">2019</div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.52);margin-top:8px;">Founded</div></div>
+    <div style="min-width:140px;"><div style="font-family:'Marcellus',serif;font-size:clamp(2rem,3vw,2.8rem);line-height:1;">75,348 <span style="font-size:1rem;">ft²</span></div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.52);margin-top:8px;">Plant in Nuevo León</div></div>
+    <div style="min-width:140px;"><div style="font-family:'Marcellus',serif;font-size:clamp(2rem,3vw,2.8rem);line-height:1;">+48</div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.52);margin-top:8px;">Available colors</div></div>
+    <div style="min-width:140px;"><div style="font-family:'Marcellus',serif;font-size:clamp(2rem,3vw,2.8rem);line-height:1;">2 &amp; 3 <span style="font-size:1rem;">cm</span></div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.52);margin-top:8px;">Thicknesses</div></div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="about" style="padding:clamp(64px,9vw,130px) clamp(20px,5vw,64px);">
+  <div style="max-width:1280px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:clamp(36px,5vw,80px);align-items:center;">
+    <div>
+      <div style="font-size:13px;letter-spacing:0.28em;text-transform:uppercase;color:var(--accent);font-weight:500;">ABOUT US</div>
+      <h2 style="font-family:'Marcellus',serif;font-weight:400;font-size:clamp(2rem,4vw,3.2rem);line-height:1.08;margin:18px 0 0;">The first quartz slab factory in Mexico.</h2>
+      <p style="font-size:clamp(15px,1.1vw,17px);line-height:1.78;color:#55554F;margin:24px 0 0;font-weight:300;">Founded in 2019, Küartz Surfaces joined the group and became the first and only quartz slab factory in Mexico. Located in Juárez, Nuevo León, our 75,348 ft² plant produces slabs, vanity tops, kitchen countertops, quartz walls and floors with specialized machinery.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:14px 40px;margin:32px 0 0;">
+        <div><div style="font-family:'Marcellus',serif;font-size:1.5rem;">Juárez, N.L.</div><div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#9A988F;margin-top:4px;">Origin</div></div>
+        <div><div style="font-family:'Marcellus',serif;font-size:1.5rem;">IAPMO · NSF</div><div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#9A988F;margin-top:4px;">Certifications</div></div>
+      </div>
+    </div>
+    <div style="aspect-ratio:4/5;border-radius:var(--radius);background-color:#e8e6e0;"></div>
+  </div>
+</section>
+
+<!-- GROUP SECTION -->
+<section style="background:#FAFAF8;padding:28px clamp(20px,5vw,64px);border-top:1px solid #E8E6E0;border-bottom:1px solid #E8E6E0;">
+  <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:16px 40px;">
+    <span style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#B0ADA5;font-weight:500;">PART OF GRUPO MODULAR</span>
+    <div style="display:flex;align-items:center;gap:24px;font-weight:600;">
+      <span style="font-size:14px;">Modular</span>
+      <span style="color:#C8C6BF;">·</span>
+      <span style="font-size:14px;">Shower Walls</span>
+      <span style="color:#C8C6BF;">·</span>
+      <span style="font-size:14px;">Modul Woods</span>
+      <span style="color:#C8C6BF;">·</span>
+      <span style="font-size:14px;color:var(--accent);">Küartz Surfaces</span>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact" style="padding:clamp(64px,9vw,120px) clamp(20px,5vw,64px);">
+  <div style="max-width:1280px;margin:0 auto;">
+    <div style="max-width:640px;margin-bottom:48px;">
+      <div style="font-size:13px;letter-spacing:0.28em;text-transform:uppercase;color:var(--accent);font-weight:500;">CONTACT</div>
+      <h2 style="font-family:'Marcellus',serif;font-weight:400;font-size:clamp(2rem,4vw,3.2rem);line-height:1.08;margin:18px 0 0;">Request your quote.</h2>
+      <p style="font-size:clamp(15px,1.1vw,17px);line-height:1.75;color:#55554F;margin:20px 0 0;font-weight:300;max-width:420px;">Tell us about your project and an advisor will contact you with availability and pricing.</p>
+      <div style="margin-top:38px;display:flex;flex-direction:column;gap:24px;">
+        <div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#9A988F;">Plant</div><div style="font-family:'Marcellus',serif;font-size:1.25rem;margin-top:6px;">Juárez, Nuevo León, México</div></div>
+        <div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#9A988F;">Email</div><div style="font-family:'Marcellus',serif;font-size:1.25rem;margin-top:6px;"><a href="/cdn-cgi/l/email-protection#57213239233624173c223625232d24222531363432247934383a" style="color:inherit;"><span class="__cf_email__" data-cfemail="eb9d8e859f8a98ab809e8a999f91989e998d8a888e98c5888486">[email&#160;protected]</span></a></div></div>
+        <div><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#9A988F;">Hours</div><div style="font-family:'Marcellus',serif;font-size:1.2rem;margin-top:6px;">Mon – Fri · 9:00 – 18:00</div></div>
+      </div>
+    </div>
+    <form style="background:#FFFFFF;border:1px solid #E8E6E0;border-radius:var(--radius);padding:clamp(28px,4vw,44px);display:flex;flex-direction:column;gap:18px;max-width:500px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:18px;">
+        <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Name<input required type="text" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"></label>
+        <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Phone<input type="tel" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"></label>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Email<input required type="email" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"></label>
+      <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Color of interest<select style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);"><option>Undecided</option><option>Calacatta Bengala</option><option>Marquina</option><option>Galaxy White</option><option>Pure White</option><option>Other</option></select></label>
+      <label style="display:flex;flex-direction:column;gap:8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#9A988F;">Message<textarea rows="4" style="border:1px solid #DAD8D1;background:#F8F7F4;padding:13px 14px;font-size:15px;color:#1A1A1C;border-radius:var(--radius);resize:vertical;"></textarea></label>
+      <button type="submit" style="background:var(--accent);color:#fff;padding:16px;font-size:13px;letter-spacing:0.18em;text-transform:uppercase;font-weight:500;border:none;border-radius:var(--radius);cursor:pointer;">Send request</button>
+    </form>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer style="background:#16181A;color:rgba(255,255,255,0.7);padding:clamp(56px,7vw,90px) clamp(20px,5vw,64px) 36px;">
+  <div style="max-width:1280px;margin:0 auto;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:40px;padding-bottom:48px;border-bottom:1px solid rgba(255,255,255,0.12);">
+      <div style="grid-column:1/-1;max-width:320px;">
+        <span style="font-family:'Jost',sans-serif;font-weight:700;font-size:18px;letter-spacing:0.09em;color:#fff;">KÜARTZ SURFACES</span>
+        <p style="font-size:14px;line-height:1.7;margin:20px 0 0;font-weight:300;color:rgba(255,255,255,0.58);">Quartz surfaces manufactured in Mexico. Part of Grupo Modular.</p>
+      </div>
+      <div>
+        <div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.42);margin-bottom:16px;">Company</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:14px;font-weight:300;"><a href="#about">About Us</a><a href="#contact">Contact</a></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;padding-top:28px;font-size:13px;color:rgba(255,255,255,0.42);font-weight:300;">
+      <div>© 2026 Küartz Surfaces. All rights reserved.</div>
+      <div><a href="#top">Juárez, N.L., Mexico</a></div>
+    </div>
+  </div>
+</footer>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+document.querySelectorAll('a[href^="#"]').forEach(link => {
+  link.addEventListener('click', e => {
+    const id = link.getAttribute('href').slice(1);
+    if (id) {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      e.preventDefault();
+    }
+  });
+});
+</script>
+
+</body>
+</html>
