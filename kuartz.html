@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Marcellus&display=swap" rel="stylesheet">
+<script src="https://www.google.com/recaptcha/api.js?render=6LdUDDUtAAAAJnoLDjZC48y253hyCANcU4rGIPd"></script>
 <style>
 *{box-sizing:border-box;}
 html{scroll-behavior:smooth;scroll-padding-top:84px;}
@@ -170,9 +171,12 @@ if (form) {
     const btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
     btn.textContent = 'Sending…';
+    const token = await grecaptcha.execute('6LdUDDUtAAAAJnoLDjZC48y253hyCANcU4rGIPd', {action: 'submit'});
+    const data = new FormData(form);
+    data.append('g-recaptcha-response', token);
     const res = await fetch(form.action, {
       method: 'POST',
-      body: new FormData(form),
+      body: data,
       headers: { Accept: 'application/json' }
     });
     if (res.ok) {
