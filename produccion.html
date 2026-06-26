@@ -4391,6 +4391,8 @@ function renderReportePintura() {
     const cp = num(r["Cabina Pintura"]);
     if (lp === 6) return { linea: 1, cabina: 2 };
     if (lp === 7) return { linea: 2, cabina: 2 };
+    if (lp === 2 && cp === 3) return { linea: 2, cabina: 1 };
+    if (lp === 2 && cp === 4) return { linea: 2, cabina: 2 };
     return { linea: lp, cabina: cp };
   }
 
