@@ -216,11 +216,14 @@ const EMPRESAS = {
   kuartz: {
     nombre: "Kuartz",
     sheets_id: "1LTSojdgzOcDI5zqRHzQf5FQbt4zyRk_500QZLhNjKEg",
-    hoja: "REGISTROS"
+    hoja: "REGISTROS",
+    script_url: "https://script.google.com/macros/s/AKfycbxRW0muFpBxAh_6vyDJos92bzG0EmoUkrKjAIFFL0x21AuQhr9W1_Mu3p90hgggCswJ/exec"
   }
 };
 
-let empresaActual    = "woods";
+const _paramEmp = new URLSearchParams(window.location.search).get("empresa");
+let empresaActual    = (_paramEmp && EMPRESAS[_paramEmp]) ? _paramEmp : "woods";
+if (_paramEmp && EMPRESAS[_paramEmp]) { const _s = document.getElementById("emp-select"); if (_s) _s.value = _paramEmp; }
 let paginaActual     = "dashboard";
 let datos            = null;
 let datosEmpleados   = null;
@@ -560,7 +563,13 @@ function renderRegistros() {
     <div class="table-wrap">
       <div class="table-header">
         <div class="table-header-title">Registros — ${rDesde === rHasta ? rDesde : rDesde+" → "+rHasta}</div>
-        <div style="font-size:11px;color:var(--muted)">${dd.length} registros</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-size:11px;color:var(--muted)">${dd.length} registros</div>
+          <button class="btn" onclick="exportarRegistrosExcel()" style="font-size:11px;padding:4px 10px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;margin-right:4px;vertical-align:middle"><path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/></svg>
+            Excel
+          </button>
+        </div>
       </div>
       <table><thead><tr>
         <th>Nómina</th><th>Empleado</th><th>Área</th><th>Turno</th>
@@ -590,6 +599,41 @@ function renderRegistros() {
   // Restaurar foco en el buscador para que no se interrumpa al escribir
   const inp = document.getElementById("r-busq");
   if (inp) { inp.focus(); const len = inp.value.length; inp.setSelectionRange(len, len); }
+}
+
+function exportarRegistrosExcel() {
+  const rDesde = document.getElementById("r-desde")?.value || fechaHoy;
+  const rHasta = document.getElementById("r-hasta")?.value || fechaHoy;
+  const busq   = (document.getElementById("r-busq")?.value || "").toLowerCase().trim();
+  const fest   = document.getElementById("r-est")?.value || "";
+  const subemp = document.getElementById("r-subemp")?.value || "";
+
+  let dd = filtrarRango(rDesde, rHasta);
+  if (subemp) dd = dd.filter(r => (g(r,"sub_empresa","SubEmpresa")||"") === subemp);
+  if (busq)   dd = dd.filter(r => [g(r,"nombre","Nombre"),g(r,"apellido","Apellido"),g(r,"nomina","NOMINA"),g(r,"area","Departamento")].join(" ").toLowerCase().includes(busq));
+  if (fest)   dd = dd.filter(r => g(r,"estado","EstadoAsistencia") === fest);
+
+  const filas = dd.map(r => ({
+    "Nómina":       g(r,"nomina","NOMINA") || "",
+    "Nombre":       (g(r,"nombre","Nombre")||"") + " " + (g(r,"apellido","Apellido")||""),
+    "Área":         g(r,"area","Departamento") || "",
+    "Turno":        g(r,"turno","Turno") || "",
+    "Fecha":        g(r,"fecha","Fecha") || "",
+    "Entrada":      g(r,"entrada_real","EntradaReal") || "",
+    "Inicio Comida":g(r,"inicio_comer","InicioComer") || "",
+    "Regreso Comida":g(r,"regreso_comer","RegresoComer") || "",
+    "Salida":       g(r,"salida_real","SalidaFinalReal") || "",
+    "Horas":        calcHoras(r).toFixed(2),
+    "Retardo (min)":parseRetardo(g(r,"minutos_retardo","MinutosRetardo")) || 0,
+    "Estado":       g(r,"estado","EstadoAsistencia") || "",
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(filas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Registros");
+  const nombre = empresaActual ? EMPRESAS[empresaActual]?.nombre : "Todas";
+  const rango  = rDesde === rHasta ? rDesde : `${rDesde}_${rHasta}`;
+  XLSX.writeFile(wb, `Asistencia_${nombre}_${rango}.xlsx`);
 }
 
 // ─── AREAS ───────────────────────────────────────────────────
