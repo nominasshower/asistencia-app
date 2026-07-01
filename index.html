@@ -223,7 +223,7 @@ const EMPRESAS = {
 
 const _paramEmp = new URLSearchParams(window.location.search).get("empresa");
 let empresaActual    = (_paramEmp && EMPRESAS[_paramEmp]) ? _paramEmp : "woods";
-if (_paramEmp && EMPRESAS[_paramEmp]) { const _s = document.getElementById("emp-select"); if (_s) _s.value = _paramEmp; }
+if (_paramEmp && EMPRESAS[_paramEmp]) { const _s = document.getElementById("emp-select"); if (_s) _s.value = _paramEmp; const _c = document.querySelector(".emp-selector"); if (_c) _c.style.display = "none"; }
 let paginaActual     = "dashboard";
 let datos            = null;
 let datosEmpleados   = null;
