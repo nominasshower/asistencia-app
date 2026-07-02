@@ -1250,6 +1250,16 @@ function esBases(p) {
 function catPatron(p) {
   return esParedes(p) ? "paredes" : esBases(p) ? "bases" : "accesorios";
 }
+// Clasificación real por Tipo (product_type de la BD) — usar SIEMPRE que el registro
+// traiga "Tipo" (vaciados/inspeccion/liberado/etc). Más confiable que adivinar por
+// el nombre del patrón (esParedes/esBases), que se queda corto con patrones como
+// "CLASS A WALL VERTICAL VISION" o "1X12 VISION" que no empiezan con los prefijos esperados.
+function catTipo(tipo) {
+  const t = (tipo||"").trim();
+  if (t === "Pared") return "paredes";
+  if (t === "Piso") return "bases";
+  return "accesorios";
+}
 
 // Normaliza línea de producción: Cabina 2 (6,7) → línea física (1,2)
 // assembly_line 6 = Línea 1 Cabina 2 → Línea 1
@@ -2952,7 +2962,7 @@ function renderGanttMoldes() {
     VAC_RAW.forEach(r=>{
       const fd=(r["Fecha"]||"").slice(0,10);
       if(fd<desde||fd>hasta) return;
-      realVacCat[catPatron(r["Patron"]||"")]++;
+      realVacCat[catTipo(r["Tipo"]||"")]++;
     });
     const cats=[
       {label:'PAREDES',  color:'var(--accent2)', k:'paredes',
@@ -5062,9 +5072,9 @@ function renderGerencia(data) {
   const diasConPlanP = new Set(Object.keys(planGruposCat.paredes).filter(f => planGruposCat.paredes[f]>0));
   const diasConPlanB = new Set(Object.keys(planGruposCat.bases).filter(f => planGruposCat.bases[f]>0));
   const diasConPlanA = new Set(Object.keys(planGruposCat.accesorios).filter(f => planGruposCat.accesorios[f]>0));
-  const vacParedes    = vacPeriodo.filter(r => diasConPlanP.has((r["Fecha"]||"").slice(0,10)) && esParedes(r["Patron"]||"")).length;
-  const vacBases      = vacPeriodo.filter(r => diasConPlanB.has((r["Fecha"]||"").slice(0,10)) && esBases(r["Patron"]||"")).length;
-  const vacAccesorios = vacPeriodo.filter(r => diasConPlanA.has((r["Fecha"]||"").slice(0,10)) && !esParedes(r["Patron"]||"") && !esBases(r["Patron"]||"")).length;
+  const vacParedes    = vacPeriodo.filter(r => diasConPlanP.has((r["Fecha"]||"").slice(0,10)) && catTipo(r["Tipo"]||"")==="paredes").length;
+  const vacBases      = vacPeriodo.filter(r => diasConPlanB.has((r["Fecha"]||"").slice(0,10)) && catTipo(r["Tipo"]||"")==="bases").length;
+  const vacAccesorios = vacPeriodo.filter(r => diasConPlanA.has((r["Fecha"]||"").slice(0,10)) && catTipo(r["Tipo"]||"")==="accesorios").length;
 
   const cumplP = planParedes    > 0 ? Math.round(vacParedes   *100/planParedes)    : null;
   const cumplB = planBases      > 0 ? Math.round(vacBases     *100/planBases)      : null;
@@ -5073,9 +5083,9 @@ function renderGerencia(data) {
   // Guardar arrays para drill-down en modal
   window._GER = {
     all:        vacPeriodo,
-    paredes:    vacPeriodo.filter(r => esParedes(r["Patron"]||"")),
-    bases:      vacPeriodo.filter(r => esBases(r["Patron"]||"")),
-    accesorios: vacPeriodo.filter(r => !esParedes(r["Patron"]||"") && !esBases(r["Patron"]||"")),
+    paredes:    vacPeriodo.filter(r => catTipo(r["Tipo"]||"")==="paredes"),
+    bases:      vacPeriodo.filter(r => catTipo(r["Tipo"]||"")==="bases"),
+    accesorios: vacPeriodo.filter(r => catTipo(r["Tipo"]||"")==="accesorios"),
     conplan:    vacConPlan,
   };
 
