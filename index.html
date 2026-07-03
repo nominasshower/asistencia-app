@@ -497,12 +497,28 @@ function renderDashboard() {
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Resumen del día</div>
-        ${[["Normal",norm,"var(--accent)"],["Extra",ext,"var(--accent2)"],["Retardo",ret,"var(--warn)"],["Retardo con extra",retExt,"#a78bfa"],["Incompleto",inc,"var(--danger)"]].map(([l,v,c])=>`
-          <div class="resumen-row">
-            <div class="resumen-dot"><div class="dot" style="background:${c}"></div><span style="color:var(--muted)">${l}</span></div>
-            <span class="mono" style="color:${c}">${v}</span>
-          </div>`).join("")}
+        <div class="card-title">Asistencia por línea <span>${dDesde === dHasta ? dDesde : dDesde+' → '+dHasta}</span></div>
+        <div class="bar-chart">
+          ${(()=>{
+            const porLinea = {};
+            hoy.forEach(r => {
+              const area = (g(r,"area","Departamento")||"").trim().toUpperCase();
+              const m = area.match(/L(\d+)$/);
+              const linea = m ? "Línea "+m[1] : "Sin línea";
+              if (!porLinea[linea]) porLinea[linea] = 0;
+              porLinea[linea]++;
+            });
+            const sorted = Object.entries(porLinea).sort((a,b)=>b[1]-a[1]);
+            const maxL = sorted.reduce((m,[,v])=>Math.max(m,v),1);
+            const colores = {"Línea 1":"var(--accent)","Línea 2":"var(--accent2)","Línea 3":"#a78bfa","Sin línea":"var(--muted)"};
+            return sorted.map(([l,v])=>`
+              <div class="bar-row">
+                <div class="bar-label" title="${l}">${l}</div>
+                <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxL*100)}%;background:${colores[l]||'var(--accent)'}"></div></div>
+                <div class="bar-val">${v}</div>
+              </div>`).join("");
+          })()}
+        </div>
       </div>
     </div>
 
