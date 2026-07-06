@@ -5278,34 +5278,33 @@ function renderGerencia(data) {
   // (catPatron) y un accesorio llamado "WALL CHEVRON FFI..." cae en PAREDES → el plan
   // de accesorios queda en 0 y las sumas no cuadran. Con el mapa, plan y producido
   // usan el MISMO criterio (catTipo). Fallback a catPatron si el patrón nunca se vació.
-  // Llave abrev + UNI/LAD: un mismo código (ej. VV = VERTICAL VISION) puede ser
-  // ACCESORIO en su versión UNI y PARED en su versión con lado (SIDE/CENTER). Por eso
-  // no basta el abrev solo — se distingue si es UNI o lleva lado, que es la línea
-  // real que separa accesorio de pared en los códigos ambiguos.
-  const tipoKey = (ab, lado) => ab + "||" + (lado === "UNI" ? "U" : "L");
-  // Contar tipos por llave y quedarse con el MAYORITARIO (moda), no el primero que
-  // aparezca: algunos códigos tienen un puñado de piezas mal tipificadas (ej. 3
-  // "WALL VERTICAL VISION UNI" como accesorio vs 40 "VERTICAL VISION UNI" como pared)
-  // — la moda evita que esa minoría arrastre a toda la categoría.
+  // Llave abrev + prefijo "WALL": el mismo código entre paréntesis se REUTILIZA para
+  // dos productos distintos (ej. "(FF)" = "CHEVRON FFI (FF) UNI" —pared muy común—
+  // Y TAMBIÉN "WALL CHEVRON FFI (FF) CENTER" —accesorio chico—; igual con (VV)).
+  // La señal real que los separa NO es el lado (UNI/CENTER/etc, eso lo comparten
+  // ambos) sino si el nombre completo empieza con "WALL": verificado con datos
+  // reales, esta llave da 0% de ambigüedad (vs la de abrev+lado, que aún mezclaba).
+  const tipoKey = m => normAbrev(m||"") + "||" + ((m||"").toUpperCase().trim().startsWith("WALL") ? "W" : "N");
+  // Contar tipos por llave y quedarse con el MAYORITARIO (moda) como respaldo, por si
+  // algún código nuevo aún no visto tuviera una minoría de piezas mal tipificadas.
   const abrevTipoCnt = {};
   VAC_RAW.forEach(r => {
     const ab = normAbrev(r["Patron"]||"");
     if (!ab) return;
-    const k = tipoKey(ab, normLado(r["Patron"]||""));
+    const k = tipoKey(r["Patron"]||"");
     (abrevTipoCnt[k] || (abrevTipoCnt[k] = {paredes:0,bases:0,accesorios:0}))[catTipo(r["Tipo"]||"")]++;
   });
   const abrevTipoReal = {};
   Object.entries(abrevTipoCnt).forEach(([k,c]) => {
     abrevTipoReal[k] = Object.entries(c).sort((a,b)=>b[1]-a[1])[0][0];
   });
-  const catPlan = (m, lado) => abrevTipoReal[tipoKey(normAbrev(m||""), lado)] || catPatron(m||"");
+  const catPlan = m => abrevTipoReal[tipoKey(m||"")] || catPatron(m||"");
   const acumPlanCat = (rows, esFrozen) => rows.forEach(r => {
     const f = parsePlanFecha(r["Fecha"]);
     if (!f || f < desde || f > hasta) return;
     if (esFrozen && f >= hoyLocalG) return;
     if (!esFrozen && diasFrozen.has(f)) return;
-    const ladoPlan = r["Lado"] ? normLado(r["Lado"]) : normLado(r["Modelo"]||"");
-    const cat = catPlan(r["Modelo"]||"", ladoPlan);
+    const cat = catPlan(r["Modelo"]||"");
     planGruposCat[cat][f] = (planGruposCat[cat][f]||0) + (parseInt(r["A Producir"]||0)||0);
   });
   acumPlanCat(PLAN_FROZEN, true);
