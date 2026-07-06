@@ -536,7 +536,9 @@ let LIB_RAW   = [];   // hoja liberado (cargado lazy: mes en curso ∪ rango fil
 let PT_RAW    = [];   // hoja PT (cargado lazy al abrir pestaña PT/Empaque)
 let EMP_RAW   = [];   // hoja Empaque (cargado lazy)
 let WIPVAC_RAW = [];  // vaciados del mes en curso — solo para WIP (no pisa VAC_RAW del filtro)
-let RESUMEN_PROD_RAW = []; // resumen_produccion (cargado lazy al abrir Reporte de Producción)
+let RESUMEN_PROD_RAW = []; // resumen_produccion (cargado al abrir Reporte de Producción)
+let RPT_VAC_HOY  = [];     // vaciados de HOY, solo para Reporte de Producción (ignora filtro global)
+let RPT_INSP_HOY = [];     // inspeccion de HOY, solo para Reporte de Producción (ignora filtro global)
 let AREA_WIP_RAW  = [];   // piezas capturadas en área WIP/retrabajo
 let AREA_WIP_TIPO = 'wip'; // selección activa en captura
 
@@ -760,9 +762,17 @@ async function asegurarDatosTab(id) {
   if (needEmp && !_lazy.emp)
     jobs.push(fetchSupabase("empaque",{campoFecha:"fecha_empaque"})
       .then(d => { EMP_RAW = d; _lazy.emp = true; }).catch(()=>{}));
-  if (needResumenProd && !_lazy.resumenProd)
+  // Reporte de Producción: reporte DIARIO para alimentar el Gantt — siempre
+  // hoy, ignora el filtro de fechas global, y se recarga fresco cada vez
+  // que se abre la pestaña (no se cachea en _lazy).
+  if (needResumenProd) {
     jobs.push(fetchSupabase("resumen_produccion",{campoFecha:"fecha"})
-      .then(d => { RESUMEN_PROD_RAW = d; _lazy.resumenProd = true; }).catch(()=>{}));
+      .then(d => { RESUMEN_PROD_RAW = d; }).catch(()=>{}));
+    jobs.push(fetchSupabase("vaciados",{desde:hoyS,hasta:hoyS})
+      .then(d => { RPT_VAC_HOY = d; }).catch(()=>{}));
+    jobs.push(fetchSupabase("inspeccion",{desde:hoyS,hasta:hoyS})
+      .then(d => { RPT_INSP_HOY = d; }).catch(()=>{}));
+  }
 
   if (jobs.length) {
     document.getElementById("main-content").innerHTML =
@@ -4541,24 +4551,22 @@ function renderReportePintura() {
 // Piezas Buenas en este reporte (sin modificar resumen_produccion).
 function renderReporteProduccion() {
   document.getElementById("topbar-title").textContent = "Reporte de Producción";
-  const desde = document.getElementById("fDesde").value;
-  const hasta  = document.getElementById("fHasta").value;
+  // Reporte DIARIO para alimentar el Gantt — siempre HOY, sin importar el
+  // filtro de fechas global del dashboard.
+  const hoyD  = new Date();
+  const hoy   = `${hoyD.getFullYear()}-${String(hoyD.getMonth()+1).padStart(2,'0')}-${String(hoyD.getDate()).padStart(2,'0')}`;
 
   const clave = (f,tipo,patron,medida,color,acabado) =>
     [f,tipo||"",patron||"",medida||"",color||"",acabado||""].join("||");
 
-  const resumen = RESUMEN_PROD_RAW.filter(r => {
-    const f = (r["Fecha"]||"").slice(0,10);
-    return f >= desde && f <= hasta;
-  });
+  const resumen = RESUMEN_PROD_RAW.filter(r => (r["Fecha"]||"").slice(0,10) === hoy);
 
-  // Un renglon por dia+especificacion, igual de detallado que resumen_produccion
+  // Un renglon por especificacion del dia de hoy, igual de detallado que resumen_produccion
   const porFila = {};
   resumen.forEach(r => {
-    const f = (r["Fecha"]||"").slice(0,10);
-    const k = clave(f, r["Tipo"], r["Patron"], r["Medida"], r["Color"], r["Acabado"]);
+    const k = clave(hoy, r["Tipo"], r["Patron"], r["Medida"], r["Color"], r["Acabado"]);
     porFila[k] = {
-      fecha:f, tipo:r["Tipo"]||"—", patron:r["Patron"]||"—", medida:r["Medida"]||"—",
+      fecha:hoy, tipo:r["Tipo"]||"—", patron:r["Patron"]||"—", medida:r["Medida"]||"—",
       color:r["Color"]||"—", acabado:r["Acabado"]||"—",
       total: parseInt(r["Total Vaciado"]||0)||0,
       a: parseInt(r["Grado A"]||0)||0,
@@ -4570,34 +4578,26 @@ function renderReporteProduccion() {
     };
   });
 
-  // SKUs vaciados por dia (VAC_RAW ya viene con el mismo rango de fechas del filtro)
-  const vaciadoPorDiaSku = {};
-  VAC_RAW.forEach(r => {
-    const sku = (r["SKU"]||"").trim().toUpperCase();
-    const f   = (r["Fecha"]||"").slice(0,10);
-    if (!sku || !f) return;
-    if (!vaciadoPorDiaSku[f]) vaciadoPorDiaSku[f] = new Set();
-    vaciadoPorDiaSku[f].add(sku);
-  });
+  // SKUs vaciados HOY (dataset propio de este reporte, ignora el filtro global)
+  const vaciadoHoySku = new Set(
+    RPT_VAC_HOY.map(r => (r["SKU"]||"").trim().toUpperCase()).filter(Boolean)
+  );
 
-  // Grado C de otro dia: inspecciones Grado C en el rango cuyo SKU NO fue
-  // vaciado ese mismo dia (o no aparece en absoluto en la ventana de vaciados).
-  // Se agrega al renglon de esa fecha+especificacion; si no existia (la spec no
-  // tuvo NADA vaciado ese dia), se crea el renglon en ceros solo para mostrarla.
-  INSP_RAW.forEach(r => {
+  // Grado C de otro dia: inspecciones de HOY con Grado C cuyo SKU NO fue
+  // vaciado hoy (se vacio otro dia). Se agrega al renglon de esa especificacion;
+  // si no existia (la spec no tuvo NADA vaciado hoy), se crea en ceros solo
+  // para mostrarla.
+  RPT_INSP_HOY.forEach(r => {
     const grade = r["Grado"]||"";
     if (grade !== "C") return;
-    const f = (r["Fecha"]||"").slice(0,10);
-    if (!f || f < desde || f > hasta) return;
     const sku = (r["SKU"]||"").trim().toUpperCase();
     if (!sku) return;
     if (typeof SKU_SOLO_EXCLUIDOS !== "undefined" && SKU_SOLO_EXCLUIDOS.has(sku)) return;
-    const vaciadaEseDia = vaciadoPorDiaSku[f] && vaciadoPorDiaSku[f].has(sku);
-    if (vaciadaEseDia) return;
-    const k = clave(f, r["Tipo"], r["Patron"], r["Medida"], r["Color"], r["Acabado"]);
+    if (vaciadoHoySku.has(sku)) return;
+    const k = clave(hoy, r["Tipo"], r["Patron"], r["Medida"], r["Color"], r["Acabado"]);
     if (!porFila[k]) {
       porFila[k] = {
-        fecha:f, tipo:r["Tipo"]||"—", patron:r["Patron"]||"—", medida:r["Medida"]||"—",
+        fecha:hoy, tipo:r["Tipo"]||"—", patron:r["Patron"]||"—", medida:r["Medida"]||"—",
         color:r["Color"]||"—", acabado:r["Acabado"]||"—",
         total:0, a:0, b:0, c:0, sin:0, buenas:0, cOtro:0,
       };
@@ -4619,7 +4619,7 @@ function renderReporteProduccion() {
 
   document.getElementById("main-content").innerHTML = `
   <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-    <div class="metric"><div class="metric-label">Total Vaciado</div><div class="metric-val white">${tot.total.toLocaleString()}</div><div class="metric-sub">${desde} → ${hasta}</div></div>
+    <div class="metric"><div class="metric-label">Total Vaciado</div><div class="metric-val white">${tot.total.toLocaleString()}</div><div class="metric-sub">Hoy: ${hoy}</div></div>
     <div class="metric"><div class="metric-label">Grado C</div><div class="metric-val red">${tot.c.toLocaleString()}</div><div class="metric-sub">vaciadas ese mismo día</div></div>
     <div class="metric"><div class="metric-label">Grado C de otro día</div><div class="metric-val amber">${tot.cOtro.toLocaleString()}</div><div class="metric-sub">vaciadas otro día, C hoy</div></div>
     <div class="metric"><div class="metric-label">Piezas Buenas (final)</div><div class="metric-val green">${tot.buenasFinal.toLocaleString()}</div><div class="metric-sub">ya descontando ambas</div></div>
@@ -4628,7 +4628,7 @@ function renderReporteProduccion() {
     <div class="table-header">
       <div class="table-header-title">Reporte de Producción — detalle por pieza</div>
       <div style="display:flex;align-items:center;gap:12px">
-        <div style="font-size:11px;color:var(--muted)">${filas.length} renglones · Fuente: tabla resumen_produccion (sin modificar)</div>
+        <div style="font-size:11px;color:var(--muted)">${filas.length} renglones · Reporte diario (siempre hoy, ignora el filtro de fechas) · Fuente: resumen_produccion (sin modificar)</div>
         <button class="btn" style="font-size:11px;padding:6px 12px" onclick="exportarReporteProduccion()">⬇ Exportar a Excel</button>
       </div>
     </div>
