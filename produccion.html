@@ -4544,22 +4544,30 @@ function renderReporteProduccion() {
   const desde = document.getElementById("fDesde").value;
   const hasta  = document.getElementById("fHasta").value;
 
+  const clave = (f,tipo,patron,medida,color,acabado) =>
+    [f,tipo||"",patron||"",medida||"",color||"",acabado||""].join("||");
+
   const resumen = RESUMEN_PROD_RAW.filter(r => {
     const f = (r["Fecha"]||"").slice(0,10);
     return f >= desde && f <= hasta;
   });
 
-  // Agregado por dia (suma todas las specs de ese dia)
-  const porDia = {};
+  // Un renglon por dia+especificacion, igual de detallado que resumen_produccion
+  const porFila = {};
   resumen.forEach(r => {
     const f = (r["Fecha"]||"").slice(0,10);
-    if (!porDia[f]) porDia[f] = {fecha:f, total:0, a:0, b:0, c:0, sin:0, buenas:0};
-    porDia[f].total  += parseInt(r["Total Vaciado"]||0)||0;
-    porDia[f].a      += parseInt(r["Grado A"]||0)||0;
-    porDia[f].b      += parseInt(r["Grado B"]||0)||0;
-    porDia[f].c      += parseInt(r["Grado C"]||0)||0;
-    porDia[f].sin    += parseInt(r["Sin Inspeccion"]||0)||0;
-    porDia[f].buenas += parseInt(r["Piezas Buenas"]||0)||0;
+    const k = clave(f, r["Tipo"], r["Patron"], r["Medida"], r["Color"], r["Acabado"]);
+    porFila[k] = {
+      fecha:f, tipo:r["Tipo"]||"—", patron:r["Patron"]||"—", medida:r["Medida"]||"—",
+      color:r["Color"]||"—", acabado:r["Acabado"]||"—",
+      total: parseInt(r["Total Vaciado"]||0)||0,
+      a: parseInt(r["Grado A"]||0)||0,
+      b: parseInt(r["Grado B"]||0)||0,
+      c: parseInt(r["Grado C"]||0)||0,
+      sin: parseInt(r["Sin Inspeccion"]||0)||0,
+      buenas: parseInt(r["Piezas Buenas"]||0)||0,
+      cOtro: 0,
+    };
   });
 
   // SKUs vaciados por dia (VAC_RAW ya viene con el mismo rango de fechas del filtro)
@@ -4574,7 +4582,8 @@ function renderReporteProduccion() {
 
   // Grado C de otro dia: inspecciones Grado C en el rango cuyo SKU NO fue
   // vaciado ese mismo dia (o no aparece en absoluto en la ventana de vaciados).
-  const cOtroDiaPorDia = {};
+  // Se agrega al renglon de esa fecha+especificacion; si no existia (la spec no
+  // tuvo NADA vaciado ese dia), se crea el renglon en ceros solo para mostrarla.
   INSP_RAW.forEach(r => {
     const grade = r["Grado"]||"";
     if (grade !== "C") return;
@@ -4584,21 +4593,29 @@ function renderReporteProduccion() {
     if (!sku) return;
     if (typeof SKU_SOLO_EXCLUIDOS !== "undefined" && SKU_SOLO_EXCLUIDOS.has(sku)) return;
     const vaciadaEseDia = vaciadoPorDiaSku[f] && vaciadoPorDiaSku[f].has(sku);
-    if (!vaciadaEseDia) cOtroDiaPorDia[f] = (cOtroDiaPorDia[f]||0) + 1;
+    if (vaciadaEseDia) return;
+    const k = clave(f, r["Tipo"], r["Patron"], r["Medida"], r["Color"], r["Acabado"]);
+    if (!porFila[k]) {
+      porFila[k] = {
+        fecha:f, tipo:r["Tipo"]||"—", patron:r["Patron"]||"—", medida:r["Medida"]||"—",
+        color:r["Color"]||"—", acabado:r["Acabado"]||"—",
+        total:0, a:0, b:0, c:0, sin:0, buenas:0, cOtro:0,
+      };
+    }
+    porFila[k].cOtro++;
   });
 
-  const dias = Object.keys(porDia).sort().reverse();
-  const filas = dias.map(f => {
-    const d = porDia[f];
-    const cOtro = cOtroDiaPorDia[f] || 0;
-    return {...d, cOtro, buenasFinal: d.buenas - cOtro};
-  });
+  const filas = Object.values(porFila)
+    .map(r => ({...r, buenasFinal: r.buenas - r.cOtro}))
+    .sort((x,y) => y.fecha.localeCompare(x.fecha) || x.patron.localeCompare(y.patron));
 
   const tot = filas.reduce((s,r) => {
     s.total += r.total; s.a += r.a; s.b += r.b; s.c += r.c; s.sin += r.sin;
     s.buenas += r.buenas; s.cOtro += r.cOtro; s.buenasFinal += r.buenasFinal;
     return s;
   }, {total:0,a:0,b:0,c:0,sin:0,buenas:0,cOtro:0,buenasFinal:0});
+
+  window._reporteProduccionFilas = filas; // usado por exportarReporteProduccion()
 
   document.getElementById("main-content").innerHTML = `
   <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
@@ -4609,12 +4626,16 @@ function renderReporteProduccion() {
   </div>
   <div class="table-wrap" style="overflow-x:auto">
     <div class="table-header">
-      <div class="table-header-title">Reporte de Producción por día</div>
-      <div style="font-size:11px;color:var(--muted)">Fuente: tabla resumen_produccion (sin modificar)</div>
+      <div class="table-header-title">Reporte de Producción — detalle por pieza</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:11px;color:var(--muted)">${filas.length} renglones · Fuente: tabla resumen_produccion (sin modificar)</div>
+        <button class="btn" style="font-size:11px;padding:6px 12px" onclick="exportarReporteProduccion()">⬇ Exportar a Excel</button>
+      </div>
     </div>
     <table>
       <thead><tr>
-        <th>Fecha</th><th style="text-align:center">Total Vaciado</th>
+        <th>Fecha</th><th>Tipo</th><th>Patrón</th><th>Medida</th><th>Color</th><th>Acabado</th>
+        <th style="text-align:center">Total Vaciado</th>
         <th style="text-align:center">Grado A</th><th style="text-align:center">Grado B</th>
         <th style="text-align:center">Grado C</th><th style="text-align:center">Sin Inspección</th>
         <th style="text-align:center">Piezas Buenas</th>
@@ -4624,6 +4645,11 @@ function renderReporteProduccion() {
       <tbody>
         ${filas.map(r=>`<tr>
             <td class="mono">${r.fecha}</td>
+            <td>${r.tipo}</td>
+            <td style="max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${r.patron}">${r.patron}</td>
+            <td class="mono">${r.medida}</td>
+            <td>${r.color}</td>
+            <td>${r.acabado}</td>
             <td style="text-align:center">${r.total.toLocaleString()}</td>
             <td style="text-align:center">${r.a.toLocaleString()}</td>
             <td style="text-align:center">${r.b.toLocaleString()}</td>
@@ -4633,10 +4659,28 @@ function renderReporteProduccion() {
             <td style="text-align:center;color:var(--warn)">${r.cOtro.toLocaleString()}</td>
             <td style="text-align:center;font-weight:600;color:var(--accent)">${r.buenasFinal.toLocaleString()}</td>
           </tr>`).join("")}
-        ${filas.length===0?`<tr><td colspan="9" class="empty">Sin registros</td></tr>`:""}
+        ${filas.length===0?`<tr><td colspan="14" class="empty">Sin registros</td></tr>`:""}
       </tbody>
     </table>
   </div>`;
+}
+
+function exportarReporteProduccion() {
+  const filas = window._reporteProduccionFilas || [];
+  if (!filas.length) { alert("No hay datos para exportar."); return; }
+  const rows = filas.map(r => ({
+    "Fecha": r.fecha, "Tipo": r.tipo, "Patrón": r.patron, "Medida": r.medida,
+    "Color": r.color, "Acabado": r.acabado,
+    "Total Vaciado": r.total, "Grado A": r.a, "Grado B": r.b, "Grado C": r.c,
+    "Sin Inspección": r.sin, "Piezas Buenas": r.buenas,
+    "Grado C de otro día": r.cOtro, "Piezas Buenas Final": r.buenasFinal,
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Reporte Producción");
+  const hoy = new Date();
+  const fname = `Reporte_Produccion_${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}.xlsx`;
+  XLSX.writeFile(wb, fname);
 }
 
 // ── Área WIP / Retrabajo ──────────────────────────────────
