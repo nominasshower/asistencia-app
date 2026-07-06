@@ -198,6 +198,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7V4a1 1 0 00-1-1H5a2 2 0 000 4h15a1 1 0 011 1v4a1 1 0 01-1 1h-3"/><rect x="3" y="11" width="9" height="9" rx="1"/></svg>
       Reporte de Pintura
     </div>
+    <div class="nav-item" id="nav-reporteproduccion" onclick="navegar('reporteproduccion',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
+      Reporte de Producción
+    </div>
     <div class="nav-item" id="nav-wip" onclick="navegar('wip',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       WIP
@@ -328,6 +332,7 @@ const COL_MAP = {
   empaque:           {sku:'SKU',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',fecha_liberacion:'Fecha Liberacion',fecha_empaque:'Fecha Empaque',po_cliente:'PO Cliente'},
   ventas:            {fecha:'Fecha',fecha_entrega:'Fecha Entrega',pedido:'Pedido',cliente:'Cliente',sku:'SKU',producto:'Producto',cantidad:'Cantidad',precio_unit:'Precio Unit',subtotal:'Subtotal',moneda:'Moneda',estado:'Estado',entregado:'Entregado',pendiente:'Pendiente',linea_odoo:'Línea Odoo'},
   area_wip:          {id:'id',sku:'sku',tipo:'tipo',patron:'patron',medida:'medida',color:'color',acabado:'acabado',created_at:'created_at'},
+  resumen_produccion:{fecha:'Fecha',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',total_vaciado:'Total Vaciado',grado_a:'Grado A',grado_b:'Grado B',grado_c:'Grado C',sin_inspeccion:'Sin Inspeccion',piezas_buenas:'Piezas Buenas'},
 };
 
 async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',limit=200000,asc=false,campos=null}={}) {
@@ -531,6 +536,7 @@ let LIB_RAW   = [];   // hoja liberado (cargado lazy: mes en curso ∪ rango fil
 let PT_RAW    = [];   // hoja PT (cargado lazy al abrir pestaña PT/Empaque)
 let EMP_RAW   = [];   // hoja Empaque (cargado lazy)
 let WIPVAC_RAW = [];  // vaciados del mes en curso — solo para WIP (no pisa VAC_RAW del filtro)
+let RESUMEN_PROD_RAW = []; // resumen_produccion (cargado lazy al abrir Reporte de Producción)
 let AREA_WIP_RAW  = [];   // piezas capturadas en área WIP/retrabajo
 let AREA_WIP_TIPO = 'wip'; // selección activa en captura
 
@@ -728,6 +734,7 @@ async function asegurarDatosTab(id) {
   const needPT     = id === "pt";
   const needEmp    = ["pt","empaque"].includes(id);
   const needWipVac = id === "wip";
+  const needResumenProd = id === "reporteproduccion";
 
   // 'liberado' abarca: mes en curso (para WIP) ∪ rango del filtro (para pestaña Liberado)
   const libFrom = (desde && desde < mes1) ? desde : mes1;
@@ -753,6 +760,9 @@ async function asegurarDatosTab(id) {
   if (needEmp && !_lazy.emp)
     jobs.push(fetchSupabase("empaque",{campoFecha:"fecha_empaque"})
       .then(d => { EMP_RAW = d; _lazy.emp = true; }).catch(()=>{}));
+  if (needResumenProd && !_lazy.resumenProd)
+    jobs.push(fetchSupabase("resumen_produccion",{campoFecha:"fecha"})
+      .then(d => { RESUMEN_PROD_RAW = d; _lazy.resumenProd = true; }).catch(()=>{}));
 
   if (jobs.length) {
     document.getElementById("main-content").innerHTML =
@@ -776,6 +786,7 @@ function renderVista(data) {
   else if (VISTA === "gantt")    renderGantt();
   else if (VISTA === "liberado") renderLiberado();
   else if (VISTA === "reportepintura") renderReportePintura();
+  else if (VISTA === "reporteproduccion") renderReporteProduccion();
   else if (VISTA === "wip")      renderWIP();
   else if (VISTA === "areawip")  renderAreaWIP();
   else if (VISTA === "pt")       renderPT();
@@ -4518,6 +4529,113 @@ function renderReportePintura() {
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
     ${tarjetas}
+  </div>`;
+}
+
+// ── Reporte de Producción (de la tabla resumen_produccion) ────
+// La tabla resumen_produccion NO se toca — la usan otros reportes y agrupa
+// por dia de VACIADO. Aqui solo agregamos, encima, una columna calculada:
+// "Grado C de otro dia" = piezas marcadas Grado C en 'inspeccion' cuya fecha
+// de inspeccion cae en el dia del renglon, pero que NO se vaciaron ese mismo
+// dia (cruce por SKU contra 'vaciados'). Esas tambien se descuentan de
+// Piezas Buenas en este reporte (sin modificar resumen_produccion).
+function renderReporteProduccion() {
+  document.getElementById("topbar-title").textContent = "Reporte de Producción";
+  const desde = document.getElementById("fDesde").value;
+  const hasta  = document.getElementById("fHasta").value;
+
+  const resumen = RESUMEN_PROD_RAW.filter(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    return f >= desde && f <= hasta;
+  });
+
+  // Agregado por dia (suma todas las specs de ese dia)
+  const porDia = {};
+  resumen.forEach(r => {
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (!porDia[f]) porDia[f] = {fecha:f, total:0, a:0, b:0, c:0, sin:0, buenas:0};
+    porDia[f].total  += parseInt(r["Total Vaciado"]||0)||0;
+    porDia[f].a      += parseInt(r["Grado A"]||0)||0;
+    porDia[f].b      += parseInt(r["Grado B"]||0)||0;
+    porDia[f].c      += parseInt(r["Grado C"]||0)||0;
+    porDia[f].sin    += parseInt(r["Sin Inspeccion"]||0)||0;
+    porDia[f].buenas += parseInt(r["Piezas Buenas"]||0)||0;
+  });
+
+  // SKUs vaciados por dia (VAC_RAW ya viene con el mismo rango de fechas del filtro)
+  const vaciadoPorDiaSku = {};
+  VAC_RAW.forEach(r => {
+    const sku = (r["SKU"]||"").trim().toUpperCase();
+    const f   = (r["Fecha"]||"").slice(0,10);
+    if (!sku || !f) return;
+    if (!vaciadoPorDiaSku[f]) vaciadoPorDiaSku[f] = new Set();
+    vaciadoPorDiaSku[f].add(sku);
+  });
+
+  // Grado C de otro dia: inspecciones Grado C en el rango cuyo SKU NO fue
+  // vaciado ese mismo dia (o no aparece en absoluto en la ventana de vaciados).
+  const cOtroDiaPorDia = {};
+  INSP_RAW.forEach(r => {
+    const grade = r["Grado"]||"";
+    if (grade !== "C") return;
+    const f = (r["Fecha"]||"").slice(0,10);
+    if (!f || f < desde || f > hasta) return;
+    const sku = (r["SKU"]||"").trim().toUpperCase();
+    if (!sku) return;
+    if (typeof SKU_SOLO_EXCLUIDOS !== "undefined" && SKU_SOLO_EXCLUIDOS.has(sku)) return;
+    const vaciadaEseDia = vaciadoPorDiaSku[f] && vaciadoPorDiaSku[f].has(sku);
+    if (!vaciadaEseDia) cOtroDiaPorDia[f] = (cOtroDiaPorDia[f]||0) + 1;
+  });
+
+  const dias = Object.keys(porDia).sort().reverse();
+  const filas = dias.map(f => {
+    const d = porDia[f];
+    const cOtro = cOtroDiaPorDia[f] || 0;
+    return {...d, cOtro, buenasFinal: d.buenas - cOtro};
+  });
+
+  const tot = filas.reduce((s,r) => {
+    s.total += r.total; s.a += r.a; s.b += r.b; s.c += r.c; s.sin += r.sin;
+    s.buenas += r.buenas; s.cOtro += r.cOtro; s.buenasFinal += r.buenasFinal;
+    return s;
+  }, {total:0,a:0,b:0,c:0,sin:0,buenas:0,cOtro:0,buenasFinal:0});
+
+  document.getElementById("main-content").innerHTML = `
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+    <div class="metric"><div class="metric-label">Total Vaciado</div><div class="metric-val white">${tot.total.toLocaleString()}</div><div class="metric-sub">${desde} → ${hasta}</div></div>
+    <div class="metric"><div class="metric-label">Grado C</div><div class="metric-val red">${tot.c.toLocaleString()}</div><div class="metric-sub">vaciadas ese mismo día</div></div>
+    <div class="metric"><div class="metric-label">Grado C de otro día</div><div class="metric-val amber">${tot.cOtro.toLocaleString()}</div><div class="metric-sub">vaciadas otro día, C hoy</div></div>
+    <div class="metric"><div class="metric-label">Piezas Buenas (final)</div><div class="metric-val green">${tot.buenasFinal.toLocaleString()}</div><div class="metric-sub">ya descontando ambas</div></div>
+  </div>
+  <div class="table-wrap" style="overflow-x:auto">
+    <div class="table-header">
+      <div class="table-header-title">Reporte de Producción por día</div>
+      <div style="font-size:11px;color:var(--muted)">Fuente: tabla resumen_produccion (sin modificar)</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Fecha</th><th style="text-align:center">Total Vaciado</th>
+        <th style="text-align:center">Grado A</th><th style="text-align:center">Grado B</th>
+        <th style="text-align:center">Grado C</th><th style="text-align:center">Sin Inspección</th>
+        <th style="text-align:center">Piezas Buenas</th>
+        <th style="text-align:center">Grado C de otro día</th>
+        <th style="text-align:center">Piezas Buenas Final</th>
+      </tr></thead>
+      <tbody>
+        ${filas.map(r=>`<tr>
+            <td class="mono">${r.fecha}</td>
+            <td style="text-align:center">${r.total.toLocaleString()}</td>
+            <td style="text-align:center">${r.a.toLocaleString()}</td>
+            <td style="text-align:center">${r.b.toLocaleString()}</td>
+            <td style="text-align:center;color:var(--danger)">${r.c.toLocaleString()}</td>
+            <td style="text-align:center;color:var(--muted)">${r.sin.toLocaleString()}</td>
+            <td style="text-align:center">${r.buenas.toLocaleString()}</td>
+            <td style="text-align:center;color:var(--warn)">${r.cOtro.toLocaleString()}</td>
+            <td style="text-align:center;font-weight:600;color:var(--accent)">${r.buenasFinal.toLocaleString()}</td>
+          </tr>`).join("")}
+        ${filas.length===0?`<tr><td colspan="9" class="empty">Sin registros</td></tr>`:""}
+      </tbody>
+    </table>
   </div>`;
 }
 
