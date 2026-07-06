@@ -537,8 +537,9 @@ let PT_RAW    = [];   // hoja PT (cargado lazy al abrir pestaña PT/Empaque)
 let EMP_RAW   = [];   // hoja Empaque (cargado lazy)
 let WIPVAC_RAW = [];  // vaciados del mes en curso — solo para WIP (no pisa VAC_RAW del filtro)
 let RESUMEN_PROD_RAW = []; // resumen_produccion (cargado al abrir Reporte de Producción)
-let RPT_VAC_HOY  = [];     // vaciados de HOY, solo para Reporte de Producción (ignora filtro global)
-let RPT_INSP_HOY = [];     // inspeccion de HOY, solo para Reporte de Producción (ignora filtro global)
+let RPT_VAC_HOY  = [];     // vaciados del día elegido en Reporte de Producción (ignora filtro global)
+let RPT_INSP_HOY = [];     // inspeccion del día elegido en Reporte de Producción (ignora filtro global)
+let RPT_PROD_FECHA = null; // fecha elegida en Reporte de Producción — default: hoy
 let AREA_WIP_RAW  = [];   // piezas capturadas en área WIP/retrabajo
 let AREA_WIP_TIPO = 'wip'; // selección activa en captura
 
@@ -762,15 +763,17 @@ async function asegurarDatosTab(id) {
   if (needEmp && !_lazy.emp)
     jobs.push(fetchSupabase("empaque",{campoFecha:"fecha_empaque"})
       .then(d => { EMP_RAW = d; _lazy.emp = true; }).catch(()=>{}));
-  // Reporte de Producción: reporte DIARIO para alimentar el Gantt — siempre
-  // hoy, ignora el filtro de fechas global, y se recarga fresco cada vez
-  // que se abre la pestaña (no se cachea en _lazy).
+  // Reporte de Producción: reporte DIARIO para alimentar el Gantt — por
+  // defecto hoy (elegible con el selector propio de la pestaña), ignora
+  // el filtro de fechas global, y se recarga fresco cada vez que se abre.
   if (needResumenProd) {
+    if (!RPT_PROD_FECHA) RPT_PROD_FECHA = hoyS;
+    const fRpt = RPT_PROD_FECHA;
     jobs.push(fetchSupabase("resumen_produccion",{campoFecha:"fecha"})
       .then(d => { RESUMEN_PROD_RAW = d; }).catch(()=>{}));
-    jobs.push(fetchSupabase("vaciados",{desde:hoyS,hasta:hoyS})
+    jobs.push(fetchSupabase("vaciados",{desde:fRpt,hasta:fRpt})
       .then(d => { RPT_VAC_HOY = d; }).catch(()=>{}));
-    jobs.push(fetchSupabase("inspeccion",{desde:hoyS,hasta:hoyS})
+    jobs.push(fetchSupabase("inspeccion",{desde:fRpt,hasta:fRpt})
       .then(d => { RPT_INSP_HOY = d; }).catch(()=>{}));
   }
 
@@ -4549,12 +4552,31 @@ function renderReportePintura() {
 // de inspeccion cae en el dia del renglon, pero que NO se vaciaron ese mismo
 // dia (cruce por SKU contra 'vaciados'). Esas tambien se descuentan de
 // Piezas Buenas en este reporte (sin modificar resumen_produccion).
+// Se dispara al cambiar el selector de fecha propio del reporte (independiente
+// del filtro global). Vuelve a traer vaciados/inspeccion de ese día y re-pinta.
+async function cambiarFechaReporteProduccion(fecha) {
+  if (!fecha) return;
+  RPT_PROD_FECHA = fecha;
+  document.getElementById("main-content").innerHTML =
+    `<div class="loading"><div class="spinner"></div><div>Cargando datos…</div></div>`;
+  try {
+    const [vac, insp] = await Promise.all([
+      fetchSupabase("vaciados",{desde:fecha,hasta:fecha}),
+      fetchSupabase("inspeccion",{desde:fecha,hasta:fecha}),
+    ]);
+    RPT_VAC_HOY = vac; RPT_INSP_HOY = insp;
+  } catch(e) {}
+  renderReporteProduccion();
+}
+
 function renderReporteProduccion() {
   document.getElementById("topbar-title").textContent = "Reporte de Producción";
-  // Reporte DIARIO para alimentar el Gantt — siempre HOY, sin importar el
-  // filtro de fechas global del dashboard.
+  // Reporte DIARIO para alimentar el Gantt — por defecto HOY, pero se puede
+  // elegir otro día con el selector propio (independiente del filtro global).
   const hoyD  = new Date();
-  const hoy   = `${hoyD.getFullYear()}-${String(hoyD.getMonth()+1).padStart(2,'0')}-${String(hoyD.getDate()).padStart(2,'0')}`;
+  const hoyReal = `${hoyD.getFullYear()}-${String(hoyD.getMonth()+1).padStart(2,'0')}-${String(hoyD.getDate()).padStart(2,'0')}`;
+  if (!RPT_PROD_FECHA) RPT_PROD_FECHA = hoyReal;
+  const hoy = RPT_PROD_FECHA;
 
   const clave = (f,tipo,patron,medida,color,acabado) =>
     [f,tipo||"",patron||"",medida||"",color||"",acabado||""].join("||");
@@ -4618,8 +4640,15 @@ function renderReporteProduccion() {
   window._reporteProduccionFilas = filas; // usado por exportarReporteProduccion()
 
   document.getElementById("main-content").innerHTML = `
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+    <label style="font-size:12px;color:var(--muted)">Fecha del reporte:</label>
+    <input type="date" value="${hoy}" max="${hoyReal}" onchange="cambiarFechaReporteProduccion(this.value)"
+      style="background:var(--bg3);border:1px solid var(--border,#333);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px">
+    ${hoy===hoyReal?"":`<button class="btn" style="font-size:11px;padding:5px 10px" onclick="cambiarFechaReporteProduccion('${hoyReal}')">Volver a hoy</button>`}
+    <div style="font-size:11px;color:var(--muted)">Solo disponibles los últimos 7 días (la tabla resumen_produccion no guarda más historial)</div>
+  </div>
   <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-    <div class="metric"><div class="metric-label">Total Vaciado</div><div class="metric-val white">${tot.total.toLocaleString()}</div><div class="metric-sub">Hoy: ${hoy}</div></div>
+    <div class="metric"><div class="metric-label">Total Vaciado</div><div class="metric-val white">${tot.total.toLocaleString()}</div><div class="metric-sub">${hoy===hoyReal?"Hoy":"Día elegido"}: ${hoy}</div></div>
     <div class="metric"><div class="metric-label">Grado C</div><div class="metric-val red">${tot.c.toLocaleString()}</div><div class="metric-sub">vaciadas ese mismo día</div></div>
     <div class="metric"><div class="metric-label">Grado C de otro día</div><div class="metric-val amber">${tot.cOtro.toLocaleString()}</div><div class="metric-sub">vaciadas otro día, C hoy</div></div>
     <div class="metric"><div class="metric-label">Piezas Buenas (final)</div><div class="metric-val green">${tot.buenasFinal.toLocaleString()}</div><div class="metric-sub">ya descontando ambas</div></div>
@@ -4628,7 +4657,7 @@ function renderReporteProduccion() {
     <div class="table-header">
       <div class="table-header-title">Reporte de Producción — detalle por pieza</div>
       <div style="display:flex;align-items:center;gap:12px">
-        <div style="font-size:11px;color:var(--muted)">${filas.length} renglones · Reporte diario (siempre hoy, ignora el filtro de fechas) · Fuente: resumen_produccion (sin modificar)</div>
+        <div style="font-size:11px;color:var(--muted)">${filas.length} renglones · Reporte diario (ignora el filtro de fechas global) · Fuente: resumen_produccion (sin modificar)</div>
         <button class="btn" style="font-size:11px;padding:6px 12px" onclick="exportarReporteProduccion()">⬇ Exportar a Excel</button>
       </div>
     </div>
