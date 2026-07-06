@@ -1301,6 +1301,21 @@ function normLinea(l) {
   return l || "—";
 }
 
+// Normaliza el LADO de una pieza a 5 buckets independientes (izq/der/centro/centro2/uni).
+// Acepta tanto la columna Lado del plan ("LEFT","RIGHT","CENTER","CENTER 2","")
+// como el texto del patrón de producción ("...LEFT,IZQ","...RIGHT/DER","...CENTER 2").
+// Tolera los typos reales de la BD (CENTAR, RIGH, LEFT/ IZQ). ORDEN IMPORTA:
+// "CENTER 2" contiene "CENTER", por eso centro-2 se detecta antes que centro.
+function normLado(s) {
+  const t = (s||"").toUpperCase();
+  if (/IZQ|LEFT/.test(t))                       return "IZQ";
+  if (/DER|RIGH/.test(t))                        return "DER";
+  if (/CENTER\s*2|CENTRO\s*2|CENTER2/.test(t))   return "CEN2";
+  if (/CENT/.test(t))                            return "CEN";
+  return "UNI";
+}
+const LADO_LABEL = {IZQ:"Izq", DER:"Der", CEN:"Cen", CEN2:"Cen2", UNI:"Uni"};
+
 // ── Comparar Planes: plan de ayer vs plan de hoy + sistema ───────────────
 // Plan externo cargado desde Excel (persiste mientras no se recargue la página)
 let _excelPlanCargado = null; // null = no cargado, {} = datos parseados
@@ -2793,8 +2808,9 @@ function renderGanttMoldes() {
     if (!tag || tagsManual.has(tag)) return;
     const ar = normAbrev(r["Patron"]||""), med = normMedida(r["Medida"]||"");
     if (!ar || !med) return;
-    const fk = ar + "||" + med;
-    if (!moldesActivos[fk]) moldesActivos[fk] = {tags: new Set(), patron:r["Patron"]||"", medida:r["Medida"]||"", color:r["Color"]||""};
+    const lado = normLado(r["Patron"]||"");
+    const fk = ar + "||" + med + "||" + lado;
+    if (!moldesActivos[fk]) moldesActivos[fk] = {tags: new Set(), patron:r["Patron"]||"", medida:r["Medida"]||"", color:r["Color"]||"", lado};
     moldesActivos[fk].tags.add(tag);
   });
 
@@ -2805,8 +2821,12 @@ function renderGanttMoldes() {
     if (!f || f < desde || f > hasta) return;
     const ar = normAbrev(r["Modelo"]||""), med = normMedida(r["Medida"]||"");
     if (!ar) return;
-    const fk = ar + "||" + med;
-    if (!planMap[fk]) planMap[fk] = {patron:r["Modelo"]||"", medida:r["Medida"]||"", lado:r["Lado"]||"", moldes:0, piezas:0, odoos:new Set()};
+    // El plan trae la columna Lado (LEFT/RIGHT/CENTER/CENTER 2/vacío); si viene
+    // vacía, deducir del texto del modelo. Así la clave separa cada lado igual
+    // que en producción (moldesActivos/vacPorFila), y no se colapsan IZQ+DER.
+    const lado = r["Lado"] ? normLado(r["Lado"]) : normLado(r["Modelo"]||"");
+    const fk = ar + "||" + med + "||" + lado;
+    if (!planMap[fk]) planMap[fk] = {patron:r["Modelo"]||"", medida:r["Medida"]||"", lado, moldes:0, piezas:0, odoos:new Set()};
     planMap[fk].moldes += parseFloat(r["Moldes"]||0)||0;
     planMap[fk].piezas += parseFloat(r["A Producir"]||0)||0;
     const od = (r["Odoo"]||"").trim();
@@ -2821,7 +2841,8 @@ function renderGanttMoldes() {
     if (!f || (f >= desde && f <= hasta)) return; // ignorar el período actual
     const ar = normAbrev(r["Modelo"]||""), med = normMedida(r["Medida"]||"");
     if (!ar) return;
-    const fk = ar + "||" + med;
+    const lado = r["Lado"] ? normLado(r["Lado"]) : normLado(r["Modelo"]||"");
+    const fk = ar + "||" + med + "||" + lado;
     const prev = planProxFecha[fk];
     if (!prev) { planProxFecha[fk] = f; return; }
     // Priorizar: fecha futura más cercana; si no hay futura, la pasada más reciente
@@ -2836,7 +2857,7 @@ function renderGanttMoldes() {
   const allKeys = new Set([...Object.keys(planMap), ...Object.keys(moldesActivos)]);
   const filas = [];
   allKeys.forEach(fk => {
-    const p = planMap[fk] || {patron:fk.split("||")[0], medida:fk.split("||")[1], moldes:0, piezas:0, odoos:new Set()};
+    const p = planMap[fk] || {patron:fk.split("||")[0], medida:fk.split("||")[1], lado:fk.split("||")[2]||"", moldes:0, piezas:0, odoos:new Set()};
     const info = moldesActivos[fk];
     let activos=0, activos30=0, activos60=0, ultimoFkTs=0;
     if (info) {
@@ -2859,7 +2880,7 @@ function renderGanttMoldes() {
   VAC_RAW.forEach(r => {
     const fd = (r["Fecha"]||"").slice(0,10);
     if (fd < desde || fd > hasta) return;
-    const fk = normAbrev(r["Patron"]||"") + "||" + normMedida(r["Medida"]||"");
+    const fk = normAbrev(r["Patron"]||"") + "||" + normMedida(r["Medida"]||"") + "||" + normLado(r["Patron"]||"");
     vacPorFila[fk] = (vacPorFila[fk]||0) + 1;
   });
 
@@ -3085,7 +3106,7 @@ function renderGanttMoldes() {
       <td style="font-size:12px">${f.patron}</td>
       <td class="mono">${f.medida}</td>
       <td style="font-size:11px;font-weight:600;color:var(--muted)">
-        ${({"LEFT":"Izq","RIGHT":"Der","CENTER":"Cen","SIDE":"Side","IZQ":"Izq","DER":"Der","N/A":"—","":"—"}[(f.lado||"").toUpperCase()])||(f.lado||"—")}
+        ${LADO_LABEL[f.lado]||({"LEFT":"Izq","RIGHT":"Der","CENTER":"Cen","SIDE":"Side","N/A":"—","":"—"}[(f.lado||"").toUpperCase()])||(f.lado||"—")}
       </td>
       <td class="mono" style="text-align:right">${f.moldes||"—"}</td>
       <td class="mono" style="text-align:right">${activosDisplay}</td>
@@ -4939,7 +4960,7 @@ function renderPT() {
             <td class="mono">${r["Medida"]||"—"}</td>
             <td>${r["Color"]||"—"}</td>
             <td>${r["Acabado"]||"—"}</td>
-            <td style="text-align:center">${r["Fecha Liberacion"]||r["Linea"]||"—"}</td>
+            <td style="text-align:center">${r["Linea"]||"—"}</td>
             <td style="font-size:11px;color:var(--muted)">${r["PO Cliente"]||"—"}</td>
             <td style="text-align:center"><span class="badge ${emp?"b-a":"b-sin"}">${emp?"✓ Sí":"Pend."}</span></td>
           </tr>`;
@@ -4964,7 +4985,7 @@ function renderEmpaque() {
   // Por línea
   const porLinea = {};
   data.forEach(r => {
-    const l = r["Fecha Liberacion"] || r["Linea"] || "—";
+    const l = r["Linea"] || "—";
     porLinea[l] = (porLinea[l]||0) + 1;
   });
   const linArr = Object.entries(porLinea).sort((a,b)=>b[1]-a[1]);
@@ -5003,7 +5024,7 @@ function renderEmpaque() {
           <td class="mono">${r["Medida"]||"—"}</td>
           <td>${r["Color"]||"—"}</td>
           <td>${r["Acabado"]||"—"}</td>
-          <td style="text-align:center">${r["Fecha Liberacion"]||r["Linea"]||"—"}</td>
+          <td style="text-align:center">${r["Linea"]||"—"}</td>
           <td style="font-size:11px;color:var(--muted)">${r["PO Cliente"]||"—"}</td>
         </tr>`).join("")}
         ${data.length===0?`<tr><td colspan="8" class="empty">Sin registros en el período</td></tr>`:""}
@@ -5252,12 +5273,23 @@ function renderGerencia(data) {
   // Plan y vaciados por categoría usando días con plan ESPECÍFICO de esa categoría
   // (evita mezclar: bases producidas en días con plan de paredes no cuentan como cumplimiento de bases)
   const planGruposCat = {paredes:{}, bases:{}, accesorios:{}};
+  // Mapa abrev(patrón)→tipo REAL derivado de los vaciados (que sí traen "Tipo" de la
+  // BD). El plan (plan_diario) no trae Tipo, así que sin esto se clasifica por texto
+  // (catPatron) y un accesorio llamado "WALL CHEVRON FFI..." cae en PAREDES → el plan
+  // de accesorios queda en 0 y las sumas no cuadran. Con el mapa, plan y producido
+  // usan el MISMO criterio (catTipo). Fallback a catPatron si el patrón nunca se vació.
+  const abrevTipoReal = {};
+  VAC_RAW.forEach(r => {
+    const ab = normAbrev(r["Patron"]||"");
+    if (ab && !abrevTipoReal[ab]) abrevTipoReal[ab] = catTipo(r["Tipo"]||"");
+  });
+  const catPlan = m => abrevTipoReal[normAbrev(m||"")] || catPatron(m||"");
   const acumPlanCat = (rows, esFrozen) => rows.forEach(r => {
     const f = parsePlanFecha(r["Fecha"]);
     if (!f || f < desde || f > hasta) return;
     if (esFrozen && f >= hoyLocalG) return;
     if (!esFrozen && diasFrozen.has(f)) return;
-    const cat = catPatron(r["Modelo"]||"");
+    const cat = catPlan(r["Modelo"]||"");
     planGruposCat[cat][f] = (planGruposCat[cat][f]||0) + (parseInt(r["A Producir"]||0)||0);
   });
   acumPlanCat(PLAN_FROZEN, true);
@@ -5894,7 +5926,7 @@ function guardarFiltros() {
   // Navegar a la vista solicitada
   const v = p.get("v");
   const vistasValidas = ["gerencia","dash","alertas","tabla","plan","comparaplanes",
-                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque","reportepintura","wip"];
+                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque","reportepintura","reporteproduccion","wip","areawip"];
   if (v && vistasValidas.includes(v)) VISTA = v;
   // Aceptar mensajes del padre para cambiar vista sin recargar
   window.addEventListener("message", e => {
