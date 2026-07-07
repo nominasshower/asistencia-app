@@ -252,9 +252,19 @@ function renderGlobal(){
     (lineasPorSku[l.sku] = lineasPorSku[l.sku]||[]).push(l);
   }
   const vacAsignada = new Map(); // id de línea -> vaciadas asignadas
+  const skuCompartido = new Set(); // SKUs pedidos por 2+ órdenes ABIERTAS distintas a la vez
   for(const sku in lineasPorSku){
-    const ls = lineasPorSku[sku].slice().sort((a,b)=>
-      (a.fecha_compromiso||'9999').localeCompare(b.fecha_compromiso||'9999'));
+    const ordenesDelSku = new Set(lineasPorSku[sku].map(l=>l.orden));
+    if(ordenesDelSku.size > 1) skuCompartido.add(sku);
+    // Reparto FIFO por folio de orden (así se produce en planta: se completa una orden
+    // antes de pasar a la siguiente con la misma especificación — verificado en la
+    // cuadrícula diaria del Excel). Es una ESTIMACIÓN: si una orden ya CERRADA (fuera de
+    // este Excel) también pidió este SKU, su consumo histórico no se resta aquí y puede
+    // "colarse" como sobrante a una orden abierta que no ha producido nada en realidad.
+    const ls = lineasPorSku[sku].slice().sort((a,b)=>{
+      const na=parseInt((a.orden.match(/\d+/)||['999999'])[0]), nb=parseInt((b.orden.match(/\d+/)||['999999'])[0]);
+      return na-nb;
+    });
     let disp = restanteVac[sku]||0;
     for(const l of ls){
       const need = l.cantidad||0;
@@ -269,10 +279,12 @@ function renderGlobal(){
   const ordenes = {};
   for(const l of PLAN){
     const o = l.orden;
-    if(!ordenes[o]) ordenes[o]={orden:o,cliente:l.cliente,compromiso:l.fecha_compromiso,origen:l.origen,lineas:[],cant:0,vac:0,emp:0,primeraProd:null};
+    if(!ordenes[o]) ordenes[o]={orden:o,cliente:l.cliente,compromiso:l.fecha_compromiso,origen:l.origen,lineas:[],cant:0,vac:0,emp:0,primeraProd:null,skuCompartido:false};
     const emp = empPorOrdenSku[o+'|'+l.sku]||0;
     const vac = vacAsignada.get(l.id)||0;
-    ordenes[o].lineas.push({...l, emp, vac});
+    const compartido = skuCompartido.has(l.sku);
+    if(compartido) ordenes[o].skuCompartido = true;
+    ordenes[o].lineas.push({...l, emp, vac, compartido});
     ordenes[o].cant += (l.cantidad||0);
     ordenes[o].vac  += vac;
     ordenes[o].emp  += emp;
@@ -298,6 +310,7 @@ function renderGlobal(){
         tEmp=lista.reduce((s,o)=>s+o.emp,0), tSaldo=lista.reduce((s,o)=>s+o.saldo,0);
   const completas=lista.filter(o=>o.saldo===0).length;
   const incompletas=lista.filter(o=>o.historiaIncompleta).length;
+  const conSkuCompartido=lista.filter(o=>o.skuCompartido).length;
 
   const barColor = pct => pct>=100?'var(--ga)':pct>=50?'var(--gb)':'var(--gc)';
 
@@ -309,8 +322,11 @@ function renderGlobal(){
       <div class="metric"><div class="metric-label">En burrito</div><div class="metric-val blue">${tEmp.toLocaleString()}</div><div class="metric-sub">empacadas</div></div>
       <div class="metric"><div class="metric-label">Saldo</div><div class="metric-val amber">${tSaldo.toLocaleString()}</div><div class="metric-sub">por producir</div></div>
     </div>
-    ${incompletas>0?`<div class="card" style="border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.05);margin-bottom:16px">
+    ${incompletas>0?`<div class="card" style="border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.05);margin-bottom:12px">
       <div style="font-size:12px;color:#fbbf24">⚠ ${incompletas} orden(es) ya aparecen produciendo desde el borde de nuestra historia sincronizada (${bordeHistoria}) — probablemente empezaron antes y falta sincronizar vaciados más viejos para esa orden. Usa el filtro "Historia incompleta".</div>
+    </div>`:''}
+    ${conSkuCompartido>0?`<div class="card" style="border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.05);margin-bottom:16px">
+      <div style="font-size:12px;color:#60a5fa">ⓘ ${conSkuCompartido} orden(es) comparten el mismo SKU con otra orden abierta — su columna "Vaciadas" es una ESTIMACIÓN (reparto por folio de producción) y puede fallar si una orden YA CERRADA (fuera de este Excel) también consumió ese SKU. La columna "Burrito" (empaque) siempre es dato cierto, sin importar SKU compartido. Usa el filtro "SKU compartido".</div>
     </div>`:''}
     <div class="table-wrap">
       <div class="table-header">
@@ -320,6 +336,7 @@ function renderGlobal(){
           <span class="pill" id="pill-pend" onclick="filtrarOrdenes('pend')">Con saldo</span>
           <span class="pill" id="pill-odoo" onclick="filtrarOrdenes('odoo')">Nuevas Odoo</span>
           <span class="pill" id="pill-incompleta" onclick="filtrarOrdenes('incompleta')">Historia incompleta${incompletas?` (${incompletas})`:''}</span>
+          <span class="pill" id="pill-compartido" onclick="filtrarOrdenes('compartido')">SKU compartido${conSkuCompartido?` (${conSkuCompartido})`:''}</span>
         </div>
       </div>
       <div class="table-scroll">
@@ -340,7 +357,7 @@ function renderGlobal(){
       </div>
     </div>
     <div style="font-size:11px;color:var(--muted);padding:4px 2px">
-      Vaciadas = piezas buenas (no grado C) por SKU, repartidas entre órdenes por fecha de compromiso (FIFO). Burrito = piezas ya empacadas a esa orden (dato directo de ConnectIT). Clic en una orden para ver sus piezas.
+      Vaciadas = piezas buenas (no grado C) por SKU. Si el SKU es único en el plan, es dato exacto. Si 2+ órdenes abiertas comparten el mismo SKU, se reparte por folio de orden (se completa una antes de pasar a la siguiente, como en planta) — verificado contra el Excel, pero es estimado (ⓘ). Burrito = piezas ya empacadas a esa orden (dato directo de ConnectIT, siempre exacto). Clic en una orden para ver sus piezas.
     </div>`;
   window._planLista = lista;
 }
@@ -356,12 +373,12 @@ function filaOrden(o){
       <td class="mono" style="text-align:right;color:var(--ga)">${l.vac}</td>
       <td class="mono" style="text-align:right;color:var(--accent2)">${l.emp}</td>
       <td class="mono" style="text-align:right;color:${saldoL?'var(--gb)':'var(--muted)'}">${saldoL}</td>
-      <td class="mono" style="font-size:10px;color:var(--muted)">${l.sku||'—'}</td>
+      <td class="mono" style="font-size:10px;color:var(--muted)">${l.sku||'—'} ${l.compartido?'<span class="badge b-odoo" title="SKU pedido por otra orden abierta también">compartido</span>':''}</td>
       <td></td>
     </tr>`;
   }).join('');
-  return `<tr class="row-order" data-origen="${o.origen}" data-saldo="${o.saldo}" data-incompleta="${o.historiaIncompleta?1:0}" onclick="toggleOrden('${o.orden}')">
-      <td class="mono">${o.orden} ${o.origen==='odoo'?'<span class="badge b-odoo">nueva</span>':''}</td>
+  return `<tr class="row-order" data-origen="${o.origen}" data-saldo="${o.saldo}" data-incompleta="${o.historiaIncompleta?1:0}" data-compartido="${o.skuCompartido?1:0}" onclick="toggleOrden('${o.orden}')">
+      <td class="mono">${o.orden} ${o.origen==='odoo'?'<span class="badge b-odoo">nueva</span>':''} ${o.skuCompartido?'<span class="badge b-b" title="Tiene SKU compartido con otra orden — vaciadas es estimado, confía en Burrito">ⓘ</span>':''}</td>
       <td style="max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${o.cliente||'—'}</td>
       <td class="mono">${o.compromiso||'—'}</td>
       <td class="mono" style="text-align:right">${o.cant.toLocaleString()}</td>
@@ -380,12 +397,13 @@ function toggleOrden(orden){
 }
 
 function filtrarOrdenes(modo){
-  ['todas','pend','odoo','incompleta'].forEach(m=>document.getElementById('pill-'+m).classList.toggle('on', m===modo));
+  ['todas','pend','odoo','incompleta','compartido'].forEach(m=>document.getElementById('pill-'+m).classList.toggle('on', m===modo));
   document.querySelectorAll('#tabla-global tr.row-order').forEach(tr=>{
     let show=true;
     if(modo==='pend') show = parseInt(tr.dataset.saldo)>0;
     else if(modo==='odoo') show = tr.dataset.origen==='odoo';
     else if(modo==='incompleta') show = tr.dataset.incompleta==='1';
+    else if(modo==='compartido') show = tr.dataset.compartido==='1';
     tr.style.display = show?'table-row':'none';
     if(!show){ // ocultar sus detalles también
       const o=tr.querySelector('td').textContent.trim().split(' ')[0];
