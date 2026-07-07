@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planeación Shower</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;
+  --border:rgba(255,255,255,0.07);--text:#e8eaf0;--muted:#6b7280;
+  --accent:#22c55e;--accent2:#3b82f6;--warn:#f59e0b;--danger:#ef4444;
+  --ga:#22c55e;--gb:#f59e0b;--gc:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;}
+.logo{padding:20px 20px 12px;font-size:13px;font-weight:600;color:var(--accent2);display:flex;align-items:center;gap:8px;}
+.logo svg{width:18px;height:18px;}
+.logo-sub{font-size:10px;color:var(--muted);font-weight:400;margin-top:1px;}
+.nav-group{padding:0 8px;margin-bottom:4px;}
+.nav-label{font-size:10px;color:var(--muted);padding:8px 12px 4px;letter-spacing:.8px;text-transform:uppercase;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:6px;font-size:13px;color:var(--muted);cursor:pointer;transition:all .15s;border:1px solid transparent;}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{background:rgba(59,130,246,.12);color:var(--accent2);border-color:rgba(59,130,246,.25);}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;}
+.sidebar-bottom{margin-top:auto;padding:12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);text-align:center;}
+.main{margin-left:220px;min-height:100vh;}
+.topbar{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg2);position:sticky;top:0;z-index:50;}
+.topbar-title{font-size:15px;font-weight:600;}
+.topbar-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.content{padding:20px 24px;}
+input,select{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;}
+input:focus,select:focus{border-color:var(--accent2);}
+.btn{font-size:12px;padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px;font-family:'DM Sans',sans-serif;transition:all .15s;}
+.btn:hover{background:var(--bg);border-color:rgba(255,255,255,.15);}
+.btn-blue{background:var(--accent2);color:#fff;border-color:var(--accent2);font-weight:600;}
+.btn-blue:hover{background:#2563eb;}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;}
+.metric{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.metric-label{font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+.metric-val{font-size:26px;font-weight:600;line-height:1;}
+.metric-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.green{color:var(--ga);}.amber{color:var(--gb);}.red{color:var(--gc);}.blue{color:var(--accent2);}.white{color:var(--text);}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px;}
+.card-title{font-size:13px;font-weight:600;margin-bottom:12px;}
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px;}
+.table-scroll{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 230px);}
+.table-header{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.table-header-title{font-size:13px;font-weight:600;}
+table{width:100%;border-collapse:collapse;}
+th{padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--bg2);position:sticky;top:0;z-index:2;}
+td{padding:9px 12px;font-size:12px;border-bottom:1px solid var(--border);}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+.mono{font-family:'DM Mono',monospace;font-size:11px;}
+.badge{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;white-space:nowrap;}
+.b-a{background:rgba(34,197,94,.15);color:#4ade80;}
+.b-b{background:rgba(245,158,11,.15);color:#fbbf24;}
+.b-c{background:rgba(239,68,68,.15);color:#f87171;}
+.b-sin{background:var(--bg3);color:var(--muted);}
+.b-odoo{background:rgba(59,130,246,.13);color:#60a5fa;}
+.row-order{background:var(--bg3);cursor:pointer;}
+.row-order td{font-weight:600;border-bottom:1px solid var(--border);}
+.row-order:hover td{background:rgba(59,130,246,.06);}
+.bar-mini{display:inline-block;width:70px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;vertical-align:middle;margin-left:6px;}
+.bar-mini-fill{height:100%;border-radius:3px;}
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;gap:12px;color:var(--muted);}
+.spinner{width:24px;height:24px;border:2px solid var(--bg3);border-top-color:var(--accent2);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.empty{color:var(--muted);font-size:12px;text-align:center;padding:30px;}
+.pill{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;}
+.pill.on{background:rgba(59,130,246,.15);color:#60a5fa;border-color:rgba(59,130,246,.3);}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17V7l5 5-5 5z"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+    <div>Planeación Shower<div class="logo-sub">Programa Maestro</div></div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Planeación</div>
+    <div class="nav-item active" id="nav-global" onclick="navegar('global',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
+      Plan Global
+    </div>
+    <div class="nav-item" id="nav-ganttprop" onclick="navegar('ganttprop',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10" width="12" height="3" rx="1"/><rect x="3" y="16" width="15" height="3" rx="1"/></svg>
+      Gantt Planeación
+    </div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Ir a</div>
+    <div class="nav-item" onclick="window.open('produccion.html','_self')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Producción
+    </div>
+  </div>
+  <div class="sidebar-bottom">Programa Maestro · Shower Walls</div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topbar-title">Plan Global</div>
+      <div class="topbar-sub" id="topbar-sub">Cargando…</div>
+    </div>
+    <div class="topbar-right">
+      <label style="font-size:11px;color:var(--muted)">Periodo</label>
+      <select id="selPeriodo" onchange="cargar()"></select>
+      <button class="btn btn-blue" onclick="cargar()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        Actualizar
+      </button>
+      <div id="topbar-right-extra" style="display:flex;gap:8px;align-items:center"></div>
+    </div>
+  </div>
+  <div class="content" id="main-content">
+    <div class="loading"><div class="spinner"></div><div>Cargando datos…</div></div>
+  </div>
+</div>
+
+<script>
+const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+
+let VISTA = "global";
+let PLAN = [], VAC = [], EMP = [];
+
+// ── Fetch Supabase con paginación estable ────────────────────────────
+async function sbFetch(tabla, {campos='*', filtros='', order='id', limit=300000}={}) {
+  let url = `${SUP_URL}/rest/v1/${tabla}?select=${campos}&order=${order}${filtros}`;
+  const PG = 1000;
+  const hdr = off => ({apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`,Accept:'application/json',
+                       'Range-Unit':'items','Range':`${off}-${off+PG-1}`,'Prefer':'count=exact'});
+  let r0 = await fetch(url, {headers:hdr(0)});
+  if (!r0.ok && r0.status !== 206) throw new Error(`Supabase HTTP ${r0.status} — ${tabla}`);
+  let rows = await r0.json();
+  const total = Math.min(parseInt((r0.headers.get('content-range')||'').split('/')[1])||rows.length, limit);
+  const offs = [];
+  for (let o = PG; o < total; o += PG) offs.push(o);
+  for (let i = 0; i < offs.length; i += 8) {
+    const chunks = await Promise.all(offs.slice(i, i+8).map(o =>
+      fetch(url, {headers:hdr(o)}).then(r => (r.ok || r.status===206) ? r.json() : [])));
+    chunks.forEach(c => { rows = rows.concat(c); });
+  }
+  return rows;
+}
+
+// ── SKU Odoo en el cliente (misma lógica que gen_sku_odoo en el servidor) ──
+const SKU_TIPO={'PARED':'WA','PISO':'BA','ACCESORIOS':'AC'};
+const SKU_ACAB={'BRILLO':'B','MATE':'M'};
+const SKU_COLOR={'SOLID WHITE':'SW','SOLID IVORY':'SI','LIGHT GRAY':'LG','ICED WHITE':'IW',
+  'SOLID CREAM':'SC','SOLID IVORY MAX':'SM','SOLID WHITE KHOLER':'KO','SOLID WHITE K':'KO','WHITE-GSP':'WG'};
+function genSku(patron, tipo, medida, color, acabado){
+  const t=SKU_TIPO[(tipo||'').trim().toUpperCase()];
+  const a=SKU_ACAB[(acabado||'').trim().toUpperCase()];
+  const c=SKU_COLOR[(color||'').trim().toUpperCase()];
+  const p=' '+(patron||'').toUpperCase()+' ';
+  const mAr=p.match(/\(([A-Z0-9]{2})\)/); const ar=mAr?mAr[1]:null;
+  let med=null;
+  const mm=(medida||'').toLowerCase().split('x');
+  if(mm.length===2){const w=parseInt(mm[0]),h=parseInt(mm[1]);
+    if(w>0&&w<100&&h>0&&h<100&&(''+w)==(''+parseFloat(mm[0]))&&(''+h)==(''+parseFloat(mm[1])))
+      med=String(w).padStart(2,'0')+String(h).padStart(2,'0');}
+  let lado;
+  if(p.includes('CENTER 2')||/\bUNI\b/.test(p)) lado='4';
+  else if(/\b(LEFT|IZQ)\b/.test(p)) lado='2';
+  else if(/\b(RIGHT|DER)\b/.test(p)) lado='3';
+  else if(/\b(CENTER|CENTAR)\b/.test(p)) lado='1';
+  else if(/\b(DOWN|ABAJO|LOWER)\b/.test(p)) lado='7';
+  else if(/\b(UP|ARRIBA|UPPER)\b/.test(p)) lado='8';
+  else lado='0';
+  if(!(t&&a&&c&&ar&&med)) return null;
+  return t+med+ar+lado+a+c;
+}
+
+// ── Navegación ────────────────────────────────────────────────────────
+function navegar(id, el){
+  VISTA = id;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+  render();
+}
+function render(){
+  if(VISTA==='global') renderGlobal();
+  else if(VISTA==='ganttprop') renderGanttProp();
+}
+
+// ── Carga principal ────────────────────────────────────────────────────
+async function cargar(){
+  const periodo = document.getElementById('selPeriodo').value;
+  document.getElementById('main-content').innerHTML='<div class="loading"><div class="spinner"></div><div>Cargando plan, vaciados e empaque…</div></div>';
+  document.getElementById('topbar-sub').textContent='Cargando…';
+  try{
+    [PLAN, VAC, EMP] = await Promise.all([
+      sbFetch('plan_global',{filtros:`&periodo=eq.${periodo}`}),
+      sbFetch('vaciados',{campos:'patron,medida,color,acabado,tipo,es_grado_c,fecha'}),
+      sbFetch('empacadas',{campos:'orden,sku_odoo,piezas,primera_fecha'})
+    ]);
+    document.getElementById('topbar-sub').textContent =
+      `${PLAN.length} líneas de plan · ${VAC.length.toLocaleString()} vaciados · ${EMP.length.toLocaleString()} grupos empacados`;
+    render();
+  }catch(e){
+    document.getElementById('main-content').innerHTML=`<div class="empty">Error cargando datos: ${e.message}</div>`;
+  }
+}
+
+// ── Cálculo del descuento por SKU ──────────────────────────────────────
+function calcularDescuentos(){
+  // Vaciadas BUENAS por sku_odoo (histórico completo; SKU calculado en cliente)
+  // + primera fecha vaciada por SKU (para saber desde cuándo entró a producción)
+  const vacPorSku = {}, primeraVacPorSku = {};
+  for(const v of VAC){
+    if(v.es_grado_c) continue;                 // solo piezas buenas
+    const sku = genSku(v.patron, v.tipo, v.medida, v.color, v.acabado);
+    if(!sku) continue;
+    vacPorSku[sku] = (vacPorSku[sku]||0) + 1;
+    const f = (v.fecha||'').slice(0,10);
+    if(f && (!primeraVacPorSku[sku] || f < primeraVacPorSku[sku])) primeraVacPorSku[sku] = f;
+  }
+  // Empacadas por orden+sku (certero, directo de ConnectIT) + primera fecha de empaque
+  const empPorOrdenSku = {}, primeraEmpPorOrdenSku = {};
+  for(const e of EMP){
+    if(!e.sku_odoo) continue;
+    const k = e.orden+'|'+e.sku_odoo;
+    empPorOrdenSku[k] = (empPorOrdenSku[k]||0) + (e.piezas||0);
+    const f = e.primera_fecha;
+    if(f && (!primeraEmpPorOrdenSku[k] || f < primeraEmpPorOrdenSku[k])) primeraEmpPorOrdenSku[k] = f;
+  }
+  return {vacPorSku, empPorOrdenSku, primeraVacPorSku, primeraEmpPorOrdenSku};
+}
+
+function renderGlobal(){
+  document.getElementById('topbar-title').textContent='Plan Global';
+  if(!PLAN.length){ document.getElementById('main-content').innerHTML='<div class="empty">Sin plan para este periodo. Corre cargar_plan_global.py.</div>'; return; }
+
+  const {vacPorSku, empPorOrdenSku, primeraVacPorSku, primeraEmpPorOrdenSku} = calcularDescuentos();
+  // Borde de la historia que tenemos sincronizada (vaciados arranca ~dic-2025 en Supabase).
+  // Si una orden "entró a producción" justo en ese borde, es señal de dato incompleto:
+  // probablemente empezó antes y nos falta sincronizar vaciados más viejos.
+  const fechasVac = VAC.map(v=>(v.fecha||'').slice(0,10)).filter(Boolean).sort();
+  const bordeHistoria = fechasVac[0] || '2000-01-01';
+
+  // Reparto FIFO de vaciadas por SKU entre las órdenes que lo piden (por fecha compromiso).
+  const restanteVac = {...vacPorSku};
+  const lineasPorSku = {};
+  for(const l of PLAN){
+    if(!l.sku) continue;
+    (lineasPorSku[l.sku] = lineasPorSku[l.sku]||[]).push(l);
+  }
+  const vacAsignada = new Map(); // id de línea -> vaciadas asignadas
+  for(const sku in lineasPorSku){
+    const ls = lineasPorSku[sku].slice().sort((a,b)=>
+      (a.fecha_compromiso||'9999').localeCompare(b.fecha_compromiso||'9999'));
+    let disp = restanteVac[sku]||0;
+    for(const l of ls){
+      const need = l.cantidad||0;
+      const asg = Math.min(need, disp);
+      vacAsignada.set(l.id, asg);
+      disp -= asg;
+    }
+    restanteVac[sku] = disp;
+  }
+
+  // Agrupar por orden
+  const ordenes = {};
+  for(const l of PLAN){
+    const o = l.orden;
+    if(!ordenes[o]) ordenes[o]={orden:o,cliente:l.cliente,compromiso:l.fecha_compromiso,origen:l.origen,lineas:[],cant:0,vac:0,emp:0,primeraProd:null};
+    const emp = empPorOrdenSku[o+'|'+l.sku]||0;
+    const vac = vacAsignada.get(l.id)||0;
+    ordenes[o].lineas.push({...l, emp, vac});
+    ordenes[o].cant += (l.cantidad||0);
+    ordenes[o].vac  += vac;
+    ordenes[o].emp  += emp;
+    if(l.fecha_compromiso && (!ordenes[o].compromiso || l.fecha_compromiso<ordenes[o].compromiso))
+      ordenes[o].compromiso = l.fecha_compromiso;
+    // primera vez que se vio esta orden en producción: min(primer vaciado del sku, primer empaque de esta orden+sku)
+    const fv = l.sku ? primeraVacPorSku[l.sku] : null;
+    const fe = primeraEmpPorOrdenSku[o+'|'+l.sku];
+    for(const f of [fv, fe]) if(f && (!ordenes[o].primeraProd || f < ordenes[o].primeraProd)) ordenes[o].primeraProd = f;
+  }
+  let lista = Object.values(ordenes);
+  // Hechas = max(vaciadas, burrito): no se puede tener más empacado que producido.
+  // Corrige órdenes viejas donde el SKU de vaciado no es calculable pero sí hay empaque.
+  lista.forEach(o=>{
+    o.hechas = Math.max(o.vac, o.emp); o.saldo = Math.max(0, o.cant - o.hechas); o.pct = o.cant? Math.round(100*o.hechas/o.cant):0;
+    // dato incompleto: la orden "aparece" produciendo justo en el borde de nuestra historia sincronizada
+    o.historiaIncompleta = o.primeraProd && o.primeraProd <= bordeHistoria;
+  });
+  lista.sort((a,b)=>(a.compromiso||'9999').localeCompare(b.compromiso||'9999'));
+
+  // Totales
+  const tCant=lista.reduce((s,o)=>s+o.cant,0), tVac=lista.reduce((s,o)=>s+o.hechas,0),
+        tEmp=lista.reduce((s,o)=>s+o.emp,0), tSaldo=lista.reduce((s,o)=>s+o.saldo,0);
+  const completas=lista.filter(o=>o.saldo===0).length;
+  const incompletas=lista.filter(o=>o.historiaIncompleta).length;
+
+  const barColor = pct => pct>=100?'var(--ga)':pct>=50?'var(--gb)':'var(--gc)';
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="metrics" style="grid-template-columns:repeat(5,1fr)">
+      <div class="metric"><div class="metric-label">Órdenes</div><div class="metric-val white">${lista.length}</div><div class="metric-sub">${completas} completas</div></div>
+      <div class="metric"><div class="metric-label">Piezas plan</div><div class="metric-val white">${tCant.toLocaleString()}</div><div class="metric-sub">total a producir</div></div>
+      <div class="metric"><div class="metric-label">Vaciadas buenas</div><div class="metric-val green">${tVac.toLocaleString()}</div><div class="metric-sub">${tCant?Math.round(100*tVac/tCant):0}% del plan</div></div>
+      <div class="metric"><div class="metric-label">En burrito</div><div class="metric-val blue">${tEmp.toLocaleString()}</div><div class="metric-sub">empacadas</div></div>
+      <div class="metric"><div class="metric-label">Saldo</div><div class="metric-val amber">${tSaldo.toLocaleString()}</div><div class="metric-sub">por producir</div></div>
+    </div>
+    ${incompletas>0?`<div class="card" style="border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.05);margin-bottom:16px">
+      <div style="font-size:12px;color:#fbbf24">⚠ ${incompletas} orden(es) ya aparecen produciendo desde el borde de nuestra historia sincronizada (${bordeHistoria}) — probablemente empezaron antes y falta sincronizar vaciados más viejos para esa orden. Usa el filtro "Historia incompleta".</div>
+    </div>`:''}
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-header-title">Plan Global por Orden</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="pill on" id="pill-todas" onclick="filtrarOrdenes('todas')">Todas</span>
+          <span class="pill" id="pill-pend" onclick="filtrarOrdenes('pend')">Con saldo</span>
+          <span class="pill" id="pill-odoo" onclick="filtrarOrdenes('odoo')">Nuevas Odoo</span>
+          <span class="pill" id="pill-incompleta" onclick="filtrarOrdenes('incompleta')">Historia incompleta${incompletas?` (${incompletas})`:''}</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table id="tabla-global">
+          <thead><tr>
+            <th>Orden</th><th>Cliente</th><th>Compromiso</th>
+            <th style="text-align:right">Plan</th>
+            <th style="text-align:right">Vaciadas</th>
+            <th style="text-align:right">Burrito</th>
+            <th style="text-align:right">Saldo</th>
+            <th>Avance</th>
+            <th>En producción desde</th>
+          </tr></thead>
+          <tbody>
+            ${lista.map(o=>filaOrden(o)).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);padding:4px 2px">
+      Vaciadas = piezas buenas (no grado C) por SKU, repartidas entre órdenes por fecha de compromiso (FIFO). Burrito = piezas ya empacadas a esa orden (dato directo de ConnectIT). Clic en una orden para ver sus piezas.
+    </div>`;
+  window._planLista = lista;
+}
+
+function filaOrden(o){
+  const barColor = o.pct>=100?'var(--ga)':o.pct>=50?'var(--gb)':'var(--gc)';
+  const det = o.lineas.map(l=>{
+    const saldoL = Math.max(0,(l.cantidad||0)-Math.max(l.vac,l.emp));
+    return `<tr data-orden="${o.orden}" class="det-row" style="display:none">
+      <td></td>
+      <td colspan="2" style="color:var(--muted);font-size:11px">${(l.producto||l.modelo||'—')}</td>
+      <td class="mono" style="text-align:right">${(l.cantidad||0)}</td>
+      <td class="mono" style="text-align:right;color:var(--ga)">${l.vac}</td>
+      <td class="mono" style="text-align:right;color:var(--accent2)">${l.emp}</td>
+      <td class="mono" style="text-align:right;color:${saldoL?'var(--gb)':'var(--muted)'}">${saldoL}</td>
+      <td class="mono" style="font-size:10px;color:var(--muted)">${l.sku||'—'}</td>
+      <td></td>
+    </tr>`;
+  }).join('');
+  return `<tr class="row-order" data-origen="${o.origen}" data-saldo="${o.saldo}" data-incompleta="${o.historiaIncompleta?1:0}" onclick="toggleOrden('${o.orden}')">
+      <td class="mono">${o.orden} ${o.origen==='odoo'?'<span class="badge b-odoo">nueva</span>':''}</td>
+      <td style="max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${o.cliente||'—'}</td>
+      <td class="mono">${o.compromiso||'—'}</td>
+      <td class="mono" style="text-align:right">${o.cant.toLocaleString()}</td>
+      <td class="mono" style="text-align:right;color:var(--ga)">${o.vac.toLocaleString()}</td>
+      <td class="mono" style="text-align:right;color:var(--accent2)">${o.emp.toLocaleString()}</td>
+      <td class="mono" style="text-align:right;color:${o.saldo?'var(--gb)':'var(--ga)'}">${o.saldo.toLocaleString()}</td>
+      <td>${o.pct}%<span class="bar-mini"><span class="bar-mini-fill" style="width:${Math.min(100,o.pct)}%;background:${barColor}"></span></span></td>
+      <td class="mono">${o.primeraProd||'—'} ${o.historiaIncompleta?'<span class="badge b-b" title="Puede faltar historia anterior sincronizada">⚠</span>':''}</td>
+    </tr>${det}`;
+}
+
+function toggleOrden(orden){
+  document.querySelectorAll(`tr.det-row[data-orden="${orden}"]`).forEach(tr=>{
+    tr.style.display = tr.style.display==='none' ? 'table-row' : 'none';
+  });
+}
+
+function filtrarOrdenes(modo){
+  ['todas','pend','odoo','incompleta'].forEach(m=>document.getElementById('pill-'+m).classList.toggle('on', m===modo));
+  document.querySelectorAll('#tabla-global tr.row-order').forEach(tr=>{
+    let show=true;
+    if(modo==='pend') show = parseInt(tr.dataset.saldo)>0;
+    else if(modo==='odoo') show = tr.dataset.origen==='odoo';
+    else if(modo==='incompleta') show = tr.dataset.incompleta==='1';
+    tr.style.display = show?'table-row':'none';
+    if(!show){ // ocultar sus detalles también
+      const o=tr.querySelector('td').textContent.trim().split(' ')[0];
+      document.querySelectorAll(`tr.det-row[data-orden="${o}"]`).forEach(d=>d.style.display='none');
+    }
+  });
+}
+
+function renderGanttProp(){
+  document.getElementById('topbar-title').textContent='Gantt Planeación';
+  document.getElementById('main-content').innerHTML=`
+    <div class="card">
+      <div class="card-title">Gantt de Planeación — próximamente</div>
+      <div style="color:var(--muted);font-size:12px;line-height:1.6">
+        Aquí construiremos el pre-plan de producción propio (reglas: capacidad L1/L2, 7 vueltas, redimensiones, colores doble proceso)
+        para compararlo contra lo que sube planta día a día. Primero validamos el Plan Global.
+      </div>
+    </div>`;
+}
+
+// ── Init ────────────────────────────────────────────────────────────────
+(async function init(){
+  // poblar periodos disponibles
+  try{
+    const r = await fetch(`${SUP_URL}/rest/v1/plan_global?select=periodo`,{headers:{apikey:SUP_KEY,Authorization:`Bearer ${SUP_KEY}`}});
+    const rows = await r.json();
+    const periodos = [...new Set(rows.map(x=>x.periodo))].sort().reverse();
+    const sel = document.getElementById('selPeriodo');
+    sel.innerHTML = periodos.map(p=>`<option value="${p}">${p}</option>`).join('') || '<option>2026-07</option>';
+  }catch(e){ document.getElementById('selPeriodo').innerHTML='<option>2026-07</option>'; }
+  cargar();
+})();
+</script>
+</body>
+</html>
