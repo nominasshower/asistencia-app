@@ -86,6 +86,14 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
       Plan Global
     </div>
+    <div class="nav-item" id="nav-preplan" onclick="navegar('preplan',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Pre-Plan Producción
+    </div>
+    <div class="nav-item" id="nav-proxmes" onclick="navegar('proxmes',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Próximo Mes
+    </div>
     <div class="nav-item" id="nav-ganttprop" onclick="navegar('ganttprop',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10" width="12" height="3" rx="1"/><rect x="3" y="16" width="15" height="3" rx="1"/></svg>
       Gantt Planeación
@@ -127,7 +135,7 @@ const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
 const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
 
 let VISTA = "global";
-let PLAN = [], VAC = [], EMP = [];
+let PLAN = [], VAC = [], EMP = [], PLAND = [], VENTASP = [];
 
 // ── Fetch Supabase con paginación estable ────────────────────────────
 async function sbFetch(tabla, {campos='*', filtros='', order='id', limit=300000}={}) {
@@ -186,6 +194,8 @@ function navegar(id, el){
 }
 function render(){
   if(VISTA==='global') renderGlobal();
+  else if(VISTA==='preplan') renderPrePlan();
+  else if(VISTA==='proxmes') renderProxMes();
   else if(VISTA==='ganttprop') renderGanttProp();
 }
 
@@ -195,10 +205,12 @@ async function cargar(){
   document.getElementById('main-content').innerHTML='<div class="loading"><div class="spinner"></div><div>Cargando plan, vaciados e empaque…</div></div>';
   document.getElementById('topbar-sub').textContent='Cargando…';
   try{
-    [PLAN, VAC, EMP] = await Promise.all([
+    [PLAN, VAC, EMP, PLAND, VENTASP] = await Promise.all([
       sbFetch('plan_global',{filtros:`&periodo=eq.${periodo}`}),
       sbFetch('vaciados',{campos:'patron,medida,color,acabado,tipo,es_grado_c,fecha'}),
-      sbFetch('empacadas',{campos:'orden,sku_odoo,piezas,primera_fecha'})
+      sbFetch('empacadas',{campos:'orden,sku_odoo,piezas,primera_fecha'}),
+      sbFetch('plan_diario',{campos:'fecha,odoo,cliente,compromiso,modelo,medida,lado,a_producir,moldes'}),
+      sbFetch('ventas_piezas',{campos:'pedido,cliente,fecha_entrega,estado,pieza_sku,pieza_desc,cantidad,pendiente'})
     ]);
     document.getElementById('topbar-sub').textContent =
       `${PLAN.length} líneas de plan · ${VAC.length.toLocaleString()} vaciados · ${EMP.length.toLocaleString()} grupos empacados`;
@@ -233,10 +245,8 @@ function calcularDescuentos(){
   return {vacPorSku, empPorOrdenSku, primeraVacPorSku, primeraEmpPorOrdenSku};
 }
 
-function renderGlobal(){
-  document.getElementById('topbar-title').textContent='Plan Global';
-  if(!PLAN.length){ document.getElementById('main-content').innerHTML='<div class="empty">Sin plan para este periodo. Corre cargar_plan_global.py.</div>'; return; }
-
+// Construye la lista de órdenes con vaciadas/burrito/saldo — la usan Plan Global y Pre-Plan.
+function construirOrdenes(){
   const {vacPorSku, empPorOrdenSku, primeraVacPorSku, primeraEmpPorOrdenSku} = calcularDescuentos();
   // Borde de la historia que tenemos sincronizada (vaciados arranca ~dic-2025 en Supabase).
   // Si una orden "entró a producción" justo en ese borde, es señal de dato incompleto:
@@ -304,6 +314,13 @@ function renderGlobal(){
     o.historiaIncompleta = o.primeraProd && o.primeraProd <= bordeHistoria;
   });
   lista.sort((a,b)=>(a.compromiso||'9999').localeCompare(b.compromiso||'9999'));
+  return {lista, bordeHistoria};
+}
+
+function renderGlobal(){
+  document.getElementById('topbar-title').textContent='Plan Global';
+  if(!PLAN.length){ document.getElementById('main-content').innerHTML='<div class="empty">Sin plan para este periodo. Corre cargar_plan_global.py.</div>'; return; }
+  const {lista, bordeHistoria} = construirOrdenes();
 
   // Totales
   const tCant=lista.reduce((s,o)=>s+o.cant,0), tVac=lista.reduce((s,o)=>s+o.hechas,0),
@@ -342,7 +359,7 @@ function renderGlobal(){
       <div class="table-scroll">
         <table id="tabla-global">
           <thead><tr>
-            <th>Orden</th><th>Cliente</th><th>Compromiso</th>
+            <th>Orden</th><th>Cliente</th><th>Compromiso (Odoo)</th>
             <th style="text-align:right">Plan</th>
             <th style="text-align:right">Vaciadas</th>
             <th style="text-align:right">Burrito</th>
@@ -380,7 +397,7 @@ function filaOrden(o){
   return `<tr class="row-order" data-origen="${o.origen}" data-saldo="${o.saldo}" data-incompleta="${o.historiaIncompleta?1:0}" data-compartido="${o.skuCompartido?1:0}" onclick="toggleOrden('${o.orden}')">
       <td class="mono">${o.orden} ${o.origen==='odoo'?'<span class="badge b-odoo">nueva</span>':''} ${o.skuCompartido?'<span class="badge b-b" title="Tiene SKU compartido con otra orden — vaciadas es estimado, confía en Burrito">ⓘ</span>':''}</td>
       <td style="max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${o.cliente||'—'}</td>
-      <td class="mono">${o.compromiso||'—'}</td>
+      <td class="mono">${o.compromiso||'<span class="badge b-sin" title="Odoo no trae commitment_date para esta orden — planeación debe asignarla">sin fecha</span>'}</td>
       <td class="mono" style="text-align:right">${o.cant.toLocaleString()}</td>
       <td class="mono" style="text-align:right;color:var(--ga)">${o.vac.toLocaleString()}</td>
       <td class="mono" style="text-align:right;color:var(--accent2)">${o.emp.toLocaleString()}</td>
@@ -410,6 +427,207 @@ function filtrarOrdenes(modo){
       document.querySelectorAll(`tr.det-row[data-orden="${o}"]`).forEach(d=>d.style.display='none');
     }
   });
+}
+
+// ── PRE-PLAN DE PRODUCCIÓN ──────────────────────────────────────────────
+// Propuesta de qué producir el día objetivo: saldos del Plan Global priorizados
+// por fecha compromiso, acotados por capacidad diaria editable por tipo.
+function sigDiaHabil(){
+  const d = new Date(); d.setDate(d.getDate()+1);
+  if(d.getDay()===0) d.setDate(d.getDate()+1);   // domingo → lunes
+  return d.toISOString().slice(0,10);
+}
+function capacidadDefault(){
+  // Promedio real de piezas buenas/día de los últimos 7 días con producción, por tipo
+  const porDiaTipo = {};
+  for(const v of VAC){
+    if(v.es_grado_c) continue;
+    const f=(v.fecha||'').slice(0,10); if(!f) continue;
+    const t=(v.tipo||'').toUpperCase();
+    const cat = t==='PARED'?'pared':t==='PISO'?'base':'accesorio';
+    (porDiaTipo[f] = porDiaTipo[f]||{pared:0,base:0,accesorio:0})[cat]++;
+  }
+  const dias = Object.keys(porDiaTipo).sort().slice(-7);
+  const cap={pared:0,base:0,accesorio:0};
+  for(const d of dias){ cap.pared+=porDiaTipo[d].pared; cap.base+=porDiaTipo[d].base; cap.accesorio+=porDiaTipo[d].accesorio; }
+  const n=Math.max(1,dias.length);
+  return {pared:Math.round(cap.pared/n), base:Math.round(cap.base/n), accesorio:Math.round(cap.accesorio/n)};
+}
+function catDeLinea(l){
+  const s=(l.sku||'');
+  if(s.startsWith('WA')) return 'pared';
+  if(s.startsWith('BA')) return 'base';
+  if(s.startsWith('AC')) return 'accesorio';
+  const t=(l.tipo||'').toUpperCase();
+  return t==='P'?'pared':t==='B'?'base':t==='A'?'accesorio':'accesorio';
+}
+function renderPrePlan(){
+  document.getElementById('topbar-title').textContent='Pre-Plan Producción';
+  if(!PLAN.length){ document.getElementById('main-content').innerHTML='<div class="empty">Sin plan global cargado.</div>'; return; }
+
+  const fechaObj = window._prePlanFecha || sigDiaHabil();
+  const capSaved = JSON.parse(localStorage.getItem('preplan_cap')||'null');
+  const cap = capSaved || capacidadDefault();
+
+  const {lista} = construirOrdenes();
+
+  // Candidatas: líneas con saldo, priorizadas por compromiso de la orden y folio
+  const cand=[];
+  for(const o of lista){
+    for(const l of o.lineas){
+      const saldoL = Math.max(0,(l.cantidad||0)-Math.max(l.vac,l.emp));
+      if(saldoL>0) cand.push({orden:o.orden, cliente:o.cliente, compromiso:o.compromiso,
+        producto:l.producto||l.modelo||'', sku:l.sku||'', cat:catDeLinea(l), saldo:saldoL, compartido:l.compartido});
+    }
+  }
+  cand.sort((a,b)=>{
+    const c=(a.compromiso||'9999').localeCompare(b.compromiso||'9999'); if(c) return c;
+    return (parseInt((a.orden.match(/\d+/)||['0'])[0]))-(parseInt((b.orden.match(/\d+/)||['0'])[0]));
+  });
+
+  // Asignación greedy hasta llenar la capacidad de cada tipo
+  const rest={...cap};
+  const propuesta=[];
+  for(const c of cand){
+    if(rest[c.cat]<=0) continue;
+    const asg=Math.min(c.saldo, rest[c.cat]);
+    if(asg>0){ propuesta.push({...c, producir:asg}); rest[c.cat]-=asg; }
+  }
+
+  // Lo que planta YA subió para esa fecha (plan_diario)
+  const plantaDia={}; let plantaTot=0;
+  for(const r of PLAND){
+    if(r.fecha!==fechaObj) continue;
+    plantaDia[r.odoo]=(plantaDia[r.odoo]||0)+(r.a_producir||0);
+    plantaTot+=(r.a_producir||0);
+  }
+  const nuestroTot=propuesta.reduce((s,p)=>s+p.producir,0);
+  const ordenesNuestras=new Set(propuesta.map(p=>p.orden));
+  const coinciden=[...ordenesNuestras].filter(o=>plantaDia[o]).length;
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="card" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <div><label style="font-size:11px;color:var(--muted)">Día a planear</label><br>
+        <input type="date" value="${fechaObj}" onchange="window._prePlanFecha=this.value;renderPrePlan()"></div>
+      <div><label style="font-size:11px;color:var(--muted)">Cap. paredes/día</label><br>
+        <input type="number" id="capP" value="${cap.pared}" style="width:80px" onchange="guardarCap()"></div>
+      <div><label style="font-size:11px;color:var(--muted)">Cap. bases/día</label><br>
+        <input type="number" id="capB" value="${cap.base}" style="width:80px" onchange="guardarCap()"></div>
+      <div><label style="font-size:11px;color:var(--muted)">Cap. accesorios/día</label><br>
+        <input type="number" id="capA" value="${cap.accesorio}" style="width:80px" onchange="guardarCap()"></div>
+      <div style="font-size:11px;color:var(--muted);max-width:280px">Capacidad inicial = promedio real de piezas buenas/día (últimos 7 días con producción). Edítala según moldes y vueltas disponibles.</div>
+      <button class="btn btn-blue" style="margin-left:auto" onclick="exportarPrePlan()">Exportar CSV</button>
+    </div>
+    <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+      <div class="metric"><div class="metric-label">Propuesta nuestra</div><div class="metric-val blue">${nuestroTot.toLocaleString()}</div><div class="metric-sub">piezas para ${fechaObj}</div></div>
+      <div class="metric"><div class="metric-label">Planta ya subió</div><div class="metric-val white">${plantaTot.toLocaleString()}</div><div class="metric-sub">${plantaTot?`plan_diario del ${fechaObj}`:'aún no hay plan de planta para ese día'}</div></div>
+      <div class="metric"><div class="metric-label">Órdenes propuestas</div><div class="metric-val white">${ordenesNuestras.size}</div><div class="metric-sub">${coinciden} también en plan de planta</div></div>
+      <div class="metric"><div class="metric-label">Capacidad restante</div><div class="metric-val amber">${rest.pared}/${rest.base}/${rest.accesorio}</div><div class="metric-sub">pared / base / accesorio</div></div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-header-title">Pre-Plan propuesto — ${fechaObj} (prioridad: compromiso Odoo más próximo)</div></div>
+      <div class="table-scroll">
+        <table><thead><tr>
+          <th>Prio</th><th>Orden</th><th>Cliente</th><th>Compromiso</th><th>Producto</th><th>SKU</th><th>Tipo</th>
+          <th style="text-align:right">Saldo</th><th style="text-align:right">Producir</th><th style="text-align:right">Planta (ese día)</th>
+        </tr></thead><tbody>
+          ${propuesta.map((p,i)=>`<tr>
+            <td class="mono">${i+1}</td>
+            <td class="mono">${p.orden}</td>
+            <td style="max-width:180px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${p.cliente||'—'}</td>
+            <td class="mono" style="color:${p.compromiso && p.compromiso<fechaObj?'var(--gc)':'var(--text)'}">${p.compromiso||'—'}</td>
+            <td style="max-width:260px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${p.producto}">${p.producto}</td>
+            <td class="mono" style="font-size:10px">${p.sku||'—'}${p.compartido?' ⓘ':''}</td>
+            <td>${p.cat}</td>
+            <td class="mono" style="text-align:right">${p.saldo}</td>
+            <td class="mono" style="text-align:right;color:var(--accent2);font-weight:600">${p.producir}</td>
+            <td class="mono" style="text-align:right;color:${plantaDia[p.orden]?'var(--ga)':'var(--muted)'}">${plantaDia[p.orden]||'—'}</td>
+          </tr>`).join('')}
+          ${propuesta.length===0?'<tr><td colspan="10" class="empty">Sin saldos pendientes o capacidad en cero</td></tr>':''}
+        </tbody></table>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);padding:4px 2px">
+      Compromiso en rojo = la fecha prometida es anterior al día planeado (orden atrasada). "Planta (ese día)" = piezas que el plan diario de planta ya trae para esa orden en la fecha elegida — sirve para comparar nuestro pre-plan contra el suyo.
+    </div>`;
+  window._prePlanData = propuesta.map(p=>({...p, fecha:fechaObj}));
+}
+function guardarCap(){
+  localStorage.setItem('preplan_cap', JSON.stringify({
+    pared:parseInt(document.getElementById('capP').value)||0,
+    base:parseInt(document.getElementById('capB').value)||0,
+    accesorio:parseInt(document.getElementById('capA').value)||0}));
+  renderPrePlan();
+}
+function exportarPrePlan(){
+  const rows=window._prePlanData||[];
+  const csv=['fecha,orden,cliente,compromiso,producto,sku,tipo,saldo,producir']
+    .concat(rows.map(p=>[p.fecha,p.orden,`"${(p.cliente||'').replace(/"/g,'')}"`,p.compromiso||'',`"${(p.producto||'').replace(/"/g,'')}"`,p.sku,p.cat,p.saldo,p.producir].join(',')))
+    .join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`preplan_${rows[0]?rows[0].fecha:'sin_fecha'}.csv`; a.click();
+}
+
+// ── PRÓXIMO MES (borrador del siguiente plan global) ────────────────────
+// Órdenes vivas en Odoo (ventas_piezas, ya explotadas por componente) que NO
+// están en el plan global del periodo actual → candidatas para el mes siguiente.
+function renderProxMes(){
+  const periodo = document.getElementById('selPeriodo').value;
+  const [y,m] = periodo.split('-').map(Number);
+  const prox = `${m===12?y+1:y}-${String(m===12?1:m+1).padStart(2,'0')}`;
+  document.getElementById('topbar-title').textContent=`Próximo Mes — borrador ${prox}`;
+
+  const enPlan = new Set(PLAN.map(l=>l.orden));
+  const ords={};
+  for(const r of VENTASP){
+    if((r.pendiente||0)<=0) continue;
+    const o=(r.pedido||'').trim(); if(!o) continue;
+    if(!ords[o]) ords[o]={orden:o,cliente:r.cliente||'',entrega:null,lineas:[],pend:0,enPlan:enPlan.has(o)};
+    ords[o].lineas.push(r);
+    ords[o].pend += (r.pendiente||0);
+    if(r.fecha_entrega && (!ords[o].entrega || r.fecha_entrega<ords[o].entrega)) ords[o].entrega=r.fecha_entrega;
+  }
+  let lista=Object.values(ords).filter(o=>!o.enPlan);
+  lista.sort((a,b)=>(a.entrega||'9999').localeCompare(b.entrega||'9999'));
+  const sinFecha=lista.filter(o=>!o.entrega).length;
+  const tPend=lista.reduce((s,o)=>s+o.pend,0);
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+      <div class="metric"><div class="metric-label">Candidatas ${prox}</div><div class="metric-val blue">${lista.length}</div><div class="metric-sub">órdenes vivas fuera del plan ${periodo}</div></div>
+      <div class="metric"><div class="metric-label">Piezas pendientes</div><div class="metric-val white">${Math.round(tPend).toLocaleString()}</div><div class="metric-sub">por componente (kits explotados)</div></div>
+      <div class="metric"><div class="metric-label">Con fecha Odoo</div><div class="metric-val green">${lista.length-sinFecha}</div><div class="metric-sub">fecha tentativa de entrega</div></div>
+      <div class="metric"><div class="metric-label">Sin fecha</div><div class="metric-val amber">${sinFecha}</div><div class="metric-sub">planeación debe asignarla</div></div>
+    </div>
+    <div class="card" style="border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.05)">
+      <div style="font-size:12px;color:#60a5fa">ⓘ Este borrador se arma con las órdenes vivas de Odoo (tabla ventas_piezas, kits ya explotados por componente) que aún no están en el plan global ${periodo}. La fecha mostrada es la tentativa de Odoo. Los datos se refrescan cuando corre odoo_ventas.py — puedo automatizar esa consulta con un cron (p. ej. cada 6 h) para que esta pestaña siempre esté al día.</div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-header-title">Órdenes candidatas para el plan ${prox}</div></div>
+      <div class="table-scroll">
+        <table><thead><tr>
+          <th>Orden</th><th>Cliente</th><th>Fecha Odoo (tentativa)</th>
+          <th style="text-align:right">Líneas</th><th style="text-align:right">Piezas pendientes</th>
+        </tr></thead><tbody>
+          ${lista.map(o=>`
+            <tr class="row-order" onclick="toggleOrden('px-${o.orden}')">
+              <td class="mono">${o.orden}</td>
+              <td style="max-width:260px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${o.cliente||'—'}</td>
+              <td class="mono">${o.entrega||'<span class="badge b-sin">sin fecha</span>'}</td>
+              <td class="mono" style="text-align:right">${o.lineas.length}</td>
+              <td class="mono" style="text-align:right;color:var(--gb)">${Math.round(o.pend)}</td>
+            </tr>
+            ${o.lineas.map(l=>`<tr data-orden="px-${o.orden}" class="det-row" style="display:none">
+              <td></td>
+              <td colspan="2" style="color:var(--muted);font-size:11px">${l.pieza_desc||'—'}</td>
+              <td class="mono" style="font-size:10px">${l.pieza_sku||'—'}</td>
+              <td class="mono" style="text-align:right">${Math.round(l.pendiente||0)}</td>
+            </tr>`).join('')}`).join('')}
+          ${lista.length===0?'<tr><td colspan="5" class="empty">No hay órdenes nuevas fuera del plan actual</td></tr>':''}
+        </tbody></table>
+      </div>
+    </div>`;
 }
 
 function renderGanttProp(){
