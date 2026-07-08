@@ -90,6 +90,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Pre-Plan Producción
     </div>
+    <div class="nav-item" id="nav-moldes" onclick="navegar('moldes',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+      Moldes
+    </div>
     <div class="nav-item" id="nav-proxmes" onclick="navegar('proxmes',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Próximo Mes
@@ -135,7 +139,7 @@ const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
 const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
 
 let VISTA = "global";
-let PLAN = [], VAC = [], EMP = [], PLAND = [], VENTASP = [];
+let PLAN = [], VAC = [], EMP = [], PLAND = [], VENTASP = [], MOLDG = [];
 
 // ── Fetch Supabase con paginación estable ────────────────────────────
 async function sbFetch(tabla, {campos='*', filtros='', order='id', limit=300000}={}) {
@@ -195,6 +199,7 @@ function navegar(id, el){
 function render(){
   if(VISTA==='global') renderGlobal();
   else if(VISTA==='preplan') renderPrePlan();
+  else if(VISTA==='moldes') renderMoldesTab();
   else if(VISTA==='proxmes') renderProxMes();
   else if(VISTA==='ganttprop') renderGanttProp();
 }
@@ -205,12 +210,13 @@ async function cargar(){
   document.getElementById('main-content').innerHTML='<div class="loading"><div class="spinner"></div><div>Cargando plan, vaciados e empaque…</div></div>';
   document.getElementById('topbar-sub').textContent='Cargando…';
   try{
-    [PLAN, VAC, EMP, PLAND, VENTASP] = await Promise.all([
+    [PLAN, VAC, EMP, PLAND, VENTASP, MOLDG] = await Promise.all([
       sbFetch('plan_global',{filtros:`&periodo=eq.${periodo}`}),
       sbFetch('vaciados',{campos:'patron,medida,color,acabado,tipo,es_grado_c,fecha,tag'}),
       sbFetch('empacadas',{campos:'orden,sku_odoo,piezas,primera_fecha'}),
       sbFetch('plan_diario',{campos:'fecha,odoo,cliente,compromiso,modelo,medida,lado,a_producir,moldes'}),
-      sbFetch('ventas_piezas',{campos:'pedido,cliente,fecha_entrega,estado,pieza_sku,pieza_desc,cantidad,pendiente'})
+      sbFetch('ventas_piezas',{campos:'pedido,cliente,fecha_entrega,estado,pieza_sku,pieza_desc,cantidad,pendiente'}),
+      sbFetch('moldes_gantt',{order:'process_id'}).catch(()=>[])   // tabla puede no existir aún
     ]);
     document.getElementById('topbar-sub').textContent =
       `${PLAN.length} líneas de plan · ${VAC.length.toLocaleString()} vaciados · ${EMP.length.toLocaleString()} grupos empacados`;
@@ -665,6 +671,113 @@ function exportarPrePlan(){
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
   a.download=`preplan_${rows[0]?rows[0].fecha:'sin_fecha'}.csv`; a.click();
+}
+
+// ── MOLDES: inventario físico vs planeado vs vinculado al Gantt ConnectIT ──
+function renderMoldesTab(){
+  document.getElementById('topbar-title').textContent='Moldes — disponibles, planeados y en Gantt ConnectIT';
+  const corte = new Date(Date.now()-182*864e5).toISOString().slice(0,10);
+  const hoy = new Date().toISOString().slice(0,10);
+
+  // Detalle por TAG: patrón estable, última medida/fecha, ¿vació hoy?
+  const tagMap={};
+  for(const v of VAC){
+    const tag=(v.tag||'').trim().toUpperCase(); if(!tag) continue;
+    const f=(v.fecha||'').slice(0,10); if(f<corte) continue;
+    const k=llaveMoldeDePatron(v.patron, v.medida); if(!k) continue;
+    const pat=k.slice(0,k.lastIndexOf('|'));
+    if(!tagMap[tag]) tagMap[tag]={usos:{},tot:0,ultima:'',llave:'',nombre:'',medida:'',hoy:false};
+    const d=tagMap[tag];
+    d.usos[pat]=(d.usos[pat]||0)+1; d.tot++;
+    if(f>=d.ultima){ d.ultima=f; d.llave=k; d.nombre=v.patron; d.medida=v.medida; }
+    if(f===hoy) d.hoy=true;
+  }
+  // Vinculados a proceso activo del Gantt ConnectIT (tabla moldes_gantt)
+  const gantt={};
+  for(const g of MOLDG){ gantt[(g.tag||'').trim().toUpperCase()]=g; }
+  // Planeados por nuestro pre-plan (si ya se calculó en esta sesión)
+  const planeadoPorLlave={};
+  for(const p of (window._prePlanData||[])){
+    const k=llaveMoldeDeSku(p.sku); if(!k) continue;
+    planeadoPorLlave[k]=(planeadoPorLlave[k]||0)+p.moldes;
+  }
+
+  // Agrupar por llave de molde
+  const grupos={};
+  let totTags=0;
+  for(const tag in tagMap){
+    const d=tagMap[tag];
+    const top=Object.entries(d.usos).sort((a,b)=>b[1]-a[1])[0];
+    if(top[1]/d.tot<0.80 || !d.llave.startsWith(top[0]+'|')) continue;
+    totTags++;
+    const k=d.llave;
+    if(!grupos[k]) grupos[k]={llave:k,nombre:d.nombre,medida:d.medida,tags:[]};
+    grupos[k].tags.push({tag,ultima:d.ultima,hoy:d.hoy,gantt:gantt[tag]||null});
+  }
+  let lista=Object.values(grupos);
+  lista.forEach(g=>{
+    g.fisicos=g.tags.length;
+    g.enGantt=g.tags.filter(t=>t.gantt).length;
+    g.hoyN=g.tags.filter(t=>t.hoy).length;
+    g.planeado=planeadoPorLlave[g.llave]||0;
+    g.libres=Math.max(0, g.fisicos-g.enGantt);
+  });
+  lista.sort((a,b)=>b.enGantt-a.enGantt || b.fisicos-a.fisicos);
+
+  // Tags en Gantt que NO están en nuestro inventario estable (moldes que no conocemos)
+  const conocidos=new Set(Object.keys(tagMap).filter(t=>{
+    const d=tagMap[t]; const top=Object.entries(d.usos).sort((a,b)=>b[1]-a[1])[0];
+    return top[1]/d.tot>=0.80 && d.llave.startsWith(top[0]+'|');
+  }));
+  const ganttDesconocidos=MOLDG.filter(g=>!conocidos.has((g.tag||'').trim().toUpperCase()));
+
+  const tTags=totTags, tGantt=MOLDG.length, tHoy=lista.reduce((s,g)=>s+g.hoyN,0), tPlan=lista.reduce((s,g)=>s+Math.min(g.planeado,g.fisicos),0);
+  document.getElementById('main-content').innerHTML = `
+    <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+      <div class="metric"><div class="metric-label">Moldes físicos</div><div class="metric-val white">${tTags}</div><div class="metric-sub">TAGs estables (6 meses)</div></div>
+      <div class="metric"><div class="metric-label">Vinculados al Gantt</div><div class="metric-val blue">${tGantt}</div><div class="metric-sub">amarrados a proceso activo ConnectIT${MOLDG.length?'':' — crea tabla moldes_gantt'}</div></div>
+      <div class="metric"><div class="metric-label">Vaciaron hoy</div><div class="metric-val green">${tHoy}</div><div class="metric-sub">moldes con producción hoy</div></div>
+      <div class="metric"><div class="metric-label">Planeados (pre-plan)</div><div class="metric-val amber">${tPlan}</div><div class="metric-sub">${window._prePlanData?'del pre-plan calculado':'abre Pre-Plan primero para calcular'}</div></div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-header-title">Moldes por patrón y medida</div>
+        <div style="font-size:11px;color:var(--muted)">clic en una fila para ver sus TAGs</div></div>
+      <div class="table-scroll">
+        <table><thead><tr>
+          <th>Patrón</th><th>Medida</th>
+          <th style="text-align:right">Físicos</th>
+          <th style="text-align:right">En Gantt ConnectIT</th>
+          <th style="text-align:right">Vaciaron hoy</th>
+          <th style="text-align:right">Planeados (nuestro)</th>
+          <th style="text-align:right">Libres</th>
+        </tr></thead><tbody>
+          ${lista.map((g,i)=>`
+            <tr class="row-order" onclick="toggleOrden('mg-${i}')">
+              <td style="max-width:280px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${g.nombre}">${g.nombre}</td>
+              <td class="mono">${g.medida}</td>
+              <td class="mono" style="text-align:right">${g.fisicos}</td>
+              <td class="mono" style="text-align:right;color:${g.enGantt?'var(--accent2)':'var(--muted)'}">${g.enGantt||'—'}</td>
+              <td class="mono" style="text-align:right;color:${g.hoyN?'var(--ga)':'var(--muted)'}">${g.hoyN||'—'}</td>
+              <td class="mono" style="text-align:right;color:${g.planeado?'var(--gb)':'var(--muted)'}">${g.planeado||'—'}</td>
+              <td class="mono" style="text-align:right;color:${g.libres?'var(--ga)':'var(--gc)'}">${g.libres}</td>
+            </tr>
+            ${g.tags.map(t=>`<tr data-orden="mg-${i}" class="det-row" style="display:none">
+              <td colspan="2" class="mono" style="font-size:10px;color:var(--muted);padding-left:24px">${t.tag.slice(-10)}</td>
+              <td class="mono" style="font-size:10px;color:var(--muted)">últ: ${t.ultima}</td>
+              <td style="text-align:right">${t.gantt?`<span class="badge b-odoo" title="Proceso ${t.gantt.process_id} · ${t.gantt.fecha_proceso} · vueltas ${t.gantt.vueltas_hechas}/${t.gantt.vueltas}">gantt ${t.gantt.fecha_proceso}</span>`:''}</td>
+              <td style="text-align:right">${t.hoy?'<span class="badge b-a">hoy</span>':''}</td>
+              <td></td><td></td>
+            </tr>`).join('')}`).join('')}
+        </tbody></table>
+      </div>
+    </div>
+    ${ganttDesconocidos.length?`<div class="card" style="border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.05)">
+      <div style="font-size:12px;color:#60a5fa;margin-bottom:6px">ⓘ ${ganttDesconocidos.length} molde(s) vinculados a procesos del Gantt que no están en nuestro inventario estable (moldes nuevos o de patrón cambiante):</div>
+      <div style="font-size:11px;color:var(--muted)">${ganttDesconocidos.slice(0,10).map(g=>`${(g.tag||'').slice(-10)} · ${g.patron} ${g.medida} → ${g.fecha_proceso}`).join('<br>')}</div>
+    </div>`:''}
+    <div style="font-size:11px;color:var(--muted);padding:4px 2px">
+      Físicos = TAGs con patrón estable (≥80% de usos) en vaciados de 6 meses, contados en su medida más reciente. "En Gantt ConnectIT" = amarrado a un proceso activo con fecha hoy o futura (tabla moldes_gantt, sync desde ares). Libres = físicos − en Gantt.
+    </div>`;
 }
 
 // ── PRÓXIMO MES (borrador del siguiente plan global) ────────────────────
