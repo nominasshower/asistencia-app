@@ -502,15 +502,16 @@ function inventarioMoldes(){
     tagMap[tag].tot++;
     if(f>=tagMap[tag].ultima){ tagMap[tag].ultima=f; tagMap[tag].llave=k; }
   }
-  const inv={};
+  const inv={}, invPat={};
   for(const tag in tagMap){
     const d=tagMap[tag];
     const top=Object.entries(d.usos).sort((a,b)=>b[1]-a[1])[0];
     if(top[1]/d.tot < 0.80) continue;                  // TAG inestable, cambia de patrón
     if(!d.llave.startsWith(top[0]+'|')) continue;      // su última medida es de otro patrón
     inv[d.llave]=(inv[d.llave]||0)+1;
+    invPat[top[0]]=(invPat[top[0]]||0)+1;              // total de moldes del patrón (todas las medidas)
   }
-  return inv;
+  return {inv, invPat};
 }
 function llaveMoldeDeSku(sku){
   // SKU = TIPO(2)+MED(4)+AR(2)+LADO(1)+ACAB(1)+COLOR(2)
@@ -524,11 +525,12 @@ function renderPrePlan(){
   const fechaObj = window._prePlanFecha || sigDiaHabil();
   // Parámetros estilo Excel: vueltas + capacidad de MOLDES por tipo (bosquejo:
   // L1 55 paredes + L2 25 paredes = 80; 15 bases; 10 accesorios), editables.
-  const cfg = JSON.parse(localStorage.getItem('preplan_cfg')||'null') || {vueltas:7, pared:80, base:15, accesorio:10};
+  const cfg = JSON.parse(localStorage.getItem('preplan_cfg')||'null') || {vueltas:7, pared:80, base:15, accesorio:10, redim:15};
+  if(cfg.redim==null) cfg.redim = 15;      // capacidad de redimensiones/día (bosquejo: 15, editable)
 
   const {lista} = construirOrdenes();
-  const inv = inventarioMoldes();          // llave AR|lado|medida -> # moldes físicos
-  const invUsado = {};                     // moldes ya asignados en esta corrida
+  const {inv, invPat} = inventarioMoldes(); // inv: AR|lado|medida -> moldes; invPat: AR|lado -> moldes del patrón
+  const invUsado = {}, usadoPat = {};       // moldes ya asignados en esta corrida
 
   // Candidatas: líneas con saldo, priorizadas por compromiso de la orden y folio
   const cand=[];
@@ -545,22 +547,34 @@ function renderPrePlan(){
     return (parseInt((a.orden.match(/\d+/)||['0'])[0]))-(parseInt((b.orden.match(/\d+/)||['0'])[0]));
   });
 
-  // Asignación: moldes disponibles (inventario físico) × vueltas, acotado por capacidad de moldes por tipo
+  // Asignación: molde exacto (patrón+medida) primero; si no hay, molde del MISMO patrón
+  // en otra medida → REDIMENSIÓN (consume cupo de redimensiones/día). Todo × vueltas,
+  // acotado por capacidad de moldes por tipo.
   const restMoldes={pared:cfg.pared, base:cfg.base, accesorio:cfg.accesorio};
+  let restRedim = cfg.redim;
   const propuesta=[]; const sinMolde=[];
   for(const c of cand){
     if(restMoldes[c.cat]<=0) continue;
     const k = llaveMoldeDeSku(c.sku);
-    const fisicos = k ? (inv[k]||0) : 0;
-    const dispFis = Math.max(0, fisicos - (invUsado[k]||0));
-    if(dispFis<=0){ if(k) sinMolde.push(c); continue; }
+    if(!k){ continue; }
+    const pat = k.slice(0, k.lastIndexOf('|'));
+    const dispPat = Math.max(0, (invPat[pat]||0) - (usadoPat[pat]||0));
+    const dispExacto = Math.min(Math.max(0,(inv[k]||0)-(invUsado[k]||0)), dispPat);
     const necesarios = Math.ceil(c.saldo/cfg.vueltas);
-    const moldes = Math.min(necesarios, dispFis, restMoldes[c.cat]);
+    let moldes=0, redim=false;
+    if(dispExacto>0){
+      moldes = Math.min(necesarios, dispExacto, restMoldes[c.cat]);
+    } else if(dispPat>0 && restRedim>0){
+      moldes = Math.min(necesarios, dispPat, restMoldes[c.cat], restRedim);
+      redim = true;
+    } else { sinMolde.push(c); continue; }
     if(moldes<=0) continue;
     const producir = Math.min(c.saldo, moldes*cfg.vueltas);
-    invUsado[k]=(invUsado[k]||0)+moldes;
+    if(!redim) invUsado[k]=(invUsado[k]||0)+moldes;
+    else restRedim -= moldes;
+    usadoPat[pat]=(usadoPat[pat]||0)+moldes;
     restMoldes[c.cat]-=moldes;
-    propuesta.push({...c, moldes, producir, fisicos});
+    propuesta.push({...c, moldes, producir, fisicos:(redim?dispPat:inv[k]||0), redim});
   }
 
   // Lo que planta YA subió para esa fecha (plan_diario)
@@ -587,12 +601,14 @@ function renderPrePlan(){
         <input type="number" id="cfgB" value="${cfg.base}" style="width:70px" onchange="guardarCfg()"></div>
       <div><label style="font-size:11px;color:var(--muted)">Moldes accesorio</label><br>
         <input type="number" id="cfgA" value="${cfg.accesorio}" style="width:70px" onchange="guardarCfg()"></div>
-      <div style="font-size:11px;color:var(--muted);max-width:250px">A producir = moldes × vueltas, acotado por el inventario físico de moldes (TAGs reales últimos 6 meses) y el saldo de la orden.</div>
+      <div><label style="font-size:11px;color:var(--muted)">Redim./día</label><br>
+        <input type="number" id="cfgR" value="${cfg.redim}" style="width:64px" onchange="guardarCfg()"></div>
+      <div style="font-size:11px;color:var(--muted);max-width:240px">A producir = moldes × vueltas, acotado por inventario físico (TAGs reales 6m). Si no hay molde en esa medida pero sí del patrón, propone REDIMENSIÓN (R).</div>
       <button class="btn btn-blue" style="margin-left:auto" onclick="exportarPrePlan()">Exportar CSV (formato plan diario)</button>
     </div>
     <div class="metrics" style="grid-template-columns:repeat(5,1fr)">
       <div class="metric"><div class="metric-label">Piezas propuestas</div><div class="metric-val blue">${nuestroTot.toLocaleString()}</div><div class="metric-sub">para ${fechaObj}</div></div>
-      <div class="metric"><div class="metric-label">Moldes usados</div><div class="metric-val white">${nuestrosMoldes}</div><div class="metric-sub">P:${cfg.pared-restMoldes.pared} B:${cfg.base-restMoldes.base} A:${cfg.accesorio-restMoldes.accesorio}</div></div>
+      <div class="metric"><div class="metric-label">Moldes usados</div><div class="metric-val white">${nuestrosMoldes}</div><div class="metric-sub">P:${cfg.pared-restMoldes.pared} B:${cfg.base-restMoldes.base} A:${cfg.accesorio-restMoldes.accesorio} · Redim:${cfg.redim-restRedim}/${cfg.redim}</div></div>
       <div class="metric"><div class="metric-label">Planta ya subió</div><div class="metric-val white">${plantaTot.toLocaleString()}</div><div class="metric-sub">${plantaTot?`${plantaMoldes} moldes · plan_diario ${fechaObj}`:'sin plan de planta ese día'}</div></div>
       <div class="metric"><div class="metric-label">Órdenes propuestas</div><div class="metric-val white">${ordenesNuestras.size}</div><div class="metric-sub">${coinciden} también en plan de planta</div></div>
       <div class="metric"><div class="metric-label">Sin molde físico</div><div class="metric-val amber">${sinMolde.length}</div><div class="metric-sub">líneas con saldo sin molde en inventario</div></div>
@@ -614,7 +630,7 @@ function renderPrePlan(){
             <td>${p.color||'—'}</td>
             <td>${p.acabado||'—'}</td>
             <td class="mono" style="text-align:right">${p.saldo}</td>
-            <td class="mono" style="text-align:right;font-weight:600">${p.moldes}<span style="color:var(--muted);font-size:9px">/${p.fisicos}</span></td>
+            <td class="mono" style="text-align:right;font-weight:600">${p.moldes}<span style="color:var(--muted);font-size:9px">/${p.fisicos}</span>${p.redim?' <span class="badge b-b" title="Redimensión: hay molde del patrón pero en otra medida">R</span>':''}</td>
             <td class="mono" style="text-align:right;color:var(--accent2);font-weight:600">${p.producir}</td>
             <td class="mono" style="text-align:right;color:${plantaDia[p.orden]?'var(--ga)':'var(--muted)'}">${plantaDia[p.orden]||'—'}</td>
           </tr>`).join('')}
@@ -636,14 +652,15 @@ function guardarCfg(){
     vueltas:parseInt(document.getElementById('cfgV').value)||7,
     pared:parseInt(document.getElementById('cfgP').value)||0,
     base:parseInt(document.getElementById('cfgB').value)||0,
-    accesorio:parseInt(document.getElementById('cfgA').value)||0}));
+    accesorio:parseInt(document.getElementById('cfgA').value)||0,
+    redim:parseInt(document.getElementById('cfgR').value)||0}));
   renderPrePlan();
 }
 function exportarPrePlan(){
-  // Mismas columnas que el plan diario que se sube a Supabase/Excel
+  // Mismas columnas que el plan diario que se sube a Supabase/Excel (+redimension)
   const rows=window._prePlanData||[];
-  const csv=['fecha,odoo,cliente,compromiso,medida,modelo,lado,color,acabado,total,moldes,a_producir']
-    .concat(rows.map(p=>[p.fecha,p.orden,`"${(p.cliente||'').replace(/"/g,'')}"`,p.compromiso||'',`"${p.medida||''}"`,`"${(p.modelo||'').replace(/"/g,'')}"`,p.lado||'',p.color||'',p.acabado||'',p.saldo,p.moldes,p.producir].join(',')))
+  const csv=['fecha,odoo,cliente,compromiso,medida,modelo,lado,color,acabado,total,moldes,a_producir,redimension']
+    .concat(rows.map(p=>[p.fecha,p.orden,`"${(p.cliente||'').replace(/"/g,'')}"`,p.compromiso||'',`"${p.medida||''}"`,`"${(p.modelo||'').replace(/"/g,'')}"`,p.lado||'',p.color||'',p.acabado||'',p.saldo,p.moldes,p.producir,p.redim?'SI':''].join(',')))
     .join('\n');
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
