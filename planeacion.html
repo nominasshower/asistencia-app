@@ -207,7 +207,7 @@ async function cargar(){
   try{
     [PLAN, VAC, EMP, PLAND, VENTASP] = await Promise.all([
       sbFetch('plan_global',{filtros:`&periodo=eq.${periodo}`}),
-      sbFetch('vaciados',{campos:'patron,medida,color,acabado,tipo,es_grado_c,fecha'}),
+      sbFetch('vaciados',{campos:'patron,medida,color,acabado,tipo,es_grado_c,fecha,tag'}),
       sbFetch('empacadas',{campos:'orden,sku_odoo,piezas,primera_fecha'}),
       sbFetch('plan_diario',{campos:'fecha,odoo,cliente,compromiso,modelo,medida,lado,a_producir,moldes'}),
       sbFetch('ventas_piezas',{campos:'pedido,cliente,fecha_entrega,estado,pieza_sku,pieza_desc,cantidad,pendiente'})
@@ -289,7 +289,7 @@ function construirOrdenes(){
   const ordenes = {};
   for(const l of PLAN){
     const o = l.orden;
-    if(!ordenes[o]) ordenes[o]={orden:o,cliente:l.cliente,compromiso:l.fecha_compromiso,origen:l.origen,lineas:[],cant:0,vac:0,emp:0,primeraProd:null,skuCompartido:false};
+    if(!ordenes[o]) ordenes[o]={orden:o,cliente:l.cliente,compromiso:l.fecha_compromiso,origen:l.origen,lineas:[],cant:0,vac:0,emp:0,primeraProd:null,skuCompartido:false,po:'',saldoP:0,saldoB:0,saldoA:0};
     const emp = empPorOrdenSku[o+'|'+l.sku]||0;
     const vac = vacAsignada.get(l.id)||0;
     const compartido = skuCompartido.has(l.sku);
@@ -298,6 +298,12 @@ function construirOrdenes(){
     ordenes[o].cant += (l.cantidad||0);
     ordenes[o].vac  += vac;
     ordenes[o].emp  += emp;
+    if(l.po_cliente && !ordenes[o].po) ordenes[o].po = l.po_cliente;
+    const saldoL = Math.max(0,(l.cantidad||0)-Math.max(vac,emp));
+    const catL = catDeLinea(l);
+    if(catL==='pared') ordenes[o].saldoP += saldoL;
+    else if(catL==='base') ordenes[o].saldoB += saldoL;
+    else ordenes[o].saldoA += saldoL;
     if(l.fecha_compromiso && (!ordenes[o].compromiso || l.fecha_compromiso<ordenes[o].compromiso))
       ordenes[o].compromiso = l.fecha_compromiso;
     // primera vez que se vio esta orden en producción: min(primer vaciado del sku, primer empaque de esta orden+sku)
@@ -359,11 +365,12 @@ function renderGlobal(){
       <div class="table-scroll">
         <table id="tabla-global">
           <thead><tr>
-            <th>Orden</th><th>Cliente</th><th>Compromiso (Odoo)</th>
+            <th>Orden</th><th>Cliente</th><th>PO</th><th>Compromiso (Odoo)</th><th>Sem</th><th>Días</th>
             <th style="text-align:right">Plan</th>
             <th style="text-align:right">Vaciadas</th>
             <th style="text-align:right">Burrito</th>
             <th style="text-align:right">Saldo</th>
+            <th style="text-align:center" title="Saldo pendiente desglosado: Paredes / Bases / Accesorios">P / B / A</th>
             <th>Avance</th>
             <th>En producción desde</th>
           </tr></thead>
@@ -379,29 +386,43 @@ function renderGlobal(){
   window._planLista = lista;
 }
 
+function semanaISO(fecha){
+  const d=new Date(fecha+'T12:00:00');
+  const t=new Date(d); t.setDate(t.getDate()+4-(t.getDay()||7));
+  return Math.ceil((((t-new Date(t.getFullYear(),0,1))/864e5)+1)/7);
+}
+function diasA(fecha){
+  if(!fecha) return null;
+  return Math.round((new Date(fecha+'T12:00:00') - new Date(new Date().toISOString().slice(0,10)+'T12:00:00'))/864e5);
+}
 function filaOrden(o){
   const barColor = o.pct>=100?'var(--ga)':o.pct>=50?'var(--gb)':'var(--gc)';
   const det = o.lineas.map(l=>{
     const saldoL = Math.max(0,(l.cantidad||0)-Math.max(l.vac,l.emp));
     return `<tr data-orden="${o.orden}" class="det-row" style="display:none">
       <td></td>
-      <td colspan="2" style="color:var(--muted);font-size:11px">${(l.producto||l.modelo||'—')}</td>
+      <td colspan="5" style="color:var(--muted);font-size:11px">${(l.producto||l.modelo||'—')}</td>
       <td class="mono" style="text-align:right">${(l.cantidad||0)}</td>
       <td class="mono" style="text-align:right;color:var(--ga)">${l.vac}</td>
       <td class="mono" style="text-align:right;color:var(--accent2)">${l.emp}</td>
       <td class="mono" style="text-align:right;color:${saldoL?'var(--gb)':'var(--muted)'}">${saldoL}</td>
+      <td></td>
       <td class="mono" style="font-size:10px;color:var(--muted)">${l.sku||'—'} ${l.compartido?'<span class="badge b-odoo" title="SKU pedido por otra orden abierta también">compartido</span>':''}</td>
       <td></td>
     </tr>`;
   }).join('');
   return `<tr class="row-order" data-origen="${o.origen}" data-saldo="${o.saldo}" data-incompleta="${o.historiaIncompleta?1:0}" data-compartido="${o.skuCompartido?1:0}" onclick="toggleOrden('${o.orden}')">
       <td class="mono">${o.orden} ${o.origen==='odoo'?'<span class="badge b-odoo">nueva</span>':''} ${o.skuCompartido?'<span class="badge b-b" title="Tiene SKU compartido con otra orden — vaciadas es estimado, confía en Burrito">ⓘ</span>':''}</td>
-      <td style="max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${o.cliente||'—'}</td>
+      <td style="max-width:200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${o.cliente||'—'}</td>
+      <td class="mono" style="max-width:110px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10px" title="${o.po||''}">${o.po||'—'}</td>
       <td class="mono">${o.compromiso||'<span class="badge b-sin" title="Odoo no trae commitment_date para esta orden — planeación debe asignarla">sin fecha</span>'}</td>
+      <td class="mono" style="color:var(--muted)">${o.compromiso?'S'+semanaISO(o.compromiso):'—'}</td>
+      <td class="mono" style="color:${diasA(o.compromiso)===null?'var(--muted)':diasA(o.compromiso)<0?'var(--gc)':diasA(o.compromiso)<=7?'var(--gb)':'var(--text)'}">${diasA(o.compromiso)===null?'—':diasA(o.compromiso)}</td>
       <td class="mono" style="text-align:right">${o.cant.toLocaleString()}</td>
       <td class="mono" style="text-align:right;color:var(--ga)">${o.vac.toLocaleString()}</td>
       <td class="mono" style="text-align:right;color:var(--accent2)">${o.emp.toLocaleString()}</td>
       <td class="mono" style="text-align:right;color:${o.saldo?'var(--gb)':'var(--ga)'}">${o.saldo.toLocaleString()}</td>
+      <td class="mono" style="text-align:center;font-size:10px;color:var(--muted)">${o.saldoP}/${o.saldoB}/${o.saldoA}</td>
       <td>${o.pct}%<span class="bar-mini"><span class="bar-mini-fill" style="width:${Math.min(100,o.pct)}%;background:${barColor}"></span></span></td>
       <td class="mono">${o.primeraProd||'—'} ${o.historiaIncompleta?'<span class="badge b-b" title="Puede faltar historia anterior sincronizada">⚠</span>':''}</td>
     </tr>${det}`;
@@ -437,22 +458,6 @@ function sigDiaHabil(){
   if(d.getDay()===0) d.setDate(d.getDate()+1);   // domingo → lunes
   return d.toISOString().slice(0,10);
 }
-function capacidadDefault(){
-  // Promedio real de piezas buenas/día de los últimos 7 días con producción, por tipo
-  const porDiaTipo = {};
-  for(const v of VAC){
-    if(v.es_grado_c) continue;
-    const f=(v.fecha||'').slice(0,10); if(!f) continue;
-    const t=(v.tipo||'').toUpperCase();
-    const cat = t==='PARED'?'pared':t==='PISO'?'base':'accesorio';
-    (porDiaTipo[f] = porDiaTipo[f]||{pared:0,base:0,accesorio:0})[cat]++;
-  }
-  const dias = Object.keys(porDiaTipo).sort().slice(-7);
-  const cap={pared:0,base:0,accesorio:0};
-  for(const d of dias){ cap.pared+=porDiaTipo[d].pared; cap.base+=porDiaTipo[d].base; cap.accesorio+=porDiaTipo[d].accesorio; }
-  const n=Math.max(1,dias.length);
-  return {pared:Math.round(cap.pared/n), base:Math.round(cap.base/n), accesorio:Math.round(cap.accesorio/n)};
-}
 function catDeLinea(l){
   const s=(l.sku||'');
   if(s.startsWith('WA')) return 'pared';
@@ -461,15 +466,69 @@ function catDeLinea(l){
   const t=(l.tipo||'').toUpperCase();
   return t==='P'?'pared':t==='B'?'base':t==='A'?'accesorio':'accesorio';
 }
+// Inventario de moldes real (misma lógica que produccion.html → Inventario Moldes):
+// TAGs de los últimos 6 meses cuyo patrón dominante es ≥80% de sus usos.
+// Llave del molde = AR + lado + medida (el molde fija patrón y medida, el color no).
+function llaveMoldeDePatron(patron, medida){
+  const p=' '+(patron||'').toUpperCase()+' ';
+  const mAr=p.match(/\(([A-Z0-9]{2})\)/); if(!mAr) return null;
+  let lado;
+  if(p.includes('CENTER 2')||/\bUNI\b/.test(p)) lado='4';
+  else if(/\b(LEFT|IZQ)\b/.test(p)) lado='2';
+  else if(/\b(RIGHT|DER)\b/.test(p)) lado='3';
+  else if(/\b(CENTER|CENTAR)\b/.test(p)) lado='1';
+  else if(/\b(DOWN|ABAJO|LOWER)\b/.test(p)) lado='7';
+  else if(/\b(UP|ARRIBA|UPPER)\b/.test(p)) lado='8';
+  else lado='0';
+  const mm=(medida||'').toLowerCase().split('x');
+  if(mm.length!==2) return null;
+  const w=parseInt(mm[0]),h=parseInt(mm[1]);
+  if(!(w>0&&w<100&&h>0&&h<100)) return null;
+  return mAr[1]+'|'+lado+'|'+String(w).padStart(2,'0')+String(h).padStart(2,'0');
+}
+function inventarioMoldes(){
+  // Estabilidad por PATRÓN (AR+lado, ≥80% de usos) — la medida puede cambiar por
+  // redimensión, así que el molde cuenta para su medida MÁS RECIENTE (como en
+  // "Inventario Moldes" de produccion.html, que usa la última medida del TAG).
+  const corte = new Date(Date.now()-182*864e5).toISOString().slice(0,10);
+  const tagMap={};
+  for(const v of VAC){
+    const tag=(v.tag||'').trim().toUpperCase(); if(!tag) continue;
+    const f=(v.fecha||'').slice(0,10); if(f<corte) continue;
+    const k=llaveMoldeDePatron(v.patron, v.medida); if(!k) continue;
+    const pat=k.slice(0,k.lastIndexOf('|'));           // AR|lado (sin medida)
+    if(!tagMap[tag]) tagMap[tag]={usos:{},tot:0,ultima:'',llave:''};
+    tagMap[tag].usos[pat]=(tagMap[tag].usos[pat]||0)+1;
+    tagMap[tag].tot++;
+    if(f>=tagMap[tag].ultima){ tagMap[tag].ultima=f; tagMap[tag].llave=k; }
+  }
+  const inv={};
+  for(const tag in tagMap){
+    const d=tagMap[tag];
+    const top=Object.entries(d.usos).sort((a,b)=>b[1]-a[1])[0];
+    if(top[1]/d.tot < 0.80) continue;                  // TAG inestable, cambia de patrón
+    if(!d.llave.startsWith(top[0]+'|')) continue;      // su última medida es de otro patrón
+    inv[d.llave]=(inv[d.llave]||0)+1;
+  }
+  return inv;
+}
+function llaveMoldeDeSku(sku){
+  // SKU = TIPO(2)+MED(4)+AR(2)+LADO(1)+ACAB(1)+COLOR(2)
+  if(!sku || sku.length<12) return null;
+  return sku.substr(6,2)+'|'+sku.substr(8,1)+'|'+sku.substr(2,4);
+}
 function renderPrePlan(){
   document.getElementById('topbar-title').textContent='Pre-Plan Producción';
   if(!PLAN.length){ document.getElementById('main-content').innerHTML='<div class="empty">Sin plan global cargado.</div>'; return; }
 
   const fechaObj = window._prePlanFecha || sigDiaHabil();
-  const capSaved = JSON.parse(localStorage.getItem('preplan_cap')||'null');
-  const cap = capSaved || capacidadDefault();
+  // Parámetros estilo Excel: vueltas + capacidad de MOLDES por tipo (bosquejo:
+  // L1 55 paredes + L2 25 paredes = 80; 15 bases; 10 accesorios), editables.
+  const cfg = JSON.parse(localStorage.getItem('preplan_cfg')||'null') || {vueltas:7, pared:80, base:15, accesorio:10};
 
   const {lista} = construirOrdenes();
+  const inv = inventarioMoldes();          // llave AR|lado|medida -> # moldes físicos
+  const invUsado = {};                     // moldes ya asignados en esta corrida
 
   // Candidatas: líneas con saldo, priorizadas por compromiso de la orden y folio
   const cand=[];
@@ -477,7 +536,8 @@ function renderPrePlan(){
     for(const l of o.lineas){
       const saldoL = Math.max(0,(l.cantidad||0)-Math.max(l.vac,l.emp));
       if(saldoL>0) cand.push({orden:o.orden, cliente:o.cliente, compromiso:o.compromiso,
-        producto:l.producto||l.modelo||'', sku:l.sku||'', cat:catDeLinea(l), saldo:saldoL, compartido:l.compartido});
+        modelo:l.modelo||l.producto||'', medida:l.medida||'', lado:l.lado||'', color:l.color||'', acabado:l.acabado||'',
+        sku:l.sku||'', cat:catDeLinea(l), saldo:saldoL, compartido:l.compartido});
     }
   }
   cand.sort((a,b)=>{
@@ -485,84 +545,105 @@ function renderPrePlan(){
     return (parseInt((a.orden.match(/\d+/)||['0'])[0]))-(parseInt((b.orden.match(/\d+/)||['0'])[0]));
   });
 
-  // Asignación greedy hasta llenar la capacidad de cada tipo
-  const rest={...cap};
-  const propuesta=[];
+  // Asignación: moldes disponibles (inventario físico) × vueltas, acotado por capacidad de moldes por tipo
+  const restMoldes={pared:cfg.pared, base:cfg.base, accesorio:cfg.accesorio};
+  const propuesta=[]; const sinMolde=[];
   for(const c of cand){
-    if(rest[c.cat]<=0) continue;
-    const asg=Math.min(c.saldo, rest[c.cat]);
-    if(asg>0){ propuesta.push({...c, producir:asg}); rest[c.cat]-=asg; }
+    if(restMoldes[c.cat]<=0) continue;
+    const k = llaveMoldeDeSku(c.sku);
+    const fisicos = k ? (inv[k]||0) : 0;
+    const dispFis = Math.max(0, fisicos - (invUsado[k]||0));
+    if(dispFis<=0){ if(k) sinMolde.push(c); continue; }
+    const necesarios = Math.ceil(c.saldo/cfg.vueltas);
+    const moldes = Math.min(necesarios, dispFis, restMoldes[c.cat]);
+    if(moldes<=0) continue;
+    const producir = Math.min(c.saldo, moldes*cfg.vueltas);
+    invUsado[k]=(invUsado[k]||0)+moldes;
+    restMoldes[c.cat]-=moldes;
+    propuesta.push({...c, moldes, producir, fisicos});
   }
 
   // Lo que planta YA subió para esa fecha (plan_diario)
-  const plantaDia={}; let plantaTot=0;
+  const plantaDia={}; let plantaTot=0, plantaMoldes=0;
   for(const r of PLAND){
     if(r.fecha!==fechaObj) continue;
     plantaDia[r.odoo]=(plantaDia[r.odoo]||0)+(r.a_producir||0);
-    plantaTot+=(r.a_producir||0);
+    plantaTot+=(r.a_producir||0); plantaMoldes+=(r.moldes||0);
   }
   const nuestroTot=propuesta.reduce((s,p)=>s+p.producir,0);
+  const nuestrosMoldes=propuesta.reduce((s,p)=>s+p.moldes,0);
   const ordenesNuestras=new Set(propuesta.map(p=>p.orden));
   const coinciden=[...ordenesNuestras].filter(o=>plantaDia[o]).length;
 
   document.getElementById('main-content').innerHTML = `
-    <div class="card" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    <div class="card" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
       <div><label style="font-size:11px;color:var(--muted)">Día a planear</label><br>
         <input type="date" value="${fechaObj}" onchange="window._prePlanFecha=this.value;renderPrePlan()"></div>
-      <div><label style="font-size:11px;color:var(--muted)">Cap. paredes/día</label><br>
-        <input type="number" id="capP" value="${cap.pared}" style="width:80px" onchange="guardarCap()"></div>
-      <div><label style="font-size:11px;color:var(--muted)">Cap. bases/día</label><br>
-        <input type="number" id="capB" value="${cap.base}" style="width:80px" onchange="guardarCap()"></div>
-      <div><label style="font-size:11px;color:var(--muted)">Cap. accesorios/día</label><br>
-        <input type="number" id="capA" value="${cap.accesorio}" style="width:80px" onchange="guardarCap()"></div>
-      <div style="font-size:11px;color:var(--muted);max-width:280px">Capacidad inicial = promedio real de piezas buenas/día (últimos 7 días con producción). Edítala según moldes y vueltas disponibles.</div>
-      <button class="btn btn-blue" style="margin-left:auto" onclick="exportarPrePlan()">Exportar CSV</button>
+      <div><label style="font-size:11px;color:var(--muted)">Vueltas/día</label><br>
+        <input type="number" id="cfgV" value="${cfg.vueltas}" style="width:64px" onchange="guardarCfg()"></div>
+      <div><label style="font-size:11px;color:var(--muted)">Moldes pared</label><br>
+        <input type="number" id="cfgP" value="${cfg.pared}" style="width:70px" onchange="guardarCfg()"></div>
+      <div><label style="font-size:11px;color:var(--muted)">Moldes base</label><br>
+        <input type="number" id="cfgB" value="${cfg.base}" style="width:70px" onchange="guardarCfg()"></div>
+      <div><label style="font-size:11px;color:var(--muted)">Moldes accesorio</label><br>
+        <input type="number" id="cfgA" value="${cfg.accesorio}" style="width:70px" onchange="guardarCfg()"></div>
+      <div style="font-size:11px;color:var(--muted);max-width:250px">A producir = moldes × vueltas, acotado por el inventario físico de moldes (TAGs reales últimos 6 meses) y el saldo de la orden.</div>
+      <button class="btn btn-blue" style="margin-left:auto" onclick="exportarPrePlan()">Exportar CSV (formato plan diario)</button>
     </div>
-    <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
-      <div class="metric"><div class="metric-label">Propuesta nuestra</div><div class="metric-val blue">${nuestroTot.toLocaleString()}</div><div class="metric-sub">piezas para ${fechaObj}</div></div>
-      <div class="metric"><div class="metric-label">Planta ya subió</div><div class="metric-val white">${plantaTot.toLocaleString()}</div><div class="metric-sub">${plantaTot?`plan_diario del ${fechaObj}`:'aún no hay plan de planta para ese día'}</div></div>
+    <div class="metrics" style="grid-template-columns:repeat(5,1fr)">
+      <div class="metric"><div class="metric-label">Piezas propuestas</div><div class="metric-val blue">${nuestroTot.toLocaleString()}</div><div class="metric-sub">para ${fechaObj}</div></div>
+      <div class="metric"><div class="metric-label">Moldes usados</div><div class="metric-val white">${nuestrosMoldes}</div><div class="metric-sub">P:${cfg.pared-restMoldes.pared} B:${cfg.base-restMoldes.base} A:${cfg.accesorio-restMoldes.accesorio}</div></div>
+      <div class="metric"><div class="metric-label">Planta ya subió</div><div class="metric-val white">${plantaTot.toLocaleString()}</div><div class="metric-sub">${plantaTot?`${plantaMoldes} moldes · plan_diario ${fechaObj}`:'sin plan de planta ese día'}</div></div>
       <div class="metric"><div class="metric-label">Órdenes propuestas</div><div class="metric-val white">${ordenesNuestras.size}</div><div class="metric-sub">${coinciden} también en plan de planta</div></div>
-      <div class="metric"><div class="metric-label">Capacidad restante</div><div class="metric-val amber">${rest.pared}/${rest.base}/${rest.accesorio}</div><div class="metric-sub">pared / base / accesorio</div></div>
+      <div class="metric"><div class="metric-label">Sin molde físico</div><div class="metric-val amber">${sinMolde.length}</div><div class="metric-sub">líneas con saldo sin molde en inventario</div></div>
     </div>
     <div class="table-wrap">
-      <div class="table-header"><div class="table-header-title">Pre-Plan propuesto — ${fechaObj} (prioridad: compromiso Odoo más próximo)</div></div>
+      <div class="table-header"><div class="table-header-title">Pre-Plan ${fechaObj} — formato programación diaria (prioridad: compromiso Odoo)</div></div>
       <div class="table-scroll">
         <table><thead><tr>
-          <th>Prio</th><th>Orden</th><th>Cliente</th><th>Compromiso</th><th>Producto</th><th>SKU</th><th>Tipo</th>
-          <th style="text-align:right">Saldo</th><th style="text-align:right">Producir</th><th style="text-align:right">Planta (ese día)</th>
+          <th>Odoo</th><th>Cliente</th><th>Compromiso</th><th>Medida</th><th>Modelo</th><th>Lado</th><th>Color</th><th>Acabado</th>
+          <th style="text-align:right">Total</th><th style="text-align:right">Moldes</th><th style="text-align:right">A producir</th><th style="text-align:right">Planta (día)</th>
         </tr></thead><tbody>
-          ${propuesta.map((p,i)=>`<tr>
-            <td class="mono">${i+1}</td>
+          ${propuesta.map(p=>`<tr>
             <td class="mono">${p.orden}</td>
-            <td style="max-width:180px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${p.cliente||'—'}</td>
+            <td style="max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${p.cliente||''}">${p.cliente||'—'}</td>
             <td class="mono" style="color:${p.compromiso && p.compromiso<fechaObj?'var(--gc)':'var(--text)'}">${p.compromiso||'—'}</td>
-            <td style="max-width:260px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${p.producto}">${p.producto}</td>
-            <td class="mono" style="font-size:10px">${p.sku||'—'}${p.compartido?' ⓘ':''}</td>
-            <td>${p.cat}</td>
+            <td class="mono">${p.medida||'—'}</td>
+            <td style="max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${p.modelo}">${p.modelo||'—'}</td>
+            <td>${p.lado||'—'}</td>
+            <td>${p.color||'—'}</td>
+            <td>${p.acabado||'—'}</td>
             <td class="mono" style="text-align:right">${p.saldo}</td>
+            <td class="mono" style="text-align:right;font-weight:600">${p.moldes}<span style="color:var(--muted);font-size:9px">/${p.fisicos}</span></td>
             <td class="mono" style="text-align:right;color:var(--accent2);font-weight:600">${p.producir}</td>
             <td class="mono" style="text-align:right;color:${plantaDia[p.orden]?'var(--ga)':'var(--muted)'}">${plantaDia[p.orden]||'—'}</td>
           </tr>`).join('')}
-          ${propuesta.length===0?'<tr><td colspan="10" class="empty">Sin saldos pendientes o capacidad en cero</td></tr>':''}
+          ${propuesta.length===0?'<tr><td colspan="12" class="empty">Sin saldos pendientes o capacidad en cero</td></tr>':''}
         </tbody></table>
       </div>
     </div>
+    ${sinMolde.length?`<div class="card" style="border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.05)">
+      <div style="font-size:12px;color:#fbbf24;margin-bottom:6px">⚠ Con saldo pero SIN molde en el inventario físico (o ya agotado hoy) — requieren molde nuevo o redimensión:</div>
+      <div style="font-size:11px;color:var(--muted)">${sinMolde.slice(0,12).map(c=>`${c.orden} · ${c.modelo} ${c.medida} (${c.saldo} pzs)`).join('<br>')}${sinMolde.length>12?`<br>… y ${sinMolde.length-12} más`:''}</div>
+    </div>`:''}
     <div style="font-size:11px;color:var(--muted);padding:4px 2px">
-      Compromiso en rojo = la fecha prometida es anterior al día planeado (orden atrasada). "Planta (ese día)" = piezas que el plan diario de planta ya trae para esa orden en la fecha elegida — sirve para comparar nuestro pre-plan contra el suyo.
+      Moldes = asignados/<span style="font-size:9px">físicos en inventario</span>. Inventario = TAGs con patrón estable (≥80%) en vaciados de los últimos 6 meses, mismo criterio que "Inventario Moldes" de producción. Colores de doble proceso (granito) considera bajar las vueltas manualmente. Compromiso en rojo = orden ya atrasada para el día planeado.
     </div>`;
   window._prePlanData = propuesta.map(p=>({...p, fecha:fechaObj}));
 }
-function guardarCap(){
-  localStorage.setItem('preplan_cap', JSON.stringify({
-    pared:parseInt(document.getElementById('capP').value)||0,
-    base:parseInt(document.getElementById('capB').value)||0,
-    accesorio:parseInt(document.getElementById('capA').value)||0}));
+function guardarCfg(){
+  localStorage.setItem('preplan_cfg', JSON.stringify({
+    vueltas:parseInt(document.getElementById('cfgV').value)||7,
+    pared:parseInt(document.getElementById('cfgP').value)||0,
+    base:parseInt(document.getElementById('cfgB').value)||0,
+    accesorio:parseInt(document.getElementById('cfgA').value)||0}));
   renderPrePlan();
 }
 function exportarPrePlan(){
+  // Mismas columnas que el plan diario que se sube a Supabase/Excel
   const rows=window._prePlanData||[];
-  const csv=['fecha,orden,cliente,compromiso,producto,sku,tipo,saldo,producir']
-    .concat(rows.map(p=>[p.fecha,p.orden,`"${(p.cliente||'').replace(/"/g,'')}"`,p.compromiso||'',`"${(p.producto||'').replace(/"/g,'')}"`,p.sku,p.cat,p.saldo,p.producir].join(',')))
+  const csv=['fecha,odoo,cliente,compromiso,medida,modelo,lado,color,acabado,total,moldes,a_producir']
+    .concat(rows.map(p=>[p.fecha,p.orden,`"${(p.cliente||'').replace(/"/g,'')}"`,p.compromiso||'',`"${p.medida||''}"`,`"${(p.modelo||'').replace(/"/g,'')}"`,p.lado||'',p.color||'',p.acabado||'',p.saldo,p.moldes,p.producir].join(',')))
     .join('\n');
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
