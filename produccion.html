@@ -1613,6 +1613,8 @@ async function guardarGanttEnSupabase(wb, toDateStr) {
       const medida = (row[3]||'').toString().trim();
       const modelo = (row[4]||'').toString().trim();
       const lado   = (row[5]||'').toString().trim();
+      const color  = (row[6]||'').toString().trim();
+      const acab   = (row[7]||'').toString().trim();
       const comp   = (row[2]||'').toString().trim();
       const total  = parseInt(row[8]||0)||0;
       if (!odoo && !modelo) continue;
@@ -1623,7 +1625,7 @@ async function guardarGanttEnSupabase(wb, toDateStr) {
         if (!moldes && !aprod) continue;
         registros.push({ fecha, odoo:odoo||null, cliente:cliente||null,
           compromiso:comp||null, medida:medida||null, modelo:modelo||null,
-          lado:lado||null, color:null, acabado:null,
+          lado:lado||null, color:color||null, acabado:acab||null,
           total:total||null, moldes, a_producir:aprod });
       }
     }
