@@ -343,7 +343,7 @@ const COL_MAP = {
   ventas:            {fecha:'Fecha',fecha_entrega:'Fecha Entrega',pedido:'Pedido',cliente:'Cliente',sku:'SKU',producto:'Producto',cantidad:'Cantidad',precio_unit:'Precio Unit',subtotal:'Subtotal',moneda:'Moneda',estado:'Estado',entregado:'Entregado',pendiente:'Pendiente',linea_odoo:'Línea Odoo'},
   area_wip:          {id:'id',sku:'sku',tipo:'tipo',patron:'patron',medida:'medida',color:'color',acabado:'acabado',created_at:'created_at'},
   resumen_produccion:{fecha:'Fecha',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',total_vaciado:'Total Vaciado',grado_a:'Grado A',grado_b:'Grado B',grado_c:'Grado C',sin_inspeccion:'Sin Inspeccion',piezas_buenas:'Piezas Buenas'},
-  burritos:          {package_id:'package_id',uuid:'uuid',tipo_paquete:'tipo_paquete',orden:'orden',po_cliente:'po_cliente',cliente:'cliente',cerrado:'cerrado',creado_en:'creado_en',cerrado_en:'cerrado_en',piezas:'piezas',cargadas:'cargadas',piezas_pared_pedidas:'piezas_pared_pedidas',preasignadas:'preasignadas',faltantes:'faltantes',created_at:'created_at'},
+  burritos:          {package_id:'package_id',uuid:'uuid',tipo_paquete:'tipo_paquete',orden:'orden',po_cliente:'po_cliente',cliente:'cliente',cerrado:'cerrado',creado_en:'creado_en',cerrado_en:'cerrado_en',piezas:'piezas',cargadas:'cargadas',piezas_pared_pedidas:'piezas_pared_pedidas',preasignadas:'preasignadas',faltantes:'faltantes',detalle:'detalle',created_at:'created_at'},
 };
 
 async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',limit=200000,asc=false,campos=null}={}) {
@@ -5237,39 +5237,106 @@ function verBurritosCerradosHoy() {
 // mas viejo. preasignadas = piezas ya disponibles, listas para tomar y subir.
 // faltantes = piezas que aun no se han producido/liberado. Calculado en el servidor
 // (sync_empaque.py) para que nunca se prometa la misma pieza a dos burritos.
+function mergeDetalleBurritos(lista) {
+  // Une los arrays `detalle` (por burrito+spec) de varios burritos, sumando
+  // cantidad/cargadas/preasignadas/faltantes cuando se repite la misma
+  // spec (patron+color+acabado+medida) en mas de un burrito.
+  const porSpec = {};
+  lista.forEach(r => {
+    (r["detalle"] || []).forEach(d => {
+      const k = [d.tipo, d.patron, d.color, d.acabado, d.medida].join("||");
+      if (!porSpec[k]) porSpec[k] = { ...d, cantidad: 0, cargadas: 0, preasignadas: 0, faltantes: 0 };
+      porSpec[k].cantidad += d.cantidad || 0;
+      porSpec[k].cargadas += d.cargadas || 0;
+      porSpec[k].preasignadas += d.preasignadas || 0;
+      porSpec[k].faltantes += d.faltantes || 0;
+    });
+  });
+  return Object.values(porSpec);
+}
+
+function tablaDetalleSpecsHTML(specs, ordenarPor) {
+  const sorted = [...specs].sort((a, b) => (b[ordenarPor] || 0) - (a[ordenarPor] || 0));
+  return `
+  <table style="width:100%;border-collapse:collapse">
+    <thead><tr style="position:sticky;top:0;background:var(--bg2)">
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Tipo</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Patrón</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Color</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Acabado</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Medida</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cantidad</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cargadas</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Preasignadas</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Faltantes</th>
+    </tr></thead>
+    <tbody>
+      ${sorted.map(d => `<tr>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border)">${d.tipo || "—"}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${d.patron || ""}">${d.patron || "—"}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border)">${d.color || "—"}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border)">${d.acabado || "—"}</td>
+        <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${d.medida || "—"}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center;font-weight:600">${d.cantidad || 0}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${d.cargadas || 0}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center;color:#4ade80">${d.preasignadas || 0}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center;color:#fbbf24">${d.faltantes || 0}</td>
+      </tr>`).join("")}
+      ${sorted.length === 0 ? `<tr><td colspan="9" class="empty">Sin especificaciones</td></tr>` : ""}
+    </tbody>
+  </table>`;
+}
+
 function renderPreArmado() {
   document.getElementById("topbar-title").textContent = "Pre Armado Burritos";
   const hoyD = new Date();
   const mesActual = `${hoyD.getFullYear()}-${String(hoyD.getMonth()+1).padStart(2,'0')}`;
 
-  const filas = BURRITOS_RAW.filter(r =>
+  const burritos = BURRITOS_RAW.filter(r =>
     !r["cerrado"] && r["preasignadas"] !== "" && (r["creado_en"] || "").slice(0, 7) === mesActual
-  ).sort((a, b) => {
-    const pctA = a["piezas"] > 0 ? (a["cargadas"] + a["preasignadas"]) / a["piezas"] : 0;
-    const pctB = b["piezas"] > 0 ? (b["cargadas"] + b["preasignadas"]) / b["piezas"] : 0;
+  );
+
+  const porOrden = {};
+  burritos.forEach(r => {
+    const orden = r["orden"] || "—";
+    if (!porOrden[orden]) porOrden[orden] = {
+      orden, cliente: r["cliente"] || "—", po: r["po_cliente"] || "—",
+      piezas: 0, cargadas: 0, preasignadas: 0, faltantes: 0, burritos: [],
+    };
+    const o = porOrden[orden];
+    o.piezas += r["piezas"] || 0; o.cargadas += r["cargadas"] || 0;
+    o.preasignadas += r["preasignadas"] || 0; o.faltantes += r["faltantes"] || 0;
+    o.burritos.push(r);
+  });
+
+  const filas = Object.values(porOrden).sort((a, b) => {
+    const pctA = a.piezas > 0 ? (a.cargadas + a.preasignadas) / a.piezas : 0;
+    const pctB = b.piezas > 0 ? (b.cargadas + b.preasignadas) / b.piezas : 0;
     return pctB - pctA; // los mas cerca de completarse primero
   });
 
-  const tot = filas.reduce((s, r) => {
-    s.piezas += r["piezas"] || 0; s.cargadas += r["cargadas"] || 0;
-    s.preasignadas += r["preasignadas"] || 0; s.faltantes += r["faltantes"] || 0;
+  const tot = filas.reduce((s, o) => {
+    s.piezas += o.piezas; s.cargadas += o.cargadas; s.preasignadas += o.preasignadas; s.faltantes += o.faltantes;
     return s;
   }, { piezas: 0, cargadas: 0, preasignadas: 0, faltantes: 0 });
 
+  window._preArmadoPorOrden = porOrden;
+  window._preArmadoBurritos = burritos;
+
   document.getElementById("main-content").innerHTML = `
   <div class="metrics" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
-    <div class="metric"><div class="metric-label">Burritos en pre-armado</div><div class="metric-val white">${filas.length.toLocaleString()}</div><div class="metric-sub">abiertos este mes</div></div>
-    <div class="metric"><div class="metric-label">Piezas preasignadas</div><div class="metric-val green">${tot.preasignadas.toLocaleString()}</div><div class="metric-sub">ya liberadas, listas para tomar</div></div>
-    <div class="metric"><div class="metric-label">Piezas faltantes</div><div class="metric-val amber">${tot.faltantes.toLocaleString()}</div><div class="metric-sub">aun sin producir/liberar</div></div>
+    <div class="metric" style="cursor:pointer" onclick="verPreArmadoBurritos()"><div class="metric-label">Burritos en pre-armado</div><div class="metric-val white">${burritos.length.toLocaleString()}</div><div class="metric-sub">abiertos este mes · clic para ver el detalle</div></div>
+    <div class="metric" style="cursor:pointer" onclick="verPreArmadoSpecs('preasignadas')"><div class="metric-label">Piezas preasignadas</div><div class="metric-val green">${tot.preasignadas.toLocaleString()}</div><div class="metric-sub">ya liberadas, listas para tomar · clic para ver el detalle</div></div>
+    <div class="metric" style="cursor:pointer" onclick="verPreArmadoSpecs('faltantes')"><div class="metric-label">Piezas faltantes</div><div class="metric-val amber">${tot.faltantes.toLocaleString()}</div><div class="metric-sub">aun sin producir/liberar · clic para ver el detalle</div></div>
   </div>
   <div class="table-wrap" style="overflow-x:auto">
     <div class="table-header">
-      <div class="table-header-title">Burritos en pre-armado</div>
-      <div style="font-size:11px;color:var(--muted)">${filas.length} burritos abiertos este mes · orden de prioridad: el mas viejo (etiqueta impresa primero) se surte primero</div>
+      <div class="table-header-title">Pre Armado por cotización</div>
+      <div style="font-size:11px;color:var(--muted)">${filas.length} cotizaciones activas este mes · clic en una fila para ver patrón/color/medida/cantidades</div>
     </div>
     <table>
       <thead><tr>
-        <th>Cotización</th><th>UUID</th><th>Tipo</th>
+        <th>Cotización</th><th>Cliente</th><th>PO Cliente</th>
         <th style="text-align:center">Cargadas</th>
         <th style="text-align:center">Preasignadas</th>
         <th style="text-align:center">Faltantes</th>
@@ -5277,19 +5344,18 @@ function renderPreArmado() {
         <th>Avance</th>
       </tr></thead>
       <tbody>
-        ${filas.map(r => {
-          const total = r["piezas"] || 0;
-          const listo = (r["cargadas"] || 0) + (r["preasignadas"] || 0);
-          const pct = total > 0 ? Math.round(listo * 100 / total) : 0;
+        ${filas.map(o => {
+          const listo = o.cargadas + o.preasignadas;
+          const pct = o.piezas > 0 ? Math.round(listo * 100 / o.piezas) : 0;
           const barColor = pct >= 100 ? "#22c55e" : pct >= 50 ? "#f59e0b" : "#ef4444";
-          return `<tr>
-            <td class="mono">${r["orden"] || "—"}</td>
-            <td class="mono" style="font-size:10px">${r["uuid"] || "—"}</td>
-            <td>${r["tipo_paquete"] || "—"}</td>
-            <td style="text-align:center">${r["cargadas"] || 0}</td>
-            <td style="text-align:center" class="${r["preasignadas"] ? "green" : ""}">${r["preasignadas"] || 0}</td>
-            <td style="text-align:center" class="${r["faltantes"] ? "amber" : ""}">${r["faltantes"] || 0}</td>
-            <td style="text-align:center;font-weight:600">${total}</td>
+          return `<tr style="cursor:pointer" onclick="verDetallePreArmado('${o.orden.replace(/'/g, "\\'")}')">
+            <td class="mono">${o.orden}</td>
+            <td style="max-width:190px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${o.cliente}">${o.cliente}</td>
+            <td style="max-width:190px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${o.po}">${o.po}</td>
+            <td style="text-align:center">${o.cargadas}</td>
+            <td style="text-align:center" class="${o.preasignadas ? "green" : ""}">${o.preasignadas}</td>
+            <td style="text-align:center" class="${o.faltantes ? "amber" : ""}">${o.faltantes}</td>
+            <td style="text-align:center;font-weight:600">${o.piezas}</td>
             <td>
               <div style="display:flex;align-items:center;gap:8px">
                 <div style="flex:1;background:rgba(255,255,255,.08);border-radius:4px;height:8px;overflow:hidden">
@@ -5304,6 +5370,54 @@ function renderPreArmado() {
       </tbody>
     </table>
   </div>`;
+}
+
+function verDetallePreArmado(orden) {
+  const o = (window._preArmadoPorOrden || {})[orden];
+  if (!o) return;
+  const specs = mergeDetalleBurritos(o.burritos);
+  document.getElementById("modal-metrica-title").textContent = `${orden} — ${o.burritos.length} burritos abiertos · ${specs.length} especificaciones`;
+  document.getElementById("modal-metrica-body").innerHTML = tablaDetalleSpecsHTML(specs, "cantidad");
+  document.getElementById("modal-metrica").style.display = "flex";
+}
+
+function verPreArmadoBurritos() {
+  const lista = window._preArmadoBurritos || [];
+  const sorted = [...lista].sort((a, b) => (a["creado_en"] || "").localeCompare(b["creado_en"] || ""));
+  document.getElementById("modal-metrica-title").textContent = `Burritos en pre-armado — ${sorted.length.toLocaleString()}`;
+  document.getElementById("modal-metrica-body").innerHTML = `
+  <table style="width:100%;border-collapse:collapse">
+    <thead><tr style="position:sticky;top:0;background:var(--bg2)">
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cotización</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">UUID</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Tipo</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cargadas</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Preasignadas</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Faltantes</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Creado</th>
+    </tr></thead>
+    <tbody>
+      ${sorted.map(r => `<tr>
+        <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["orden"] || "—"}</td>
+        <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["uuid"] || "—"}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border)">${r["tipo_paquete"] || "—"}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${r["cargadas"] || 0}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${r["preasignadas"] || 0}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${r["faltantes"] || 0}</td>
+        <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${(r["creado_en"] || "").replace("T", " ").slice(0, 16)}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+  document.getElementById("modal-metrica").style.display = "flex";
+}
+
+function verPreArmadoSpecs(campo) {
+  const lista = window._preArmadoBurritos || [];
+  const specs = mergeDetalleBurritos(lista).filter(d => (d[campo] || 0) > 0);
+  const titulo = campo === "preasignadas" ? "Piezas preasignadas por especificación" : "Piezas faltantes por especificación";
+  document.getElementById("modal-metrica-title").textContent = `${titulo} — ${specs.length} especificaciones`;
+  document.getElementById("modal-metrica-body").innerHTML = tablaDetalleSpecsHTML(specs, campo);
+  document.getElementById("modal-metrica").style.display = "flex";
 }
 
 // ── Asistencia por departamento (Resumen Planta) ───────────
