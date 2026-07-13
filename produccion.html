@@ -339,7 +339,7 @@ const COL_MAP = {
   ventas:            {fecha:'Fecha',fecha_entrega:'Fecha Entrega',pedido:'Pedido',cliente:'Cliente',sku:'SKU',producto:'Producto',cantidad:'Cantidad',precio_unit:'Precio Unit',subtotal:'Subtotal',moneda:'Moneda',estado:'Estado',entregado:'Entregado',pendiente:'Pendiente',linea_odoo:'Línea Odoo'},
   area_wip:          {id:'id',sku:'sku',tipo:'tipo',patron:'patron',medida:'medida',color:'color',acabado:'acabado',created_at:'created_at'},
   resumen_produccion:{fecha:'Fecha',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',total_vaciado:'Total Vaciado',grado_a:'Grado A',grado_b:'Grado B',grado_c:'Grado C',sin_inspeccion:'Sin Inspeccion',piezas_buenas:'Piezas Buenas'},
-  burritos:          {package_id:'package_id',uuid:'uuid',tipo_paquete:'tipo_paquete',orden:'orden',po_cliente:'po_cliente',cliente:'cliente',cerrado:'cerrado',creado_en:'creado_en',cerrado_en:'cerrado_en',piezas:'piezas',created_at:'created_at'},
+  burritos:          {package_id:'package_id',uuid:'uuid',tipo_paquete:'tipo_paquete',orden:'orden',po_cliente:'po_cliente',cliente:'cliente',cerrado:'cerrado',creado_en:'creado_en',cerrado_en:'cerrado_en',piezas:'piezas',cargadas:'cargadas',piezas_pared_pedidas:'piezas_pared_pedidas',created_at:'created_at'},
 };
 
 async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',limit=200000,asc=false,campos=null}={}) {
@@ -741,7 +741,7 @@ async function asegurarDatosTab(id) {
 
   const needLib    = ["liberado","wip","areawip","gerencia"].includes(id);
   const needFrozen = ["plan","comparaplanes","gerencia"].includes(id);
-  const needVentas = id === "ventas";
+  const needVentas = id === "ventas" || id === "burritos"; // burritos usa fecha_entrega (Odoo) para Fecha de Compromiso
   const needPT     = id === "pt";
   const needEmp    = ["pt","empaque"].includes(id);
   const needWipVac = id === "wip";
@@ -5055,18 +5055,28 @@ function renderBurritos() {
   const hoyD = new Date();
   const hoy = `${hoyD.getFullYear()}-${String(hoyD.getMonth()+1).padStart(2,'0')}-${String(hoyD.getDate()).padStart(2,'0')}`;
 
+  // Fecha de compromiso (Odoo) por orden: primer "Fecha Entrega" no vacío en ventas
+  const compromisoPorOrden = {};
+  (VENTAS_RAW || []).forEach(v => {
+    const ped = v["Pedido"]; const fe = v["Fecha Entrega"];
+    if (ped && fe && !compromisoPorOrden[ped]) compromisoPorOrden[ped] = fe;
+  });
+
   const porOrden = {};
   BURRITOS_RAW.forEach(r => {
     const orden = r["orden"] || "—";
     if (!porOrden[orden]) porOrden[orden] = {
       orden, po: r["po_cliente"] || "—", cliente: r["cliente"] || "—",
-      cerradosHoy: 0, piezasCerradosHoy: 0, enArmado: 0, totalActivos: 0, burritos: [],
+      compromiso: compromisoPorOrden[orden] || "—",
+      cerradosHoy: 0, piezasCerradosHoy: 0, enArmado: 0, totalActivos: 0,
+      piezasAsignadas: 0, piezasPedidas: r["piezas_pared_pedidas"] || 0, burritos: [],
     };
     const o = porOrden[orden];
     o.totalActivos++;
+    o.piezasAsignadas += (r["piezas"] || 0);
     const cerradoHoy = r["cerrado"] && (r["cerrado_en"] || "").slice(0, 10) === hoy;
     if (cerradoHoy) { o.cerradosHoy++; o.piezasCerradosHoy += (r["piezas"] || 0); }
-    if (!r["cerrado"]) o.enArmado++;
+    if (!r["cerrado"] && (r["cargadas"] || 0) > 0) o.enArmado++; // solo con movimiento real
     o.burritos.push(r);
   });
 
@@ -5075,17 +5085,21 @@ function renderBurritos() {
     .sort((a, b) => b.cerradosHoy - a.cerradosHoy || b.enArmado - a.enArmado);
 
   const tot = filas.reduce((s, o) => {
-    s.cerradosHoy += o.cerradosHoy; s.piezasCerradosHoy += o.piezasCerradosHoy; s.enArmado += o.enArmado;
+    s.cerradosHoy += o.cerradosHoy; s.piezasCerradosHoy += o.piezasCerradosHoy;
     return s;
-  }, { cerradosHoy: 0, piezasCerradosHoy: 0, enArmado: 0 });
+  }, { cerradosHoy: 0, piezasCerradosHoy: 0 });
+
+  // "Burritos en armado" = abiertos CON movimiento (cargadas>0), en TODA la ventana (sin filtro de fecha)
+  const abiertosConMovimiento = BURRITOS_RAW.filter(r => !r["cerrado"] && (r["cargadas"] || 0) > 0);
 
   window._burritosPorOrden = porOrden;
+  window._burritosAbiertosConMovimiento = abiertosConMovimiento;
 
   document.getElementById("main-content").innerHTML = `
   <div class="metrics" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
     <div class="metric"><div class="metric-label">Burritos cerrados hoy</div><div class="metric-val green">${tot.cerradosHoy.toLocaleString()}</div><div class="metric-sub">${hoy}</div></div>
     <div class="metric"><div class="metric-label">Piezas en burritos cerrados hoy</div><div class="metric-val white">${tot.piezasCerradosHoy.toLocaleString()}</div><div class="metric-sub">suma de piezas</div></div>
-    <div class="metric"><div class="metric-label">Burritos en armado</div><div class="metric-val amber">${tot.enArmado.toLocaleString()}</div><div class="metric-sub">sin cerrar, cualquier fecha</div></div>
+    <div class="metric" style="cursor:pointer" onclick="verBurritosPendientes()"><div class="metric-label">Burritos en armado</div><div class="metric-val amber">${abiertosConMovimiento.length.toLocaleString()}</div><div class="metric-sub">empezados, sin cerrar · clic para ver pendientes</div></div>
   </div>
   <div class="table-wrap" style="overflow-x:auto">
     <div class="table-header">
@@ -5094,26 +5108,47 @@ function renderBurritos() {
     </div>
     <table>
       <thead><tr>
-        <th>No. Cotización</th><th>Cliente</th><th>PO Cliente</th>
+        <th>No. Cotización</th><th>Cliente</th><th>PO Cliente</th><th>Fecha Compromiso</th>
         <th style="text-align:center">Cerrados hoy</th>
         <th style="text-align:center">Piezas (cerrados hoy)</th>
         <th style="text-align:center">En armado</th>
         <th style="text-align:center">Total activos</th>
+        <th style="text-align:center">% Avance (Paredes)</th>
       </tr></thead>
       <tbody>
-        ${filas.map(o => `<tr style="cursor:pointer" onclick="verDetalleBurritos('${o.orden.replace(/'/g, "\\'")}')">
+        ${filas.map(o => {
+          const pct = o.piezasPedidas > 0 ? Math.round(o.piezasAsignadas * 100 / o.piezasPedidas) : null;
+          const pctTxt = pct === null ? "—" : `${pct}%`;
+          const pctColor = pct === null ? "" : pct >= 100 ? "green" : pct >= 50 ? "amber" : "red";
+          return `<tr style="cursor:pointer" onclick="verDetalleBurritos('${o.orden.replace(/'/g, "\\'")}')">
             <td class="mono">${o.orden}</td>
-            <td style="max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${o.cliente}">${o.cliente}</td>
-            <td style="max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${o.po}">${o.po}</td>
+            <td style="max-width:190px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${o.cliente}">${o.cliente}</td>
+            <td style="max-width:190px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${o.po}">${o.po}</td>
+            <td class="mono">${o.compromiso}</td>
             <td style="text-align:center" class="${o.cerradosHoy ? "green" : ""}">${o.cerradosHoy || "—"}</td>
             <td style="text-align:center">${o.piezasCerradosHoy || "—"}</td>
             <td style="text-align:center" class="${o.enArmado ? "amber" : ""}">${o.enArmado || "—"}</td>
             <td style="text-align:center;font-weight:600">${o.totalActivos}</td>
-          </tr>`).join("")}
-        ${filas.length === 0 ? `<tr><td colspan="7" class="empty">Sin actividad de burritos</td></tr>` : ""}
+            <td style="text-align:center" class="${pctColor}" title="${o.piezasAsignadas} de ${o.piezasPedidas} piezas de pared pedidas">${pctTxt}</td>
+          </tr>`;
+        }).join("")}
+        ${filas.length === 0 ? `<tr><td colspan="9" class="empty">Sin actividad de burritos</td></tr>` : ""}
       </tbody>
     </table>
   </div>`;
+}
+
+function filaBurritoHTML(r) {
+  const pct = r["piezas"] > 0 ? Math.round((r["cargadas"] || 0) * 100 / r["piezas"]) : 0;
+  return `<tr>
+    <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["orden"] || "—"}</td>
+    <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["uuid"] || "—"}</td>
+    <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border)">${r["tipo_paquete"] || "—"}</td>
+    <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center" title="${pct}% cargado">${(r["cargadas"]||0)}/${r["piezas"] || 0}</td>
+    <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${(r["creado_en"] || "").replace("T", " ").slice(0, 16)}</td>
+    <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["cerrado_en"] ? (r["cerrado_en"] || "").replace("T", " ").slice(0, 16) : "—"}</td>
+    <td style="padding:7px 12px;border-bottom:1px solid var(--border)">${r["cerrado"] ? '<span class="badge b-a">Cerrado</span>' : '<span class="badge b-b">En armado</span>'}</td>
+  </tr>`;
 }
 
 function verDetalleBurritos(orden) {
@@ -5126,7 +5161,7 @@ function verDetalleBurritos(orden) {
     <thead><tr style="position:sticky;top:0;background:var(--bg2)">
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">UUID</th>
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Tipo</th>
-      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Piezas</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cargadas/Piezas</th>
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Creado</th>
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cerrado</th>
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Estado</th>
@@ -5135,12 +5170,34 @@ function verDetalleBurritos(orden) {
       ${sorted.map(r => `<tr>
         <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["uuid"] || "—"}</td>
         <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border)">${r["tipo_paquete"] || "—"}</td>
-        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${r["piezas"] || 0}</td>
+        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${(r["cargadas"]||0)}/${r["piezas"] || 0}</td>
         <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${(r["creado_en"] || "").replace("T", " ").slice(0, 16)}</td>
         <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["cerrado_en"] ? (r["cerrado_en"] || "").replace("T", " ").slice(0, 16) : "—"}</td>
         <td style="padding:7px 12px;border-bottom:1px solid var(--border)">${r["cerrado"] ? '<span class="badge b-a">Cerrado</span>' : '<span class="badge b-b">En armado</span>'}</td>
       </tr>`).join("")}
     </tbody>
+  </table>`;
+  document.getElementById("modal-metrica").style.display = "flex";
+}
+
+// Lista GLOBAL de burritos abiertos con movimiento (cargadas>0), sin filtro de fecha
+// ni agrupar por cotización — para ver de un vistazo todo lo pendiente por cerrar.
+function verBurritosPendientes() {
+  const abiertos = window._burritosAbiertosConMovimiento || [];
+  const sorted = [...abiertos].sort((a, b) => (a["creado_en"] || "").localeCompare(b["creado_en"] || "")); // mas viejo primero
+  document.getElementById("modal-metrica-title").textContent = `Burritos pendientes por cerrar — ${sorted.length.toLocaleString()}`;
+  document.getElementById("modal-metrica-body").innerHTML = `
+  <table style="width:100%;border-collapse:collapse">
+    <thead><tr style="position:sticky;top:0;background:var(--bg2)">
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cotización</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">UUID</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Tipo</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cargadas/Piezas</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Creado</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cerrado</th>
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Estado</th>
+    </tr></thead>
+    <tbody>${sorted.map(filaBurritoHTML).join("")}</tbody>
   </table>`;
   document.getElementById("modal-metrica").style.display = "flex";
 }
