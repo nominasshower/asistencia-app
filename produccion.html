@@ -272,11 +272,11 @@ tr:hover td{background:rgba(255,255,255,.02);}
 </div>
 
 <!-- ── Modal detalle métrica ────────────────────────────── -->
-<div class="modal-overlay" id="modal-metrica" style="display:none" onclick="if(event.target===this)document.getElementById('modal-metrica').style.display='none'">
+<div class="modal-overlay" id="modal-metrica" style="display:none" onclick="if(event.target===this){document.getElementById('modal-metrica').style.display='none';window._modalVolver=null;}">
   <div class="modal" style="width:720px">
     <div class="modal-head">
       <h3 id="modal-metrica-title">Detalle</h3>
-      <button class="btn" onclick="document.getElementById('modal-metrica').style.display='none'">✕</button>
+      <button class="btn" onclick="document.getElementById('modal-metrica').style.display='none';window._modalVolver=null;">✕</button>
     </div>
     <div class="modal-body" id="modal-metrica-body" style="padding:0"></div>
   </div>
@@ -5147,7 +5147,7 @@ function renderBurritos() {
 
 function filaBurritoHTML(r) {
   const pct = r["piezas"] > 0 ? Math.round((r["cargadas"] || 0) * 100 / r["piezas"]) : 0;
-  return `<tr>
+  return `<tr style="cursor:pointer" onclick="verDetalleBurritoUnico('${r["uuid"]}')" title="Clic para ver piezas cargadas/faltantes">
     <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["orden"] || "—"}</td>
     <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["uuid"] || "—"}</td>
     <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border)">${r["tipo_paquete"] || "—"}</td>
@@ -5158,7 +5158,26 @@ function filaBurritoHTML(r) {
   </tr>`;
 }
 
+// Detalle de UN solo burrito (especificaciones cargadas/faltantes) — abierto desde
+// una fila de cualquiera de las listas de burritos. Guarda cómo volver a la lista
+// que estaba abierta (window._modalVolver) para poder regresar con un clic.
+function verDetalleBurritoUnico(uuid) {
+  const r = BURRITOS_RAW.find(x => x["uuid"] === uuid);
+  if (!r) return;
+  const specs = r["detalle"] || [];
+  const pct = r["piezas"] > 0 ? Math.round((r["cargadas"] || 0) * 100 / r["piezas"]) : 0;
+  document.getElementById("modal-metrica-title").textContent = `${r["orden"] || "—"} · ${r["uuid"]} — ${(r["cargadas"]||0)}/${r["piezas"]||0} cargadas (${pct}%)`;
+  document.getElementById("modal-metrica-body").innerHTML = `
+    <div style="padding:10px 12px;border-bottom:1px solid var(--border)">
+      <button class="btn" onclick="window._modalVolver && window._modalVolver()">← Volver a la lista</button>
+    </div>
+    ${tablaDetalleSpecsHTML(specs, "faltantes")}
+  `;
+  document.getElementById("modal-metrica").style.display = "flex";
+}
+
 function verDetalleBurritos(orden) {
+  window._modalVolver = () => verDetalleBurritos(orden);
   const o = (window._burritosPorOrden || {})[orden];
   if (!o) return;
   const sorted = [...o.burritos].sort((a, b) => (b["creado_en"] || "").localeCompare(a["creado_en"] || ""));
@@ -5166,6 +5185,7 @@ function verDetalleBurritos(orden) {
   document.getElementById("modal-metrica-body").innerHTML = `
   <table style="width:100%;border-collapse:collapse">
     <thead><tr style="position:sticky;top:0;background:var(--bg2)">
+      <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cotización</th>
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">UUID</th>
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Tipo</th>
       <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cargadas/Piezas</th>
@@ -5173,16 +5193,7 @@ function verDetalleBurritos(orden) {
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cerrado</th>
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Estado</th>
     </tr></thead>
-    <tbody>
-      ${sorted.map(r => `<tr>
-        <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["uuid"] || "—"}</td>
-        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border)">${r["tipo_paquete"] || "—"}</td>
-        <td style="padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${(r["cargadas"]||0)}/${r["piezas"] || 0}</td>
-        <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${(r["creado_en"] || "").replace("T", " ").slice(0, 16)}</td>
-        <td style="padding:7px 12px;font-family:'DM Mono',monospace;font-size:11px;border-bottom:1px solid var(--border)">${r["cerrado_en"] ? (r["cerrado_en"] || "").replace("T", " ").slice(0, 16) : "—"}</td>
-        <td style="padding:7px 12px;border-bottom:1px solid var(--border)">${r["cerrado"] ? '<span class="badge b-a">Cerrado</span>' : '<span class="badge b-b">En armado</span>'}</td>
-      </tr>`).join("")}
-    </tbody>
+    <tbody>${sorted.map(filaBurritoHTML).join("")}</tbody>
   </table>`;
   document.getElementById("modal-metrica").style.display = "flex";
 }
@@ -5190,6 +5201,7 @@ function verDetalleBurritos(orden) {
 // Lista GLOBAL de burritos abiertos con movimiento (cargadas>0), sin filtro de fecha
 // ni agrupar por cotización — para ver de un vistazo todo lo pendiente por cerrar.
 function verBurritosPendientes() {
+  window._modalVolver = verBurritosPendientes;
   const abiertos = window._burritosAbiertosConMovimiento || [];
   const sorted = [...abiertos].sort((a, b) => (a["creado_en"] || "").localeCompare(b["creado_en"] || "")); // mas viejo primero
   document.getElementById("modal-metrica-title").textContent = `Burritos pendientes por cerrar — ${sorted.length.toLocaleString()}`;
@@ -5210,6 +5222,7 @@ function verBurritosPendientes() {
 }
 
 function verBurritosCerradosHoy() {
+  window._modalVolver = verBurritosCerradosHoy;
   const lista = window._burritosCerradosHoy || [];
   const totalPiezas = lista.reduce((s, r) => s + (r["piezas"] || 0), 0);
   const sorted = [...lista].sort((a, b) => (b["cerrado_en"] || "").localeCompare(a["cerrado_en"] || "")); // mas reciente primero
