@@ -222,6 +222,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M7 8V6a5 5 0 0110 0v2"/></svg>
       Burritos
     </div>
+    <div class="nav-item" id="nav-prearmado" onclick="navegar('prearmado',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Pre Armado Burritos
+    </div>
   </div>
   <div class="nav-group">
     <div class="nav-label">Config</div>
@@ -339,7 +343,7 @@ const COL_MAP = {
   ventas:            {fecha:'Fecha',fecha_entrega:'Fecha Entrega',pedido:'Pedido',cliente:'Cliente',sku:'SKU',producto:'Producto',cantidad:'Cantidad',precio_unit:'Precio Unit',subtotal:'Subtotal',moneda:'Moneda',estado:'Estado',entregado:'Entregado',pendiente:'Pendiente',linea_odoo:'Línea Odoo'},
   area_wip:          {id:'id',sku:'sku',tipo:'tipo',patron:'patron',medida:'medida',color:'color',acabado:'acabado',created_at:'created_at'},
   resumen_produccion:{fecha:'Fecha',tipo:'Tipo',patron:'Patron',medida:'Medida',color:'Color',acabado:'Acabado',total_vaciado:'Total Vaciado',grado_a:'Grado A',grado_b:'Grado B',grado_c:'Grado C',sin_inspeccion:'Sin Inspeccion',piezas_buenas:'Piezas Buenas'},
-  burritos:          {package_id:'package_id',uuid:'uuid',tipo_paquete:'tipo_paquete',orden:'orden',po_cliente:'po_cliente',cliente:'cliente',cerrado:'cerrado',creado_en:'creado_en',cerrado_en:'cerrado_en',piezas:'piezas',cargadas:'cargadas',piezas_pared_pedidas:'piezas_pared_pedidas',created_at:'created_at'},
+  burritos:          {package_id:'package_id',uuid:'uuid',tipo_paquete:'tipo_paquete',orden:'orden',po_cliente:'po_cliente',cliente:'cliente',cerrado:'cerrado',creado_en:'creado_en',cerrado_en:'cerrado_en',piezas:'piezas',cargadas:'cargadas',piezas_pared_pedidas:'piezas_pared_pedidas',preasignadas:'preasignadas',faltantes:'faltantes',created_at:'created_at'},
 };
 
 async function fetchSupabase(tabla, {desde=null,hasta=null,campoFecha='fecha',limit=200000,asc=false,campos=null}={}) {
@@ -746,7 +750,7 @@ async function asegurarDatosTab(id) {
   const needEmp    = ["pt","empaque"].includes(id);
   const needWipVac = id === "wip";
   const needResumenProd = id === "reporteproduccion";
-  const needBurritos = id === "burritos";
+  const needBurritos = id === "burritos" || id === "prearmado"; // prearmado usa la misma tabla burritos (preasignadas/faltantes)
 
   // 'liberado' abarca: mes en curso (para WIP) ∪ rango del filtro (para pestaña Liberado)
   const libFrom = (desde && desde < mes1) ? desde : mes1;
@@ -822,6 +826,7 @@ function renderVista(data) {
   else if (VISTA === "pt")       renderPT();
   else if (VISTA === "empaque")  renderEmpaque();
   else if (VISTA === "burritos") renderBurritos();
+  else if (VISTA === "prearmado") renderPreArmado();
   else if (VISTA === "moldes")   renderMoldes();
   else if (VISTA === "gerencia") renderGerencia(dataLimpia);
 }
@@ -5225,6 +5230,82 @@ function verBurritosCerradosHoy() {
   document.getElementById("modal-metrica").style.display = "flex";
 }
 
+// ── Pre Armado Burritos ─────────────────────────────────────
+// Pantalla APARTE (audiencia distinta a "Burritos"): a partir del momento en que
+// ConnectIT crea el burrito (imprime su etiqueta), reparte las piezas liberadas
+// sueltas disponibles ENTRE los burritos abiertos de este mes, dando prioridad al
+// mas viejo. preasignadas = piezas ya disponibles, listas para tomar y subir.
+// faltantes = piezas que aun no se han producido/liberado. Calculado en el servidor
+// (sync_empaque.py) para que nunca se prometa la misma pieza a dos burritos.
+function renderPreArmado() {
+  document.getElementById("topbar-title").textContent = "Pre Armado Burritos";
+  const hoyD = new Date();
+  const mesActual = `${hoyD.getFullYear()}-${String(hoyD.getMonth()+1).padStart(2,'0')}`;
+
+  const filas = BURRITOS_RAW.filter(r =>
+    !r["cerrado"] && r["preasignadas"] !== "" && (r["creado_en"] || "").slice(0, 7) === mesActual
+  ).sort((a, b) => {
+    const pctA = a["piezas"] > 0 ? (a["cargadas"] + a["preasignadas"]) / a["piezas"] : 0;
+    const pctB = b["piezas"] > 0 ? (b["cargadas"] + b["preasignadas"]) / b["piezas"] : 0;
+    return pctB - pctA; // los mas cerca de completarse primero
+  });
+
+  const tot = filas.reduce((s, r) => {
+    s.piezas += r["piezas"] || 0; s.cargadas += r["cargadas"] || 0;
+    s.preasignadas += r["preasignadas"] || 0; s.faltantes += r["faltantes"] || 0;
+    return s;
+  }, { piezas: 0, cargadas: 0, preasignadas: 0, faltantes: 0 });
+
+  document.getElementById("main-content").innerHTML = `
+  <div class="metrics" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+    <div class="metric"><div class="metric-label">Burritos en pre-armado</div><div class="metric-val white">${filas.length.toLocaleString()}</div><div class="metric-sub">abiertos este mes</div></div>
+    <div class="metric"><div class="metric-label">Piezas preasignadas</div><div class="metric-val green">${tot.preasignadas.toLocaleString()}</div><div class="metric-sub">ya liberadas, listas para tomar</div></div>
+    <div class="metric"><div class="metric-label">Piezas faltantes</div><div class="metric-val amber">${tot.faltantes.toLocaleString()}</div><div class="metric-sub">aun sin producir/liberar</div></div>
+  </div>
+  <div class="table-wrap" style="overflow-x:auto">
+    <div class="table-header">
+      <div class="table-header-title">Burritos en pre-armado</div>
+      <div style="font-size:11px;color:var(--muted)">${filas.length} burritos abiertos este mes · orden de prioridad: el mas viejo (etiqueta impresa primero) se surte primero</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Cotización</th><th>UUID</th><th>Tipo</th>
+        <th style="text-align:center">Cargadas</th>
+        <th style="text-align:center">Preasignadas</th>
+        <th style="text-align:center">Faltantes</th>
+        <th style="text-align:center">Total</th>
+        <th>Avance</th>
+      </tr></thead>
+      <tbody>
+        ${filas.map(r => {
+          const total = r["piezas"] || 0;
+          const listo = (r["cargadas"] || 0) + (r["preasignadas"] || 0);
+          const pct = total > 0 ? Math.round(listo * 100 / total) : 0;
+          const barColor = pct >= 100 ? "#22c55e" : pct >= 50 ? "#f59e0b" : "#ef4444";
+          return `<tr>
+            <td class="mono">${r["orden"] || "—"}</td>
+            <td class="mono" style="font-size:10px">${r["uuid"] || "—"}</td>
+            <td>${r["tipo_paquete"] || "—"}</td>
+            <td style="text-align:center">${r["cargadas"] || 0}</td>
+            <td style="text-align:center" class="${r["preasignadas"] ? "green" : ""}">${r["preasignadas"] || 0}</td>
+            <td style="text-align:center" class="${r["faltantes"] ? "amber" : ""}">${r["faltantes"] || 0}</td>
+            <td style="text-align:center;font-weight:600">${total}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;background:rgba(255,255,255,.08);border-radius:4px;height:8px;overflow:hidden">
+                  <div style="width:${pct}%;height:100%;background:${barColor}"></div>
+                </div>
+                <span style="font-size:11px;min-width:32px;text-align:right">${pct}%</span>
+              </div>
+            </td>
+          </tr>`;
+        }).join("")}
+        ${filas.length === 0 ? `<tr><td colspan="8" class="empty">Sin burritos en pre-armado este mes</td></tr>` : ""}
+      </tbody>
+    </table>
+  </div>`;
+}
+
 // ── Asistencia por departamento (Resumen Planta) ───────────
 async function cargarAsistenciaGerencia() {
   const el = document.getElementById("asistencia-gerencia");
@@ -6132,7 +6213,7 @@ function guardarFiltros() {
   // Navegar a la vista solicitada
   const v = p.get("v");
   const vistasValidas = ["gerencia","dash","alertas","tabla","plan","comparaplanes",
-                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque","reportepintura","reporteproduccion","wip","areawip","burritos"];
+                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque","reportepintura","reporteproduccion","wip","areawip","burritos","prearmado"];
   if (v && vistasValidas.includes(v)) VISTA = v;
   // Aceptar mensajes del padre para cambiar vista sin recargar
   window.addEventListener("message", e => {
