@@ -2062,6 +2062,7 @@ async function importarBasesAlPlan() {
   );
 
   let agregados = 0, omitidos = 0;
+  const nuevosSupabase = []; // mismas filas pero en el formato de la tabla plan_diario
   _excelBasesRaw.forEach(b => {
     const dupKey = `${b.odoo}||${normMedida(b.medida)}`;
     if (yaEnPlan.has(dupKey)) { omitidos++; return; }
@@ -2079,6 +2080,12 @@ async function importarBasesAlPlan() {
       "Moldes":     b.moldes,
       "A Producir": b.piezas,
     });
+    nuevosSupabase.push({
+      fecha: hoyStr, odoo: b.odoo || null, cliente: b.cliente || null,
+      compromiso: b.compromiso || null, medida: b.medida || null, modelo: b.modelo || null,
+      lado: null, color: b.color || null, acabado: b.acabado || null,
+      total: b.total || null, moldes: b.moldes, a_producir: b.piezas,
+    });
     agregados++;
   });
 
@@ -2092,7 +2099,18 @@ async function importarBasesAlPlan() {
   if (btn) { btn.textContent = '⏳ Guardando…'; btn.disabled = true; }
 
   try {
+    // savePlanDirecto solo escribe en Google Sheets (GAS) — eso NUNCA llegaba a
+    // Supabase (plan_diario), que es de donde la app relee el plan tras un reload.
+    // Se inserta también directo en Supabase para que quede persistido de verdad.
     await savePlanDirecto();
+    for (let i = 0; i < nuevosSupabase.length; i += 500) {
+      const res = await fetch(`${SUP_URL}/rest/v1/plan_diario`, {
+        method: 'POST',
+        headers: {apikey:SUP_KEY, Authorization:`Bearer ${SUP_KEY}`, 'Content-Type':'application/json', Prefer:'return=minimal'},
+        body: JSON.stringify(nuevosSupabase.slice(i, i+500)),
+      });
+      if (!res.ok) throw new Error(`Supabase respondió ${res.status} al insertar bases en plan_diario`);
+    }
     const msg = `✅ ${agregados} base${agregados>1?'s':''} importada${agregados>1?'s':''} al plan de hoy` +
                 (omitidos ? ` (${omitidos} ya existían)` : '');
     // Pequeño banner de confirmación
