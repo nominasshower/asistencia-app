@@ -33,6 +33,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .content{padding:20px 24px;}
 input[type=date]{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;}
 input[type=date]:focus{border-color:var(--accent2);}
+.input{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;}
+.input:focus{border-color:var(--accent2);}
 .btn{font-size:12px;padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px;font-family:'DM Sans',sans-serif;transition:all .15s;}
 .btn:hover{background:var(--bg);border-color:rgba(255,255,255,.15);}
 .btn-green{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600;}
@@ -225,6 +227,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <div class="nav-item" id="nav-prearmado" onclick="navegar('prearmado',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       Pre Armado Burritos
+    </div>
+    <div class="nav-item" id="nav-trazabilidad" onclick="navegar('trazabilidad',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Trazabilidad
     </div>
   </div>
   <div class="nav-group">
@@ -841,6 +847,7 @@ function renderVista(data) {
   else if (VISTA === "empaque")  renderEmpaque();
   else if (VISTA === "burritos") renderBurritos();
   else if (VISTA === "prearmado") renderPreArmado();
+  else if (VISTA === "trazabilidad") renderTrazabilidad();
   else if (VISTA === "moldes")   renderMoldes();
   else if (VISTA === "gerencia") renderGerencia(dataLimpia);
 }
@@ -5492,6 +5499,151 @@ function verPreArmadoSpecs(campo) {
   document.getElementById("modal-metrica").style.display = "flex";
 }
 
+// ── Trazabilidad (consulta en vivo directo a ConnectIT) ────
+// A diferencia del resto de la app (que lee de Supabase, sincronizado cada
+// pocos minutos), esta pestaña consulta DIRECTO al API de ConnectIT en el
+// servidor ares para ver el estado real al segundo — pensada para checar
+// varias veces al día si una orden ya terminó de vaciarse/empacarse.
+// Requiere estar en la red de planta (el API no es accesible desde internet).
+const TRAZA_API = "http://showerwalls-api.connectit.ares/api/trazabilidad/reporte";
+let _trazaUltimoResultado = null;
+
+function renderTrazabilidad() {
+  document.getElementById("topbar-title").textContent = "Trazabilidad";
+  document.getElementById("topbar-sub").textContent = "Consulta en vivo a ConnectIT — requiere red de planta";
+  const hoy = new Date();
+  const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+  const haceUnMes = new Date(hoy); haceUnMes.setMonth(haceUnMes.getMonth()-1);
+  const haceUnMesStr = `${haceUnMes.getFullYear()}-${String(haceUnMes.getMonth()+1).padStart(2,'0')}-${String(haceUnMes.getDate()).padStart(2,'0')}`;
+
+  document.getElementById("main-content").innerHTML = `
+  <div class="table-wrap" style="padding:18px;margin-bottom:16px">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Desde</label>
+        <input type="date" id="tz-desde" value="${haceUnMesStr}" class="input"></div>
+      <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Hasta</label>
+        <input type="date" id="tz-hasta" value="${hoyStr}" class="input"></div>
+      <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Modelo (patrón)</label>
+        <input type="text" id="tz-patron" placeholder='ej. INTERVAL (IA)' class="input" style="width:220px"></div>
+      <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Ancho</label>
+        <input type="number" id="tz-ancho" placeholder="36" class="input" style="width:80px"></div>
+      <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Alto</label>
+        <input type="number" id="tz-alto" placeholder="96" class="input" style="width:80px"></div>
+      <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Color</label>
+        <input type="text" id="tz-color" placeholder="SOLID WHITE" class="input" style="width:160px"></div>
+      <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Acabado</label>
+        <select id="tz-acabado" class="input">
+          <option value="">(todos)</option>
+          <option value="Mate">Mate</option>
+          <option value="Brillo">Brillo</option>
+          <option value="Metal">Metal</option>
+          <option value="NA">NA</option>
+        </select></div>
+      <button class="btn btn-green" onclick="buscarTrazabilidad()">🔍 Buscar</button>
+    </div>
+  </div>
+  <div id="tz-resultado"></div>`;
+}
+
+async function buscarTrazabilidad() {
+  const patron = document.getElementById("tz-patron").value.trim();
+  const ancho = document.getElementById("tz-ancho").value.trim();
+  const alto = document.getElementById("tz-alto").value.trim();
+  const color = document.getElementById("tz-color").value.trim();
+  const acabado = document.getElementById("tz-acabado").value;
+  const desde = document.getElementById("tz-desde").value;
+  const hasta = document.getElementById("tz-hasta").value;
+  const out = document.getElementById("tz-resultado");
+
+  if (!patron || !ancho || !alto || !color || !desde || !hasta) {
+    out.innerHTML = `<div class="empty" style="padding:20px">Completa modelo, ancho, alto, color y fechas.</div>`;
+    return;
+  }
+
+  out.innerHTML = `<div class="loading"><div class="spinner"></div><div>Consultando ConnectIT en vivo…</div></div>`;
+
+  const qs = new URLSearchParams({ patron, ancho, alto, color, acabado, desde, hasta });
+  try {
+    const res = await fetch(`${TRAZA_API}?${qs.toString()}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.Error) throw new Error(json.Error);
+    _trazaUltimoResultado = json.Data;
+    renderResultadoTrazabilidad(json.Data);
+  } catch (e) {
+    out.innerHTML = `<div class="loading" style="color:var(--danger)">
+      No se pudo consultar ConnectIT.<br>
+      <span style="font-size:10px;color:var(--muted);margin-top:4px;display:block">${e.message} — ¿estás conectado a la red de planta?</span>
+    </div>`;
+  }
+}
+
+function chipClasif(c) {
+  const map = {
+    vinculada: ["vinculada", "green"],
+    en_inventario_sin_orden: ["en inventario", "amber"],
+    grado_c: ["grado c", ""],
+    sin_rastro: ["sin rastro", "red"],
+  };
+  const [txt, cls] = map[c] || [c, ""];
+  return `<span class="badge ${cls === "green" ? "b-a" : cls === "amber" ? "b-b" : cls === "red" ? "b-c" : ""}">${txt}</span>`;
+}
+
+function renderResultadoTrazabilidad(data) {
+  const out = document.getElementById("tz-resultado");
+  const { piezas, resumen_por_patron, ordenes } = data;
+
+  if (!piezas.length) {
+    out.innerHTML = `<div class="empty" style="padding:20px">Sin piezas vaciadas para esa especificación en el rango de fechas.</div>`;
+    return;
+  }
+
+  const ordenesHTML = ordenes.length ? `
+    <div class="table-wrap" style="margin-bottom:16px">
+      <div class="table-header"><div class="table-header-title">Órdenes con piezas ligadas</div></div>
+      <table><thead><tr><th>No. Cotización</th><th>Cliente</th><th>PO Cliente</th><th style="text-align:center">Piezas ligadas</th></tr></thead>
+      <tbody>${ordenes.map(o => `<tr>
+        <td class="mono">${o.quotation_number}</td>
+        <td>${o.cliente || "—"}</td>
+        <td>${o.client_po || "—"}</td>
+        <td style="text-align:center;font-weight:600" class="green">${o.piezas_ligadas}</td>
+      </tr>`).join("")}</tbody></table>
+    </div>` : `<div class="empty" style="padding:12px;margin-bottom:16px">Ninguna pieza de este rango está ligada a una orden todavía.</div>`;
+
+  const resumenHTML = resumen_por_patron.map(r => `
+    <div class="metrics" style="grid-template-columns:repeat(5,1fr);margin-bottom:10px">
+      <div class="metric"><div class="metric-label">${r.patron}</div><div class="metric-val white">${r.vaciadas}</div><div class="metric-sub">vaciadas</div></div>
+      <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-val green">${r.vinculada}</div><div class="metric-sub">vinculadas a orden</div></div>
+      <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-val amber">${r.en_inventario_sin_orden}</div><div class="metric-sub">en inventario, sin orden</div></div>
+      <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-val">${r.grado_c}</div><div class="metric-sub">grado C</div></div>
+      <div class="metric"><div class="metric-label">&nbsp;</div><div class="metric-val red">${r.sin_rastro}</div><div class="metric-sub">sin rastro</div></div>
+    </div>`).join("");
+
+  const porPatron = {};
+  piezas.forEach(p => { (porPatron[p.patron] = porPatron[p.patron] || []).push(p); });
+  const orden = { sin_rastro: 0, en_inventario_sin_orden: 1, vinculada: 2, grado_c: 3 };
+  const tablasHTML = Object.entries(porPatron).map(([patron, lista]) => {
+    const sorted = [...lista].sort((a, b) => orden[a.clasificacion] - orden[b.clasificacion] || (a.fecha_vaciado||"").localeCompare(b.fecha_vaciado||""));
+    return `
+    <div class="table-wrap" style="margin-bottom:16px">
+      <div class="table-header"><div class="table-header-title">${patron}</div><div style="font-size:11px;color:var(--muted)">${lista.length} piezas</div></div>
+      <table><thead><tr><th>SKU</th><th>Estado</th><th>Vaciado</th><th>Rastreo</th><th>Destino</th></tr></thead>
+      <tbody>${sorted.map(p => `<tr>
+        <td class="mono">${p.sku}</td>
+        <td>${p.estado}</td>
+        <td class="mono">${p.fecha_vaciado || "—"}</td>
+        <td>${chipClasif(p.clasificacion)}</td>
+        <td>${p.clasificacion === "vinculada" ? `${p.quotation_number} · ${p.cliente || ""}`
+             : p.clasificacion === "grado_c" ? `scrap ${p.date_scrap || ""}`
+             : p.clasificacion === "en_inventario_sin_orden" ? "en acabado, sin burrito aún"
+             : `estado=${p.estado}, sin inventario ni burrito`}</td>
+      </tr>`).join("")}</tbody></table>
+    </div>`;
+  }).join("");
+
+  out.innerHTML = ordenesHTML + resumenHTML + tablasHTML;
+}
+
 // ── Asistencia por departamento (Resumen Planta) ───────────
 async function cargarAsistenciaGerencia() {
   const el = document.getElementById("asistencia-gerencia");
@@ -6399,7 +6551,7 @@ function guardarFiltros() {
   // Navegar a la vista solicitada
   const v = p.get("v");
   const vistasValidas = ["gerencia","dash","alertas","tabla","plan","comparaplanes",
-                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque","reportepintura","reporteproduccion","wip","areawip","burritos","prearmado"];
+                         "moldes","ventas","gantt","ganttmoldes","liberado","pt","empaque","reportepintura","reporteproduccion","wip","areawip","burritos","prearmado","trazabilidad"];
   if (v && vistasValidas.includes(v)) VISTA = v;
   // Aceptar mensajes del padre para cambiar vista sin recargar
   window.addEventListener("message", e => {
