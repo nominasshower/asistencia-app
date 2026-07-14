@@ -5333,7 +5333,8 @@ function mergeDetalleBurritos(lista) {
   return Object.values(porSpec);
 }
 
-function tablaDetalleSpecsHTML(specs, ordenarPor) {
+function tablaDetalleSpecsHTML(specs, ordenarPor, labelFaltantes) {
+  labelFaltantes = labelFaltantes || "Faltantes";
   const sorted = [...specs].sort((a, b) => (b[ordenarPor] || 0) - (a[ordenarPor] || 0));
   return `
   <table style="width:100%;border-collapse:collapse">
@@ -5346,7 +5347,7 @@ function tablaDetalleSpecsHTML(specs, ordenarPor) {
       <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cantidad</th>
       <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cargadas</th>
       <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Preasignadas</th>
-      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Faltantes</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">${labelFaltantes}</th>
     </tr></thead>
     <tbody>
       ${sorted.map(d => `<tr>
@@ -5405,7 +5406,7 @@ function renderPreArmado() {
   <div class="metrics" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
     <div class="metric" style="cursor:pointer" onclick="verPreArmadoBurritos()"><div class="metric-label">Burritos en pre-armado</div><div class="metric-val white">${burritos.length.toLocaleString()}</div><div class="metric-sub">abiertos este mes · clic para ver el detalle</div></div>
     <div class="metric" style="cursor:pointer" onclick="verPreArmadoSpecs('preasignadas')"><div class="metric-label">Piezas preasignadas</div><div class="metric-val green">${tot.preasignadas.toLocaleString()}</div><div class="metric-sub">ya liberadas, listas para tomar · clic para ver el detalle</div></div>
-    <div class="metric" style="cursor:pointer" onclick="verPreArmadoSpecs('faltantes')"><div class="metric-label">Piezas faltantes</div><div class="metric-val amber">${tot.faltantes.toLocaleString()}</div><div class="metric-sub">aun sin producir/liberar · clic para ver el detalle</div></div>
+    <div class="metric" style="cursor:pointer" onclick="verPreArmadoSpecs('faltantes')"><div class="metric-label">Piezas por asignar</div><div class="metric-val amber">${tot.faltantes.toLocaleString()}</div><div class="metric-sub">aun sin producir/liberar · clic para ver el detalle</div></div>
   </div>
   <div class="table-wrap" style="overflow-x:auto">
     <div class="table-header">
@@ -5417,7 +5418,7 @@ function renderPreArmado() {
         <th>Cotización</th><th>Cliente</th><th>PO Cliente</th>
         <th style="text-align:center">Cargadas</th>
         <th style="text-align:center">Preasignadas</th>
-        <th style="text-align:center">Faltantes</th>
+        <th style="text-align:center">Por Asignar</th>
         <th style="text-align:center">Total</th>
         <th>Avance</th>
       </tr></thead>
@@ -5455,7 +5456,7 @@ function verDetallePreArmado(orden) {
   if (!o) return;
   const specs = mergeDetalleBurritos(o.burritos);
   document.getElementById("modal-metrica-title").textContent = `${orden} — ${o.burritos.length} burritos abiertos · ${specs.length} especificaciones`;
-  document.getElementById("modal-metrica-body").innerHTML = tablaDetalleSpecsHTML(specs, "cantidad");
+  document.getElementById("modal-metrica-body").innerHTML = tablaDetalleSpecsHTML(specs, "cantidad", "Por Asignar");
   document.getElementById("modal-metrica").style.display = "flex";
 }
 
@@ -5471,7 +5472,7 @@ function verPreArmadoBurritos() {
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Tipo</th>
       <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Cargadas</th>
       <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Preasignadas</th>
-      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Faltantes</th>
+      <th style="padding:8px 12px;text-align:center;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Por Asignar</th>
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border)">Creado</th>
     </tr></thead>
     <tbody>
@@ -5492,9 +5493,9 @@ function verPreArmadoBurritos() {
 function verPreArmadoSpecs(campo) {
   const lista = window._preArmadoBurritos || [];
   const specs = mergeDetalleBurritos(lista).filter(d => (d[campo] || 0) > 0);
-  const titulo = campo === "preasignadas" ? "Piezas preasignadas por especificación" : "Piezas faltantes por especificación";
+  const titulo = campo === "preasignadas" ? "Piezas preasignadas por especificación" : "Piezas por asignar por especificación";
   document.getElementById("modal-metrica-title").textContent = `${titulo} — ${specs.length} especificaciones`;
-  document.getElementById("modal-metrica-body").innerHTML = tablaDetalleSpecsHTML(specs, campo);
+  document.getElementById("modal-metrica-body").innerHTML = tablaDetalleSpecsHTML(specs, campo, "Por Asignar");
   document.getElementById("modal-metrica").style.display = "flex";
 }
 
