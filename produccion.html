@@ -1389,6 +1389,31 @@ function renderComparaPlan() {
 
   const hoyStr  = new Date().toISOString().slice(0,10);
 
+  // Restaurar el Excel cargado si se perdió por un reload de página (F5, cerrar/
+  // abrir pestaña, etc.) — antes esto obligaba a subir el plan otra vez aunque ya
+  // se hubiera cargado en la mañana. Solo válido para el mismo día (LOCAL_KEY_COMPARA).
+  if (!_excelPlanCargado) {
+    try {
+      const guardado = JSON.parse(localStorage.getItem('comparaPlanEstado') || 'null');
+      if (guardado && guardado.fecha === hoyStr) {
+        _excelPlanCargado = guardado.excelPlanCargado;
+        _excelPlanFecha   = guardado.excelPlanFecha;
+        _excelBasesRaw    = guardado.excelBasesRaw;
+        _planAppAntes     = guardado.planAppAntes;
+      }
+    } catch(e) { /* localStorage corrupto/no disponible: se pedirá subir de nuevo */ }
+  }
+  // Mantener localStorage al día mientras haya un plan cargado (idempotente si
+  // acaba de restaurarse arriba) — así cualquier reload dentro del mismo día recupera esto.
+  if (_excelPlanCargado) {
+    try {
+      localStorage.setItem('comparaPlanEstado', JSON.stringify({
+        fecha: hoyStr, excelPlanCargado: _excelPlanCargado, excelPlanFecha: _excelPlanFecha,
+        excelBasesRaw: _excelBasesRaw, planAppAntes: _planAppAntes,
+      }));
+    } catch(e) { /* localStorage lleno: no bloquear la pantalla por esto */ }
+  }
+
   // Plan ANTERIOR para hoy: la foto pre-guardado si existe, si no el plan actual
   const planApp = _planAppAntes || agruparPlanApp(hoyStr);
 
