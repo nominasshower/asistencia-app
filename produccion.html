@@ -547,6 +547,8 @@ let LIB_RAW   = [];   // hoja liberado (cargado lazy: mes en curso ∪ rango fil
 let PT_RAW    = [];   // hoja PT (cargado lazy al abrir pestaña PT/Empaque)
 let EMP_RAW   = [];   // hoja Empaque (cargado lazy)
 let WIPVAC_RAW = [];  // vaciados del mes en curso — solo para WIP (no pisa VAC_RAW del filtro)
+let VAC_AYER_RAW = []; // vaciados de una ventana fija de dias recientes — solo para Comparar Planes
+                       // (independiente del filtro Desde/Hasta, que puede excluir "ayer" si esta en "hoy")
 let RESUMEN_PROD_RAW = []; // resumen_produccion (cargado al abrir Reporte de Producción)
 let RPT_VAC_HOY  = [];     // vaciados del día elegido en Reporte de Producción (ignora filtro global)
 let RPT_INSP_HOY = [];     // inspeccion del día elegido en Reporte de Producción (ignora filtro global)
@@ -792,6 +794,18 @@ async function asegurarDatosTab(id) {
   if (needBurritos && !_lazy.burritos)
     jobs.push(fetchSupabase("burritos",{campoFecha:"creado_en"})
       .then(d => { BURRITOS_RAW = d; _lazy.burritos = true; }).catch(()=>{}));
+  // Comparar Planes necesita el vaciado de "ayer" SIEMPRE, sin importar qué
+  // rango tenga el filtro Desde/Hasta de arriba (si el filtro es solo "hoy",
+  // VAC_RAW nunca trae ayer y la columna "vaciado ayer" sale vacía). Se trae
+  // fresco cada vez que se abre la pestaña (ventana fija de 6 días atrás).
+  if (id === "comparaplanes") {
+    const hoyDate = new Date();
+    const ayerDate = new Date(hoyDate); ayerDate.setDate(ayerDate.getDate() - 1);
+    const desdeDate = new Date(hoyDate); desdeDate.setDate(desdeDate.getDate() - 6);
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    jobs.push(fetchSupabase("vaciados",{desde:fmt(desdeDate),hasta:fmt(ayerDate)})
+      .then(d => { VAC_AYER_RAW = d; }).catch(()=>{}));
+  }
 
   if (jobs.length) {
     document.getElementById("main-content").innerHTML =
@@ -1397,7 +1411,9 @@ function renderComparaPlan() {
       if (!patronAyer[fk]) patronAyer[fk] = r["Modelo"]||"";
       if (!odooAyer[fk] && r["Odoo"]) odooAyer[fk] = r["Odoo"];
     });
-    VAC_RAW.forEach(r => {
+    // Ojo: VAC_AYER_RAW (no VAC_RAW) — VAC_RAW solo trae lo que cubra el filtro
+    // Desde/Hasta de arriba, que si está en "hoy" nunca incluye el día de ayer.
+    VAC_AYER_RAW.forEach(r => {
       if ((r["Fecha"]||"").slice(0,10) !== ayerStr) return;
       if (r["Es Grado C"] === true || r["Es Grado C"] === "SI") return;
       const sku = (r["SKU"]||"").trim().toUpperCase();
