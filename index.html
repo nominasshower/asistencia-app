@@ -1687,6 +1687,7 @@ let mwPremios  = null;
 let mwVales    = null;
 let mwEmps     = null;
 let _layoutFile= null;
+const _catCache = {};
 
 // ── helpers de semana ──────────────────────────────────────────
 function getSemImp(offset) {
@@ -1709,9 +1710,15 @@ const MESES_C = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','No
 function fmtC(d) { return `${d.getDate()} ${MESES_C[d.getMonth()]}`; }
 
 // ── cargar catálogos PREMIOS / VALES / EMPLEADOS ──────────────
-async function cargarMW() {
-  if (mwPremios && mwVales && mwEmps) return;
-  const base = `https://sheets.googleapis.com/v4/spreadsheets/${MW_ID}/values/`;
+async function cargarCatalogos(sheetId) {
+  if (_catCache[sheetId]) {
+    mwPremios = _catCache[sheetId].premios;
+    mwVales   = _catCache[sheetId].vales;
+    mwEmps    = _catCache[sheetId].emps;
+    return;
+  }
+  mwPremios = null; mwVales = null; mwEmps = null;
+  const base = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/`;
   const [rP, rV, rE] = await Promise.all([
     fetch(`${base}PREMIOS?key=${API_KEY}`).then(r => r.json()),
     fetch(`${base}VALES?key=${API_KEY}`).then(r  => r.json()),
@@ -1750,6 +1757,7 @@ async function cargarMW() {
                     area:(r[iA]||'').trim() };
     });
   }
+  _catCache[sheetId] = { premios: mwPremios, vales: mwVales, emps: mwEmps };
 }
 function bPremio(n) {
   return mwPremios?.[n] || mwPremios?.[n.replace(/^0+/,'')||'0'] || mwPremios?.[n.padStart(4,'0')] || {punt:0,asi:0};
@@ -1796,10 +1804,11 @@ async function generarLayoutJS(empresa) {
   const { anio, num } = getNumSemImp(jue);
   const desde = toISO(jue), hasta = toISO(mie);
 
-  await cargarMW();
+  const sheetId = EMPRESAS[empresaActual]?.sheets_id || MW_ID;
+  await cargarCatalogos(sheetId);
 
   // Fetch REGISTROS de la semana
-  const base  = `https://sheets.googleapis.com/v4/spreadsheets/${MW_ID}/values/`;
+  const base  = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/`;
   const rReg  = await fetch(`${base}REGISTROS?key=${API_KEY}`).then(r => r.json());
   const rh    = (rReg.values?.[0]||[]).map(x => x.trim().toLowerCase());
   const [riN,riFe,riEn,riSa,riRet] = ['nomina','fecha','entrada_real','salida_real','minutos_retardo'].map(k=>rh.indexOf(k));
@@ -1853,14 +1862,16 @@ async function generarLayoutJS(empresa) {
     });
     horasT = Math.round(horasT*100)/100;
     const pr=bPremio(nom), va=bVale(nom);
-    const conVals=[[4,horasT],[16,va],[19,va],[6,retardos*3],[38,retardos],[10,0],[40,0],[44,pr.punt],[9,pr.asi]];
+    const puntVal = (horasT >= 47.5 && retardos === 0) ? pr.punt : 0;
+    const asiVal  =  horasT >= 47.5                    ? pr.asi  : 0;
+    const conVals=[[4,horasT],[16,va],[19,va],[6,retardos*3],[38,retardos],[10,0],[40,0],[44,puntVal],[9,asiVal]];
     const row=Array(NC).fill(null);
     row[0]=area; row[1]=nombre; row[2]=nom;
     conVals.forEach(([c,v],i)=>{ row[4+i*2]=c; row[5+i*2]=v; });
     hDia.forEach((h,i)=>{ row[25+i]=h||0; });
     row[31]=horasT; row[32]=retardos;
     aoa.push(row);
-    tH+=horasT; tV+=va; tP+=pr.punt; tA+=pr.asi; tR+=retardos;
+    tH+=horasT; tV+=va; tP+=puntVal; tA+=asiVal; tR+=retardos;
   }
   // Total
   const tot=Array(NC).fill(null);
@@ -1900,8 +1911,11 @@ function procesarLayoutJS(file) {
       // Empresa del titulo
       const tit = String(aoa[0]?.[0]||'').toUpperCase();
       let empresa = 'EMPRESA';
-      if (tit.includes('PROMOV'))  empresa = 'PROMOVISION';
+      if      (tit.includes('PROMOV'))                       empresa = 'PROMOVISION';
+      else if (tit.includes('MODULAR'))                      empresa = 'MODULAR';
       else if (tit.includes('MODUL')||tit.includes('WOODS')) empresa = 'MODUL WOODS';
+      else if (tit.includes('SHOWER'))                       empresa = 'SHOWER WALLS';
+      else if (tit.includes('KUARTZ'))                       empresa = 'KUARTZ';
 
       // Semana / año
       let anio = new Date().getFullYear(), numSem = 0;
@@ -1995,16 +2009,19 @@ function renderImportador() {
       <button class="btn" onclick="setImpOff(0)">Actual</button>
     </div>`;
 
+  const _svgDl = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+  const _layBtns = {
+    woods:   [['MODUL WOODS','imp-mw','rgba(34,197,94,.12)','#4ade80','rgba(34,197,94,.25)'],
+              ['PROMOVISION','imp-pv','rgba(59,130,246,.12)','#60a5fa','rgba(59,130,246,.25)']],
+    modular: [['MODULAR','imp-mo','rgba(34,197,94,.12)','#4ade80','rgba(34,197,94,.25)']],
+    shower:  [['SHOWER WALLS','imp-sh','rgba(168,85,247,.12)','#c084fc','rgba(168,85,247,.25)']],
+    kuartz:  [['KUARTZ','imp-ku','rgba(249,115,22,.12)','#fb923c','rgba(249,115,22,.25)']],
+  };
   const paso1body = semWid + `
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn" id="imp-mw" style="background:rgba(34,197,94,.12);color:#4ade80;border-color:rgba(34,197,94,.25)" onclick="dlLayout('MODUL WOODS')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Layout MODUL WOODS
-      </button>
-      <button class="btn" id="imp-pv" style="background:rgba(59,130,246,.12);color:#60a5fa;border-color:rgba(59,130,246,.25)" onclick="dlLayout('PROMOVISION')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Layout PROMOVISION
-      </button>
+      ${(_layBtns[empresaActual]||_layBtns.woods).map(([lbl,id,bg,col,bc])=>
+        `<button class="btn" id="${id}" style="background:${bg};color:${col};border-color:${bc}" onclick="dlLayout('${lbl}')">${_svgDl} Layout ${lbl}</button>`
+      ).join('')}
     </div>
     <div id="st-layout"></div>
     <div style="margin-top:14px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:11px 14px;font-size:11px;color:var(--muted);line-height:1.8">
@@ -2062,7 +2079,8 @@ function cambImpOff(d) {
 function setImpOff(v) { impOffset=v; cambImpOff(0); }
 
 async function dlLayout(empresa) {
-  const btn = document.getElementById(empresa.includes('PROM')?'imp-pv':'imp-mw');
+  const _idMap = {'MODUL WOODS':'imp-mw','PROMOVISION':'imp-pv','MODULAR':'imp-mo','SHOWER WALLS':'imp-sh','KUARTZ':'imp-ku'};
+  const btn = document.getElementById(_idMap[empresa]);
   if (btn) btn.disabled = true;
   stImp('st-layout','loading','Cargando datos desde Google Sheets...');
   try {
