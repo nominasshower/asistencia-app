@@ -66,7 +66,10 @@ function altaEmpleado(data) {
     'turno':           data.turno      || '',
     'area':            data.area       || '',
     'sexo':            data.sexo       || '',
-    'fecha_alta':      Utilities.formatDate(new Date(), 'America/Mexico_City', 'dd/MM/yyyy')
+    'fecha_alta':      Utilities.formatDate(new Date(), 'America/Mexico_City', 'dd/MM/yyyy'),
+    'vale_importe':    data.vale_importe  || 0,
+    'puntualidad_5':   data.puntualidad_5 || 0,
+    'asistencia_10':   data.asistencia_10 || 0
   };
 
   headers.forEach(function(h, idx) {

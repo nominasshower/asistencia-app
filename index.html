@@ -1092,6 +1092,18 @@ async function renderAltaEmpleado() {
                 <option value="Q">Quincenal (Q)</option>
               </select>
             </div>
+            <div>
+              <label style="${lbl}">Vale Importe ($)</label>
+              <input type="number" id="f-vale" min="0" step="0.01" style="${inp}" placeholder="0.00" value="0">
+            </div>
+            <div>
+              <label style="${lbl}">Premio Puntualidad 5% ($)</label>
+              <input type="number" id="f-punt" min="0" step="0.01" style="${inp}" placeholder="0.00" value="0">
+            </div>
+            <div>
+              <label style="${lbl}">Premio Asistencia 10% ($)</label>
+              <input type="number" id="f-asi" min="0" step="0.01" style="${inp}" placeholder="0.00" value="0">
+            </div>
           </div>
 
           <div id="alta-msg" style="display:none;margin-bottom:12px"></div>
@@ -1145,9 +1157,12 @@ async function guardarEmpleado(e) {
     area:        document.getElementById("f-area").value,
     puesto:      document.getElementById("f-puesto").value.trim(),
     turno:       document.getElementById("f-turno").value,
-    mano_obra:   document.getElementById("f-mano").value,
-    tipo_nomina: document.getElementById("f-tipo").value,
-    sexo:        document.getElementById("f-sexo").value
+    mano_obra:    document.getElementById("f-mano").value,
+    tipo_nomina:  document.getElementById("f-tipo").value,
+    sexo:         document.getElementById("f-sexo").value,
+    vale_importe: parseFloat(document.getElementById("f-vale").value) || 0,
+    puntualidad_5: parseFloat(document.getElementById("f-punt").value) || 0,
+    asistencia_10: parseFloat(document.getElementById("f-asi").value) || 0
   };
 
   try {
@@ -1749,12 +1764,21 @@ async function cargarCatalogos(sheetId) {
     const h = rE.values[0].map(x => x.trim().toLowerCase());
     const iN=idx(h,'nomina'), iNm=idx(h,'nombe','nombre'), iEm=idx(h,'empresa');
     const iA=idx(h,'area'), iB=idx(h,'fecha_baja'), iR=idx(h,'fecha_reingreso');
+    const iVi=idx(h,'vale_importe'), iP5=idx(h,'puntualidad_5'), iA10=idx(h,'asistencia_10');
     rE.values.slice(1).forEach(r => {
       const n = (r[iN]||'').trim(); if (!n) return;
       const baja = (r[iB]||'').trim(); const rein = (r[iR]||'').trim();
       if (baja && !rein) return;
       mwEmps[n] = { nombre:(r[iNm]||'').trim(), empresa:(r[iEm]||'').toUpperCase(),
                     area:(r[iA]||'').trim() };
+      // Leer vale/premios de EMPLEADOS si no vinieron de las hojas VALES/PREMIOS
+      if (iVi >= 0 && !mwVales[n])  { const v=+r[iVi]||0; if (v) mwVales[n]=v; }
+      if (iP5 >= 0 || iA10 >= 0) {
+        if (!mwPremios[n]) {
+          const p=iP5>=0?+r[iP5]||0:0, a=iA10>=0?+r[iA10]||0:0;
+          if (p||a) mwPremios[n]={punt:p, asi:a};
+        }
+      }
     });
   }
   _catCache[sheetId] = { premios: mwPremios, vales: mwVales, emps: mwEmps };
