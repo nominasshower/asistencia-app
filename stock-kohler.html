@@ -100,6 +100,8 @@ tbody tr:hover{background:var(--surface-2)}
 td{padding:13px 18px;vertical-align:middle}
 td.r{text-align:right}
 .spec-modelo{font-size:13px;font-weight:600;color:var(--text);line-height:1.3}
+.client-sku{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap}
+.client-sku.none{color:var(--muted);font-weight:400}
 .spec-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10.5px;background:var(--surface-2);border:1px solid var(--border);color:var(--muted);white-space:nowrap}
 .done-badge{display:inline-block;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--good-bg);color:var(--good);letter-spacing:.04em;text-transform:uppercase}
@@ -172,6 +174,7 @@ const HDR = { apikey: KEY, Authorization: 'Bearer ' + KEY };
 
 let QUOTES  = {};
 let activeQ = null;
+let SKU_CLIENTE = {};   // sku_interno (WA.../AC...) -> SKU del cliente (2o corchete de pieza_desc en Odoo)
 
 async function api(path) {
   const r = await fetch(SUP + '/rest/v1/' + path, { headers: HDR });
@@ -263,6 +266,7 @@ function renderDetail(q) {
     const p   = pct(r.en_prearmado, r.pedidas);
     const fal = (r.pedidas || 0) - (r.en_prearmado || 0);
     const done = p === 100;
+    const cSku = SKU_CLIENTE[(r.sku_interno || '').toUpperCase()] || '';
     return `<tr>
       <td>
         <div class="spec-modelo">${r.patron}</div>
@@ -273,6 +277,7 @@ function renderDetail(q) {
           ${done ? '<span class="done-badge">Complete</span>' : ''}
         </div>
       </td>
+      <td><span class="client-sku${cSku ? '' : ' none'}">${cSku || '—'}</span></td>
       <td><div class="prog-wrap">
         <div class="prog-track"><div class="prog-fill${done ? ' done' : ''}" style="width:${p}%"></div></div>
         <div class="prog-pct${done ? ' done' : ''}">${p}%</div>
@@ -305,6 +310,7 @@ function renderDetail(q) {
         <table>
           <thead><tr>
             <th>Model / Specification</th>
+            <th>Client SKU</th>
             <th>Progress</th>
             <th class="r">Ordered</th>
             <th class="r">In Stock</th>
@@ -332,6 +338,16 @@ async function init() {
       if (!QUOTES[r.quotation_number]) QUOTES[r.quotation_number] = [];
       QUOTES[r.quotation_number].push(r);
     });
+
+    // SKU del cliente (KOHLER): viene en el nombre del producto de Odoo, entre el
+    // 2o par de corchetes de pieza_desc. Se une con el SKU interno (via_code / pieza_sku).
+    try {
+      const vp = await api('ventas_piezas?cliente=ilike.*KOHLER*&select=pieza_sku,pieza_desc');
+      vp.forEach(r => {
+        const m = (r.pieza_desc || '').match(/^\[[^\]]+\]\s*\[([^\]]+)\]/);
+        if (r.pieza_sku && m) SKU_CLIENTE[r.pieza_sku.toUpperCase()] = m[1];
+      });
+    } catch (e) { /* si falla, la columna queda vacia, no rompe el reporte */ }
 
     const qs = Object.keys(QUOTES).sort();
     if (!qs.length) {
