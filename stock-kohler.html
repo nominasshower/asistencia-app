@@ -327,7 +327,7 @@ function selectQ(q) {
 
 async function init() {
   try {
-    const rows = await api('prearmado_reporte?order=quotation_number,patron,color,acabado,width,height');
+    const rows = await api('prearmado_reporte?cliente=ilike.*KOHLER*&order=quotation_number,patron,color,acabado,width,height');
     rows.forEach(r => {
       if (!QUOTES[r.quotation_number]) QUOTES[r.quotation_number] = [];
       QUOTES[r.quotation_number].push(r);
