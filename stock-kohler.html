@@ -1,81 +1,37 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en" translate="no">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="google" content="notranslate">
 <title>Stock KOHLER — Shower Walls</title>
 <style>
-/* ── TOKENS ─────────────────────────────────────────────────── */
 :root {
-  --bg:          #F4F6FA;
-  --surface:     #FFFFFF;
-  --surface-2:   #EDF0F7;
-  --border:      #DDE2EE;
-  --text:        #0D1520;
-  --muted:       #68788D;
-  --accent:      #1B4F72;
-  --accent-mid:  #2471A3;
-  --accent-dim:  rgba(27,79,114,.09);
-  --track:       #DDE2EE;
-  --bar:         #1B4F72;
-  --good:        #146B3A;
-  --good-bg:     rgba(20,107,58,.08);
-  --good-bar:    #22A05A;
-  --warn:        #A64500;
-  --warn-bg:     rgba(166,69,0,.08);
-  --hdr:         #0C2C44;
-  --hdr-text:    #EDF3FA;
-  --hdr-sub:     #7DAECB;
-  --shadow:      0 1px 3px rgba(13,21,32,.07), 0 4px 12px rgba(13,21,32,.04);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg:         #090D14;
-    --surface:    #0F1620;
-    --surface-2:  #16202E;
-    --border:     #1C2B3C;
-    --text:       #DDE7F3;
-    --muted:      #7A8EA5;
-    --accent:     #4292CA;
-    --accent-mid: #5AAAD8;
-    --accent-dim: rgba(66,146,202,.12);
-    --track:      #1C2B3C;
-    --bar:        #4292CA;
-    --good:       #22C55E;
-    --good-bg:    rgba(34,197,94,.10);
-    --good-bar:   #22C55E;
-    --warn:       #FB923C;
-    --warn-bg:    rgba(251,146,60,.10);
-    --hdr:        #060D16;
-    --hdr-text:   #DDE7F3;
-    --hdr-sub:    #6A90B0;
-    --shadow:     0 1px 3px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.2);
-  }
-}
-:root[data-theme="light"] {
   --bg:#F4F6FA;--surface:#FFFFFF;--surface-2:#EDF0F7;--border:#DDE2EE;
   --text:#0D1520;--muted:#68788D;--accent:#1B4F72;--accent-mid:#2471A3;
-  --accent-dim:rgba(27,79,114,.09);--track:#DDE2EE;--bar:#1B4F72;
+  --accent-dim:rgba(27,79,114,.10);--track:#DDE2EE;--bar:#1B4F72;
   --good:#146B3A;--good-bg:rgba(20,107,58,.08);--good-bar:#22A05A;
-  --warn:#A64500;--warn-bg:rgba(166,69,0,.08);--hdr:#0C2C44;
-  --hdr-text:#EDF3FA;--hdr-sub:#7DAECB;--shadow:0 1px 3px rgba(13,21,32,.07),0 4px 12px rgba(13,21,32,.04);
+  --warn:#A64500;--warn-bg:rgba(166,69,0,.08);
+  --hdr:#0C2C44;--hdr-text:#EDF3FA;--hdr-sub:#7DAECB;
+  --shadow:0 1px 3px rgba(13,21,32,.07),0 4px 12px rgba(13,21,32,.04);
 }
-:root[data-theme="dark"] {
+@media(prefers-color-scheme:dark){:root{
   --bg:#090D14;--surface:#0F1620;--surface-2:#16202E;--border:#1C2B3C;
   --text:#DDE7F3;--muted:#7A8EA5;--accent:#4292CA;--accent-mid:#5AAAD8;
-  --accent-dim:rgba(66,146,202,.12);--track:#1C2B3C;--bar:#4292CA;
+  --accent-dim:rgba(66,146,202,.13);--track:#1C2B3C;--bar:#4292CA;
   --good:#22C55E;--good-bg:rgba(34,197,94,.10);--good-bar:#22C55E;
-  --warn:#FB923C;--warn-bg:rgba(251,146,60,.10);--hdr:#060D16;
-  --hdr-text:#DDE7F3;--hdr-sub:#6A90B0;--shadow:0 1px 3px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.2);
-}
+  --warn:#FB923C;--warn-bg:rgba(251,146,60,.10);
+  --hdr:#060D16;--hdr-text:#DDE7F3;--hdr-sub:#6A90B0;
+  --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.2);
+}}
+:root[data-theme="light"]{--bg:#F4F6FA;--surface:#FFFFFF;--surface-2:#EDF0F7;--border:#DDE2EE;--text:#0D1520;--muted:#68788D;--accent:#1B4F72;--accent-mid:#2471A3;--accent-dim:rgba(27,79,114,.10);--track:#DDE2EE;--bar:#1B4F72;--good:#146B3A;--good-bg:rgba(20,107,58,.08);--good-bar:#22A05A;--warn:#A64500;--warn-bg:rgba(166,69,0,.08);--hdr:#0C2C44;--hdr-text:#EDF3FA;--hdr-sub:#7DAECB;--shadow:0 1px 3px rgba(13,21,32,.07),0 4px 12px rgba(13,21,32,.04)}
+:root[data-theme="dark"]{--bg:#090D14;--surface:#0F1620;--surface-2:#16202E;--border:#1C2B3C;--text:#DDE7F3;--muted:#7A8EA5;--accent:#4292CA;--accent-mid:#5AAAD8;--accent-dim:rgba(66,146,202,.13);--track:#1C2B3C;--bar:#4292CA;--good:#22C55E;--good-bg:rgba(34,197,94,.10);--good-bar:#22C55E;--warn:#FB923C;--warn-bg:rgba(251,146,60,.10);--hdr:#060D16;--hdr-text:#DDE7F3;--hdr-sub:#6A90B0;--shadow:0 1px 3px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.2)}
 
-/* ── RESET ───────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',system-ui,Arial,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
-a{color:var(--accent);text-decoration:none}
 
-/* ── HEADER ─────────────────────────────────────────────────── */
-.hdr{background:var(--hdr);padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+/* HEADER */
+.hdr{background:var(--hdr);padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:10}
 .brand{display:flex;align-items:center;gap:11px}
 .brand-icon{width:32px;height:32px;background:var(--accent-mid);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .brand-icon svg{fill:#fff}
@@ -84,24 +40,13 @@ a{color:var(--accent);text-decoration:none}
 .hdr-right{color:var(--hdr-sub);font-size:11.5px;text-align:right;line-height:1.4}
 .hdr-right strong{color:var(--hdr-text);display:block;font-size:12px;font-weight:500}
 
-/* ── PAGE ────────────────────────────────────────────────────── */
-.page{max-width:1080px;margin:0 auto;padding:32px 24px 72px}
+/* PAGE */
+.page{max-width:1100px;margin:0 auto;padding:28px 24px 72px}
 
-/* ── CLIENT CARD ─────────────────────────────────────────────── */
-.client-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin-bottom:18px;box-shadow:var(--shadow);display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
-.client-name{font-family:Georgia,'Times New Roman',serif;font-size:24px;color:var(--text);letter-spacing:-.02em;line-height:1.2;text-wrap:balance}
-.client-po{color:var(--muted);font-size:12px;margin-top:4px}
-.client-meta{display:flex;gap:28px;flex-wrap:wrap;margin-top:12px}
-.meta-item{}
-.meta-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:2px}
-.meta-val{font-size:13px;font-weight:500;color:var(--text)}
-.live-badge{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:6px 13px;white-space:nowrap;flex-shrink:0;align-self:flex-start;margin-top:4px}
-.live-dot{width:6px;height:6px;background:var(--good-bar);border-radius:50%;flex-shrink:0}
-
-/* ── STATS ROW ───────────────────────────────────────────────── */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
 .stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;box-shadow:var(--shadow)}
-.stat-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:7px}
+.stat-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:7px;font-weight:500}
 .stat-val{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.025em;line-height:1;color:var(--text)}
 .stat-val.c-accent{color:var(--accent)}
 .stat-val.c-good{color:var(--good-bar)}
@@ -112,10 +57,38 @@ a{color:var(--accent);text-decoration:none}
 .stat-bar-fill{height:100%;border-radius:999px;background:var(--bar);transition:width .8s ease}
 .stat-bar-fill.done{background:var(--good-bar)}
 
-/* ── TABLE CARD ──────────────────────────────────────────────── */
+/* QUOTES GRID */
+.section-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:500;margin-bottom:10px}
+.q-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:28px}
+.q-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s;box-shadow:var(--shadow)}
+.q-card:hover{border-color:var(--accent);background:var(--accent-dim)}
+.q-card.active{border-color:var(--accent);background:var(--accent-dim);box-shadow:0 0 0 3px var(--accent-dim),var(--shadow)}
+.q-card-num{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:2px}
+.q-card-client{font-size:12px;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-card-po{font-size:10.5px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:15px}
+.q-card-bar{margin-top:10px}
+.q-card-track{height:4px;background:var(--track);border-radius:999px;overflow:hidden}
+.q-card-fill{height:100%;border-radius:999px;background:var(--bar);transition:width .6s ease}
+.q-card-fill.done{background:var(--good-bar)}
+.q-card-nums{display:flex;justify-content:space-between;margin-top:5px}
+.q-card-pct{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.q-card-pct.done{color:var(--good)}
+.q-card-stock{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* CLIENT CARD */
+.client-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:16px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.client-name{font-family:Georgia,'Times New Roman',serif;font-size:20px;color:var(--text);letter-spacing:-.02em;line-height:1.2}
+.client-sub{color:var(--muted);font-size:12px;margin-top:3px}
+.client-meta{display:flex;gap:24px;flex-wrap:wrap;margin-top:10px}
+.meta-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:2px}
+.meta-val{font-size:13px;font-weight:500;color:var(--text)}
+.live-badge{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;white-space:nowrap;flex-shrink:0}
+.live-dot{width:6px;height:6px;background:var(--good-bar);border-radius:50%;flex-shrink:0}
+
+/* TABLE */
 .tbl-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
-.tbl-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-bottom:1px solid var(--border)}
-.tbl-title{font-size:13px;font-weight:600;color:var(--text)}
+.tbl-hdr{display:flex;align-items:center;justify-content:space-between;padding:13px 20px;border-bottom:1px solid var(--border)}
+.tbl-title{font-size:13px;font-weight:600}
 .tbl-count{font-size:11.5px;color:var(--muted)}
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;min-width:560px}
@@ -124,56 +97,40 @@ thead th.r{text-align:right}
 tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:var(--surface-2)}
-td{padding:14px 18px;vertical-align:middle}
+td{padding:13px 18px;vertical-align:middle}
 td.r{text-align:right}
-
-/* spec cell */
 .spec-modelo{font-size:13px;font-weight:600;color:var(--text);line-height:1.3}
-.spec-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.spec-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10.5px;background:var(--surface-2);border:1px solid var(--border);color:var(--muted);white-space:nowrap}
-
-/* progress */
-.prog-wrap{min-width:140px;max-width:220px}
+.done-badge{display:inline-block;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--good-bg);color:var(--good);letter-spacing:.04em;text-transform:uppercase}
+.prog-wrap{min-width:130px;max-width:200px}
 .prog-track{height:7px;background:var(--track);border-radius:999px;overflow:hidden}
 .prog-fill{height:100%;border-radius:999px;background:var(--bar);transition:width .7s ease}
 .prog-fill.done{background:var(--good-bar)}
 .prog-pct{font-size:10.5px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
 .prog-pct.done{color:var(--good)}
-
-/* number cells */
 .n{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
 .n-good{color:var(--good-bar)}
 .n-warn{color:var(--warn)}
 .n-muted{color:var(--muted)}
 
-/* status badge on completed rows */
-.done-badge{display:inline-block;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--good-bg);color:var(--good);letter-spacing:.04em;text-transform:uppercase}
-
-/* ── Q SELECTOR ──────────────────────────────────────────────── */
-.q-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px 28px;box-shadow:var(--shadow)}
-.q-wrap h2{font-size:16px;font-weight:600;margin-bottom:6px}
-.q-wrap p{color:var(--muted);font-size:13px;margin-bottom:20px}
-.q-list{display:flex;flex-wrap:wrap;gap:9px}
-.q-pill{padding:9px 18px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
-.q-pill:hover{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
-
-/* ── STATES ──────────────────────────────────────────────────── */
-.empty,.loading,.error{padding:48px;text-align:center;color:var(--muted);font-size:13px}
-.error{color:var(--warn)}
+/* STATES */
+.loading,.error-msg{padding:48px;text-align:center;color:var(--muted);font-size:13px}
+.error-msg{color:var(--warn)}
 .spin{display:inline-block;width:22px;height:22px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:12px}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ── RESPONSIVE ──────────────────────────────────────────────── */
+/* RESPONSIVE */
 @media(max-width:720px){
   .stats{grid-template-columns:repeat(2,1fr)}
   .hdr{padding:0 20px}
   .page{padding:20px 16px 56px}
-  .client-card{flex-direction:column}
-  .prog-wrap{min-width:90px}
+  .q-grid{grid-template-columns:1fr 1fr}
 }
-@media(max-width:400px){
+@media(max-width:420px){
   .stats{grid-template-columns:1fr 1fr}
   .stat-val{font-size:24px}
+  .q-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -197,8 +154,15 @@ td.r{text-align:right}
   <div class="hdr-right" id="hdr-ts"></div>
 </header>
 
-<div class="page" id="app">
-  <div class="loading"><div class="spin"></div><br>Cargando…</div>
+<div class="page">
+  <div id="loading-state" class="loading"><div class="spin"></div><br>Loading…</div>
+
+  <div id="main" style="display:none">
+    <div class="stats" id="stats-row"></div>
+    <div class="section-label" id="quotes-label"></div>
+    <div class="q-grid" id="q-grid"></div>
+    <div id="detail"></div>
+  </div>
 </div>
 
 <script>
@@ -206,173 +170,189 @@ const SUP = 'https://xzwlbrirzfogbqhywtvj.supabase.co';
 const KEY = 'sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G';
 const HDR = { apikey: KEY, Authorization: 'Bearer ' + KEY };
 
+let QUOTES  = {};
+let activeQ = null;
+
 async function api(path) {
   const r = await fetch(SUP + '/rest/v1/' + path, { headers: HDR });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
 
-function ts(iso) {
+function pct(pre, ped) { return !ped ? 0 : Math.min(100, Math.round(pre / ped * 100)); }
+
+function tsAgo(iso) {
+  if (!iso) return '—';
+  const diff = Math.floor((Date.now() - new Date(iso)) / 60000);
+  if (diff < 1)  return 'just now';
+  if (diff < 60) return diff + ' min ago';
+  const h = Math.floor(diff / 60);
+  return h + ' hr' + (h === 1 ? '' : 's') + ' ago';
+}
+
+function tsLabel(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
-  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
-       + ' · ' + d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+       + ' · ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
-function pct(pre, ped) {
-  if (!ped) return 0;
-  return Math.min(100, Math.round(pre / ped * 100));
-}
-
-/* ── Q SELECTOR ── */
-function renderSelector(rows) {
-  const map = {};
-  rows.forEach(r => { if (!map[r.quotation_number]) map[r.quotation_number] = r; });
-  const qs = Object.keys(map).sort();
-  return `
-    <div class="q-wrap">
-      <h2>Selecciona una cotización</h2>
-      <p>Elige la orden para ver el estado de producción.</p>
-      <div class="q-list">
-        ${qs.map(q => {
-          const m = map[q];
-          const lbl = m.cliente ? `${q} — ${m.cliente}` : q;
-          return `<a class="q-pill" href="?q=${encodeURIComponent(q)}">${lbl}</a>`;
-        }).join('')}
-      </div>
-    </div>`;
-}
-
-/* ── REPORT ── */
-function renderReport(q, rows) {
-  if (!rows.length) return `<div class="empty">Sin datos para ${q}.<br><small>El reporte se actualiza cada hora.</small></div>`;
-
+function renderStats(rows) {
   const totPed = rows.reduce((s, r) => s + (r.pedidas || 0), 0);
   const totPre = rows.reduce((s, r) => s + (r.en_prearmado || 0), 0);
   const totFal = totPed - totPre;
-  const pctGen = pct(totPre, totPed);
-  const isDone = pctGen === 100;
-  const first  = rows[0];
-  const upd    = ts(first.updated_at);
-
-  document.getElementById('hdr-ts').innerHTML = `<strong>Actualizado</strong>${upd}`;
-
-  const clienteHtml = first.cliente
-    ? `<div class="client-name">${first.cliente}</div>
-       <div class="client-po">${q}${first.client_po ? ' · ' + first.client_po : ''}</div>`
-    : `<div class="client-name">${q}</div>`;
-
-  const statPctClass = isDone ? 'c-good' : pctGen > 60 ? 'c-accent' : '';
-  const falClass = totFal === 0 ? 'c-good' : totFal < totPed * 0.15 ? 'c-accent' : 'c-warn';
-
-  const statsHtml = `
-    <div class="stats">
-      <div class="stat">
-        <div class="stat-lbl">Piezas pedidas</div>
-        <div class="stat-val">${totPed.toLocaleString('es-MX')}</div>
-        <div class="stat-sub">total de la orden</div>
-      </div>
-      <div class="stat">
-        <div class="stat-lbl">En pre-armado</div>
-        <div class="stat-val c-accent">${totPre.toLocaleString('es-MX')}</div>
-        <div class="stat-sub">listas para embarque</div>
-      </div>
-      <div class="stat">
-        <div class="stat-lbl">Faltantes</div>
-        <div class="stat-val ${falClass}">${totFal.toLocaleString('es-MX')}</div>
-        <div class="stat-sub">pendientes de producción</div>
-      </div>
-      <div class="stat">
-        <div class="stat-lbl">Avance general</div>
-        <div class="stat-val ${statPctClass}">${pctGen}%</div>
-        <div class="stat-sub">${isDone ? 'Completado' : 'en proceso'}</div>
-        <div class="stat-bar-wrap">
-          <div class="stat-bar-track">
-            <div class="stat-bar-fill ${isDone ? 'done' : ''}" style="width:${pctGen}%"></div>
-          </div>
+  const p      = pct(totPre, totPed);
+  const done   = p === 100;
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat">
+      <div class="stat-lbl">Total Ordered</div>
+      <div class="stat-val">${totPed.toLocaleString('en-US')}</div>
+      <div class="stat-sub">total quantity in order</div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl">In Stock</div>
+      <div class="stat-val c-accent">${totPre.toLocaleString('en-US')}</div>
+      <div class="stat-sub">ready to ship</div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl">Pending</div>
+      <div class="stat-val ${totFal === 0 ? 'c-good' : 'c-warn'}">${totFal.toLocaleString('en-US')}</div>
+      <div class="stat-sub">production backlog</div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl">Overall Progress</div>
+      <div class="stat-val ${done ? 'c-good' : p > 60 ? 'c-accent' : ''}">${p}%</div>
+      <div class="stat-sub">${done ? 'Complete' : 'in process'}</div>
+      <div class="stat-bar-wrap">
+        <div class="stat-bar-track">
+          <div class="stat-bar-fill${done ? ' done' : ''}" style="width:${p}%"></div>
         </div>
       </div>
     </div>`;
+}
 
-  const tbodyHtml = rows.map(r => {
-    const p  = pct(r.en_prearmado, r.pedidas);
+function renderQuoteCards() {
+  const qs = Object.keys(QUOTES).sort();
+  document.getElementById('quotes-label').textContent = qs.length + ' Quote' + (qs.length === 1 ? '' : 's');
+  document.getElementById('q-grid').innerHTML = qs.map(q => {
+    const rows = QUOTES[q];
+    const f    = rows[0];
+    const ped  = rows.reduce((s, r) => s + (r.pedidas || 0), 0);
+    const pre  = rows.reduce((s, r) => s + (r.en_prearmado || 0), 0);
+    const p    = pct(pre, ped);
+    const done = p === 100;
+    return `<div class="q-card${q === activeQ ? ' active' : ''}" onclick="selectQ('${q}')">
+      <div class="q-card-num">${q}</div>
+      <div class="q-card-client">${f.cliente || '—'}</div>
+      <div class="q-card-po">${f.client_po || ' '}</div>
+      <div class="q-card-bar">
+        <div class="q-card-track"><div class="q-card-fill${done ? ' done' : ''}" style="width:${p}%"></div></div>
+        <div class="q-card-nums">
+          <span class="q-card-pct${done ? ' done' : ''}">${p}%</span>
+          <span class="q-card-stock">${pre} / ${ped} in stock</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderDetail(q) {
+  const rows = QUOTES[q];
+  const f    = rows[0];
+  const tbody = rows.map(r => {
+    const p   = pct(r.en_prearmado, r.pedidas);
     const fal = (r.pedidas || 0) - (r.en_prearmado || 0);
     const done = p === 100;
-    const falCls = fal === 0 ? 'n-good' : 'n-warn';
     return `<tr>
       <td>
         <div class="spec-modelo">${r.patron}</div>
         <div class="spec-tags">
           <span class="tag">${r.color}</span>
           <span class="tag">${r.acabado}</span>
-          <span class="tag">${r.width}″ × ${r.height}″</span>
-          ${done ? '<span class="done-badge">Completo</span>' : ''}
+          <span class="tag">${r.width}&#34; × ${r.height}&#34;</span>
+          ${done ? '<span class="done-badge">Complete</span>' : ''}
         </div>
       </td>
-      <td>
-        <div class="prog-wrap">
-          <div class="prog-track"><div class="prog-fill${done?' done':''}" style="width:${p}%"></div></div>
-          <div class="prog-pct${done?' done':''}">${p}%</div>
-        </div>
-      </td>
+      <td><div class="prog-wrap">
+        <div class="prog-track"><div class="prog-fill${done ? ' done' : ''}" style="width:${p}%"></div></div>
+        <div class="prog-pct${done ? ' done' : ''}">${p}%</div>
+      </div></td>
       <td class="r"><span class="n">${r.pedidas ?? 0}</span></td>
       <td class="r"><span class="n ${r.en_prearmado > 0 ? 'n-good' : 'n-muted'}">${r.en_prearmado ?? 0}</span></td>
-      <td class="r"><span class="n ${falCls}">${fal}</span></td>
+      <td class="r"><span class="n ${fal === 0 ? 'n-good' : 'n-warn'}">${fal}</span></td>
     </tr>`;
   }).join('');
 
-  return `
+  document.getElementById('detail').innerHTML = `
     <div class="client-card">
       <div>
-        ${clienteHtml}
+        <div class="client-name">${f.cliente || q}</div>
+        <div class="client-sub">${q}${f.client_po ? ' · ' + f.client_po : ''}</div>
         <div class="client-meta">
-          <div class="meta-item"><div class="meta-label">Cotización</div><div class="meta-val">${q}</div></div>
-          ${first.client_po ? `<div class="meta-item"><div class="meta-label">PO Cliente</div><div class="meta-val">${first.client_po}</div></div>` : ''}
-          <div class="meta-item"><div class="meta-label">Modelos</div><div class="meta-val">${rows.length}</div></div>
+          <div><div class="meta-label">Quote</div><div class="meta-val">${q}</div></div>
+          ${f.client_po ? `<div><div class="meta-label">Client PO</div><div class="meta-val">${f.client_po}</div></div>` : ''}
+          <div><div class="meta-label">Models</div><div class="meta-val">${rows.length}</div></div>
         </div>
       </div>
-      <div class="live-badge"><div class="live-dot"></div>Actualizado ${upd}</div>
+      <div class="live-badge"><div class="live-dot"></div>Updated ${tsAgo(f.updated_at)}</div>
     </div>
-    ${statsHtml}
     <div class="tbl-card">
       <div class="tbl-hdr">
-        <div class="tbl-title">Detalle por modelo</div>
-        <div class="tbl-count">${rows.length} especificación${rows.length !== 1 ? 'es' : ''}</div>
+        <div class="tbl-title">Pieces per Model</div>
+        <div class="tbl-count">${rows.length} specification${rows.length !== 1 ? 's' : ''}</div>
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead>
-            <tr>
-              <th>Modelo / Especificación</th>
-              <th>Avance</th>
-              <th class="r">Pedidas</th>
-              <th class="r">Pre-armado</th>
-              <th class="r">Faltantes</th>
-            </tr>
-          </thead>
-          <tbody>${tbodyHtml}</tbody>
+          <thead><tr>
+            <th>Model / Specification</th>
+            <th>Progress</th>
+            <th class="r">Ordered</th>
+            <th class="r">In Stock</th>
+            <th class="r">Pending</th>
+          </tr></thead>
+          <tbody>${tbody}</tbody>
         </table>
       </div>
     </div>`;
 }
 
-/* ── INIT ── */
+function selectQ(q) {
+  activeQ = q;
+  history.replaceState(null, '', '?q=' + encodeURIComponent(q));
+  renderStats(QUOTES[q]);
+  renderQuoteCards();
+  renderDetail(q);
+  document.getElementById('detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 async function init() {
-  const app    = document.getElementById('app');
-  const params = new URLSearchParams(location.search);
-  const q      = params.get('q');
   try {
-    if (!q) {
-      const rows = await api('prearmado_reporte?select=quotation_number,cliente,client_po&order=quotation_number');
-      app.innerHTML = renderSelector(rows);
-    } else {
-      const rows = await api(
-        `prearmado_reporte?quotation_number=eq.${encodeURIComponent(q)}&order=patron,width,height`
-      );
-      app.innerHTML = renderReport(q, rows);
+    const rows = await api('prearmado_reporte?order=quotation_number,patron,color,acabado,width,height');
+    rows.forEach(r => {
+      if (!QUOTES[r.quotation_number]) QUOTES[r.quotation_number] = [];
+      QUOTES[r.quotation_number].push(r);
+    });
+
+    const qs = Object.keys(QUOTES).sort();
+    if (!qs.length) {
+      document.getElementById('loading-state').innerHTML = '<p class="error-msg">No data found.</p>';
+      return;
     }
+
+    const param = new URLSearchParams(location.search).get('q');
+    activeQ = (param && QUOTES[param]) ? param : qs[0];
+
+    const f = QUOTES[activeQ][0];
+    document.getElementById('hdr-ts').innerHTML = `<strong>Updated</strong>${tsLabel(f.updated_at)}`;
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('main').style.display = '';
+
+    renderStats(QUOTES[activeQ]);
+    renderQuoteCards();
+    renderDetail(activeQ);
   } catch (e) {
-    app.innerHTML = `<div class="error">No se pudo cargar el reporte.<br><small>${e.message}</small></div>`;
+    document.getElementById('loading-state').innerHTML =
+      `<p class="error-msg">Could not load report.<br><small>${e.message}</small></p>`;
   }
 }
 
