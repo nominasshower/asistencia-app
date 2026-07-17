@@ -104,13 +104,18 @@ td.r{text-align:right}
 .client-sku.none{color:var(--muted);font-weight:400}
 .spec-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10.5px;background:var(--surface-2);border:1px solid var(--border);color:var(--muted);white-space:nowrap}
-.done-badge{display:inline-block;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--good-bg);color:var(--good);letter-spacing:.04em;text-transform:uppercase}
-.prog-wrap{min-width:130px;max-width:200px}
-.prog-track{height:7px;background:var(--track);border-radius:999px;overflow:hidden}
-.prog-fill{height:100%;border-radius:999px;background:var(--bar);transition:width .7s ease}
-.prog-fill.done{background:var(--good-bar)}
-.prog-pct{font-size:10.5px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
-.prog-pct.done{color:var(--good)}
+.semaforo{display:inline-block;padding:4px 12px;border-radius:999px;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.semaforo.sem-green{background:var(--good-bg);color:var(--good)}
+.semaforo.sem-yellow{background:rgba(217,164,6,.12);color:#B58105}
+.semaforo.sem-red{background:rgba(220,38,38,.10);color:#DC2626}
+@media(prefers-color-scheme:dark){
+  .semaforo.sem-yellow{background:rgba(250,204,21,.14);color:#FACC15}
+  .semaforo.sem-red{background:rgba(248,113,113,.14);color:#F87171}
+}
+:root[data-theme="dark"] .semaforo.sem-yellow{background:rgba(250,204,21,.14);color:#FACC15}
+:root[data-theme="dark"] .semaforo.sem-red{background:rgba(248,113,113,.14);color:#F87171}
+:root[data-theme="light"] .semaforo.sem-yellow{background:rgba(217,164,6,.12);color:#B58105}
+:root[data-theme="light"] .semaforo.sem-red{background:rgba(220,38,38,.10);color:#DC2626}
 .n{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
 .n-good{color:var(--good-bar)}
 .n-warn{color:var(--warn)}
@@ -208,9 +213,9 @@ function renderStats(rows) {
   const done   = p === 100;
   document.getElementById('stats-row').innerHTML = `
     <div class="stat">
-      <div class="stat-lbl">Total Ordered</div>
+      <div class="stat-lbl">Min Stock</div>
       <div class="stat-val">${totPed.toLocaleString('en-US')}</div>
-      <div class="stat-sub">total quantity in order</div>
+      <div class="stat-sub">safety stock target</div>
     </div>
     <div class="stat">
       <div class="stat-lbl">In Stock</div>
@@ -220,7 +225,7 @@ function renderStats(rows) {
     <div class="stat">
       <div class="stat-lbl">Pending</div>
       <div class="stat-val ${totFal === 0 ? 'c-good' : 'c-warn'}">${totFal.toLocaleString('en-US')}</div>
-      <div class="stat-sub">production backlog</div>
+      <div class="stat-sub">below min stock</div>
     </div>
     <div class="stat">
       <div class="stat-lbl">Overall Progress</div>
@@ -259,32 +264,35 @@ function renderQuoteCards() {
   }).join('');
 }
 
+function semaforoClass(p) {
+  if (p >= 90) return 'sem-green';
+  if (p >= 31) return 'sem-yellow';
+  return 'sem-red';
+}
+
 function renderDetail(q) {
   const rows = QUOTES[q];
   const f    = rows[0];
   const tbody = rows.map(r => {
-    const p   = pct(r.en_prearmado, r.pedidas);
-    const fal = (r.pedidas || 0) - (r.en_prearmado || 0);
-    const done = p === 100;
+    // Semaforo: In Stock vs Min Stock (target de seguridad) -- NO es el
+    // avance de una orden que se cierra, es nivel de inventario.
+    const p = pct(r.en_prearmado, r.pedidas);
     const cSku = SKU_CLIENTE[(r.sku_interno || '').toUpperCase()] || '';
+    const asignado = r.asignado_otras_ordenes || 0;
     return `<tr>
+      <td><span class="client-sku${cSku ? '' : ' none'}">${cSku || '—'}</span></td>
       <td>
         <div class="spec-modelo">${r.patron}</div>
         <div class="spec-tags">
           <span class="tag">${r.color}</span>
           <span class="tag">${r.acabado}</span>
           <span class="tag">${r.width}&#34; × ${r.height}&#34;</span>
-          ${done ? '<span class="done-badge">Complete</span>' : ''}
         </div>
       </td>
-      <td><span class="client-sku${cSku ? '' : ' none'}">${cSku || '—'}</span></td>
-      <td><div class="prog-wrap">
-        <div class="prog-track"><div class="prog-fill${done ? ' done' : ''}" style="width:${p}%"></div></div>
-        <div class="prog-pct${done ? ' done' : ''}">${p}%</div>
-      </div></td>
       <td class="r"><span class="n">${r.pedidas ?? 0}</span></td>
       <td class="r"><span class="n ${r.en_prearmado > 0 ? 'n-good' : 'n-muted'}">${r.en_prearmado ?? 0}</span></td>
-      <td class="r"><span class="n ${fal === 0 ? 'n-good' : 'n-warn'}">${fal}</span></td>
+      <td class="r"><span class="n ${asignado > 0 ? 'n-warn' : 'n-muted'}">${asignado > 0 ? '−' + asignado : '—'}</span></td>
+      <td><span class="semaforo ${semaforoClass(p)}">${p}%</span></td>
     </tr>`;
   }).join('');
 
@@ -309,12 +317,12 @@ function renderDetail(q) {
       <div class="tbl-wrap">
         <table>
           <thead><tr>
-            <th>Model / Specification</th>
-            <th>Client SKU</th>
-            <th>Progress</th>
-            <th class="r">Ordered</th>
+            <th>SKU</th>
+            <th>Description</th>
+            <th class="r">Min Stock</th>
             <th class="r">In Stock</th>
-            <th class="r">Pending</th>
+            <th class="r">Assigned</th>
+            <th>Progress</th>
           </tr></thead>
           <tbody>${tbody}</tbody>
         </table>
