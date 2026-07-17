@@ -166,8 +166,6 @@ td.r{text-align:right}
 
   <div id="main" style="display:none">
     <div class="stats" id="stats-row"></div>
-    <div class="section-label" id="quotes-label"></div>
-    <div class="q-grid" id="q-grid"></div>
     <div id="detail"></div>
   </div>
 </div>
@@ -334,9 +332,7 @@ function selectQ(q) {
   activeQ = q;
   history.replaceState(null, '', '?q=' + encodeURIComponent(q));
   renderStats(QUOTES[q]);
-  renderQuoteCards();
   renderDetail(q);
-  document.getElementById('detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 async function init() {
@@ -363,8 +359,10 @@ async function init() {
       return;
     }
 
+    // Q10204 es el inventario base / punto de reorden de KOHLER -- es EL reporte.
+    // Se muestra por default; ?q= solo lo cambia si explícitamente se pide otra.
     const param = new URLSearchParams(location.search).get('q');
-    activeQ = (param && QUOTES[param]) ? param : qs[0];
+    activeQ = (param && QUOTES[param]) ? param : (QUOTES['Q10204'] ? 'Q10204' : qs[0]);
 
     const f = QUOTES[activeQ][0];
     document.getElementById('hdr-ts').innerHTML = `<strong>Updated</strong>${tsLabel(f.updated_at)}`;
@@ -372,7 +370,6 @@ async function init() {
     document.getElementById('main').style.display = '';
 
     renderStats(QUOTES[activeQ]);
-    renderQuoteCards();
     renderDetail(activeQ);
   } catch (e) {
     document.getElementById('loading-state').innerHTML =
