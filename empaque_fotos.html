@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Cierre de Empaque — Fotos</title>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg:#0f1117; --bg2:#161b27; --bg3:#1e2535; --border:rgba(255,255,255,.09);
+    --text:#e8eaf0; --muted:#8b96a5; --accent:#22c55e; --accent2:#3b82f6;
+    --warn:#f59e0b; --danger:#ef4444;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',-apple-system,sans-serif; margin:0; }
+  .page { max-width:520px; margin:0 auto; padding:24px 18px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .subtitle { color:var(--muted); font-size:13px; margin-bottom:24px; }
+  .card { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:20px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin:0 0 12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  button { font-size:17px; font-weight:700; padding:16px 20px; border-radius:12px; border:none; cursor:pointer; width:100%; }
+  button.primary { background:var(--accent2); color:#fff; }
+  button.ok { background:var(--accent); color:#04150a; }
+  button.ghost { background:var(--bg3); color:var(--text); border:1px solid var(--border); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  #video { width:100%; border-radius:12px; background:#000; display:block; }
+  .uuid-box { font-family:'DM Mono',monospace; font-size:22px; font-weight:800; text-align:center; padding:14px; background:var(--bg3); border-radius:12px; margin-bottom:12px; letter-spacing:.03em; }
+  .burrito-info { text-align:center; margin-bottom:16px; }
+  .burrito-info .q { font-size:20px; font-weight:800; }
+  .burrito-info .cli { color:var(--muted); font-size:14px; margin-top:2px; }
+  .fotos-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
+  .foto-slot { aspect-ratio:1; border:2px dashed var(--border); border-radius:12px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; background:var(--bg3); cursor:pointer; }
+  .foto-slot.tiene { border-style:solid; border-color:var(--accent); }
+  .foto-slot img { width:100%; height:100%; object-fit:cover; }
+  .foto-slot .lbl { color:var(--muted); font-size:13px; text-align:center; }
+  .foto-slot input { position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer; }
+  .msg { text-align:center; padding:14px; border-radius:12px; font-weight:700; margin-bottom:16px; }
+  .msg.error { background:rgba(239,68,68,.15); color:#f87171; }
+  .msg.ok { background:rgba(34,197,94,.15); color:#4ade80; }
+  .paso-oculto { display:none; }
+  .link-manual { text-align:center; margin-top:12px; }
+  .link-manual a { color:var(--accent2); font-size:13px; cursor:pointer; text-decoration:underline; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>📦 Cierre de Empaque</h1>
+  <div class="subtitle">Escanea el burrito y sube las fotos de cómo quedó empacado</div>
+
+  <div class="card" id="paso-scan">
+    <h2>1. Escanear código del burrito</h2>
+    <video id="video" muted playsinline></video>
+    <div class="link-manual"><a onclick="pedirManual()">Escribir el código a mano</a></div>
+  </div>
+
+  <div class="card paso-oculto" id="paso-confirmar">
+    <h2>2. Confirma que es el burrito correcto</h2>
+    <div class="uuid-box" id="uuid-mostrado"></div>
+    <div class="burrito-info" id="burrito-info"></div>
+    <button class="ghost" onclick="reiniciar()">✕ No es este, volver a escanear</button>
+  </div>
+
+  <div class="card paso-oculto" id="paso-fotos">
+    <h2>3. Toma las 3 fotos del burrito empacado</h2>
+    <div class="fotos-grid">
+      <label class="foto-slot" id="slot1"><span class="lbl">📷<br>Foto 1</span><input type="file" accept="image/*" capture="environment" onchange="fotoTomada(1,this)"></label>
+      <label class="foto-slot" id="slot2"><span class="lbl">📷<br>Foto 2</span><input type="file" accept="image/*" capture="environment" onchange="fotoTomada(2,this)"></label>
+      <label class="foto-slot" id="slot3"><span class="lbl">📷<br>Foto 3</span><input type="file" accept="image/*" capture="environment" onchange="fotoTomada(3,this)"></label>
+    </div>
+    <div id="msg-guardar"></div>
+    <button class="ok" id="btn-guardar" disabled onclick="guardar()">✓ Guardar fotos</button>
+  </div>
+
+  <div class="card paso-oculto" id="paso-final">
+    <div class="msg ok">✓ Fotos guardadas correctamente</div>
+    <button class="primary" onclick="reiniciar()">Escanear otro burrito</button>
+  </div>
+</div>
+
+<script>
+const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+const BUCKET = "empaque-fotos";
+
+let uuidActual = null;
+let fotos = { 1:null, 2:null, 3:null };
+let codeReader = null;
+
+function mostrarPaso(id) {
+  ['paso-scan','paso-confirmar','paso-fotos','paso-final'].forEach(p => {
+    document.getElementById(p).classList.toggle('paso-oculto', p !== id);
+  });
+}
+
+async function iniciarScanner() {
+  try {
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    const devices = await codeReader.listVideoInputDevices();
+    const backCam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+    codeReader.decodeFromVideoDevice(backCam ? backCam.deviceId : undefined, 'video', (result, err) => {
+      if (result) {
+        onCodigoLeido(result.getText());
+      }
+    });
+  } catch (err) {
+    document.getElementById('paso-scan').innerHTML =
+      `<h2>1. Escanear código del burrito</h2><div class="msg error">No se pudo acceder a la cámara: ${err.message}</div><div class="link-manual"><a onclick="pedirManual()">Escribir el código a mano</a></div>`;
+  }
+}
+
+function pedirManual() {
+  const val = prompt('Escribe el código del burrito (uuid):');
+  if (val && val.trim()) onCodigoLeido(val.trim());
+}
+
+async function onCodigoLeido(texto) {
+  const uuid = texto.trim().toLowerCase();
+  if (codeReader) { codeReader.reset(); }
+  uuidActual = uuid;
+  document.getElementById('uuid-mostrado').textContent = uuid;
+
+  const info = document.getElementById('burrito-info');
+  info.innerHTML = '<div class="cli">Consultando…</div>';
+  mostrarPaso('paso-confirmar');
+
+  try {
+    const res = await fetch(`${SUP_URL}/rest/v1/burritos?uuid=eq.${uuid}&select=orden,cliente,po_cliente,tipo_paquete`, {
+      headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}` },
+    });
+    const rows = await res.json();
+    if (rows && rows.length) {
+      const b = rows[0];
+      info.innerHTML = `<div class="q">${b.orden || '—'} · ${b.tipo_paquete || ''}</div><div class="cli">${b.cliente || ''} — ${b.po_cliente || ''}</div>`;
+    } else {
+      info.innerHTML = '<div class="cli" style="color:var(--warn)">⚠ No se encontró este burrito en el sistema — puedes continuar igual</div>';
+    }
+  } catch (err) {
+    info.innerHTML = `<div class="cli" style="color:var(--danger)">Error consultando: ${err.message}</div>`;
+  }
+
+  setTimeout(() => mostrarPaso('paso-fotos'), 1200);
+}
+
+function fotoTomada(n, input) {
+  const file = input.files[0];
+  if (!file) return;
+  fotos[n] = file;
+  const slot = document.getElementById('slot' + n);
+  const url = URL.createObjectURL(file);
+  slot.classList.add('tiene');
+  slot.innerHTML = `<img src="${url}"><input type="file" accept="image/*" capture="environment" onchange="fotoTomada(${n},this)">`;
+  actualizarBotonGuardar();
+}
+
+function actualizarBotonGuardar() {
+  const listas = fotos[1] && fotos[2] && fotos[3];
+  document.getElementById('btn-guardar').disabled = !listas;
+}
+
+async function subirFoto(file, nombre) {
+  const path = `${uuidActual}/${Date.now()}_${nombre}.jpg`;
+  const res = await fetch(`${SUP_URL}/storage/v1/object/${BUCKET}/${path}`, {
+    method: 'POST',
+    headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, 'Content-Type': file.type || 'image/jpeg' },
+    body: file,
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`No se pudo subir ${nombre}: ${t}`);
+  }
+  return `${SUP_URL}/storage/v1/object/public/${BUCKET}/${path}`;
+}
+
+async function guardar() {
+  const btn = document.getElementById('btn-guardar');
+  const msg = document.getElementById('msg-guardar');
+  btn.disabled = true;
+  msg.innerHTML = '<div class="msg" style="background:rgba(59,130,246,.15);color:#93c5fd">Subiendo fotos…</div>';
+
+  try {
+    const [url1, url2, url3] = await Promise.all([
+      subirFoto(fotos[1], 'foto1'),
+      subirFoto(fotos[2], 'foto2'),
+      subirFoto(fotos[3], 'foto3'),
+    ]);
+
+    const res = await fetch(`${SUP_URL}/rest/v1/burrito_fotos`, {
+      method: 'POST',
+      headers: {
+        apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`,
+        'Content-Type': 'application/json', Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ package_uuid: uuidActual, foto1_url: url1, foto2_url: url2, foto3_url: url3 }),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t);
+    }
+
+    mostrarPaso('paso-final');
+  } catch (err) {
+    msg.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
+    btn.disabled = false;
+  }
+}
+
+function reiniciar() {
+  uuidActual = null;
+  fotos = { 1:null, 2:null, 3:null };
+  [1,2,3].forEach(n => {
+    const slot = document.getElementById('slot' + n);
+    slot.classList.remove('tiene');
+    slot.innerHTML = `<span class="lbl">📷<br>Foto ${n}</span><input type="file" accept="image/*" capture="environment" onchange="fotoTomada(${n},this)">`;
+  });
+  document.getElementById('btn-guardar').disabled = true;
+  document.getElementById('msg-guardar').innerHTML = '';
+  mostrarPaso('paso-scan');
+  iniciarScanner();
+}
+
+iniciarScanner();
+</script>
+</body>
+</html>
