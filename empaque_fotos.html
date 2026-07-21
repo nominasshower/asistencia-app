@@ -50,6 +50,7 @@
   <div class="card" id="paso-scan">
     <h2>1. Escanear código del burrito</h2>
     <video id="video" muted playsinline></video>
+    <button class="ghost paso-oculto" id="btn-linterna" onclick="toggleLinterna()" style="margin-top:10px">🔦 Encender linterna</button>
     <div class="link-manual"><a onclick="pedirManual()">Escribir el código a mano</a></div>
   </div>
 
@@ -85,6 +86,8 @@ const BUCKET = "empaque-fotos";
 let uuidActual = null;
 let fotos = { 1:null, 2:null, 3:null };
 let codeReader = null;
+let torchTrack = null;
+let torchOn = false;
 
 function mostrarPaso(id) {
   ['paso-scan','paso-confirmar','paso-fotos','paso-final'].forEach(p => {
@@ -97,14 +100,45 @@ async function iniciarScanner() {
     codeReader = new ZXing.BrowserMultiFormatReader();
     const devices = await codeReader.listVideoInputDevices();
     const backCam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
-    codeReader.decodeFromVideoDevice(backCam ? backCam.deviceId : undefined, 'video', (result, err) => {
+    await codeReader.decodeFromVideoDevice(backCam ? backCam.deviceId : undefined, 'video', (result, err) => {
       if (result) {
         onCodigoLeido(result.getText());
       }
     });
+    prepararLinterna();
   } catch (err) {
     document.getElementById('paso-scan').innerHTML =
       `<h2>1. Escanear código del burrito</h2><div class="msg error">No se pudo acceder a la cámara: ${err.message}</div><div class="link-manual"><a onclick="pedirManual()">Escribir el código a mano</a></div>`;
+  }
+}
+
+function prepararLinterna() {
+  const video = document.getElementById('video');
+  const stream = video.srcObject;
+  const btn = document.getElementById('btn-linterna');
+  if (!stream) { btn.classList.add('paso-oculto'); return; }
+  const track = stream.getVideoTracks()[0];
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  if (caps.torch) {
+    torchTrack = track;
+    torchOn = false;
+    btn.textContent = '🔦 Encender linterna';
+    btn.classList.remove('paso-oculto');
+  } else {
+    torchTrack = null;
+    btn.classList.add('paso-oculto');
+  }
+}
+
+async function toggleLinterna() {
+  if (!torchTrack) return;
+  const nuevoEstado = !torchOn;
+  try {
+    await torchTrack.applyConstraints({ advanced: [{ torch: nuevoEstado }] });
+    torchOn = nuevoEstado;
+    document.getElementById('btn-linterna').textContent = torchOn ? '🔦 Apagar linterna' : '🔦 Encender linterna';
+  } catch (err) {
+    alert('No se pudo controlar la linterna: ' + err.message);
   }
 }
 
