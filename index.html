@@ -194,32 +194,69 @@ input[type=text] { flex: 1; min-width: 160px; }
 const API_KEY         = "AIzaSyD2fUvrz6Mtl9eHP4tnVwEth76dBgeWIC0";
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw565tiICu357dNwdLC1p2lx7VWQiyp_MTlBZHNKOK5p3-I2le0k-KJ7hefHNHWTjmE/exec";
 
+// Supabase — fuente de verdad para lectura de checadas (Dashboard/Registros/Areas/Semana).
+// Alta/Baja/Editar empleado y el Importador de nomina siguen en Sheets por ahora.
+const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+
 const EMPRESAS = {
   woods: {
     nombre: "Modul Woods",
+    sup_empresa: "MODUL WOODS",
     sheets_id: "1vTk8M_rI3k9pXo18rsY9mF4QSj1SuBdR9eTsrPCL8xw",
     hoja: "REGISTROS",
     script_url: "https://script.google.com/macros/s/AKfycbwCwVCtm1Cb4BlPSrS4m6rbiFKOICnPCS7bZpsKccHBucfO3vP4yukGa7mgNdPNjIz4/exec"
   },
   shower: {
     nombre: "Shower Walls",
+    sup_empresa: "SHOWER WALLS",
     sheets_id: "1H-WerDj1GFafoaqsEk7Xmjt_KAi-fwG4tMkiV1B_XUo",
     hoja: "REGISTROS",
     script_url: "https://script.google.com/macros/s/AKfycbxJjVqiDgibM8jb3wblMO0nzQPks6Kzz9SQBmb7dMLj1AII0ng1LgxWxy9hxO7mlqIH9Q/exec"
   },
   modular: {
     nombre: "Modular",
+    sup_empresa: "MODULAR",
     sheets_id: "1cL2rzLR0eJ4zsyimFO9sPqACx6iWF4cCwI06yrI7j4Y",
     hoja: "REGISTROS",
     script_url: "https://script.google.com/macros/s/AKfycbw7KAjC5IS7osv8glcDk5hD0UE77SdTP3fJs28dd7BrT49V3qw8V_1anXYBiRTqyVCf6w/exec"
   },
   kuartz: {
     nombre: "Kuartz",
+    sup_empresa: "KUARTZ",
     sheets_id: "1LTSojdgzOcDI5zqRHzQf5FQbt4zyRk_500QZLhNjKEg",
     hoja: "REGISTROS",
     script_url: "https://script.google.com/macros/s/AKfycbxRW0muFpBxAh_6vyDJos92bzG0EmoUkrKjAIFFL0x21AuQhr9W1_Mu3p90hgggCswJ/exec"
   }
 };
+
+// Trae una tabla del schema "rh" en Supabase y la devuelve con el mismo formato
+// que antes daba Sheets (array de objetos, todos los valores como texto trimmeado).
+async function fetchRH(tabla, empresaNombre, extra) {
+  const orden = tabla === "registros" ? "id.asc" : "nomina.asc";
+  const params = new URLSearchParams({ empresa: `eq.${empresaNombre}`, select: "*", order: orden });
+  if (extra) Object.entries(extra).forEach(([k,v]) => params.append(k, v));
+  const PAGE = 1000;
+  let offset = 0, todas = [];
+  while (true) {
+    const r = await fetch(`${SUP_URL}/rest/v1/${tabla}?${params}`, {
+      headers: {
+        apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Accept-Profile": "rh",
+        "Range-Unit": "items", "Range": `${offset}-${offset + PAGE - 1}`
+      }
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const chunk = await r.json();
+    todas = todas.concat(chunk);
+    if (chunk.length < PAGE) break;
+    offset += PAGE;
+  }
+  return todas.map(row => {
+    const o = {};
+    Object.entries(row).forEach(([k,v]) => { o[k] = (v===null||v===undefined) ? "" : String(v).trim(); });
+    return o;
+  });
+}
 
 const _paramEmp = new URLSearchParams(window.location.search).get("empresa");
 let empresaActual    = (_paramEmp && EMPRESAS[_paramEmp]) ? _paramEmp : "woods";
@@ -256,36 +293,13 @@ async function cargarDatos() {
   document.getElementById("status-pill").className = "pill pill-gray";
 
   try {
-    // Cargar REGISTROS
-    const urlReg = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/${encodeURIComponent("REGISTROS")}?key=${API_KEY}`;
-    const r = await fetch(urlReg);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const d = await r.json();
-    const filas = d.values || [];
-    if (filas.length < 2) throw new Error("Sin datos");
-    const headers = filas[0];
-    datos = filas.slice(1).map(f => {
-      const o = {};
-      headers.forEach((h,i) => o[h.trim()] = (f[i]||"").trim());
-      return o;
-    });
+    // Cargar REGISTROS (checadas) desde Supabase
+    datos = await fetchRH("registros", emp.sup_empresa);
+    if (!datos.length) throw new Error("Sin datos");
 
-    // Cargar EMPLEADOS
+    // Cargar EMPLEADOS desde Supabase
     try {
-      const urlEmp = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/${encodeURIComponent("EMPLEADOS")}?key=${API_KEY}`;
-      const re = await fetch(urlEmp);
-      if (re.ok) {
-        const de = await re.json();
-        const filasE = de.values || [];
-        if (filasE.length >= 2) {
-          const headersE = filasE[0];
-          datosEmpleados = filasE.slice(1).map(f => {
-            const o = {};
-            headersE.forEach((h,i) => o[h.trim()] = (f[i]||"").trim());
-            return o;
-          });
-        }
-      }
+      datosEmpleados = await fetchRH("empleados", emp.sup_empresa);
     } catch(e2) { datosEmpleados = null; }
 
     document.getElementById("status-pill").innerHTML = `<span class="dot dot-green"></span> ${datos.length} registros`;
@@ -308,18 +322,8 @@ async function cargarDatosGlobal() {
     const resultados = await Promise.all(
       Object.entries(EMPRESAS).map(async ([key, emp]) => {
         try {
-          const url = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/${encodeURIComponent("REGISTROS")}?key=${API_KEY}`;
-          const r = await fetch(url);
-          if (!r.ok) return [];
-          const d = await r.json();
-          const filas = d.values || [];
-          if (filas.length < 2) return [];
-          const headers = filas[0];
-          return filas.slice(1).map(f => {
-            const o = { _empresa: emp.nombre, _empresaKey: key };
-            headers.forEach((h,i) => o[h.trim()] = (f[i]||"").trim());
-            return o;
-          });
+          const filas = await fetchRH("registros", emp.sup_empresa);
+          return filas.map(f => ({ _empresa: emp.nombre, _empresaKey: key, ...f }));
         } catch(e) { return []; }
       })
     );
