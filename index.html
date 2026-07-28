@@ -235,7 +235,7 @@ const EMPRESAS = {
 async function fetchRH(tabla, empresaNombre, extra) {
   const orden = tabla === "registros" ? "id.asc" : "nomina.asc";
   const params = new URLSearchParams({ empresa: `eq.${empresaNombre}`, select: "*", order: orden });
-  if (extra) Object.entries(extra).forEach(([k,v]) => params.append(k, v));
+  if (extra) Object.entries(extra).forEach(([k,v]) => params.set(k, v));
   const PAGE = 1000;
   let offset = 0, todas = [];
   while (true) {
@@ -1258,7 +1258,16 @@ function renderBajaEmpleado() {
             <div style="font-size:12px;color:var(--muted)">Nómina: ${bajaSeleccionado.nomina} · ${bajaSeleccionado.area}</div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+          <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:14px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer">
+            <input type="checkbox" id="baja-error-captura" style="margin-top:2px" onchange="toggleErrorCaptura()">
+            <span style="font-size:12px;line-height:1.5">
+              <b>Fue un error de captura</b> (nómina equivocada, no es una baja real) —
+              elimina por completo al empleado y todas sus checadas de Supabase, en vez de dar de baja normal.
+              <b style="color:var(--danger)">No se puede deshacer.</b>
+            </span>
+          </label>
+
+          <div id="baja-normal-campos" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
             <div>
               <label style="${lbl}">Fecha de baja *</label>
               <input type="date" id="baja-fecha" value="${fechaHoy}" style="${inp}">
@@ -1275,12 +1284,14 @@ function renderBajaEmpleado() {
             </div>
           </div>
 
+          <div id="baja-preview-eliminacion" style="display:none;margin-bottom:14px"></div>
+
           <div id="baja-msg" style="display:none;margin-bottom:12px"></div>
 
           <div style="display:flex;gap:8px">
             <button onclick="confirmarBaja()" id="baja-btn" class="btn" style="flex:1;justify-content:center;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#f87171">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-              Confirmar Baja
+              <span id="baja-btn-txt">Confirmar Baja</span>
             </button>
             <button class="btn" onclick="bajaSeleccionado=null;renderBajaEmpleado()">Cancelar</button>
           </div>
@@ -1302,6 +1313,72 @@ function seleccionarBaja(nomina, nombre, area) {
   renderBajaEmpleado();
 }
 
+async function toggleErrorCaptura() {
+  const chk     = document.getElementById("baja-error-captura");
+  const campos  = document.getElementById("baja-normal-campos");
+  const preview = document.getElementById("baja-preview-eliminacion");
+  const btnTxt  = document.getElementById("baja-btn-txt");
+  const esError = chk.checked;
+
+  campos.style.display = esError ? "none" : "grid";
+  btnTxt.textContent    = esError ? "Eliminar Definitivamente" : "Confirmar Baja";
+
+  if (!esError) { preview.style.display = "none"; return; }
+
+  preview.style.display = "block";
+  preview.innerHTML = `<div style="font-size:12px;color:var(--muted)">Contando checadas...</div>`;
+  try {
+    const emp = EMPRESAS[empresaActual];
+    const rows = await fetchRH("registros", emp.sup_empresa, { nomina: `eq.${bajaSeleccionado.nomina}`, select: "fecha" });
+    const fechas = rows.map(r => r.fecha).sort();
+    preview.innerHTML = `<div style="padding:10px 12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;font-size:12px">
+      Se van a borrar <b>${rows.length} checadas</b> de la nómina ${bajaSeleccionado.nomina}
+      ${rows.length ? `(${fechas[0]} → ${fechas[fechas.length-1]})` : ""} + el registro del catálogo.
+    </div>`;
+  } catch(e) {
+    preview.innerHTML = `<div style="font-size:12px;color:var(--danger)">No se pudo contar checadas: ${e.message}</div>`;
+  }
+}
+
+async function eliminarPorErrorCaptura() {
+  const emp = EMPRESAS[empresaActual];
+  const msg = document.getElementById("baja-msg");
+  const btn = document.getElementById("baja-btn");
+  const nomina = bajaSeleccionado.nomina;
+  const nombre = bajaSeleccionado.nombre;
+
+  if (!confirm(`¿Seguro que quieres ELIMINAR POR COMPLETO a "${nombre}" (nómina ${nomina}) y todas sus checadas?\n\nEsto NO se puede deshacer.`)) {
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg><span id="baja-btn-txt">Eliminar Definitivamente</span>`;
+    return;
+  }
+
+  const headersDel = { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Content-Profile": "rh" };
+  try {
+    const rReg = await fetch(`${SUP_URL}/rest/v1/registros?empresa=eq.${encodeURIComponent(emp.sup_empresa)}&nomina=eq.${encodeURIComponent(nomina)}`,
+      { method: "DELETE", headers: { ...headersDel, "Prefer": "return=representation" } });
+    const registrosBorrados = rReg.ok ? (await rReg.json()).length : 0;
+
+    const rEmp = await fetch(`${SUP_URL}/rest/v1/empleados?empresa=eq.${encodeURIComponent(emp.sup_empresa)}&nomina=eq.${encodeURIComponent(nomina)}`,
+      { method: "DELETE", headers: headersDel });
+
+    msg.style.display = "block";
+    if (rReg.ok && rEmp.ok) {
+      msg.innerHTML = `<div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;color:#4ade80;font-size:13px">✓ Eliminado: ${nombre} (nómina ${nomina}) — ${registrosBorrados} checadas borradas.</div>`;
+      bajaSeleccionado = null;
+      datosEmpleados = null;
+      datos = null;
+    } else {
+      msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ Error al eliminar (HTTP ${rReg.status}/${rEmp.status})</div>`;
+    }
+  } catch(err) {
+    msg.style.display = "block";
+    msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ Error de conexión: ${err.message}</div>`;
+  }
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg><span id="baja-btn-txt">Confirmar Baja</span>`;
+}
+
 async function confirmarBaja() {
   const emp  = EMPRESAS[empresaActual];
   const msg  = document.getElementById("baja-msg");
@@ -1311,6 +1388,10 @@ async function confirmarBaja() {
   btn.disabled = true;
   btn.innerHTML = `<div class="spinner" style="width:13px;height:13px;margin-right:6px;flex-shrink:0"></div>Procesando...`;
   msg.style.display = "none";
+
+  if (document.getElementById("baja-error-captura")?.checked) {
+    return eliminarPorErrorCaptura();
+  }
 
   const payload = {
     accion:     "baja",
