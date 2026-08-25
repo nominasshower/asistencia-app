@@ -2092,6 +2092,45 @@ function procesarLayoutJS(file) {
   rd.readAsArrayBuffer(file);
 }
 
+// ── Exportar CHECADOR crudo (entrada/salida) para Odoo ──────────
+// A diferencia del Importador VIA, aquí NO se aplica ninguna regla de negocio
+// (puntualidad, asistencia, montos). Odoo debe calcular esos bonos el mismo,
+// vía hr.attendance + reglas salariales — el checador solo reporta hechos.
+async function genChecadorOdoo() {
+  const btn = document.getElementById('chk-btn-odoo');
+  if (btn) btn.disabled = true;
+  stImp('st-chk','loading','Descargando checadas desde Supabase...');
+  try {
+    const { jue, mie } = getSemImp(impOffset);
+    const { anio, num } = getNumSemImp(jue);
+    const desde = toISO(jue), hasta = toISO(mie);
+    const emp = EMPRESAS[empresaActual];
+    const regs = await fetchRH('registros', emp.sup_empresa, { fecha: `gte.${desde}` });
+    const filas = regs
+      .filter(r => r.fecha >= desde && r.fecha <= hasta && r.nomina)
+      .sort((a,b) => a.nomina.localeCompare(b.nomina) || a.fecha.localeCompare(b.fecha))
+      .map(r => [r.nomina, `${r.nombre||''} ${r.apellido||''}`.trim(), r.fecha, r.entrada_real||'', r.salida_real||'']);
+
+    if (!filas.length) { stImp('st-chk','err','No hay checadas en este rango de fechas'); return; }
+
+    const snOut = `SEM${String(num).padStart(2,'0')}`;
+    const aoa = [[`${emp.nombre}  -  SEMANA ${num} / ${anio}  (Checador crudo -> Odoo hr.attendance)`],
+                 ['NOMINA','NOMBRE','FECHA','ENTRADA','SALIDA'], ...filas];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:10},{wch:28},{wch:12},{wch:10},{wch:10}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, snOut);
+    const fname = `CHECADOR_ODOO_${emp.sup_empresa.replace(' ','_')}_${snOut}_${anio}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    stImp('st-chk','ok',`✓ ${fname} — ${filas.length} checadas crudas — listo para subir a hr.attendance en Odoo`);
+  } catch(e) {
+    console.error(e);
+    stImp('st-chk','err','✗ '+e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // ── renderImportador ──────────────────────────────────────────
 function renderImportador() {
   const { jue, mie } = getSemImp(impOffset);
@@ -2167,10 +2206,24 @@ function renderImportador() {
     </div>
     <div id="st-imp"></div>`;
 
+  const paso3body = `
+    <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:14px">
+      Este archivo <b style="color:var(--text)">no aplica ninguna regla de negocio</b> — solo entrada y salida
+      tal cual las tomó el checador. En Odoo, el módulo de Nómina calcula las horas trabajadas, horas extra,
+      y los bonos de puntualidad/asistencia a partir de esto — no aquí.
+    </div>
+    <button class="btn" id="chk-btn-odoo"
+      style="background:rgba(168,85,247,.12);color:#c084fc;border-color:rgba(168,85,247,.25)"
+      onclick="genChecadorOdoo()">
+      ${_svgDl} Exportar Checador (Entrada/Salida)
+    </button>
+    <div id="st-chk"></div>`;
+
   document.getElementById('content').innerHTML =
     `<div style="max-width:800px">` +
     card('1','#4ade80','rgba(34,197,94,.2)','Descargar Layout','Genera el Excel que RH revisa y corrige', paso1body) +
     card('2','#60a5fa','rgba(59,130,246,.2)','Generar Importador','Sube el Layout corregido → descarga listo para nóminas', paso2body) +
+    card('3','#c084fc','rgba(168,85,247,.2)','Exportar Checador a Odoo','Entrada/salida crudas, sin bonos ni reglas — eso lo calcula Odoo', paso3body) +
     `</div>`;
 }
 
