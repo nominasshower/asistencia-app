@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Inventario Muerto</title>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg:#0f1117; --bg2:#161b27; --bg3:#1e2535; --border:rgba(255,255,255,.09);
+    --text:#e8eaf0; --muted:#8b96a5; --accent:#22c55e; --accent2:#3b82f6;
+    --warn:#f59e0b; --danger:#ef4444;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',-apple-system,sans-serif; margin:0; }
+  .page { max-width:900px; margin:0 auto; padding:18px 16px 90px; }
+  @media (min-width:760px) {
+    .page { padding:26px 32px 100px; }
+    #tab-captura .card { max-width:640px; margin-left:auto; margin-right:auto; }
+    #m-resultados, #l-resultados { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .pieza-card { margin-bottom:0; }
+    .tabs button { padding:16px 4px 14px; font-size:14px; }
+    .tabs button .ic { font-size:22px; }
+  }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .subtitle { color:var(--muted); font-size:13px; margin-bottom:18px; }
+  .card { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:18px; margin-bottom:14px; }
+  .card h2 { font-size:14px; margin:0 0 12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  label.fl { display:block; font-size:12px; color:var(--muted); margin:12px 0 5px; }
+  input[type=text], input[type=number], select, textarea {
+    width:100%; padding:13px 12px; border-radius:10px; border:1px solid var(--border);
+    background:var(--bg3); color:var(--text); font-size:16px;
+  }
+  select:disabled { opacity:.5; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .toggle-group { display:flex; gap:8px; margin-top:4px; }
+  .toggle-group button { flex:1; padding:13px; border-radius:10px; border:1px solid var(--border); background:var(--bg3); color:var(--text); font-size:14px; font-weight:600; cursor:pointer; }
+  .toggle-group button.sel { background:var(--accent2); border-color:var(--accent2); color:#fff; }
+  button.big { font-size:16px; font-weight:700; padding:16px 18px; border-radius:12px; border:none; cursor:pointer; width:100%; }
+  button.primary { background:var(--accent2); color:#fff; }
+  button.ok { background:var(--accent); color:#04150a; }
+  button.ghost { background:var(--bg3); color:var(--text); border:1px solid var(--border); }
+  button.big:disabled { opacity:.4; cursor:not-allowed; }
+  #video, #video-mover { width:100%; border-radius:12px; background:#000; display:block; }
+  .scan-box { text-align:center; }
+  .scan-resultado { font-family:'DM Mono',monospace; font-size:18px; font-weight:800; text-align:center; padding:14px; background:var(--bg3); border-radius:12px; letter-spacing:.02em; word-break:break-all; }
+  .foto-slot { aspect-ratio:1; max-width:220px; border:2px dashed var(--border); border-radius:12px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; background:var(--bg3); cursor:pointer; margin:0 auto; }
+  .foto-slot.tiene { border-style:solid; border-color:var(--accent); }
+  .foto-slot img { width:100%; height:100%; object-fit:cover; }
+  .foto-slot .lbl { color:var(--muted); font-size:13px; text-align:center; }
+  .foto-slot input { position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer; }
+  .msg { text-align:center; padding:12px; border-radius:12px; font-weight:700; margin:12px 0; font-size:14px; }
+  .msg.error { background:rgba(239,68,68,.15); color:#f87171; }
+  .msg.ok { background:rgba(34,197,94,.15); color:#4ade80; }
+  .msg.info { background:rgba(59,130,246,.15); color:#93c5fd; }
+  .link-manual { text-align:center; margin-top:10px; }
+  .link-manual a { color:var(--accent2); font-size:13px; cursor:pointer; text-decoration:underline; }
+
+  .tabs { position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--bg2); border-top:1px solid var(--border); z-index:20; }
+  .tabs button { flex:1; background:none; border:none; color:var(--muted); padding:12px 4px 10px; font-size:12px; font-weight:600; cursor:pointer; }
+  .tabs button.active { color:var(--accent2); }
+  .tabs button .ic { display:block; font-size:18px; margin-bottom:2px; }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+
+  .pieza-card { background:var(--bg2); border:1px solid var(--border); border-radius:14px; padding:12px; margin-bottom:10px; display:flex; gap:12px; }
+  .pieza-card img { width:64px; height:64px; border-radius:8px; object-fit:cover; background:var(--bg3); flex-shrink:0; }
+  .pieza-card .info { flex:1; min-width:0; }
+  .pieza-card .modelo { font-weight:700; font-size:14px; }
+  .pieza-card .meta { color:var(--muted); font-size:12px; margin-top:2px; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; background:var(--bg3); margin-top:4px; }
+  .accion-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  .accion-grid button { padding:14px 8px; font-size:13px; }
+  .search-row { display:flex; gap:8px; }
+  .search-row input { flex:1; }
+  .search-row button { width:auto; padding:13px 16px; flex-shrink:0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>📦 Inventario Muerto</h1>
+  <div class="subtitle" id="subtitle">Captura, mueve y consulta piezas sobrantes</div>
+
+  <!-- ===== TAB: CAPTURA ===== -->
+  <div class="tab-panel active" id="tab-captura">
+    <div class="card">
+      <h2>Burrito</h2>
+      <div class="row2">
+        <div>
+          <label class="fl">Número</label>
+          <select id="c-burrito-num"></select>
+        </div>
+        <div>
+          <label class="fl">Lado</label>
+          <select id="c-burrito-lado">
+            <option value="IZQ">IZQ</option>
+            <option value="DER">DER</option>
+            <option value="">Sin lado</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Pieza</h2>
+      <div id="c-pieza-sin-escanear" class="scan-box">
+        <button class="big primary" onclick="abrirScanner('captura')">📷 Escanear código de la pieza</button>
+        <div class="link-manual"><a onclick="pedirManualPieza()">Escribir el código a mano</a></div>
+      </div>
+      <div id="c-pieza-escaneada" style="display:none">
+        <div class="scan-resultado" id="c-pieza-valor"></div>
+        <button class="big ghost" style="margin-top:10px" onclick="reescanearPieza()">✕ Volver a escanear</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Datos de la pieza</h2>
+      <label class="fl">Modelo</label>
+      <select id="c-modelo" onchange="onModeloChange()">
+        <option value="">Selecciona…</option>
+      </select>
+
+      <div class="row2">
+        <div>
+          <label class="fl">Color</label>
+          <select id="c-color">
+            <option value="">Selecciona…</option>
+          </select>
+        </div>
+        <div>
+          <label class="fl">Línea</label>
+          <select id="c-linea">
+            <option>LINEA 1</option>
+            <option>LINEA 2</option>
+            <option>Sin Linea</option>
+          </select>
+        </div>
+      </div>
+
+      <label class="fl">Medida (ancho x alto)</label>
+      <select id="c-medida" onchange="onMedidaChange()" disabled>
+        <option value="">Elige un modelo primero…</option>
+      </select>
+
+      <label class="fl">Acabado</label>
+      <div class="toggle-group" id="c-acabado-group"></div>
+
+      <label class="fl">Tipo de entrada</label>
+      <select id="c-tipo-entrada">
+        <option value="CORTE">CORTE</option>
+        <option value="RECUPERADA">RECUPERADA</option>
+        <option value="SOBRANTE PRODUCCION">SOBRANTE PRODUCCIÓN</option>
+        <option value="OTRO">OTRO</option>
+      </select>
+
+      <label class="fl">Foto de la etiqueta</label>
+      <label class="foto-slot" id="c-foto-slot">
+        <span class="lbl">📷<br>Tomar foto</span>
+        <input type="file" accept="image/*" capture="environment" id="c-foto-input">
+      </label>
+
+      <div id="c-msg"></div>
+      <button class="big ok" id="c-btn-guardar" style="margin-top:14px" onclick="guardarCaptura()">✓ Guardar en inventario</button>
+    </div>
+  </div>
+
+  <!-- ===== TAB: BUSCAR / MOVER ===== -->
+  <div class="tab-panel" id="tab-mover">
+    <div class="card">
+      <h2>Buscar pieza</h2>
+      <div class="search-row">
+        <input type="text" id="m-buscar" placeholder="ID, burrito o código de pieza">
+        <button class="big primary" onclick="buscarPieza()">Buscar</button>
+        <button class="big ghost" onclick="abrirScanner('mover')">📷</button>
+      </div>
+      <div id="m-resultados"></div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: LISTADO ===== -->
+  <div class="tab-panel" id="tab-listado">
+    <div class="card">
+      <h2>Filtrar por estatus</h2>
+      <select id="l-estatus" onchange="cargarListado()">
+        <option value="">Todas</option>
+        <option value="EN INVENTARIO">En inventario</option>
+        <option value="EN STOCK">En stock</option>
+        <option value="EN PATIO">En patio</option>
+        <option value="GRADO C">Grado C</option>
+        <option value="SALIDA MUESTRA">Salida muestra</option>
+        <option value="RECUPERADA">Recuperada</option>
+      </select>
+      <div id="l-count" class="msg info" style="display:none"></div>
+      <div id="l-resultados" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL: SCANNER ===== -->
+  <div class="card" id="scanner-modal" style="display:none; position:fixed; inset:16px; z-index:30; overflow:auto;">
+    <h2 id="scanner-titulo">Escanear código</h2>
+    <video id="video-scanner" muted playsinline></video>
+    <button class="big ghost" id="btn-linterna" style="margin-top:10px; display:none" onclick="toggleLinterna()">🔦 Encender linterna</button>
+    <button class="big ghost" style="margin-top:10px" onclick="cerrarScanner()">Cancelar</button>
+    <div class="link-manual"><a onclick="pedirManualDesdeScanner()">Escribir el código a mano</a></div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="active" data-tab="captura" onclick="cambiarTab('captura')"><span class="ic">➕</span>Captura</button>
+  <button data-tab="mover" onclick="cambiarTab('mover')"><span class="ic">🔄</span>Mover</button>
+  <button data-tab="listado" onclick="cambiarTab('listado')"><span class="ic">📋</span>Listado</button>
+</div>
+
+<script>
+const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+const BUCKET = "inventario-muerto-fotos";
+const HEADERS = { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}` };
+
+let catalogo = { patrones: [], colores: [], acabados: [], medidas_por_patron: {} };
+
+async function cargarCatalogo() {
+  try {
+    const res = await fetch('catalogo_modelos.json');
+    catalogo = await res.json();
+  } catch (err) {
+    console.error('No se pudo cargar el catálogo de modelos', err);
+  }
+
+  const selModelo = document.getElementById('c-modelo');
+  catalogo.patrones.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    selModelo.appendChild(opt);
+  });
+
+  const selColor = document.getElementById('c-color');
+  catalogo.colores.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    selColor.appendChild(opt);
+  });
+
+  const acabadoGroup = document.getElementById('c-acabado-group');
+  const acabados = catalogo.acabados.length ? catalogo.acabados : ['Mate', 'Brillo'];
+  acabados.forEach(a => {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.dataset.val = a; btn.textContent = a.toUpperCase();
+    acabadoGroup.appendChild(btn);
+  });
+
+  const selBurrito = document.getElementById('c-burrito-num');
+  for (let n = 1; n <= 60; n++) {
+    const opt = document.createElement('option');
+    const val = String(n).padStart(2, '0');
+    opt.value = val; opt.textContent = val;
+    selBurrito.appendChild(opt);
+  }
+}
+
+function onModeloChange() {
+  const modelo = document.getElementById('c-modelo').value;
+  const selMedida = document.getElementById('c-medida');
+  selMedida.innerHTML = '';
+  const medidas = catalogo.medidas_por_patron[modelo] || [];
+  if (!modelo) {
+    selMedida.innerHTML = '<option value="">Elige un modelo primero…</option>';
+    selMedida.disabled = true;
+    return;
+  }
+  if (!medidas.length) {
+    selMedida.innerHTML = '<option value="">(sin medidas registradas — usa Otra)</option>';
+  } else {
+    selMedida.innerHTML = '<option value="">Selecciona…</option>' +
+      medidas.map(m => `<option value="${m}">${m}</option>`).join('');
+  }
+  selMedida.innerHTML += '<option value="__otra__">Otra medida…</option>';
+  selMedida.disabled = false;
+}
+
+let medidaManual = null;
+function onMedidaChange() {
+  const val = document.getElementById('c-medida').value;
+  if (val === '__otra__') {
+    const txt = prompt('Escribe la medida como ANCHOxALTO (ej. 32x96):');
+    if (txt && /^\d+(\.\d+)?x\d+(\.\d+)?$/i.test(txt.trim())) {
+      medidaManual = txt.trim();
+      const opt = document.createElement('option');
+      opt.value = medidaManual; opt.textContent = medidaManual + ' (manual)';
+      const sel = document.getElementById('c-medida');
+      sel.insertBefore(opt, sel.lastElementChild);
+      sel.value = medidaManual;
+    } else {
+      document.getElementById('c-medida').value = '';
+    }
+  }
+}
+
+function cambiarTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  if (tab === 'listado') cargarListado();
+}
+
+// ---------- ACABADO TOGGLE ----------
+let acabadoSel = null;
+document.getElementById('c-acabado-group').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  acabadoSel = btn.dataset.val;
+  document.querySelectorAll('#c-acabado-group button').forEach(b => b.classList.toggle('sel', b === btn));
+});
+
+// ---------- SCANNER (compartido: captura + mover) ----------
+let codeReader = null;
+let torchTrack = null;
+let torchOn = false;
+let scannerDestino = null; // 'captura' | 'mover'
+
+async function abrirScanner(destino) {
+  scannerDestino = destino;
+  document.getElementById('scanner-titulo').textContent = destino === 'captura' ? 'Escanear código de la pieza' : 'Escanear pieza a buscar';
+  document.getElementById('scanner-modal').style.display = 'block';
+  try {
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    const devices = await codeReader.listVideoInputDevices();
+    const backCam = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+    await codeReader.decodeFromVideoDevice(backCam ? backCam.deviceId : undefined, 'video-scanner', (result) => {
+      if (result) onCodigoEscaneado(result.getText());
+    });
+    prepararLinterna();
+  } catch (err) {
+    alert('No se pudo acceder a la cámara: ' + err.message);
+    cerrarScanner();
+  }
+}
+
+function prepararLinterna() {
+  const video = document.getElementById('video-scanner');
+  const stream = video.srcObject;
+  const btn = document.getElementById('btn-linterna');
+  if (!stream) { btn.style.display = 'none'; return; }
+  const track = stream.getVideoTracks()[0];
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  if (caps.torch) {
+    torchTrack = track; torchOn = false;
+    btn.textContent = '🔦 Encender linterna';
+    btn.style.display = 'block';
+  } else {
+    torchTrack = null;
+    btn.style.display = 'none';
+  }
+}
+
+async function toggleLinterna() {
+  if (!torchTrack) return;
+  const nuevo = !torchOn;
+  try {
+    await torchTrack.applyConstraints({ advanced: [{ torch: nuevo }] });
+    torchOn = nuevo;
+    document.getElementById('btn-linterna').textContent = torchOn ? '🔦 Apagar linterna' : '🔦 Encender linterna';
+  } catch (err) { /* algunos dispositivos no soportan torch */ }
+}
+
+function cerrarScanner() {
+  if (codeReader) { codeReader.reset(); codeReader = null; }
+  document.getElementById('scanner-modal').style.display = 'none';
+}
+
+function pedirManualDesdeScanner() {
+  const val = prompt('Escribe el código de la pieza:');
+  cerrarScanner();
+  if (val && val.trim()) onCodigoEscaneado(val.trim());
+}
+
+function pedirManualPieza() {
+  const val = prompt('Escribe el código de la pieza:');
+  if (val && val.trim()) onCodigoEscaneado(val.trim());
+}
+
+function onCodigoEscaneado(texto) {
+  const codigo = texto.trim();
+  cerrarScanner();
+  if (scannerDestino === 'mover') {
+    document.getElementById('m-buscar').value = codigo;
+    buscarPieza();
+  } else {
+    document.getElementById('c-pieza-valor').textContent = codigo;
+    document.getElementById('c-pieza-sin-escanear').style.display = 'none';
+    document.getElementById('c-pieza-escaneada').style.display = 'block';
+  }
+}
+
+function reescanearPieza() {
+  document.getElementById('c-pieza-valor').textContent = '';
+  document.getElementById('c-pieza-sin-escanear').style.display = 'block';
+  document.getElementById('c-pieza-escaneada').style.display = 'none';
+}
+
+// ---------- FOTO ETIQUETA ----------
+let fotoFile = null;
+function handleFotoChange(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  fotoFile = file;
+  const slot = document.getElementById('c-foto-slot');
+  const url = URL.createObjectURL(file);
+  slot.classList.add('tiene');
+  slot.innerHTML = `<img src="${url}"><input type="file" accept="image/*" capture="environment" id="c-foto-input">`;
+  document.getElementById('c-foto-input').addEventListener('change', handleFotoChange);
+}
+document.getElementById('c-foto-input').addEventListener('change', handleFotoChange);
+
+async function subirFotoEtiqueta(file, pieza) {
+  const safePieza = (pieza || 'sin-pieza').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const path = `${safePieza}/${Date.now()}.jpg`;
+  const res = await fetch(`${SUP_URL}/storage/v1/object/${BUCKET}/${path}`, {
+    method: 'POST',
+    headers: { ...HEADERS, 'Content-Type': file.type || 'image/jpeg' },
+    body: file,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return `${SUP_URL}/storage/v1/object/public/${BUCKET}/${path}`;
+}
+
+// ---------- GUARDAR CAPTURA ----------
+async function guardarCaptura() {
+  const pieza = document.getElementById('c-pieza-valor').textContent.trim();
+  const msg = document.getElementById('c-msg');
+  if (!pieza) { msg.innerHTML = '<div class="msg error">Falta escanear la pieza</div>'; return; }
+
+  const modelo = document.getElementById('c-modelo').value;
+  const medida = document.getElementById('c-medida').value;
+  if (!modelo) { msg.innerHTML = '<div class="msg error">Falta el modelo</div>'; return; }
+  if (!medida || medida === '__otra__') { msg.innerHTML = '<div class="msg error">Falta la medida</div>'; return; }
+  if (!acabadoSel) { msg.innerHTML = '<div class="msg error">Falta el acabado</div>'; return; }
+
+  const btn = document.getElementById('c-btn-guardar');
+  btn.disabled = true;
+  msg.innerHTML = '<div class="msg info">Guardando…</div>';
+
+  try {
+    let fotoUrl = null;
+    if (fotoFile) fotoUrl = await subirFotoEtiqueta(fotoFile, pieza);
+
+    const [ancho, alto] = medida.split('x').map(Number);
+    const numBurrito = document.getElementById('c-burrito-num').value;
+    const ladoBurrito = document.getElementById('c-burrito-lado').value;
+
+    const body = {
+      burrito: ladoBurrito ? `${numBurrito} ${ladoBurrito}` : numBurrito,
+      pieza,
+      modelo,
+      color: document.getElementById('c-color').value || null,
+      linea: document.getElementById('c-linea').value,
+      ancho: Number.isFinite(ancho) ? ancho : null,
+      alto: Number.isFinite(alto) ? alto : null,
+      medidas: medida,
+      acabado: acabadoSel,
+      tipo_entrada: document.getElementById('c-tipo-entrada').value,
+      foto_etiqueta_url: fotoUrl,
+      estatus: 'EN INVENTARIO',
+    };
+
+    const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto`, {
+      method: 'POST',
+      headers: { ...HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+
+    msg.innerHTML = '<div class="msg ok">✓ Pieza guardada</div>';
+    setTimeout(limpiarCaptura, 1000);
+  } catch (err) {
+    msg.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function limpiarCaptura() {
+  document.getElementById('c-burrito-num').selectedIndex = 0;
+  document.getElementById('c-burrito-lado').value = 'IZQ';
+  reescanearPieza();
+  document.getElementById('c-modelo').value = '';
+  document.getElementById('c-color').value = '';
+  document.getElementById('c-linea').value = 'LINEA 1';
+  onModeloChange();
+  document.getElementById('c-tipo-entrada').value = 'CORTE';
+  acabadoSel = null;
+  fotoFile = null;
+  document.querySelectorAll('#c-acabado-group button').forEach(b => b.classList.remove('sel'));
+  const slot = document.getElementById('c-foto-slot');
+  slot.classList.remove('tiene');
+  slot.innerHTML = `<span class="lbl">📷<br>Tomar foto</span><input type="file" accept="image/*" capture="environment" id="c-foto-input">`;
+  document.getElementById('c-foto-input').addEventListener('change', handleFotoChange);
+  document.getElementById('c-msg').innerHTML = '';
+}
+
+// ---------- BUSCAR / MOVER ----------
+const ESTATUS_ACCIONES = [
+  { label: 'Mover a Patio', val: 'EN PATIO' },
+  { label: 'A Grado C', val: 'GRADO C' },
+  { label: 'Mover a Stock', val: 'EN STOCK' },
+  { label: 'Salida Muestra', val: 'SALIDA MUESTRA' },
+];
+
+async function buscarPieza() {
+  const q = document.getElementById('m-buscar').value.trim();
+  const cont = document.getElementById('m-resultados');
+  if (!q) { cont.innerHTML = ''; return; }
+  cont.innerHTML = '<div class="msg info">Buscando…</div>';
+
+  try {
+    const filtro = /^\d+$/.test(q)
+      ? `id=eq.${q}`
+      : `or=(pieza.ilike.*${encodeURIComponent(q)}*,burrito.ilike.*${encodeURIComponent(q)}*)`;
+    const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?${filtro}&order=created_at.desc&limit=10`, { headers: HEADERS });
+    const rows = await res.json();
+    if (!rows.length) { cont.innerHTML = '<div class="msg error">No se encontró</div>'; return; }
+    cont.innerHTML = rows.map(renderPiezaCard).join('');
+  } catch (err) {
+    cont.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
+  }
+}
+
+function renderPiezaCard(r) {
+  const foto = r.foto_etiqueta_url ? `<img src="${r.foto_etiqueta_url}">` : `<img>`;
+  const acciones = ESTATUS_ACCIONES
+    .filter(a => a.val !== r.estatus)
+    .map(a => `<button class="big ghost" onclick="cambiarEstatus(${r.id}, '${r.estatus}', '${a.val}', this)">${a.label}</button>`)
+    .join('');
+  return `
+    <div class="pieza-card" id="pieza-${r.id}">
+      ${foto}
+      <div class="info">
+        <div class="modelo">${r.modelo || '(sin modelo)'} </div>
+        <div class="meta">${r.pieza} · ${r.color || ''} ${r.medidas ? '· ' + r.medidas : ''}</div>
+        <div class="meta">Burrito: ${r.burrito || '—'}</div>
+        <span class="badge">${r.estatus}</span>
+        <div class="accion-grid">${acciones}</div>
+        <div id="pieza-msg-${r.id}"></div>
+      </div>
+    </div>`;
+}
+
+async function cambiarEstatus(id, estatusAnterior, estatusNuevo, btn) {
+  const msgEl = document.getElementById(`pieza-msg-${id}`);
+  btn.closest('.accion-grid').querySelectorAll('button').forEach(b => b.disabled = true);
+  try {
+    const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { ...HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ estatus: estatusNuevo }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+
+    await fetch(`${SUP_URL}/rest/v1/inventario_muerto_movimientos`, {
+      method: 'POST',
+      headers: { ...HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ inventario_id: id, estatus_anterior: estatusAnterior, estatus_nuevo: estatusNuevo }),
+    });
+
+    msgEl.innerHTML = `<div class="msg ok">✓ Movido a ${estatusNuevo}</div>`;
+    setTimeout(buscarPieza, 800);
+  } catch (err) {
+    msgEl.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
+    btn.closest('.accion-grid').querySelectorAll('button').forEach(b => b.disabled = false);
+  }
+}
+
+// ---------- LISTADO ----------
+async function cargarListado() {
+  const estatus = document.getElementById('l-estatus').value;
+  const cont = document.getElementById('l-resultados');
+  const countEl = document.getElementById('l-count');
+  cont.innerHTML = '<div class="msg info">Cargando…</div>';
+  countEl.style.display = 'none';
+
+  try {
+    const filtro = estatus ? `&estatus=eq.${encodeURIComponent(estatus)}` : '';
+    const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?select=*&order=created_at.desc&limit=100${filtro}`, {
+      headers: { ...HEADERS, Prefer: 'count=exact' },
+    });
+    const rows = await res.json();
+    const rangeTotal = res.headers.get('content-range')?.split('/')?.[1];
+    const total = (rangeTotal && rangeTotal !== '*') ? Number(rangeTotal) : rows.length;
+    countEl.style.display = 'block';
+    countEl.textContent = `${total} pieza(s)` + (rows.length < total ? ` — mostrando las últimas ${rows.length}` : '');
+    cont.innerHTML = rows.length ? rows.map(renderPiezaCard).join('') : '<div class="msg error">Sin piezas</div>';
+  } catch (err) {
+    cont.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
+  }
+}
+
+cargarCatalogo();
+</script>
+</body>
+</html>

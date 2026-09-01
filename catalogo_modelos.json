@@ -1,0 +1,1492 @@
+{
+  "patrones": [
+    "10X20 VERTICAL (VE) CENTER",
+    "10X20 VERTICAL (VE) LEFT/IZQ",
+    "10X20 VERTICAL (VE) RIGHT/DER ",
+    "12X24 CONTEMPORARY (MG) CENTER",
+    "12X24 CONTEMPORARY (MG) LEFT/IZQ",
+    "12X24 CONTEMPORARY (MG) RIGHT/DER",
+    "12X24 VISION (NV) CENTER",
+    "12X24 VISION (NV) LEFT/IZQ",
+    "12X24 VISION (NV) RIGHT/DER",
+    "1X12 VISION (OV) CENTER",
+    "1X12 VISION (OV) LEFT/IZQ",
+    "1X12 VISION (OV)RIGHT/DER",
+    "2X14 BAMBOO (BA)  LEFT/IZQ",
+    "2X14 BAMBOO (BA) CENTER",
+    "2X8 VERTICAL (VL) CENTER",
+    "3X6 SUBWAY (SB) CENTER",
+    "3X6 SUBWAY (SB) LEFT/ IZQ",
+    "3X6 SUBWAY (SB) RIGHT/DER",
+    "3X6 SUBWAY GEN 1 (G1) CENTER",
+    "3X6 SUBWAY GEN 1 (G1) LEFT/IZQ",
+    "3X6 SUBWAY GEN 1 (G1) RIGHT/DER",
+    "3X6 VISION (VS)  CENTER",
+    "4X12 ATHENS (AT)",
+    "4X12 ATHENS (AT) RIGHT/DER",
+    "4X12 ATHENS(AT) LEFT/IZQ",
+    "4X12 SMOOTH TILE (CP) CENTER",
+    "4X12 STACKED (SK) CENTER",
+    "4X12 STACKED (SK) LEFT/IZQ",
+    "4X12 STACKED (SK) RIGHT/DER",
+    "4X12 VERTICAL (VT)",
+    "4X12 VERTICAL (VT) CENTER",
+    "4X12 VERTICAL (VT) LEFT/IZQ",
+    "4X12 VERTICAL (VT) RIGHT/DER",
+    "4X15 CONFETTI (TT) CENTER",
+    "4X15 CONFETTI (TT) LEFT/IZQ",
+    "4X15 CONFETTI (TT) RIGHT/DER",
+    "4X15 STACKED (KS) CENTRO",
+    "4X15 STACKED (KS) LEFT/IZQ",
+    "4X15 STACKED (KS) RIGHT/DER",
+    "4X8 (TE) CENTER",
+    "4X8 (TE) LEFT/IZQ",
+    "4X8 (TE) RIGHT/DER",
+    "4X8 BEVELED SUBWAY (BV) CENTER",
+    "6X24 CONTEMPORARY (CG) CENTER",
+    "6X24 CONTEMPORARY (CG) LEFT/IZQ",
+    "6X24 CONTEMPORARY (CG) RIGHT/DER",
+    "6X24 LINEAR LISTELLO (LL)  UP /ARRIBA",
+    "6X24 LINEAR LISTELLO (LL) DOWN/ ABAJO",
+    "6X24 LINEAR LISTELLO (LL) LEFT/IZQ",
+    "6X24 LINEAR LISTELLO (LL) RIGHT/DER",
+    "6X24 LINEAR LISTELLO (LL) UP/ ARRIBA",
+    "6X24 MODERN (MO) CENTER",
+    "6X24 MODERN (MO) LEFT/IZQ",
+    "6X24 MODERN(MO) RIGHT/DER",
+    "6X24 STACKED (ST) CENTER",
+    "6X24 STACKED (ST) LEFT/IZQ",
+    "6X24 STACKED (ST) LOWER/ABAJO",
+    "6X24 STACKED (ST) RIGHT/DER",
+    "6X24 STACKED (ST) UPPER",
+    "6X24 VISION (NO) CENTAR",
+    "6X24 VISION (NO) LEFT/IZQ",
+    "6X24 VISION (NO) RIGHT,DER",
+    "6X24 VISION (NO) RIGHT/ DER EXG2-111.RIS",
+    "6X24 VISION (VI)  RIGHT/ DER",
+    "6X24 VISION (VI) CENTER",
+    "6X24 VISION (VI) LEFT/IZQ",
+    "6X24 VISION (VI) RIGHT/ DER",
+    "ADA C/R DERECHO",
+    "BACKSPLASH  3X6 VISION (VI)",
+    "BASE ADA (AD) @  MATTE CENTER",
+    "BASE ADA (AD) @ 8 MATTE LEFT/IZQ",
+    "BASE ADA (AD) @ 8 MATTE RIGH/DER",
+    "BASE ADA (AR) WITH RAMP CENTER",
+    "BASE ADA (AR) WITH RAMP RIGHT/DER",
+    "BASE ADA (ED) ESP DRAIN WITH RAMP",
+    "BASE ADA (WA) MATTE 1.5\" CENTER",
+    "BASE ADA BARRIER FREE (BR) CENTER",
+    "BASE ADA ESP DRAIN (BE)  MATTE RIGHT",
+    "BASE ADA WHIT RAMP LEFT/IZQ",
+    "BASE CENTER DRAIN (CD) CENTER",
+    "BASE CENTER DRAIN (ND) (no design on surface)",
+    "BASE CENTER DRAIN (WC) 1.5\"",
+    "BASE CENTER DRAIN ELITE (W2)",
+    "BASE CENTER DRAIN(ND)",
+    "BASE CORNER DRAIN (DC) RIGHT/SER",
+    "BASE CUSTOM (DA) CENTER",
+    "BASE CUSTOM (DA) LEFT/IZQ",
+    "BASE CUSTOM (DA) RIGHT/DER",
+    "BASE OFFSET @9 3/8\" (BO) LEFT/IZQ",
+    "BASE OFFSET DRAIN (OF) RIGHT/DER",
+    "BASE OFFSET DRAIN (RV) 8.5 LEFHT/IZQ",
+    "BASE OFFSET DRAIN (RV)8.5 RV RIGHT/DER",
+    "BASE OFFSET DRAIN(OF) LEFT/ IZQ",
+    "BASE RENO SHOWER PAN (W3) LEFT/IZQ",
+    "BASE RENO SHOWER PAN (W3) RIGHT/DER",
+    "BASE SQUARE CENTER (SQ)",
+    "BASE TRENCH CENTER DRAIN 1.5\" (WT)-WITH COVER LEFT",
+    "BASE TRENCH CENTER DRAIN 1.5\" (WT)-WITH COVER RIGH",
+    "BASE TRENCH DRAIN (TR) LEFT/ IZQ",
+    "BASE TRENCH DRAIN (TR) RIGHT/DER",
+    "BASE TRENCH RENO (TO) @8  LEFT/IZQ",
+    "BASE TRENCH RENO (TO) @8 RIGHT/DER",
+    "BASE TRENCH RENO W (W1) LEFT/IZQ",
+    "BASKET WAVE (BW) CENTER",
+    "BASKET WAVE (BW) LEFT/IZQ",
+    "BASKET WAVE (BW) RIGHT/DER",
+    "CHEVRON FFI (FF) CENTER",
+    "CHEVRON FFI (FF) UNI",
+    "CHEVRON H4 (H4) CENTER",
+    "CHEVRON H4 (H4) LEFT/IZQ",
+    "CHEVRON H4 (H4) RIGHT/DER",
+    "CLASS A 2X8 VERTICAL (TV) CEN",
+    "CLASS A WALL 4X12 VERTICAL (VF) CENTER",
+    "CLASS A WALL 4X12 VERTICAL (VF) LEFT/IZQ",
+    "CLASS A WALL 4X12 VERTICAL (VF) RIGHT/DER",
+    "CLASS A WALL VERTICAL VISION (AN) CENTER",
+    "CLASS A WALL VERTICAL VISION (AN) UNI",
+    "CLASS A WALL VERTICAL VISION LISTELLO (LA) CENTER",
+    "HERRINGBONE (HE) CENTER",
+    "HERRINGBONE (HE) LEFT/IZQ",
+    "HERRINGBONE (HE) RIGHT/DER",
+    "HERRINGBONE SAND (HS) CENTER",
+    "HERRINGBONE SAND (HS) CENTER 2",
+    "HERRINGBONE SAND (HS) LEFT/IZQ",
+    "HERRINGBONE SAND (HS) RIGHT/DER",
+    "INTERVAL (IA) CENTER",
+    "INTERVAL (IA) LEFT/IZQ",
+    "INTERVAL (IA) RIGHT/DER",
+    "PRUEBA WALLS",
+    "SAMPLE  SANTORINI (S2)",
+    "SEAM CPVER (AM)",
+    "SMOOTH (SM) CENTER",
+    "SMOOTH (SM) LEFT/IZQ",
+    "SMOOTH (SM) RIGHT/DER",
+    "STARS (SA) CENTER",
+    "STARS (SA) LEFT/IZQ",
+    "STARS (SA) RIGHT/DER",
+    "THEORY (TH) CENTER",
+    "THEORY (TH) LEFT/IZQ",
+    "THEORY (TH) RIGHT/DER",
+    "TINA DE BAÑO",
+    "VERTICAL INTERVAL (IV) CENTER",
+    "VERTICAL INTERVAL (IV) LEFT/IZQ",
+    "VERTICAL INTERVAL (IV) RIGHT/DER",
+    "VERTICAL VISION (VV) CENTER",
+    "VERTICAL VISION (VV) UNI",
+    "WALL 12X24 VISION (NV) CENTER 2",
+    "WALL 13X20 TILE SLAB (TL)  DER/RIGHT",
+    "WALL 13X20 TILE SLAB (TL) CENTER",
+    "WALL 13X20 TILE SLAB (TL) IZQ/LEFT",
+    "WALL 2X8 VERTICAL (VL) RIGHT/DER",
+    "WALL 2X8 VERTICAL (VL)LEFT/IZQ",
+    "WALL 4X12 BEVELED VERTICAL (ON) CENTER",
+    "WALL 4X12 SMOOTH TILE (CP) LEFT/IZQ",
+    "WALL 4X12 SMOOTH TILE (CP) RIGHT/ DER",
+    "WALL 4X15 CONFETTI (TT) CENTER",
+    "WALL 4X15 STACKED (KS) CENTRO  2",
+    "WALL 6/4 x 24 VISION (V6) CENTER",
+    "WALL 6X10 BORDEAUX (BO)  CENTER",
+    "WALL 6X10 BORDEAUX (BO) LEFT/IZQ",
+    "WALL 6X10 BORDEAUX (BO) RIGHT/DER",
+    "WALL 6X12 VISION (VO) CENTER",
+    "WALL 6X12 VISION (VO) LEFT/IZQ",
+    "WALL 6X12 VISION (VO) RIGHT/DER",
+    "WALL 6X24 MODERN (MO) CENTER 2",
+    "WALL 6X24 MODERN ELITE (EM) LEFT/IZQ",
+    "WALL 6X24 MODERN ELITE (EM) RIGHT/DER",
+    "WALL 6X24 VISION (NO) CENTAR",
+    "WALL 6X24 VISION (NO) CENTER 2",
+    "WALL 6X24 VISION (NO) LEFT,IZQ",
+    "WALL 6X24 VISION (NO) RIGHT,DER",
+    "WALL CENTER, 12X24 CONTEMPORARY (CK)",
+    "WALL CENTER, CHEVRON (HK)",
+    "WALL CENTER, INTERVAL (IK)",
+    "WALL CENTER, SUBWAY TILE (TK)",
+    "WALL CENTER, VERTICAL BLOCK (VK)",
+    "WALL CHEVRON FFI (FF) CENTER",
+    "WALL CHEVRON FFI (FF) UNI",
+    "WALL CHEVRON FFI ELITE (CE) UNI",
+    "WALL CLASS A 4x12 SMOOTH TILE (TC) CENTER",
+    "WALL CLASS A 6X10 BORDEAUX (XA) CENTER",
+    "WALL CLASS A 6X10 BORDEAUX (XA) LEFT/IZQ",
+    "WALL CLASS A 6X10 BORDEAUX (XA) RIGHT/DER",
+    "WALL DIAMOND (DI) CENTER",
+    "WALL DUNE (DU) CENTER",
+    "WALL HERRINGBONE (HE) CENTER 2",
+    "WALL LEFT, 12X24 CONTEMPORARY (CK)",
+    "WALL LEFT, CHEVRON, SW MATTE",
+    "WALL LEFT, INTERVAL (IK)",
+    "WALL LEFT, SUBWAY TILE,(TK)",
+    "WALL LEFT, VERTICAL BLOCK (VK)",
+    "WALL RIGHT, 12X24 CONTEMPORARY (CK)",
+    "WALL RIGHT, CHEVRON (HK)",
+    "WALL RIGHT, INTERVAL (IK)",
+    "WALL RIGHT, SUBWAY TILE (TK)",
+    "WALL RIGHT, VERTICAL BLOCK (VK)",
+    "WALL SANTORINI (SN) CENTER",
+    "WALL SANTORINI (SN) LEFT/IZQ",
+    "WALL VERTICAL VISION (VV) CENTER",
+    "WALL VERTICAL VISION (VV) UNI",
+    "WALL VERTICAL VISION LISTELLO(LV) CENTER",
+    "WALL VERTICAL VISION LISTELLO(LV) MATTE",
+    "WALL, 12X24 CONTEMPORARY, SW MATTE LOW (CK)",
+    "WINDOWSILL (CW)",
+    "test1"
+  ],
+  "colores": [
+    "ARTIC WHITE",
+    "Bright White",
+    "DOVE GRAY",
+    "ICED WITH",
+    "ITALIAN ICE",
+    "Italian White",
+    "LIGHT GRAY",
+    "Mexican Sand",
+    "SOLID IVORY MAX",
+    "SOLID WHITE",
+    "SOLID WHITE K",
+    "Solid Bone",
+    "Solid Cream",
+    "Solid Ivory",
+    "WHITE-GSP"
+  ],
+  "acabados": [
+    "Brillo",
+    "Mate",
+    "Metal"
+  ],
+  "medidas_por_patron": {
+    "WALL 6X24 VISION (NO) LEFT,IZQ": [
+      "30x58",
+      "30x72",
+      "30x80",
+      "30x84",
+      "30x86",
+      "30x96",
+      "31x96",
+      "32x86",
+      "32x96",
+      "33x78",
+      "33x84",
+      "34x84",
+      "34x92",
+      "34x96",
+      "36x84",
+      "36x90",
+      "36x96",
+      "40x84",
+      "48x96"
+    ],
+    "12X24 CONTEMPORARY (MG) LEFT/IZQ": [
+      "30x72",
+      "30x80",
+      "30x84",
+      "30x92",
+      "30x96",
+      "32x12",
+      "32x84",
+      "32x96",
+      "34x96",
+      "36x90",
+      "36x96"
+    ],
+    "WALL 6X24 VISION (NO) RIGHT,DER": [
+      "30x58",
+      "30x72",
+      "30x80",
+      "30x84",
+      "30x86",
+      "30x96",
+      "31x96",
+      "32x12",
+      "32x86",
+      "32x96",
+      "33x78",
+      "33x84",
+      "34x84",
+      "34x92",
+      "34x96",
+      "36x84",
+      "36x90",
+      "36x96",
+      "40x84",
+      "48x96"
+    ],
+    "6X24 MODERN (MO) LEFT/IZQ": [
+      "30x84",
+      "30x96",
+      "32x84",
+      "32x96",
+      "34x84",
+      "34x96",
+      "36x84",
+      "36x96"
+    ],
+    "3X6 SUBWAY (SB) CENTER": [
+      "31x96",
+      "36x24",
+      "38x96",
+      "39x88",
+      "40x96",
+      "41x81",
+      "48x96",
+      "50x84",
+      "60x72",
+      "60x84",
+      "60x96",
+      "62x96",
+      "63x77"
+    ],
+    "4X12 VERTICAL (VT) CENTER": [
+      "39x84",
+      "40x85",
+      "48x85",
+      "51x86",
+      "60x72",
+      "60x76",
+      "60x84",
+      "60x86",
+      "60x90",
+      "60x96",
+      "62x95",
+      "62x96"
+    ],
+    "WALL 6X24 VISION (NO) CENTAR": [
+      "30x96",
+      "31x96",
+      "32x84",
+      "36x84",
+      "36x96",
+      "40x84",
+      "42x96",
+      "48x84",
+      "48x90",
+      "48x96",
+      "60x58",
+      "60x72",
+      "60x78",
+      "60x80",
+      "60x84",
+      "60x86",
+      "60x92",
+      "60x96",
+      "62x96"
+    ],
+    "WALL 6X12 VISION (VO) RIGHT/DER": [
+      "30x84",
+      "36x96"
+    ],
+    "HERRINGBONE (HE) RIGHT/DER": [
+      "30x84",
+      "30x96",
+      "31x96",
+      "32x84",
+      "32x96",
+      "34x96",
+      "36x96",
+      "38x77",
+      "38x88",
+      "38x90",
+      "38x96",
+      "60x96"
+    ],
+    "VERTICAL VISION (VV) CENTER": [
+      "31x96",
+      "38x72",
+      "38x84",
+      "60x72",
+      "60x84",
+      "60x96"
+    ],
+    "HERRINGBONE (HE) LEFT/IZQ": [
+      "30x84",
+      "30x96",
+      "31x96",
+      "32x84",
+      "32x96",
+      "34x96",
+      "36x96",
+      "38x77",
+      "38x88",
+      "38x90",
+      "38x96",
+      "60x96"
+    ],
+    "4X12 ATHENS (AT)": [
+      "39x77",
+      "60x103",
+      "60x69",
+      "60x72",
+      "60x73",
+      "60x84",
+      "61x103"
+    ],
+    "HERRINGBONE SAND (HS) CENTER": [
+      "28x12",
+      "28x78",
+      "28x88",
+      "28x90",
+      "28x96",
+      "32x78",
+      "32x88",
+      "34x96",
+      "44x12",
+      "44x90",
+      "44x96"
+    ],
+    "INTERVAL (IA) RIGHT/DER": [
+      "30x84",
+      "30x96",
+      "32x96",
+      "34x93",
+      "34x96",
+      "36x96"
+    ],
+    "HERRINGBONE (HE) CENTER": [
+      "22x96",
+      "30x96",
+      "31x90",
+      "34x96",
+      "36x96",
+      "44x96",
+      "48x96",
+      "60x77",
+      "60x84",
+      "60x88",
+      "60x90",
+      "60x96"
+    ],
+    "WINDOWSILL (CW)": [
+      "6x108",
+      "6x18",
+      "6x30",
+      "6x36",
+      "6x60",
+      "6x71",
+      "6x72",
+      "6x81",
+      "6x96"
+    ],
+    "4X12 ATHENS(AT) LEFT/IZQ": [
+      "30x72",
+      "30x84",
+      "31x69",
+      "31x73"
+    ],
+    "BASE CENTER DRAIN (CD) CENTER": [
+      "30x60",
+      "32x60",
+      "34x48",
+      "34x60",
+      "34x72",
+      "36x36",
+      "36x42",
+      "36x48",
+      "36x60",
+      "37x38",
+      "38x38",
+      "38x50",
+      "38x60",
+      "39x39",
+      "39x51",
+      "39x60"
+    ],
+    "BASE TRENCH DRAIN (TR) LEFT/ IZQ": [
+      "30x54",
+      "30x58",
+      "30x60",
+      "32x60",
+      "34x48",
+      "34x60",
+      "34x66",
+      "34x72",
+      "36x48",
+      "36x60",
+      "36x68",
+      "36x72"
+    ],
+    "4X12 VERTICAL (VT) LEFT/IZQ": [
+      "30x72",
+      "30x86",
+      "32x76",
+      "32x84",
+      "35x95",
+      "38x85",
+      "38x90",
+      "38x96",
+      "39x84",
+      "39x85",
+      "39x86",
+      "39x96",
+      "40x96"
+    ],
+    "INTERVAL (IA) CENTER": [
+      "48x93",
+      "48x96",
+      "60x84",
+      "60x96",
+      "62x96"
+    ],
+    "3X6 SUBWAY (SB) LEFT/ IZQ": [
+      "30x84",
+      "30x96",
+      "31x96",
+      "32x72",
+      "32x96",
+      "34x43",
+      "34x96",
+      "36x84",
+      "36x96",
+      "38x84",
+      "38x96",
+      "39x88",
+      "40x96",
+      "41x81"
+    ],
+    "WALL 6X24 VISION (NO) CENTER 2": [
+      "31x96",
+      "32x84",
+      "32x96",
+      "36x84"
+    ],
+    "4X12 VERTICAL (VT) RIGHT/DER": [
+      "30x72",
+      "30x86",
+      "32x76",
+      "32x84",
+      "35x95",
+      "38x85",
+      "38x90",
+      "38x96",
+      "39x84",
+      "39x85",
+      "39x86",
+      "39x96",
+      "40x96"
+    ],
+    "3X6 SUBWAY (SB) RIGHT/DER": [
+      "30x84",
+      "30x96",
+      "31x96",
+      "32x72",
+      "32x96",
+      "34x96",
+      "36x84",
+      "36x96",
+      "38x84",
+      "38x96",
+      "39x88",
+      "40x96",
+      "41x81"
+    ],
+    "INTERVAL (IA) LEFT/IZQ": [
+      "30x84",
+      "30x96",
+      "32x96",
+      "34x93",
+      "34x96",
+      "36x96"
+    ],
+    "HERRINGBONE SAND (HS) RIGHT/DER": [
+      "30x88",
+      "31x96",
+      "32x78",
+      "34x12",
+      "34x96",
+      "38x90"
+    ],
+    "HERRINGBONE SAND (HS) LEFT/IZQ": [
+      "30x88",
+      "31x96",
+      "32x78",
+      "34x12",
+      "34x96",
+      "38x90"
+    ],
+    "4X12 ATHENS (AT) RIGHT/DER": [
+      "30x72",
+      "30x84",
+      "31x69",
+      "31x73"
+    ],
+    "BASE TRENCH DRAIN (TR) RIGHT/DER": [
+      "30x54",
+      "30x58",
+      "30x60",
+      "32x60",
+      "34x54",
+      "34x60",
+      "34x66",
+      "34x72",
+      "36x48",
+      "36x60",
+      "36x72"
+    ],
+    "BASE CENTER DRAIN (ND) (no design on surface)": [
+      "34x60"
+    ],
+    "VERTICAL VISION (VV) UNI": [
+      "30x72",
+      "30x84",
+      "30x96",
+      "32x96",
+      "34x84",
+      "34x96",
+      "36x96",
+      "38x84"
+    ],
+    "CHEVRON FFI (FF) UNI": [
+      "30x72",
+      "30x76",
+      "30x84",
+      "30x96",
+      "32x84",
+      "32x96",
+      "34x84",
+      "34x96",
+      "36x43",
+      "36x84",
+      "36x86",
+      "36x88",
+      "36x90",
+      "36x96"
+    ],
+    "6X24 STACKED (ST) RIGHT/DER": [
+      "30x30",
+      "30x84",
+      "30x96",
+      "32x96",
+      "34x96",
+      "36x96",
+      "60x96"
+    ],
+    "WALL 6X12 VISION (VO) LEFT/IZQ": [
+      "30x84",
+      "36x96"
+    ],
+    "12X24 CONTEMPORARY (MG) CENTER": [
+      "36x24",
+      "60x12",
+      "60x72",
+      "60x80",
+      "60x84",
+      "60x92",
+      "60x96"
+    ],
+    "BASE ADA (AR) WITH RAMP CENTER": [
+      "30x60",
+      "31x61",
+      "31x62",
+      "32x60",
+      "32x62",
+      "34x60",
+      "34x62",
+      "34x63",
+      "35x62",
+      "36x36",
+      "36x60",
+      "38x38"
+    ],
+    "CHEVRON H4 (H4) LEFT/IZQ": [
+      "30x96",
+      "32x96",
+      "34x84",
+      "36x96"
+    ],
+    "12X24 CONTEMPORARY (MG) RIGHT/DER": [
+      "30x72",
+      "30x80",
+      "30x84",
+      "30x92",
+      "30x96",
+      "32x12",
+      "32x84",
+      "32x96",
+      "34x96",
+      "36x90",
+      "36x96",
+      "37x80",
+      "43x90"
+    ],
+    "6X24 MODERN(MO) RIGHT/DER": [
+      "30x84",
+      "30x96",
+      "32x84",
+      "32x96",
+      "34x84",
+      "34x96",
+      "36x84",
+      "36x96"
+    ],
+    "6X24 MODERN (MO) CENTER": [
+      "32x84",
+      "48x96",
+      "60x84",
+      "60x96"
+    ],
+    "BASE ADA (WA) MATTE 1.5\" CENTER": [
+      "37x38",
+      "38x62"
+    ],
+    "WALL RIGHT, INTERVAL (IK)": [
+      "34x72",
+      "42x96"
+    ],
+    "WALL CENTER, INTERVAL (IK)": [
+      "48x96",
+      "60x72",
+      "60x96",
+      "66x96",
+      "72x96"
+    ],
+    "WALL CENTER, CHEVRON (HK)": [
+      "42x96",
+      "60x72",
+      "60x96",
+      "66x96",
+      "72x96"
+    ],
+    "6X24 LINEAR LISTELLO (LL) RIGHT/DER": [
+      "30x80",
+      "30x84",
+      "30x96",
+      "32x80",
+      "32x93",
+      "32x96",
+      "36x96"
+    ],
+    "6X24 STACKED (ST) CENTER": [
+      "60x84",
+      "60x96"
+    ],
+    "WALL 6X24 MODERN (MO) CENTER 2": [
+      "32x84",
+      "32x96"
+    ],
+    "6X24 LINEAR LISTELLO (LL) LEFT/IZQ": [
+      "30x84",
+      "30x96",
+      "32x80",
+      "32x93",
+      "32x96",
+      "36x96"
+    ],
+    "6X24 LINEAR LISTELLO (LL) DOWN/ ABAJO": [
+      "60x44",
+      "60x48",
+      "60x57",
+      "60x60",
+      "61x60"
+    ],
+    "6X24 LINEAR LISTELLO (LL)  UP /ARRIBA": [
+      "61x36"
+    ],
+    "2X8 VERTICAL (VL) CENTER": [
+      "38x88",
+      "60x72"
+    ],
+    "BASE TRENCH CENTER DRAIN 1.5\" (WT)-WITH COVER LEFT": [
+      "36x60"
+    ],
+    "CHEVRON FFI (FF) CENTER": [
+      "42x84",
+      "48x96",
+      "60x72",
+      "60x76",
+      "60x84",
+      "60x86",
+      "60x88",
+      "60x90",
+      "60x96",
+      "62x96"
+    ],
+    "WALL 6X12 VISION (VO) CENTER": [
+      "60x84",
+      "60x96"
+    ],
+    "WALL 2X8 VERTICAL (VL) RIGHT/DER": [
+      "36x72",
+      "38x88"
+    ],
+    "6X24 LINEAR LISTELLO (LL) UP/ ARRIBA": [
+      "60x36"
+    ],
+    "BASE CENTER DRAIN (WC) 1.5\"": [
+      "36x60"
+    ],
+    "BASE ADA (AD) @  MATTE CENTER": [
+      "31x62",
+      "36x60",
+      "36x62",
+      "37x38",
+      "38x38"
+    ],
+    "STARS (SA) CENTER": [
+      "36x24",
+      "36x96",
+      "60x77",
+      "60x84",
+      "60x92",
+      "60x96"
+    ],
+    "12X24 VISION (NV) LEFT/IZQ": [
+      "30x84",
+      "34x96"
+    ],
+    "PRUEBA WALLS": [
+      "1x1",
+      "2x2"
+    ],
+    "BASE OFFSET DRAIN (RV) 8.5 LEFHT/IZQ": [
+      "34x60"
+    ],
+    "CHEVRON H4 (H4) CENTER": [
+      "60x84",
+      "60x96"
+    ],
+    "4X8 (TE) RIGHT/DER": [
+      "30x96",
+      "32x84",
+      "32x96",
+      "36x82",
+      "36x96",
+      "39x96",
+      "42x96"
+    ],
+    "BASE OFFSET DRAIN (RV)8.5 RV RIGHT/DER": [
+      "34x60"
+    ],
+    "4X8 (TE) LEFT/IZQ": [
+      "30x96",
+      "32x84",
+      "32x96",
+      "36x82",
+      "36x96",
+      "39x96",
+      "42x84",
+      "42x96"
+    ],
+    "4X8 (TE) CENTER": [
+      "39x96",
+      "42x84",
+      "42x96",
+      "60x82",
+      "60x84",
+      "60x96"
+    ],
+    "6X24 STACKED (ST) LEFT/IZQ": [
+      "30x84",
+      "30x96",
+      "32x96",
+      "34x96",
+      "36x96",
+      "60x96"
+    ],
+    "BASE TRENCH RENO W (W1) LEFT/IZQ": [
+      "32x60"
+    ],
+    "6X24 STACKED (ST) LOWER/ABAJO": [
+      "60x60",
+      "62x60",
+      "66x60",
+      "72x60"
+    ],
+    "6X24 STACKED (ST) UPPER": [
+      "60x36",
+      "62x36",
+      "66x36",
+      "72x36"
+    ],
+    "CHEVRON H4 (H4) RIGHT/DER": [
+      "30x30",
+      "30x96",
+      "32x96",
+      "34x84",
+      "36x96"
+    ],
+    "4X15 STACKED (KS) RIGHT/DER": [
+      "30x84",
+      "30x96",
+      "32x84",
+      "34x96",
+      "36x96"
+    ],
+    "WALL 2X8 VERTICAL (VL)LEFT/IZQ": [
+      "36x72",
+      "38x88"
+    ],
+    "6X24 CONTEMPORARY (CG) LEFT/IZQ": [
+      "30x72",
+      "30x84",
+      "30x96",
+      "32x92",
+      "32x96",
+      "33x84",
+      "34x96",
+      "36x96"
+    ],
+    "6X24 CONTEMPORARY (CG) CENTER": [
+      "48x96",
+      "60x72",
+      "60x84",
+      "60x92",
+      "60x96"
+    ],
+    "6X24 CONTEMPORARY (CG) RIGHT/DER": [
+      "30x72",
+      "30x84",
+      "30x96",
+      "32x92",
+      "32x96",
+      "33x84",
+      "34x96",
+      "36x96"
+    ],
+    "1X12 VISION (OV)RIGHT/DER": [
+      "30x84",
+      "30x86",
+      "30x96",
+      "32x84",
+      "34x96",
+      "36x96"
+    ],
+    "4X15 CONFETTI (TT) LEFT/IZQ": [
+      "30x72",
+      "30x96",
+      "34x96",
+      "35x85",
+      "36x96"
+    ],
+    "6X24 VISION (VI)  RIGHT/ DER": [
+      "30x76",
+      "30x84",
+      "30x96",
+      "32x12",
+      "32x84",
+      "32x96",
+      "34x86",
+      "34x90",
+      "34x96",
+      "36x96"
+    ],
+    "6X24 VISION (VI) CENTER": [
+      "36x24",
+      "36x96",
+      "48x96",
+      "60x12",
+      "60x76",
+      "60x80",
+      "60x84",
+      "60x86",
+      "60x90",
+      "60x96"
+    ],
+    "STARS (SA) RIGHT/DER": [
+      "30x77",
+      "30x84",
+      "34x92",
+      "36x96"
+    ],
+    "BACKSPLASH  3X6 VISION (VI)": [
+      "20x71.25",
+      "30x102",
+      "30x24.5",
+      "68x20"
+    ],
+    "CLASS A WALL 4X12 VERTICAL (VF) CENTER": [
+      "60x84"
+    ],
+    "1X12 VISION (OV) CENTER": [
+      "32x96",
+      "60x77",
+      "60x84",
+      "60x96"
+    ],
+    "WALL 6X24 MODERN ELITE (EM) RIGHT/DER": [
+      "36x96"
+    ],
+    "STARS (SA) LEFT/IZQ": [
+      "30x77",
+      "30x84",
+      "30x96",
+      "34x92",
+      "36x96"
+    ],
+    "BASE CENTER DRAIN(ND)": [
+      "36x48"
+    ],
+    "4X15 STACKED (KS) LEFT/IZQ": [
+      "30x84",
+      "30x96",
+      "32x84",
+      "34x96",
+      "36x96"
+    ],
+    "WALL 4X15 STACKED (KS) CENTRO  2": [
+      "31x96"
+    ],
+    "4X15 STACKED (KS) CENTRO": [
+      "31x96",
+      "60x84",
+      "60x96"
+    ],
+    "CLASS A WALL 4X12 VERTICAL (VF) LEFT/IZQ": [
+      "36x84"
+    ],
+    "CLASS A WALL 4X12 VERTICAL (VF) RIGHT/DER": [
+      "36x84"
+    ],
+    "4X15 CONFETTI (TT) RIGHT/DER": [
+      "30x72",
+      "30x96",
+      "34x96",
+      "35x85",
+      "36x96"
+    ],
+    "WALL 6X24 MODERN ELITE (EM) LEFT/IZQ": [
+      "36x96"
+    ],
+    "SMOOTH (SM) RIGHT/DER": [
+      "28x96",
+      "30x60",
+      "30x84",
+      "31x96",
+      "32x96",
+      "36x96",
+      "38x96",
+      "42x96"
+    ],
+    "SMOOTH (SM) CENTER": [
+      "30x60",
+      "31x96",
+      "36x96",
+      "38x96",
+      "60x60",
+      "60x84",
+      "60x96"
+    ],
+    "BASE ADA (AD) @ 8 MATTE RIGH/DER": [
+      "31x62"
+    ],
+    "BASE ADA (AD) @ 8 MATTE LEFT/IZQ": [
+      "31x62",
+      "32x60"
+    ],
+    "4X15 CONFETTI (TT) CENTER": [
+      "59x85",
+      "60x72",
+      "60x96"
+    ],
+    "SMOOTH (SM) LEFT/IZQ": [
+      "28x96",
+      "30x60",
+      "30x84",
+      "31x96",
+      "36x96",
+      "38x96",
+      "42x96"
+    ],
+    "1X12 VISION (OV) LEFT/IZQ": [
+      "30x84",
+      "30x86",
+      "30x96",
+      "32x84",
+      "34x96",
+      "36x96"
+    ],
+    "WALL 4X12 SMOOTH TILE (CP) RIGHT/ DER": [
+      "30x96",
+      "36x96"
+    ],
+    "BASE ADA (AR) WITH RAMP RIGHT/DER": [
+      "30x61",
+      "32x60",
+      "62x31"
+    ],
+    "WALL SANTORINI (SN) LEFT/IZQ": [
+      "36x96"
+    ],
+    "4X12 SMOOTH TILE (CP) CENTER": [
+      "48x96",
+      "60x96"
+    ],
+    "WALL VERTICAL VISION LISTELLO(LV) CENTER": [
+      "22x72",
+      "22x84",
+      "22x96",
+      "38x96",
+      "50x96"
+    ],
+    "WALL SANTORINI (SN) CENTER": [
+      "60x92",
+      "62x96",
+      "64x77"
+    ],
+    "WALL 6X10 BORDEAUX (BO) LEFT/IZQ": [
+      "34x84"
+    ],
+    "WALL 6X10 BORDEAUX (BO) RIGHT/DER": [
+      "34x84"
+    ],
+    "WALL 4X12 SMOOTH TILE (CP) LEFT/IZQ": [
+      "30x96",
+      "36x96"
+    ],
+    "WALL CENTER, VERTICAL BLOCK (VK)": [
+      "60x96",
+      "66x96",
+      "72x96"
+    ],
+    "WALL 6/4 x 24 VISION (V6) CENTER": [
+      "32x84"
+    ],
+    "10X20 VERTICAL (VE) CENTER": [
+      "34x60",
+      "36x24",
+      "60x84",
+      "60x90",
+      "60x96"
+    ],
+    "2X14 BAMBOO (BA) CENTER": [
+      "60x96"
+    ],
+    "WALL 6X10 BORDEAUX (BO)  CENTER": [
+      "26x6",
+      "58x80",
+      "60x84"
+    ],
+    "WALL LEFT, VERTICAL BLOCK (VK)": [
+      "30x96",
+      "32x96",
+      "36x96",
+      "42x96"
+    ],
+    "WALL RIGHT, VERTICAL BLOCK (VK)": [
+      "30x96",
+      "32x72",
+      "32x96",
+      "36x96",
+      "42x96"
+    ],
+    "10X20 VERTICAL (VE) RIGHT/DER ": [
+      "30x90",
+      "32x84",
+      "32x96"
+    ],
+    "10X20 VERTICAL (VE) LEFT/IZQ": [
+      "30x90",
+      "32x84",
+      "32x96",
+      "39x90"
+    ],
+    "WALL DUNE (DU) CENTER": [
+      "30x72",
+      "30x96",
+      "60x72",
+      "60x84",
+      "60x96"
+    ],
+    "ADA C/R DERECHO": [
+      "30x60"
+    ],
+    "BASE ADA WHIT RAMP LEFT/IZQ": [
+      "30x60",
+      "32x60"
+    ],
+    "4X12 STACKED (SK) RIGHT/DER": [
+      "38x96",
+      "42x96"
+    ],
+    "BASE OFFSET DRAIN (OF) RIGHT/DER": [
+      "30x60",
+      "32x60"
+    ],
+    "BASE OFFSET DRAIN(OF) LEFT/ IZQ": [
+      "30x60",
+      "32x60",
+      "36x60"
+    ],
+    "WALL HERRINGBONE (HE) CENTER 2": [
+      "31x90"
+    ],
+    "6X24 VISION (VI) LEFT/IZQ": [
+      "30x76",
+      "30x80",
+      "30x84",
+      "30x96",
+      "32x12",
+      "32x84",
+      "32x96",
+      "34x86",
+      "34x90",
+      "34x96",
+      "36x96"
+    ],
+    "4X12 STACKED (SK) CENTER": [
+      "38x96",
+      "48x96"
+    ],
+    "4X12 STACKED (SK) LEFT/IZQ": [
+      "38x96",
+      "42x96"
+    ],
+    "WALL RIGHT, 12X24 CONTEMPORARY (CK)": [
+      "30x96",
+      "34x96",
+      "36x96",
+      "42x96"
+    ],
+    "WALL LEFT, 12X24 CONTEMPORARY (CK)": [
+      "30x96",
+      "34x96",
+      "36x96",
+      "42x96"
+    ],
+    "WALL, 12X24 CONTEMPORARY, SW MATTE LOW (CK)": [
+      "72x60"
+    ],
+    "WALL RIGHT, CHEVRON (HK)": [
+      "30x72"
+    ],
+    "WALL LEFT, CHEVRON, SW MATTE": [
+      "30x72"
+    ],
+    "THEORY (TH) CENTER": [
+      "24x12",
+      "30x30",
+      "30x96",
+      "60x84",
+      "60x96"
+    ],
+    "THEORY (TH) LEFT/IZQ": [
+      "30x84",
+      "30x96"
+    ],
+    "SAMPLE  SANTORINI (S2)": [
+      "60x77"
+    ],
+    "WALL 4X12 BEVELED VERTICAL (ON) CENTER": [
+      "36x96"
+    ],
+    "3X6 VISION (VS)  CENTER": [
+      "31x96"
+    ],
+    "THEORY (TH) RIGHT/DER": [
+      "30x84",
+      "30x96",
+      "34x96"
+    ],
+    "SEAM CPVER (AM)": [
+      "6x96"
+    ],
+    "WALL LEFT, INTERVAL (IK)": [
+      "34x72",
+      "42x96"
+    ],
+    "BASE CUSTOM (DA) CENTER": [
+      "12x56",
+      "32x48",
+      "36x62",
+      "4018x6014",
+      "48x42"
+    ],
+    "BASE SQUARE CENTER (SQ)": [
+      "34x48",
+      "34x60"
+    ],
+    "WALL CENTER, SUBWAY TILE (TK)": [
+      "48x96",
+      "60x72",
+      "60x96",
+      "66x96",
+      "72x96"
+    ],
+    "6X24 VISION (VI) RIGHT/ DER": [
+      "30x96",
+      "34x96",
+      "36x96"
+    ],
+    "WALL LEFT, SUBWAY TILE,(TK)": [
+      "30x96",
+      "32x96",
+      "34x96",
+      "36x96",
+      "42x96"
+    ],
+    "WALL RIGHT, SUBWAY TILE (TK)": [
+      "30x96",
+      "32x96",
+      "34x96",
+      "36x96",
+      "42x96"
+    ],
+    "WALL DIAMOND (DI) CENTER": [
+      "36x24"
+    ],
+    "test1": [
+      "2x2"
+    ],
+    "WALL 4X15 CONFETTI (TT) CENTER": [
+      "12x84",
+      "12x96"
+    ],
+    "4X12 VERTICAL (VT)": [
+      "60x96",
+      "62x96"
+    ],
+    "BASE CUSTOM (DA) RIGHT/DER": [
+      "30x60"
+    ],
+    "BASE CUSTOM (DA) LEFT/IZQ": [
+      "30x60"
+    ],
+    "WALL 13X20 TILE SLAB (TL)  DER/RIGHT": [
+      "30x60",
+      "30x76",
+      "34x88"
+    ],
+    "CLASS A 2X8 VERTICAL (TV) CEN": [
+      "60x96"
+    ],
+    "WALL CENTER, 12X24 CONTEMPORARY (CK)": [
+      "48x96",
+      "66x96",
+      "72x96"
+    ],
+    "WALL 13X20 TILE SLAB (TL) IZQ/LEFT": [
+      "30x60",
+      "30x76",
+      "34x88"
+    ],
+    "WALL 13X20 TILE SLAB (TL) CENTER": [
+      "60x60",
+      "60x76",
+      "60x88"
+    ],
+    "BASE ADA BARRIER FREE (BR) CENTER": [
+      "39x39"
+    ],
+    "3X6 SUBWAY GEN 1 (G1) CENTER": [
+      "60x72",
+      "60x96"
+    ],
+    "VERTICAL INTERVAL (IV) CENTER": [
+      "60x82",
+      "60x96"
+    ],
+    "3X6 SUBWAY GEN 1 (G1) RIGHT/DER": [
+      "30x96",
+      "39x88"
+    ],
+    "3X6 SUBWAY GEN 1 (G1) LEFT/IZQ": [
+      "30x96",
+      "39x88"
+    ],
+    "WALL CHEVRON FFI ELITE (CE) UNI": [
+      "30x82"
+    ],
+    "VERTICAL INTERVAL (IV) LEFT/IZQ": [
+      "32x82",
+      "36x96"
+    ],
+    "BASE TRENCH RENO (TO) @8 RIGHT/DER": [
+      "30x60"
+    ],
+    "BASE TRENCH RENO (TO) @8  LEFT/IZQ": [
+      "30x60"
+    ],
+    "WALL VERTICAL VISION (VV) CENTER": [
+      "26x10",
+      "38x10",
+      "38x13"
+    ],
+    "WALL VERTICAL VISION (VV) UNI": [
+      "36x10",
+      "36x13"
+    ],
+    "WALL VERTICAL VISION LISTELLO(LV) MATTE": [
+      "22x10",
+      "22x13"
+    ],
+    "BASE CORNER DRAIN (DC) RIGHT/SER": [
+      "36x48"
+    ],
+    "BASKET WAVE (BW) LEFT/IZQ": [
+      "33x72",
+      "38x90",
+      "38x96"
+    ],
+    "BASKET WAVE (BW) CENTER": [
+      "38x90",
+      "50x90",
+      "60x72",
+      "60x90"
+    ],
+    "BASKET WAVE (BW) RIGHT/DER": [
+      "33x72",
+      "38x90",
+      "38x96"
+    ],
+    "BASE OFFSET @9 3/8\" (BO) LEFT/IZQ": [
+      "32x60"
+    ],
+    "BASE TRENCH CENTER DRAIN 1.5\" (WT)-WITH COVER RIGH": [
+      "36x60"
+    ],
+    "BASE CENTER DRAIN ELITE (W2)": [
+      "32x60"
+    ],
+    "12X24 VISION (NV) RIGHT/DER": [
+      "30x84",
+      "34x96"
+    ],
+    "CLASS A WALL VERTICAL VISION (AN) UNI": [
+      "34x96"
+    ],
+    "CLASS A WALL VERTICAL VISION (AN) CENTER": [
+      "38x96"
+    ],
+    "CLASS A WALL VERTICAL VISION LISTELLO (LA) CENTER": [
+      "22x96"
+    ],
+    "BASE ADA (ED) ESP DRAIN WITH RAMP": [
+      "30x60"
+    ],
+    "HERRINGBONE SAND (HS) CENTER 2": [
+      "28x12",
+      "28x96"
+    ],
+    "WALL CHEVRON FFI (FF) CENTER": [
+      "60x12"
+    ],
+    "WALL CHEVRON FFI (FF) UNI": [
+      "36x12"
+    ],
+    "WALL CLASS A 4x12 SMOOTH TILE (TC) CENTER": [
+      "60x84"
+    ],
+    "12X24 VISION (NV) CENTER": [
+      "31x96",
+      "60x84",
+      "60x96"
+    ],
+    "TINA DE BAÑO": [
+      "1x1"
+    ],
+    "6X24 VISION (NO) LEFT/IZQ": [
+      "32x12"
+    ],
+    "6X24 VISION (NO) CENTAR": [
+      "60x12"
+    ],
+    "6X24 VISION (NO) RIGHT,DER": [
+      "32x12"
+    ],
+    "WALL 12X24 VISION (NV) CENTER 2": [
+      "31x96"
+    ],
+    "4X8 BEVELED SUBWAY (BV) CENTER": [
+      "30x60"
+    ],
+    "BASE RENO SHOWER PAN (W3) RIGHT/DER": [
+      "32x60"
+    ],
+    "WALL CLASS A 6X10 BORDEAUX (XA) CENTER": [
+      "62x96"
+    ],
+    "WALL CLASS A 6X10 BORDEAUX (XA) LEFT/IZQ": [
+      "32x96"
+    ],
+    "6X24 VISION (NO) RIGHT/ DER EXG2-111.RIS": [
+      "32x96"
+    ],
+    "BASE RENO SHOWER PAN (W3) LEFT/IZQ": [
+      "32x60"
+    ],
+    "BASE ADA ESP DRAIN (BE)  MATTE RIGHT": [
+      "31x62"
+    ],
+    "WALL CLASS A 6X10 BORDEAUX (XA) RIGHT/DER": [
+      "32x96"
+    ],
+    "VERTICAL INTERVAL (IV) RIGHT/DER": [
+      "36x96"
+    ],
+    "2X14 BAMBOO (BA)  LEFT/IZQ": [
+      "30x96"
+    ]
+  }
+}
