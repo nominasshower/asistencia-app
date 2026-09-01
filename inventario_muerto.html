@@ -84,6 +84,13 @@
   .rank-row:last-child { border-bottom:none; }
   .rank-row .n { color:var(--muted); font-weight:700; margin-right:8px; }
   .rank-row .cnt { font-weight:800; color:var(--accent2); }
+  .match-card { background:var(--bg2); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:10px; }
+  .match-card .pedido { font-weight:800; font-size:15px; }
+  .match-card .pedido .fecha { color:var(--warn); font-weight:700; margin-left:8px; }
+  .match-card .cliente { color:var(--muted); font-size:12px; margin-bottom:8px; }
+  .match-card .pieza-linea { display:flex; justify-content:space-between; align-items:center; background:var(--bg3); border-radius:10px; padding:10px; font-size:13px; }
+  .match-card .pieza-linea .modelo { font-weight:700; }
+  .match-card .pieza-linea .meta { color:var(--muted); font-size:12px; }
 </style>
 </head>
 <body>
@@ -222,6 +229,16 @@
     </div>
   </div>
 
+  <!-- ===== TAB: RECUPERABLES ===== -->
+  <div class="tab-panel" id="tab-recuperables">
+    <div class="card">
+      <h2>Piezas muertas que sirven para un pedido pendiente</h2>
+      <div class="msg info">Cruce automático contra Odoo: mismo patrón, lado, color, acabado y medida. Verifica la pieza físicamente antes de usarla — esto es una lista de candidatos, no una asignación.</div>
+      <div id="rec-cargando" class="msg info" style="margin-top:10px">Calculando…</div>
+      <div id="rec-resultados" style="margin-top:10px"></div>
+    </div>
+  </div>
+
   <!-- ===== MODAL: SCANNER ===== -->
   <div class="card" id="scanner-modal" style="display:none; position:fixed; inset:16px; z-index:30; overflow:auto;">
     <h2 id="scanner-titulo">Escanear código</h2>
@@ -237,6 +254,7 @@
   <button data-tab="mover" onclick="cambiarTab('mover')"><span class="ic">🔄</span>Mover</button>
   <button data-tab="listado" onclick="cambiarTab('listado')"><span class="ic">📋</span>Listado</button>
   <button data-tab="reporte" onclick="cambiarTab('reporte')"><span class="ic">📊</span>Reporte</button>
+  <button data-tab="recuperables" onclick="cambiarTab('recuperables')"><span class="ic">♻️</span>Recuperables</button>
 </div>
 
 <script>
@@ -329,6 +347,7 @@ function cambiarTab(tab) {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   if (tab === 'listado') cargarListado();
   if (tab === 'reporte') cargarReporte();
+  if (tab === 'recuperables') cargarRecuperables();
 }
 
 // ---------- ACABADO TOGGLE ----------
@@ -628,12 +647,12 @@ const ESTATUS_LABELS = {
   'GRADO C': 'Grado C', 'SALIDA MUESTRA': 'Salida muestra', 'RECUPERADA': 'Recuperada',
 };
 
-async function fetchTodasLasPiezas(campos) {
+async function fetchTodasLasFilas(tablaYQuery) {
   const PAGE = 1000;
   let offset = 0;
   let todas = [];
   while (true) {
-    const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?select=${campos}&order=id.asc`, {
+    const res = await fetch(`${SUP_URL}/rest/v1/${tablaYQuery}`, {
       headers: { ...HEADERS, 'Range-Unit': 'items', Range: `${offset}-${offset + PAGE - 1}` },
     });
     const rows = await res.json();
@@ -651,7 +670,7 @@ async function cargarReporte() {
   cargando.textContent = 'Calculando…';
   try {
     if (!reporteCache) {
-      reporteCache = await fetchTodasLasPiezas('estatus,modelo,created_at');
+      reporteCache = await fetchTodasLasFilas('inventario_muerto?select=estatus,modelo,created_at&order=id.asc');
     }
     const piezas = reporteCache;
 
@@ -689,6 +708,102 @@ async function cargarReporte() {
       .map(([modelo, cnt], i) => `<div class="rank-row"><span><span class="n">${i + 1}.</span>${modelo}</span><span class="cnt">${cnt}</span></div>`)
       .join('') || '<div class="msg error">Sin datos</div>';
 
+    cargando.style.display = 'none';
+  } catch (err) {
+    cargando.className = 'msg error';
+    cargando.textContent = '✕ ' + err.message;
+  }
+}
+
+// ---------- RECUPERABLES (cruce contra pedidos pendientes de Odoo) ----------
+function extraerCodigo(texto) {
+  const m = (texto || '').match(/\(([A-Z][A-Z0-9]{1,3})\)/);
+  return m ? m[1] : null;
+}
+function extraerLado(texto) {
+  const t = (texto || '').toUpperCase();
+  if (t.includes('LEFT') || t.includes('IZQ')) return 'IZQ';
+  if (t.includes('RIGHT') || t.includes('DER')) return 'DER';
+  if (t.includes('CENTER') || t.includes('CENTRO') || t.includes('CENTAR')) return 'CENTER';
+  if (t.includes('SIDE') || t.includes('UNI')) return 'SIDE';
+  return null;
+}
+function extraerColorDeTexto(texto) {
+  const t = (texto || '').toUpperCase();
+  return catalogo.colores.find(c => t.includes(c.toUpperCase())) || null;
+}
+function extraerAcabadoDeTexto(texto) {
+  const t = (texto || '').toUpperCase();
+  if (t.includes('MATTE') || t.includes('MATE')) return 'Mate';
+  if (t.includes('GLOSSY') || t.includes('GLOSS') || t.includes('BRILLO')) return 'Brillo';
+  if (t.includes('METAL')) return 'Metal';
+  return null;
+}
+function extraerMedidaDeTexto(texto) {
+  const m = (texto || '').match(/(\d+(?:\.\d+)?)\s*["']?\s*[xX]\s*(\d+(?:\.\d+)?)/);
+  return m ? [Math.round(parseFloat(m[1]) * 10) / 10, Math.round(parseFloat(m[2]) * 10) / 10] : [null, null];
+}
+
+let recuperablesCache = null;
+async function cargarRecuperables() {
+  const cargando = document.getElementById('rec-cargando');
+  const cont = document.getElementById('rec-resultados');
+  cargando.style.display = 'block';
+  cargando.className = 'msg info';
+  cargando.textContent = 'Cruzando inventario muerto contra pedidos pendientes…';
+  try {
+    if (!recuperablesCache) {
+      const [muertas, pendientes] = await Promise.all([
+        fetchTodasLasFilas('inventario_muerto?select=id,pieza,modelo,color,acabado,ancho,alto,burrito,estatus&estatus=not.in.(RECUPERADA,SALIDA%20MUESTRA)&order=id.asc'),
+        fetchTodasLasFilas('ventas_piezas?select=pedido,cliente,fecha_entrega,pieza_desc,pendiente&pendiente=gt.0&order=fecha_entrega.asc'),
+      ]);
+
+      const muertasNorm = muertas.map(m => ({
+        ...m, codigo: extraerCodigo(m.modelo), lado: extraerLado(m.modelo),
+      })).filter(m => m.codigo && m.lado && m.ancho && m.alto);
+
+      const pendNorm = pendientes.map(p => {
+        const [ancho, alto] = extraerMedidaDeTexto(p.pieza_desc);
+        return {
+          ...p, codigo: extraerCodigo(p.pieza_desc), lado: extraerLado(p.pieza_desc),
+          color: extraerColorDeTexto(p.pieza_desc), acabado: extraerAcabadoDeTexto(p.pieza_desc), ancho, alto,
+        };
+      }).filter(p => p.codigo && p.lado && p.color && p.ancho && p.alto);
+
+      const matches = [];
+      pendNorm.forEach(p => {
+        muertasNorm.forEach(m => {
+          if (m.codigo !== p.codigo || m.lado !== p.lado) return;
+          if ((m.color || '').toUpperCase() !== p.color.toUpperCase()) return;
+          if (Math.abs(m.ancho - p.ancho) >= 0.6 || Math.abs(m.alto - p.alto) >= 0.6) return;
+          if (p.acabado && m.acabado && p.acabado !== m.acabado) return;
+          matches.push({ pedido: p, pieza: m });
+        });
+      });
+      recuperablesCache = matches;
+    }
+
+    if (!recuperablesCache.length) {
+      cont.innerHTML = '<div class="msg error">No hay coincidencias por ahora</div>';
+    } else {
+      // agrupar por pedido para no repetir el encabezado
+      const porPedido = {};
+      recuperablesCache.forEach(({ pedido, pieza }) => {
+        const key = pedido.pedido + '|' + pedido.pieza_desc;
+        if (!porPedido[key]) porPedido[key] = { pedido, piezas: [] };
+        porPedido[key].piezas.push(pieza);
+      });
+      cont.innerHTML = Object.values(porPedido).map(({ pedido, piezas }) => `
+        <div class="match-card">
+          <div class="pedido">${pedido.pedido} <span class="fecha">entrega ${pedido.fecha_entrega || '—'}</span></div>
+          <div class="cliente">${pedido.cliente || ''} · necesita ${pedido.pendiente} · "${pedido.pieza_desc}"</div>
+          ${piezas.map(pz => `
+            <div class="pieza-linea" style="margin-top:6px">
+              <div><div class="modelo">${pz.modelo}</div><div class="meta">${pz.color} · ${pz.acabado || '?'} · ${pz.ancho}x${pz.alto} · burrito ${pz.burrito || '—'}</div></div>
+              <span class="badge">${pz.estatus}</span>
+            </div>`).join('')}
+        </div>`).join('');
+    }
     cargando.style.display = 'none';
   } catch (err) {
     cargando.className = 'msg error';
