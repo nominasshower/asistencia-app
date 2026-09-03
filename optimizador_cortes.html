@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Optimizador de Cortes</title>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#1a2530; --panel2:#20303d; --border:#2c3e4c;
+    --text:#e8eef2; --muted:#8fa3b0; --accent:#3fb8af; --accent2:#f2a154;
+    --danger:#e06565; --good:#4caf7d;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px;
+  }
+  h1{font-size:22px; margin:0 0 4px;}
+  h2{font-size:16px; margin:0 0 12px; color:var(--accent);}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:24px;}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media(max-width:900px){.grid{grid-template-columns:1fr;}}
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:18px; margin-bottom:20px;
+  }
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
+  label{font-size:12px; color:var(--muted); display:block; margin-bottom:3px;}
+  input[type=number], input[type=text]{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:7px 9px; border-radius:6px; font-size:13px; width:100%;
+  }
+  input[type=checkbox]{width:16px; height:16px;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:left; color:var(--muted); font-weight:500; padding:6px 6px; border-bottom:1px solid var(--border); font-size:11px; text-transform:uppercase; letter-spacing:.03em;}
+  td{padding:5px 6px; border-bottom:1px solid var(--border);}
+  td input{padding:5px 7px;}
+  .btn{
+    background:var(--accent); border:none; color:#062421; font-weight:600;
+    padding:9px 16px; border-radius:7px; cursor:pointer; font-size:13px;
+  }
+  .btn:hover{filter:brightness(1.08);}
+  .btn.secondary{background:var(--panel2); color:var(--text); border:1px solid var(--border);}
+  .btn.danger{background:transparent; color:var(--danger); border:1px solid var(--danger); padding:4px 9px; font-size:12px;}
+  .btn.small{padding:4px 9px; font-size:12px;}
+  .col-name{width:32%;} .col-num{width:16%;} .col-del{width:40px;}
+  .actions{display:flex; gap:10px; margin-top:10px;}
+  .empty-hint{color:var(--muted); font-size:12px; padding:12px 0; text-align:center; font-style:italic;}
+  .results-summary{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:16px;}
+  .stat{
+    background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+    padding:10px 16px; min-width:120px;
+  }
+  .stat .val{font-size:20px; font-weight:700;}
+  .stat .lbl{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em;}
+  .stat.good .val{color:var(--good);}
+  .stat.warn .val{color:var(--accent2);}
+  .cmp-table td, .cmp-table th{text-align:center;}
+  .cmp-table td:first-child, .cmp-table th:first-child{text-align:left;}
+  .cmp-row-best{background:rgba(76,175,125,.12);}
+  select{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:7px 9px; border-radius:6px; font-size:13px;
+  }
+  .sheets-wrap{display:flex; flex-wrap:wrap; gap:20px;}
+  .sheet-card{background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:12px;}
+  .sheet-card .title{font-size:12px; color:var(--muted); margin-bottom:8px;}
+  svg text{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+  .piece-label{font-size:11px; fill:#08201c; font-weight:600;}
+  .piece-dim{font-size:9px; fill:#08201c; opacity:.8;}
+  .waste-note{color:var(--muted); font-size:11px; margin-top:6px;}
+  .top-actions{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;}
+  .cut-list{margin:0 0 14px; padding-left:20px; font-size:13px;}
+  .cut-list li{margin-bottom:3px;}
+  .sheet-label{font-size:12px; color:var(--muted); margin-bottom:4px;}
+  @media print{
+    body{background:#fff; color:#000; padding:0;}
+    .panel:not(#resultsPanel){display:none !important;}
+    #resultsPanel{border:none; background:#fff; padding:0;}
+    .top-actions{margin-bottom:10px;}
+    select, .btn, #errorMsg{display:none !important;}
+    .sheet-card{break-inside:avoid; border:1px solid #999; background:#fff;}
+    .cmp-table, .cmp-table th, .cmp-table td{color:#000; border-color:#ccc;}
+    .cmp-row-best{background:#eef7f0 !important;}
+    h1,h2{color:#000;}
+    .sub, .waste-note, .sheet-label{color:#555;}
+  }
+</style>
+</head>
+<body>
+
+<div class="top-actions">
+  <div>
+    <h1>Optimizador de Cortes</h1>
+    <div class="sub" style="margin-bottom:0;">Acomodo de piezas rectangulares sobre láminas (lógica tipo CutMaster) — Kuartz: lavabos y cocinetas</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>1. Configuración de corte</h2>
+  <div class="row">
+    <div style="width:160px;">
+      <label>Espacio entre piezas / kerf (mm)</label>
+      <input type="number" id="kerf" value="5" min="0" step="0.5">
+    </div>
+    <div style="width:160px;">
+      <label>Margen de borde de lámina (mm)</label>
+      <input type="number" id="edgeMargin" value="10" min="0" step="1">
+    </div>
+    <div style="padding-top:18px;">
+      <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" id="allowRotation" checked>
+        Permitir rotar piezas 90°
+      </label>
+    </div>
+    <div style="width:260px;">
+      <label>Modo de corte</label>
+      <select id="cutMode" style="width:100%;">
+        <option value="guillotine">Guillotina (sierra recta)</option>
+        <option value="free">Libre / CNC (router, waterjet)</option>
+      </select>
+    </div>
+  </div>
+  <div class="sub" style="margin:0;">Guillotina: cada corte debe atravesar toda la lámina de extremo a extremo (sierra de panel). Libre/CNC: el corte puede seguir cualquier trayectoria, permite acomodos más compactos.</div>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <h2>2. Catálogo de tamaños de lámina</h2>
+    <div id="hintSizes" class="empty-hint" style="display:none;">Agrega los tamaños de lámina que manejas. Se guardan en este navegador para tus próximas cotizaciones.</div>
+    <table id="tblSizes" style="display:none;">
+      <thead><tr><th class="col-name">Nombre</th><th class="col-num">Ancho (mm)</th><th class="col-num">Alto (mm)</th><th class="col-num">Costo/lámina</th><th class="col-num">Cant. disp.</th><th class="col-del"></th></tr></thead>
+      <tbody id="sizesBody"></tbody>
+    </table>
+    <div class="actions">
+      <button class="btn secondary small" onclick="addSizeRow()">+ Agregar tamaño de lámina</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3. Piezas a cortar (lavabos / cocinetas)</h2>
+    <div id="hintPieces" class="empty-hint" style="display:none;">Agrega los modelos/piezas de esta cotización con su ancho, alto y cantidad.</div>
+    <table id="tblPieces" style="display:none;">
+      <thead><tr><th class="col-name">Modelo / Pieza</th><th class="col-num">Ancho (mm)</th><th class="col-num">Alto (mm)</th><th style="width:9%;">Cant.</th><th style="width:15%;">Color/Lote</th><th style="width:11%;" title="Marca si esta pieza no se puede voltear por veta/patrón">No rotar</th><th class="col-del"></th></tr></thead>
+      <tbody id="piecesBody"></tbody>
+    </table>
+    <div class="actions">
+      <button class="btn secondary small" onclick="addPieceRow()">+ Agregar pieza</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <button class="btn" onclick="runOptimization()">Optimizar cortes</button>
+  <span id="errorMsg" style="color:var(--danger); font-size:13px; margin-left:12px;"></span>
+</div>
+
+<div class="panel" id="resultsPanel" style="display:none;">
+  <h2>Resultados</h2>
+  <div id="cmpWrap"></div>
+  <div class="row" style="margin-top:16px;">
+    <div style="width:280px;">
+      <label>Ver diseño de lámina:</label>
+      <select id="sizeSelector" onchange="renderSheetsForSelected()"></select>
+    </div>
+    <button class="btn secondary" style="margin-top:18px;" onclick="window.print()">Imprimir reporte</button>
+  </div>
+  <div id="sheetsWrap" class="sheets-wrap" style="margin-top:16px;"></div>
+  <div id="cutSeqWrap" style="margin-top:20px;"></div>
+  <div id="reportWrap" style="margin-top:20px;"></div>
+</div>
+
+<script>
+const LS_KEY = 'optimizador_cortes_slab_sizes';
+const PALETTE = ['#3fb8af','#f2a154','#8a7fd6','#e06565','#4caf7d','#e0c05b','#5b9de0','#d67ab8','#6bc4c4','#c98a5b'];
+
+function loadSizes(){
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch(e){ return []; }
+}
+function saveSizes(){
+  const rows = [...document.querySelectorAll('#sizesBody tr')].map(tr => ({
+    name: tr.querySelector('.s-name').value,
+    w: parseFloat(tr.querySelector('.s-w').value) || 0,
+    h: parseFloat(tr.querySelector('.s-h').value) || 0,
+    cost: parseFloat(tr.querySelector('.s-cost').value) || 0,
+    qty: parseInt(tr.querySelector('.s-qty').value) || 0
+  }));
+  try { localStorage.setItem(LS_KEY, JSON.stringify(rows)); } catch(e){ /* storage no disponible (ej. vista previa en sandbox) */ }
+}
+
+function addSizeRow(data){
+  document.getElementById('tblSizes').style.display = 'table';
+  document.getElementById('hintSizes').style.display = 'none';
+  const tbody = document.getElementById('sizesBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="s-name" placeholder="Ej. Lámina grande" value="${data?.name||''}"></td>
+    <td><input type="number" class="s-w" min="1" value="${data?.w||''}"></td>
+    <td><input type="number" class="s-h" min="1" value="${data?.h||''}"></td>
+    <td><input type="number" class="s-cost" min="0" step="0.01" placeholder="opcional" value="${data?.cost||''}"></td>
+    <td><input type="number" class="s-qty" min="0" placeholder="ilimitado" value="${data?.qty||''}"></td>
+    <td><button class="btn danger" onclick="this.closest('tr').remove(); saveSizes(); toggleEmptyStates();">×</button></td>
+  `;
+  tr.querySelectorAll('input').forEach(inp => inp.addEventListener('change', saveSizes));
+  tbody.appendChild(tr);
+  toggleEmptyStates();
+}
+
+function addPieceRow(data){
+  document.getElementById('tblPieces').style.display = 'table';
+  document.getElementById('hintPieces').style.display = 'none';
+  const tbody = document.getElementById('piecesBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="p-name" placeholder="Ej. Lavabo modelo Nova" value="${data?.name||''}"></td>
+    <td><input type="number" class="p-w" min="1" value="${data?.w||''}"></td>
+    <td><input type="number" class="p-h" min="1" value="${data?.h||''}"></td>
+    <td><input type="number" class="p-qty" min="1" value="${data?.qty||1}"></td>
+    <td><input type="text" class="p-color" placeholder="opcional" value="${data?.color||''}"></td>
+    <td style="text-align:center;"><input type="checkbox" class="p-norotate" ${data?.noRotate?'checked':''} title="No voltear por veta/patrón"></td>
+    <td><button class="btn danger" onclick="this.closest('tr').remove(); toggleEmptyStates();">×</button></td>
+  `;
+  tbody.appendChild(tr);
+  toggleEmptyStates();
+}
+
+function toggleEmptyStates(){
+  const sBody = document.getElementById('sizesBody');
+  document.getElementById('hintSizes').style.display = sBody.children.length ? 'none' : 'block';
+  document.getElementById('tblSizes').style.display = sBody.children.length ? 'table' : 'none';
+  const pBody = document.getElementById('piecesBody');
+  document.getElementById('hintPieces').style.display = pBody.children.length ? 'none' : 'block';
+  document.getElementById('tblPieces').style.display = pBody.children.length ? 'table' : 'none';
+}
+
+function initSizes(){
+  const saved = loadSizes();
+  if (saved.length){
+    saved.forEach(addSizeRow);
+  } else {
+    toggleEmptyStates();
+  }
+  addPieceRow();
+}
+
+// ---------- MaxRects bin packing ----------
+function rectsIntersect(a,b){
+  return !(b.x >= a.x+a.w || b.x+b.w <= a.x || b.y >= a.y+a.h || b.y+b.h <= a.y);
+}
+function contains(a,b){
+  // does rect a fully contain rect b?
+  return b.x >= a.x && b.y >= a.y && b.x+b.w <= a.x+a.w && b.y+b.h <= a.y+a.h;
+}
+function splitFreeNode(freeNode, used, result){
+  if (!rectsIntersect(freeNode, used)) return false;
+  // top
+  if (used.y > freeNode.y && used.y < freeNode.y+freeNode.h){
+    result.push({x:freeNode.x, y:freeNode.y, w:freeNode.w, h:used.y-freeNode.y});
+  }
+  // bottom
+  if (used.y+used.h < freeNode.y+freeNode.h){
+    result.push({x:freeNode.x, y:used.y+used.h, w:freeNode.w, h:(freeNode.y+freeNode.h)-(used.y+used.h)});
+  }
+  // left
+  if (used.x > freeNode.x && used.x < freeNode.x+freeNode.w){
+    result.push({x:freeNode.x, y:freeNode.y, w:used.x-freeNode.x, h:freeNode.h});
+  }
+  // right
+  if (used.x+used.w < freeNode.x+freeNode.w){
+    result.push({x:used.x+used.w, y:freeNode.y, w:(freeNode.x+freeNode.w)-(used.x+used.w), h:freeNode.h});
+  }
+  return true;
+}
+function pruneFreeList(list){
+  const out = [];
+  for (let i=0;i<list.length;i++){
+    let redundant = false;
+    for (let j=0;j<list.length;j++){
+      if (i===j) continue;
+      if (contains(list[j], list[i])){
+        // if identical, keep only one (lower index)
+        if (contains(list[i], list[j]) && i > j) continue;
+        redundant = true; break;
+      }
+    }
+    if (!redundant) out.push(list[i]);
+  }
+  return out;
+}
+function findBestPlacement(freeRects, w, h, allowRotation){
+  let best = null;
+  for (const fr of freeRects){
+    const orientations = [{ow:w, oh:h, rotated:false}];
+    if (allowRotation && w!==h) orientations.push({ow:h, oh:w, rotated:true});
+    for (const o of orientations){
+      if (o.ow <= fr.w + 1e-6 && o.oh <= fr.h + 1e-6){
+        const leftoverX = fr.w - o.ow;
+        const leftoverY = fr.h - o.oh;
+        const shortSideFit = Math.min(leftoverX, leftoverY);
+        const areaFit = fr.w*fr.h - o.ow*o.oh;
+        if (!best || areaFit < best.areaFit - 1e-6 ||
+            (Math.abs(areaFit-best.areaFit) < 1e-6 && shortSideFit < best.shortSideFit)){
+          best = {freeRect: fr, ow:o.ow, oh:o.oh, rotated:o.rotated, areaFit, shortSideFit};
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function guillotineSplit(freeRect, placedW, placedH, pieceName){
+  const remainW = freeRect.w - placedW;
+  const remainH = freeRect.h - placedH;
+  const rects = [];
+  const cuts = [];
+  // heurística "eje sobrante más corto": mantiene los rectángulos libres resultantes más balanceados
+  if (remainW <= remainH){
+    // 1) corte horizontal de extremo a extremo de freeRect: separa franja superior (alto=placedH) del sobrante inferior
+    if (remainH > 0.01){
+      cuts.push({ axis:'horizontal', pos: freeRect.y+placedH, from: freeRect.x, to: freeRect.x+freeRect.w, note: `separa franja para "${pieceName}" del resto` });
+      rects.push({ x: freeRect.x, y: freeRect.y+placedH, w: freeRect.w, h: remainH });
+    }
+    // 2) corte vertical dentro de la franja: separa la pieza del sobrante a su derecha
+    if (remainW > 0.01){
+      cuts.push({ axis:'vertical', pos: freeRect.x+placedW, from: freeRect.y, to: freeRect.y+placedH, note: `separa "${pieceName}" del sobrante` });
+      rects.push({ x: freeRect.x+placedW, y: freeRect.y, w: remainW, h: placedH });
+    }
+  } else {
+    // 1) corte vertical de extremo a extremo de freeRect: separa columna izquierda (ancho=placedW) del sobrante derecho
+    if (remainW > 0.01){
+      cuts.push({ axis:'vertical', pos: freeRect.x+placedW, from: freeRect.y, to: freeRect.y+freeRect.h, note: `separa columna para "${pieceName}" del resto` });
+      rects.push({ x: freeRect.x+placedW, y: freeRect.y, w: remainW, h: freeRect.h });
+    }
+    // 2) corte horizontal dentro de la columna: separa la pieza del sobrante debajo
+    if (remainH > 0.01){
+      cuts.push({ axis:'horizontal', pos: freeRect.y+placedH, from: freeRect.x, to: freeRect.x+placedW, note: `separa "${pieceName}" del sobrante` });
+      rects.push({ x: freeRect.x, y: freeRect.y+placedH, w: placedW, h: remainH });
+    }
+  }
+  return { rects, cuts };
+}
+
+function packOneGroup(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotationGlobal, cutMode){
+  const usableW = sheetW - 2*edgeMargin;
+  const usableH = sheetH - 2*edgeMargin;
+
+  const instances = [];
+  pieces.forEach(p => {
+    const pieceAllowRotation = allowRotationGlobal && !p.noRotate;
+    for (let i=0;i<p.qty;i++){
+      instances.push({ name:p.name, origW:p.w, origH:p.h, w:p.w+kerf, h:p.h+kerf, colorIdx: p.colorIdx, allowRotation: pieceAllowRotation });
+    }
+  });
+  instances.sort((a,b)=> Math.max(b.w,b.h)-Math.max(a.w,a.h) || (b.w*b.h)-(a.w*a.h));
+
+  const oversized = instances.filter(inst =>
+    !((inst.w<=usableW && inst.h<=usableH) || (inst.allowRotation && inst.h<=usableW && inst.w<=usableH))
+  );
+  if (oversized.length){
+    return { error: `Pieza "${oversized[0].name}" (${oversized[0].origW}x${oversized[0].origH}mm) no cabe en la lámina de ${sheetW}x${sheetH}mm.` };
+  }
+
+  const bins = [];
+  function newBin(){ return { freeRects: [{x:0,y:0,w:usableW,h:usableH}], placed: [], cuts: [] }; }
+
+  for (const inst of instances){
+    let placedIn = null, placement = null;
+    for (const bin of bins){
+      const p = findBestPlacement(bin.freeRects, inst.w, inst.h, inst.allowRotation);
+      if (p){ placedIn = bin; placement = p; break; }
+    }
+    if (!placedIn){
+      placedIn = newBin();
+      bins.push(placedIn);
+      placement = findBestPlacement(placedIn.freeRects, inst.w, inst.h, inst.allowRotation);
+    }
+    const node = { x:placement.freeRect.x, y:placement.freeRect.y, w:placement.ow, h:placement.oh,
+                   name:inst.name, origW:inst.origW, origH:inst.origH, rotated:placement.rotated, colorIdx:inst.colorIdx };
+    placedIn.placed.push(node);
+
+    if (cutMode === 'guillotine'){
+      const idx = placedIn.freeRects.indexOf(placement.freeRect);
+      placedIn.freeRects.splice(idx, 1);
+      const split = guillotineSplit(placement.freeRect, placement.ow, placement.oh, inst.name);
+      placedIn.freeRects.push(...split.rects);
+      placedIn.cuts.push(...split.cuts);
+    } else {
+      let newFree = [];
+      for (const fr of placedIn.freeRects){
+        if (!splitFreeNode(fr, node, newFree)) newFree.push(fr);
+      }
+      placedIn.freeRects = pruneFreeList(newFree);
+    }
+  }
+
+  bins.forEach(b => { b.usedArea = b.placed.reduce((s,p)=>s+p.origW*p.origH,0); });
+  return { bins };
+}
+
+function packSheets(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotation, cutMode){
+  const groups = {};
+  pieces.forEach(p => {
+    const key = p.color ? p.color.toLowerCase() : '__default__';
+    (groups[key] = groups[key] || []).push(p);
+  });
+
+  const allBins = [];
+  for (const key of Object.keys(groups)){
+    const res = packOneGroup(groups[key], sheetW, sheetH, kerf, edgeMargin, allowRotation, cutMode);
+    if (res.error) return { error: res.error };
+    const colorLabel = key === '__default__' ? null : groups[key][0].color;
+    res.bins.forEach(b => { b.colorLabel = colorLabel; });
+    allBins.push(...res.bins);
+  }
+
+  const sheetArea = sheetW*sheetH;
+  const totalUsed = allBins.reduce((s,b)=>s+b.usedArea,0);
+  const totalArea = sheetArea * allBins.length;
+  const wastePct = totalArea ? 100*(1-totalUsed/totalArea) : 0;
+
+  return { bins: allBins, sheetW, sheetH, usableW: sheetW-2*edgeMargin, usableH: sheetH-2*edgeMargin, edgeMargin, totalArea, totalUsed, wastePct, sheetsCount: allBins.length, cutMode };
+}
+
+function readInputs(){
+  const kerf = parseFloat(document.getElementById('kerf').value) || 0;
+  const edgeMargin = parseFloat(document.getElementById('edgeMargin').value) || 0;
+  const allowRotation = document.getElementById('allowRotation').checked;
+  const cutMode = document.getElementById('cutMode').value;
+
+  const sizes = [...document.querySelectorAll('#sizesBody tr')].map(tr => ({
+    name: tr.querySelector('.s-name').value.trim() || 'Sin nombre',
+    w: parseFloat(tr.querySelector('.s-w').value) || 0,
+    h: parseFloat(tr.querySelector('.s-h').value) || 0,
+    cost: parseFloat(tr.querySelector('.s-cost').value) || 0,
+    qty: parseInt(tr.querySelector('.s-qty').value) || 0
+  })).filter(s => s.w>0 && s.h>0);
+
+  const pieces = [...document.querySelectorAll('#piecesBody tr')].map((tr,i) => ({
+    name: tr.querySelector('.p-name').value.trim() || `Pieza ${i+1}`,
+    w: parseFloat(tr.querySelector('.p-w').value) || 0,
+    h: parseFloat(tr.querySelector('.p-h').value) || 0,
+    qty: parseInt(tr.querySelector('.p-qty').value) || 0,
+    color: tr.querySelector('.p-color').value.trim(),
+    noRotate: tr.querySelector('.p-norotate').checked,
+    colorIdx: i % PALETTE.length
+  })).filter(p => p.w>0 && p.h>0 && p.qty>0);
+
+  return { kerf, edgeMargin, allowRotation, cutMode, sizes, pieces };
+}
+
+let lastResults = [];
+
+function runOptimization(){
+  const errEl = document.getElementById('errorMsg');
+  errEl.textContent = '';
+  saveSizes();
+  const { kerf, edgeMargin, allowRotation, cutMode, sizes, pieces } = readInputs();
+
+  if (!sizes.length){ errEl.textContent = 'Agrega al menos un tamaño de lámina.'; return; }
+  if (!pieces.length){ errEl.textContent = 'Agrega al menos una pieza a cortar.'; return; }
+
+  lastResults = [];
+  for (const size of sizes){
+    const res = packSheets(pieces, size.w, size.h, kerf, edgeMargin, allowRotation, cutMode);
+    if (!res.error){
+      res.totalCost = size.cost > 0 ? res.sheetsCount * size.cost : null;
+      res.shortfall = size.qty > 0 && res.sheetsCount > size.qty ? res.sheetsCount - size.qty : 0;
+    }
+    lastResults.push({ size, res });
+  }
+
+  document.getElementById('resultsPanel').style.display = 'block';
+  const bestIdx = renderComparison();
+
+  const selector = document.getElementById('sizeSelector');
+  selector.innerHTML = lastResults.map((r,i) => `<option value="${i}">${r.size.name} (${r.size.w}x${r.size.h}mm)</option>`).join('');
+  if (bestIdx >= 0) selector.value = bestIdx;
+  renderSheetsForSelected();
+}
+
+function pickBestIdx(){
+  const valid = lastResults.map((r,i)=>({r,i})).filter(x => !x.r.res.error);
+  if (!valid.length) return -1;
+  const sufficient = valid.filter(x => !x.r.res.shortfall);
+  const pool = sufficient.length ? sufficient : valid;
+  const allHaveCost = pool.every(x => x.r.res.totalCost != null);
+  let best = pool[0], bestScore = Infinity;
+  pool.forEach(x => {
+    const score = allHaveCost
+      ? x.r.res.totalCost * 1e6 + x.r.res.wastePct
+      : x.r.res.sheetsCount * 1e6 + x.r.res.wastePct;
+    if (score < bestScore){ bestScore = score; best = x; }
+  });
+  return best.i;
+}
+
+function renderComparison(){
+  const wrap = document.getElementById('cmpWrap');
+  const bestIdx = pickBestIdx();
+  const anyCost = lastResults.some(r => !r.res.error && r.res.totalCost != null);
+
+  let html = `<table class="cmp-table"><thead><tr>
+    <th>Tamaño de lámina</th><th>Láminas necesarias</th><th>Material usado (m²)</th><th>Desperdicio (m²)</th><th>% desperdicio</th>${anyCost?'<th>Costo total</th>':''}<th>Disponibilidad</th>
+  </tr></thead><tbody>`;
+  lastResults.forEach((r,i) => {
+    if (r.res.error){
+      html += `<tr><td>${r.size.name}</td><td colspan="${anyCost?6:5}" style="color:var(--danger);">${r.res.error}</td></tr>`;
+    } else {
+      const usedM2 = (r.res.totalUsed/1e6).toFixed(2);
+      const wasteM2 = ((r.res.totalArea-r.res.totalUsed)/1e6).toFixed(2);
+      const costCell = anyCost ? `<td>${r.res.totalCost!=null ? '$'+r.res.totalCost.toFixed(2) : '—'}</td>` : '';
+      const availCell = r.res.shortfall
+        ? `<td style="color:var(--danger);">Faltan ${r.res.shortfall}</td>`
+        : (r.size.qty>0 ? `<td style="color:var(--good);">OK</td>` : `<td>—</td>`);
+      html += `<tr class="${i===bestIdx?'cmp-row-best':''}">
+        <td>${r.size.name} (${r.size.w}x${r.size.h})</td>
+        <td>${r.res.sheetsCount}</td>
+        <td>${usedM2}</td>
+        <td>${wasteM2}</td>
+        <td>${r.res.wastePct.toFixed(1)}%</td>
+        ${costCell}
+        ${availCell}
+      </tr>`;
+    }
+  });
+  html += '</tbody></table>';
+  if (bestIdx >= 0) html += `<div class="waste-note">✓ Mejor opción resaltada: ${anyCost?'menor costo total':'menos láminas y/o menor desperdicio'}, con inventario suficiente cuando aplica.</div>`;
+  wrap.innerHTML = html;
+  return bestIdx;
+}
+
+function renderSheetsForSelected(){
+  const idx = parseInt(document.getElementById('sizeSelector').value);
+  const entry = lastResults[idx];
+  const wrap = document.getElementById('sheetsWrap');
+  wrap.innerHTML = '';
+  if (!entry || entry.res.error) return;
+
+  const { res } = entry;
+  const maxPx = 420;
+  const scale = Math.min(maxPx/res.sheetW, maxPx/res.sheetH);
+
+  res.bins.forEach((bin, bi) => {
+    const w = res.sheetW*scale, h = res.sheetH*scale;
+    const em = res.edgeMargin*scale;
+    let svg = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`;
+    svg += `<rect x="0" y="0" width="${w}" height="${h}" fill="#0b141b" stroke="var(--border)" stroke-width="1"/>`;
+    svg += `<rect x="${em}" y="${em}" width="${w-2*em}" height="${h-2*em}" fill="none" stroke="#33475a" stroke-dasharray="4,3" stroke-width="1"/>`;
+    bin.placed.forEach(p => {
+      const x = em + p.x*scale, y = em + p.y*scale, pw = p.w*scale, ph = p.h*scale;
+      const color = PALETTE[p.colorIdx % PALETTE.length];
+      svg += `<rect x="${x}" y="${y}" width="${pw}" height="${ph}" fill="${color}" stroke="#0b141b" stroke-width="1.5" rx="2"/>`;
+      const label = p.name.length > 16 ? p.name.slice(0,15)+'…' : p.name;
+      svg += `<text x="${x+pw/2}" y="${y+ph/2-4}" text-anchor="middle" class="piece-label">${label}${p.rotated?' ↻':''}</text>`;
+      svg += `<text x="${x+pw/2}" y="${y+ph/2+10}" text-anchor="middle" class="piece-dim">${p.origW}x${p.origH}mm</text>`;
+    });
+    if (res.cutMode === 'guillotine' && bin.cuts){
+      bin.cuts.forEach((c, ci) => {
+        const x1 = em + (c.axis==='vertical' ? c.pos : c.from)*scale;
+        const x2 = em + (c.axis==='vertical' ? c.pos : c.to)*scale;
+        const y1 = em + (c.axis==='horizontal' ? c.pos : c.from)*scale;
+        const y2 = em + (c.axis==='horizontal' ? c.pos : c.to)*scale;
+        svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#e06565" stroke-width="1.5" stroke-dasharray="6,3"/>`;
+      });
+    }
+    svg += '</svg>';
+
+    const usedM2 = (bin.usedArea/1e6).toFixed(2);
+    const sheetM2 = (res.sheetW*res.sheetH/1e6).toFixed(2);
+    const wastePctBin = (100*(1-bin.usedArea/(res.sheetW*res.sheetH))).toFixed(1);
+
+    const colorTag = bin.colorLabel ? ` · Color/Lote: ${bin.colorLabel}` : '';
+    const card = document.createElement('div');
+    card.className = 'sheet-card';
+    card.innerHTML = `<div class="title">Lámina ${bi+1} de ${res.bins.length} · ${bin.placed.length} piezas · ${usedM2}/${sheetM2} m² usados · ${wastePctBin}% desperdicio${colorTag}</div>${svg}`;
+    wrap.appendChild(card);
+  });
+
+  renderCutSequence(entry);
+  renderPieceReport(entry);
+}
+
+function renderCutSequence(entry){
+  const wrap = document.getElementById('cutSeqWrap');
+  wrap.innerHTML = '';
+  const { res } = entry;
+  if (res.cutMode !== 'guillotine') return;
+
+  let html = '<h2>Secuencia de cortes (guillotina)</h2>';
+  let any = false;
+  res.bins.forEach((bin, bi) => {
+    if (!bin.cuts || !bin.cuts.length) return;
+    any = true;
+    html += `<div class="sheet-label">Lámina ${bi+1}</div><ol class="cut-list">`;
+    bin.cuts.forEach(c => {
+      const dir = c.axis === 'horizontal' ? 'Corte horizontal' : 'Corte vertical';
+      const posLabel = c.axis === 'horizontal'
+        ? `Y = ${Math.round(c.pos)}mm (de X=${Math.round(c.from)} a X=${Math.round(c.to)})`
+        : `X = ${Math.round(c.pos)}mm (de Y=${Math.round(c.from)} a Y=${Math.round(c.to)})`;
+      html += `<li>${dir} en ${posLabel} — ${c.note}</li>`;
+    });
+    html += '</ol>';
+  });
+  wrap.innerHTML = any ? html : '';
+}
+
+function renderPieceReport(entry){
+  const wrap = document.getElementById('reportWrap');
+  const { res } = entry;
+  const rows = [];
+  res.bins.forEach((bin, bi) => {
+    bin.placed.forEach((p, pi) => {
+      rows.push({ tag:`L${bi+1}-${pi+1}`, sheet:bi+1, name:p.name, color:bin.colorLabel||'—',
+                  w:p.origW, h:p.origH, x:Math.round(p.x), y:Math.round(p.y), rotated:p.rotated?'Sí':'No' });
+    });
+  });
+
+  let html = `<h2>Reporte de piezas / etiquetas</h2>
+  <table class="cmp-table"><thead><tr>
+    <th>Etiqueta</th><th>Lámina</th><th>Pieza</th><th>Color/Lote</th><th>Ancho</th><th>Alto</th><th>Pos X</th><th>Pos Y</th><th>Rotada</th>
+  </tr></thead><tbody>`;
+  rows.forEach(r => {
+    html += `<tr><td>${r.tag}</td><td>${r.sheet}</td><td>${r.name}</td><td>${r.color}</td><td>${r.w}mm</td><td>${r.h}mm</td><td>${r.x}mm</td><td>${r.y}mm</td><td>${r.rotated}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+initSizes();
+</script>
+</body>
+</html>
