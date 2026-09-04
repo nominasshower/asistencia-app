@@ -107,7 +107,7 @@
       <div class="row2">
         <div>
           <label class="fl">Número</label>
-          <select id="c-burrito-num"></select>
+          <select id="c-burrito-num" onchange="manejarSeleccionBurrito(this)"></select>
         </div>
         <div>
           <label class="fl">Lado</label>
@@ -192,7 +192,35 @@
         <button class="big primary" onclick="buscarPieza()">Buscar</button>
         <button class="big ghost" onclick="abrirScanner('mover')">📷</button>
       </div>
-      <div id="m-resultados"></div>
+
+      <label class="fl">Modelo</label>
+      <select id="m-modelo" onchange="onModeloChangeMover(); buscarPieza()">
+        <option value="">Todos</option>
+      </select>
+
+      <div class="row2">
+        <div>
+          <label class="fl">Color</label>
+          <select id="m-color" onchange="buscarPieza()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div>
+          <label class="fl">Acabado</label>
+          <select id="m-acabado" onchange="buscarPieza()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+      </div>
+
+      <label class="fl">Medida (ancho x alto)</label>
+      <select id="m-medida" onchange="buscarPieza()" disabled>
+        <option value="">Todas</option>
+      </select>
+
+      <button class="big ghost" style="margin-top:10px" onclick="limpiarFiltrosMover()">✕ Limpiar filtros</button>
+
+      <div id="m-resultados" style="margin-top:12px"></div>
     </div>
   </div>
 
@@ -334,6 +362,27 @@ async function cargarCatalogo() {
     acabadoGroup.appendChild(btn);
   });
 
+  const selModeloMover = document.getElementById('m-modelo');
+  catalogo.patrones.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    selModeloMover.appendChild(opt);
+  });
+
+  const selColorMover = document.getElementById('m-color');
+  catalogo.colores.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    selColorMover.appendChild(opt);
+  });
+
+  const selAcabadoMover = document.getElementById('m-acabado');
+  (catalogo.acabados.length ? catalogo.acabados : ['Mate', 'Brillo']).forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a; opt.textContent = a;
+    selAcabadoMover.appendChild(opt);
+  });
+
   const selModeloListado = document.getElementById('l-modelo');
   catalogo.patrones.forEach(p => {
     const opt = document.createElement('option');
@@ -355,13 +404,38 @@ async function cargarCatalogo() {
     selAcabadoListado.appendChild(opt);
   });
 
-  const selBurrito = document.getElementById('c-burrito-num');
+  poblarBurritoSelect(document.getElementById('c-burrito-num'));
+}
+
+function poblarBurritoSelect(select, seleccionado) {
+  select.innerHTML = '';
   for (let n = 1; n <= 32; n++) {
-    const opt = document.createElement('option');
     const val = 'P' + String(n).padStart(2, '0');
+    const opt = document.createElement('option');
     opt.value = val; opt.textContent = val;
-    selBurrito.appendChild(opt);
+    select.appendChild(opt);
   }
+  if (seleccionado && ![...select.options].some(o => o.value === seleccionado)) {
+    const opt = document.createElement('option');
+    opt.value = seleccionado; opt.textContent = seleccionado + ' (actual)';
+    select.appendChild(opt);
+  }
+  const optNuevo = document.createElement('option');
+  optNuevo.value = '__nuevo__'; optNuevo.textContent = '+ Crear burrito nuevo…';
+  select.appendChild(optNuevo);
+  if (seleccionado) select.value = seleccionado;
+}
+
+function manejarSeleccionBurrito(select) {
+  if (select.value !== '__nuevo__') return;
+  let val = prompt('Número o nombre del burrito nuevo (ej. P33):');
+  val = (val || '').trim().toUpperCase();
+  if (!val) { select.selectedIndex = 0; return; }
+  if ([...select.options].some(o => o.value === val)) { select.value = val; return; }
+  const opt = document.createElement('option');
+  opt.value = val; opt.textContent = val;
+  select.insertBefore(opt, select.lastElementChild);
+  select.value = val;
 }
 
 function onModeloChange() {
@@ -632,17 +706,52 @@ const ESTATUS_ACCIONES = [
   { label: 'Salida Muestra', val: 'SALIDA MUESTRA' },
 ];
 
+function onModeloChangeMover() {
+  const modelo = document.getElementById('m-modelo').value;
+  const selMedida = document.getElementById('m-medida');
+  const medidas = catalogo.medidas_por_patron[modelo] || [];
+  if (!modelo || !medidas.length) {
+    selMedida.innerHTML = '<option value="">Todas</option>';
+    selMedida.disabled = true;
+    return;
+  }
+  selMedida.innerHTML = '<option value="">Todas</option>' + medidas.map(m => `<option value="${m}">${m}</option>`).join('');
+  selMedida.disabled = false;
+}
+
+function limpiarFiltrosMover() {
+  document.getElementById('m-buscar').value = '';
+  document.getElementById('m-modelo').value = '';
+  document.getElementById('m-color').value = '';
+  document.getElementById('m-acabado').value = '';
+  onModeloChangeMover();
+  document.getElementById('m-resultados').innerHTML = '';
+}
+
 async function buscarPieza() {
   const q = document.getElementById('m-buscar').value.trim();
+  const modelo = document.getElementById('m-modelo').value;
+  const color = document.getElementById('m-color').value;
+  const acabado = document.getElementById('m-acabado').value;
+  const medida = document.getElementById('m-medida').value;
   const cont = document.getElementById('m-resultados');
-  if (!q) { cont.innerHTML = ''; return; }
+  const hayFiltros = modelo || color || acabado || medida;
+  if (!q && !hayFiltros) { cont.innerHTML = ''; return; }
   cont.innerHTML = '<div class="msg info">Buscando…</div>';
 
   try {
-    const filtro = /^\d+$/.test(q)
-      ? `id=eq.${q}`
-      : `or=(pieza.ilike.*${encodeURIComponent(q)}*,burrito.ilike.*${encodeURIComponent(q)}*)`;
-    const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?${filtro}&order=created_at.desc&limit=10`, { headers: HEADERS });
+    let filtro = '';
+    if (q) {
+      filtro += /^\d+$/.test(q)
+        ? `&id=eq.${q}`
+        : `&or=(pieza.ilike.*${encodeURIComponent(q)}*,burrito.ilike.*${encodeURIComponent(q)}*)`;
+    }
+    if (modelo) filtro += `&modelo=eq.${encodeURIComponent(modelo)}`;
+    if (color) filtro += `&color=eq.${encodeURIComponent(color)}`;
+    if (acabado) filtro += `&acabado=eq.${encodeURIComponent(acabado)}`;
+    if (medida) filtro += `&medidas=eq.${encodeURIComponent(medida)}`;
+
+    const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?select=*${filtro}&order=created_at.desc&limit=${q ? 10 : 100}`, { headers: HEADERS });
     const rows = await res.json();
     if (!rows.length) { cont.innerHTML = '<div class="msg error">No se encontró</div>'; return; }
     cont.innerHTML = rows.map(renderPiezaCard).join('');
@@ -651,7 +760,10 @@ async function buscarPieza() {
   }
 }
 
+const piezasCache = {};
+
 function renderPiezaCard(r) {
+  piezasCache[r.id] = r;
   const foto = r.foto_etiqueta_url ? `<img src="${r.foto_etiqueta_url}">` : `<img>`;
   const acciones = ESTATUS_ACCIONES
     .filter(a => a.val !== r.estatus)
@@ -670,9 +782,134 @@ function renderPiezaCard(r) {
         <span class="badge">${r.estatus}</span>
         <div class="accion-grid">${acciones}</div>
         ${btnRecuperar}
+        <button class="big ghost" style="margin-top:8px" onclick="abrirEdicion(${r.id})">✏️ Editar</button>
         <div id="pieza-msg-${r.id}"></div>
       </div>
     </div>`;
+}
+
+function poblarSelectConActual(select, opciones, actual) {
+  select.innerHTML = '';
+  const lista = opciones.slice();
+  if (actual && !lista.includes(actual)) lista.push(actual);
+  lista.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o; opt.textContent = o;
+    if (o === actual) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+function abrirEdicion(id) {
+  const r = piezasCache[id];
+  if (!r) return;
+  const burritoParts = (r.burrito || '').split(' ');
+  const cont = document.getElementById('pieza-' + id);
+  cont.className = 'card';
+  cont.innerHTML = `
+    <h2>Editar pieza</h2>
+    <label class="fl">Código de pieza</label>
+    <input type="text" id="e-pieza-${id}" value="${escapeAttr(r.pieza || '')}">
+
+    <label class="fl">Modelo</label>
+    <select id="e-modelo-${id}" onchange="actualizarMedidaEdicion(${id})"></select>
+
+    <div class="row2">
+      <div>
+        <label class="fl">Color</label>
+        <select id="e-color-${id}"></select>
+      </div>
+      <div>
+        <label class="fl">Línea</label>
+        <select id="e-linea-${id}"></select>
+      </div>
+    </div>
+
+    <label class="fl">Medida (ancho x alto)</label>
+    <select id="e-medida-${id}"></select>
+
+    <label class="fl">Acabado</label>
+    <select id="e-acabado-${id}"></select>
+
+    <label class="fl">Tipo de entrada</label>
+    <select id="e-tipo-${id}"></select>
+
+    <div class="row2">
+      <div>
+        <label class="fl">Burrito número</label>
+        <select id="e-burrito-num-${id}" onchange="manejarSeleccionBurrito(this)"></select>
+      </div>
+      <div>
+        <label class="fl">Burrito lado</label>
+        <select id="e-burrito-lado-${id}">
+          <option value="IZQ">IZQ</option>
+          <option value="DER">DER</option>
+          <option value="">Sin lado</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="e-msg-${id}"></div>
+    <div class="row2" style="margin-top:10px">
+      <button class="big ok" onclick="guardarEdicion(${id})">✓ Guardar</button>
+      <button class="big ghost" onclick="refrescarVistaActual()">✕ Cancelar</button>
+    </div>`;
+
+  poblarSelectConActual(document.getElementById(`e-modelo-${id}`), catalogo.patrones, r.modelo);
+  poblarSelectConActual(document.getElementById(`e-color-${id}`), catalogo.colores, r.color);
+  poblarSelectConActual(document.getElementById(`e-linea-${id}`), ['LINEA 1', 'LINEA 2', 'Sin Linea'], r.linea);
+  poblarSelectConActual(document.getElementById(`e-acabado-${id}`), catalogo.acabados.length ? catalogo.acabados : ['Mate', 'Brillo'], r.acabado);
+  poblarSelectConActual(document.getElementById(`e-tipo-${id}`), ['CORTE', 'RECUPERADA', 'SOBRANTE PRODUCCION', 'OTRO'], r.tipo_entrada);
+  poblarBurritoSelect(document.getElementById(`e-burrito-num-${id}`), burritoParts[0]);
+  document.getElementById(`e-burrito-lado-${id}`).value = burritoParts[1] || '';
+  actualizarMedidaEdicion(id);
+}
+
+function actualizarMedidaEdicion(id) {
+  const r = piezasCache[id];
+  const modelo = document.getElementById(`e-modelo-${id}`).value;
+  const medidas = catalogo.medidas_por_patron[modelo] || [];
+  poblarSelectConActual(document.getElementById(`e-medida-${id}`), medidas, r.medidas);
+}
+
+async function guardarEdicion(id) {
+  const msg = document.getElementById(`e-msg-${id}`);
+  const medida = document.getElementById(`e-medida-${id}`).value;
+  const [ancho, alto] = (medida || '').split('x').map(Number);
+  const numBurrito = document.getElementById(`e-burrito-num-${id}`).value;
+  const ladoBurrito = document.getElementById(`e-burrito-lado-${id}`).value;
+  if (numBurrito === '__nuevo__') { msg.innerHTML = '<div class="msg error">Termina de crear el burrito nuevo</div>'; return; }
+
+  const body = {
+    pieza: document.getElementById(`e-pieza-${id}`).value.trim(),
+    modelo: document.getElementById(`e-modelo-${id}`).value,
+    color: document.getElementById(`e-color-${id}`).value,
+    linea: document.getElementById(`e-linea-${id}`).value,
+    medidas: medida || null,
+    ancho: Number.isFinite(ancho) ? ancho : null,
+    alto: Number.isFinite(alto) ? alto : null,
+    acabado: document.getElementById(`e-acabado-${id}`).value,
+    tipo_entrada: document.getElementById(`e-tipo-${id}`).value,
+    burrito: ladoBurrito ? `${numBurrito} ${ladoBurrito}` : numBurrito,
+  };
+
+  msg.innerHTML = '<div class="msg info">Guardando…</div>';
+  try {
+    const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { ...HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    refrescarVistaActual();
+  } catch (err) {
+    msg.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
+  }
+}
+
+function refrescarVistaActual() {
+  if (document.getElementById('tab-mover').classList.contains('active')) buscarPieza();
+  else if (document.getElementById('tab-listado').classList.contains('active')) cargarListado();
 }
 
 function iniciarRecuperacion(id, estatusAnterior) {
