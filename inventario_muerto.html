@@ -487,9 +487,17 @@ async function guardarCaptura() {
   btn.disabled = true;
   msg.innerHTML = '<div class="msg info">Guardando…</div>';
 
+  let avisoFoto = '';
   try {
     let fotoUrl = null;
-    if (fotoFile) fotoUrl = await subirFotoEtiqueta(fotoFile, pieza);
+    if (fotoFile) {
+      try {
+        fotoUrl = await subirFotoEtiqueta(fotoFile, pieza);
+      } catch (fotoErr) {
+        fotoUrl = null;
+        avisoFoto = ` (sin foto: ${fotoErr.message})`;
+      }
+    }
 
     const [ancho, alto] = medida.split('x').map(Number);
     const numBurrito = document.getElementById('c-burrito-num').value;
@@ -517,8 +525,10 @@ async function guardarCaptura() {
     });
     if (!res.ok) throw new Error(await res.text());
 
-    msg.innerHTML = '<div class="msg ok">✓ Pieza guardada</div>';
-    setTimeout(limpiarCaptura, 1000);
+    msg.innerHTML = avisoFoto
+      ? `<div class="msg ok">✓ Pieza guardada${avisoFoto}</div>`
+      : '<div class="msg ok">✓ Pieza guardada</div>';
+    setTimeout(limpiarCaptura, avisoFoto ? 3500 : 1000);
   } catch (err) {
     msg.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
   } finally {
