@@ -289,6 +289,15 @@
       <h2>Por burrito</h2>
       <div id="r-burritos"></div>
     </div>
+    <div class="card">
+      <h2>Piezas recuperadas (modelo/medida anterior → nuevo)</h2>
+      <div id="r-recuperadas"></div>
+    </div>
+    <div class="card">
+      <h2>Entradas vs salidas por mes</h2>
+      <div class="msg info">Entradas = piezas capturadas. Salidas = piezas que se fueron a Grado C o se Recuperaron (dejan de ser inventario muerto).</div>
+      <div id="r-entradas-salidas" style="margin-top:10px"></div>
+    </div>
     <div class="card" id="r-detalle-card" style="display:none">
       <h2 id="r-detalle-titulo">Detalle</h2>
       <button class="big ghost" style="margin-bottom:10px" onclick="cerrarDetalleReporte()">✕ Cerrar detalle</button>
@@ -913,8 +922,45 @@ function refrescarVistaActual() {
 }
 
 function iniciarRecuperacion(id, estatusAnterior) {
-  recuperarContexto = { id, estatusAnterior };
+  recuperarContexto = { id, estatusAnterior, viejo: piezasCache[id] || null };
   abrirScanner('recuperar');
+}
+
+async function buscarPedidosCandidatos(patron, color, acabado, medida) {
+  const codigo = extraerCodigo(patron);
+  const lado = extraerLado(patron);
+  const [ancho, alto] = (medida || '').split('x').map(Number);
+  if (!codigo || !lado || !Number.isFinite(ancho) || !Number.isFinite(alto)) return [];
+
+  let pendientes = [];
+  try {
+    pendientes = await fetchTodasLasFilas('ventas_piezas?select=pedido,cliente,fecha_entrega,pieza_desc,pendiente&pendiente=gt.0&order=fecha_entrega.asc');
+  } catch (err) { return []; }
+
+  return pendientes.filter(p => {
+    const pc = extraerCodigo(p.pieza_desc), pl = extraerLado(p.pieza_desc);
+    if (pc !== codigo || pl !== lado) return false;
+    const pcol = extraerColorDeTexto(p.pieza_desc);
+    if (color && pcol && pcol.toUpperCase() !== color.toUpperCase()) return false;
+    const pac = extraerAcabadoDeTexto(p.pieza_desc);
+    if (acabado && pac && pac !== acabado) return false;
+    const [pa, pb] = extraerMedidaDeTexto(p.pieza_desc);
+    return pa != null && Math.abs(pa - ancho) < 0.6 && Math.abs(pb - alto) < 0.6;
+  });
+}
+
+async function preguntarPedidoDestino(infoVaciado) {
+  const candidatos = infoVaciado ? await buscarPedidosCandidatos(infoVaciado.patron, infoVaciado.color, infoVaciado.acabado, infoVaciado.medida) : [];
+  if (candidatos.length) {
+    const lista = candidatos.map((p, i) => `${i + 1}) ${p.pedido} - ${p.cliente || '?'} (entrega ${p.fecha_entrega || '?'}, pendiente ${p.pendiente})`).join('\n');
+    const resp = prompt(`¿Para qué pedido va esta pieza recuperada?\n\nCoincide con estos pedidos pendientes:\n${lista}\n\nEscribe el NÚMERO de la lista, o el código del pedido si es otro. Vacío = ninguno.`);
+    if (!resp) return null;
+    const idx = parseInt(resp, 10);
+    if (!isNaN(idx) && candidatos[idx - 1]) return candidatos[idx - 1].pedido;
+    return resp.trim();
+  }
+  const resp = prompt('¿Para qué pedido va esta pieza recuperada? (código, ej. Q07390). Vacío = ninguno.');
+  return resp ? resp.trim() : null;
 }
 
 async function finalizarRecuperacion(skuNuevo) {
@@ -939,6 +985,9 @@ async function finalizarRecuperacion(skuNuevo) {
   }
   if (!confirmado) return;
 
+  const pedido = await preguntarPedidoDestino(infoVaciado);
+  const viejo = ctx.viejo || {};
+
   try {
     const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?id=eq.${ctx.id}`, {
       method: 'PATCH',
@@ -950,7 +999,13 @@ async function finalizarRecuperacion(skuNuevo) {
     await fetch(`${SUP_URL}/rest/v1/inventario_muerto_movimientos`, {
       method: 'POST',
       headers: { ...HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ inventario_id: ctx.id, estatus_anterior: ctx.estatusAnterior, estatus_nuevo: 'RECUPERADA', sku_nuevo: skuNuevo }),
+      body: JSON.stringify({
+        inventario_id: ctx.id, estatus_anterior: ctx.estatusAnterior, estatus_nuevo: 'RECUPERADA',
+        sku_nuevo: skuNuevo, pedido,
+        modelo_viejo: viejo.modelo || null, color_viejo: viejo.color || null, medida_vieja: viejo.medidas || null,
+        modelo_nuevo: infoVaciado ? infoVaciado.patron : null, color_nuevo: infoVaciado ? infoVaciado.color : null,
+        medida_nueva: infoVaciado ? infoVaciado.medida : null, acabado_nuevo: infoVaciado ? infoVaciado.acabado : null,
+      }),
     });
 
     buscarPieza();
@@ -1092,7 +1147,20 @@ function filtroReporte(tipo, valor) {
   return () => false;
 }
 
+const MESES_NOMBRE = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+function mesKey(fechaStr) {
+  if (!fechaStr) return null;
+  const d = new Date(fechaStr);
+  if (isNaN(d)) return null;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+function mesLabel(key) {
+  const [y, m] = key.split('-');
+  return `${MESES_NOMBRE[parseInt(m, 10) - 1]} ${y}`;
+}
+
 let reporteCache = null;
+let movimientosCache = null;
 async function cargarReporte() {
   const cargando = document.getElementById('r-cargando');
   cargando.style.display = 'block';
@@ -1103,7 +1171,13 @@ async function cargarReporte() {
         'inventario_muerto?select=id,pieza,modelo,color,acabado,medidas,burrito,estatus,foto_etiqueta_url,created_at&order=id.asc'
       );
     }
+    if (!movimientosCache) {
+      movimientosCache = await fetchTodasLasFilas(
+        'inventario_muerto_movimientos?select=inventario_id,estatus_anterior,estatus_nuevo,pedido,modelo_viejo,color_viejo,medida_vieja,modelo_nuevo,color_nuevo,medida_nueva,acabado_nuevo,created_at&order=id.asc'
+      );
+    }
     const piezas = reporteCache;
+    const movimientos = movimientosCache;
 
     // por estatus
     const porEstatus = {};
@@ -1137,6 +1211,40 @@ async function cargarReporte() {
     document.getElementById('r-burritos').innerHTML = topBurritos
       .map(([burrito, cnt]) => `<button class="rank-row" data-tipo="burrito" data-valor="${escapeAttr(burrito)}"><span>📦 ${escapeHtml(burrito)}</span><span class="cnt">${cnt}</span></button>`)
       .join('') || '<div class="msg error">Sin datos</div>';
+
+    // piezas recuperadas: modelo/medida anterior vs nuevo, pedido, fecha
+    const recuperadas = movimientos
+      .filter(m => m.estatus_nuevo === 'RECUPERADA')
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    document.getElementById('r-recuperadas').innerHTML = recuperadas.length
+      ? recuperadas.slice(0, 200).map(m => `
+        <div class="match-card">
+          <div class="pedido">${m.pedido ? 'Pedido ' + escapeHtml(m.pedido) : 'Sin pedido asignado'} <span class="fecha">${(m.created_at || '').slice(0, 10)}</span></div>
+          <div class="pieza-linea" style="margin-top:6px">
+            <div><div class="modelo">${escapeHtml(m.modelo_viejo || '(sin dato)')}</div><div class="meta">${escapeHtml(m.color_viejo || '')} · ${escapeHtml(m.medida_vieja || '')}</div></div>
+            <span class="badge">ANTES</span>
+          </div>
+          <div class="pieza-linea" style="margin-top:6px">
+            <div><div class="modelo">${escapeHtml(m.modelo_nuevo || '(sin dato)')}</div><div class="meta">${escapeHtml(m.color_nuevo || '')} · ${escapeHtml(m.medida_nueva || '')} ${m.acabado_nuevo ? '· ' + escapeHtml(m.acabado_nuevo) : ''}</div></div>
+            <span class="badge">NUEVO</span>
+          </div>
+        </div>`).join('')
+      : '<div class="msg error">Sin recuperaciones registradas todavía</div>';
+
+    // entradas (piezas capturadas) vs salidas (grado c o recuperada) por mes
+    const entradasPorMes = {};
+    piezas.forEach(p => { const k = mesKey(p.created_at); if (k) entradasPorMes[k] = (entradasPorMes[k] || 0) + 1; });
+    const salidasPorMes = {};
+    movimientos.filter(m => m.estatus_nuevo === 'GRADO C' || m.estatus_nuevo === 'RECUPERADA')
+      .forEach(m => { const k = mesKey(m.created_at); if (k) salidasPorMes[k] = (salidasPorMes[k] || 0) + 1; });
+    const todosMeses = Array.from(new Set([...Object.keys(entradasPorMes), ...Object.keys(salidasPorMes)])).sort();
+    document.getElementById('r-entradas-salidas').innerHTML = todosMeses.length
+      ? todosMeses.map(k => `
+        <div class="rank-row">
+          <span>${mesLabel(k)}</span>
+          <span><span class="cnt" style="color:var(--accent)">+${entradasPorMes[k] || 0} entradas</span>&nbsp;&nbsp;<span class="cnt" style="color:var(--danger)">-${salidasPorMes[k] || 0} salidas</span></span>
+        </div>`).join('')
+      : '<div class="msg error">Sin datos</div>';
 
     cargando.style.display = 'none';
   } catch (err) {
