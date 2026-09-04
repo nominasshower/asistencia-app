@@ -77,10 +77,12 @@
 
   .stat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
   @media (min-width:600px) { .stat-grid { grid-template-columns:repeat(4,1fr); } }
-  .stat-tile { background:var(--bg3); border-radius:12px; padding:14px 10px; text-align:center; }
-  .stat-tile .n { font-size:24px; font-weight:800; }
+  .stat-tile { background:var(--bg3); border-radius:12px; padding:14px 10px; text-align:center; border:none; font-family:inherit; cursor:pointer; }
+  .stat-tile:active { background:var(--accent2); }
+  .stat-tile .n { font-size:24px; font-weight:800; color:var(--text); }
   .stat-tile .l { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.03em; margin-top:2px; }
-  .rank-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); font-size:14px; }
+  .rank-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); font-size:14px; width:100%; background:none; border-left:none; border-right:none; border-top:none; color:var(--text); font-family:inherit; cursor:pointer; text-align:left; }
+  .rank-row:active { background:var(--bg3); }
   .rank-row:last-child { border-bottom:none; }
   .rank-row .n { color:var(--muted); font-weight:700; margin-right:8px; }
   .rank-row .cnt { font-weight:800; color:var(--accent2); }
@@ -226,6 +228,15 @@
     <div class="card">
       <h2>Top 10 modelos con más piezas muertas</h2>
       <div id="r-modelos"></div>
+    </div>
+    <div class="card">
+      <h2>Por burrito</h2>
+      <div id="r-burritos"></div>
+    </div>
+    <div class="card" id="r-detalle-card" style="display:none">
+      <h2 id="r-detalle-titulo">Detalle</h2>
+      <button class="big ghost" style="margin-bottom:10px" onclick="cerrarDetalleReporte()">✕ Cerrar detalle</button>
+      <div id="r-detalle"></div>
     </div>
   </div>
 
@@ -733,6 +744,37 @@ async function fetchTodasLasFilas(tablaYQuery) {
   return todas;
 }
 
+function diasDesde(p) {
+  return p.created_at ? Math.floor((new Date() - new Date(p.created_at)) / 86400000) : null;
+}
+function escapeAttr(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+function escapeHtml(str) {
+  return escapeAttr(str).replace(/>/g, '&gt;');
+}
+
+const BUCKET_DEF = {
+  '0-30': p => diasDesde(p) !== null && diasDesde(p) <= 30,
+  '31-60': p => diasDesde(p) !== null && diasDesde(p) > 30 && diasDesde(p) <= 60,
+  '61-90': p => diasDesde(p) !== null && diasDesde(p) > 60 && diasDesde(p) <= 90,
+  '90+': p => diasDesde(p) !== null && diasDesde(p) > 90,
+  'sinfecha': p => diasDesde(p) === null,
+};
+const BUCKET_LABELS = { '0-30': '0-30 días', '31-60': '31-60 días', '61-90': '61-90 días', '90+': '90+ días', 'sinfecha': 'sin fecha' };
+
+function filtroReporte(tipo, valor) {
+  if (tipo === 'estatus') return p => p.estatus === valor;
+  if (tipo === 'modelo') return p => (p.modelo || '(sin modelo)') === valor;
+  if (tipo === 'burrito') return p => (p.burrito || '(sin burrito)') === valor;
+  if (tipo === 'antiguedad') {
+    const activo = p => p.estatus !== 'RECUPERADA' && p.estatus !== 'SALIDA MUESTRA';
+    const enBucket = BUCKET_DEF[valor];
+    return p => activo(p) && enBucket(p);
+  }
+  return () => false;
+}
+
 let reporteCache = null;
 async function cargarReporte() {
   const cargando = document.getElementById('r-cargando');
@@ -740,7 +782,9 @@ async function cargarReporte() {
   cargando.textContent = 'Calculando…';
   try {
     if (!reporteCache) {
-      reporteCache = await fetchTodasLasFilas('inventario_muerto?select=estatus,modelo,created_at&order=id.asc');
+      reporteCache = await fetchTodasLasFilas(
+        'inventario_muerto?select=id,pieza,modelo,color,acabado,medidas,burrito,estatus,foto_etiqueta_url,created_at&order=id.asc'
+      );
     }
     const piezas = reporteCache;
 
@@ -749,25 +793,16 @@ async function cargarReporte() {
     piezas.forEach(p => { porEstatus[p.estatus] = (porEstatus[p.estatus] || 0) + 1; });
     const estatusHtml = Object.entries(porEstatus)
       .sort((a, b) => b[1] - a[1])
-      .map(([k, v]) => `<div class="stat-tile"><div class="n">${v}</div><div class="l">${ESTATUS_LABELS[k] || k}</div></div>`)
+      .map(([k, v]) => `<button class="stat-tile" data-tipo="estatus" data-valor="${escapeAttr(k)}"><div class="n">${v}</div><div class="l">${escapeHtml(ESTATUS_LABELS[k] || k)}</div></button>`)
       .join('');
     document.getElementById('r-estatus').innerHTML = estatusHtml || '<div class="msg error">Sin datos</div>';
 
     // antiguedad de lo que sigue "vivo" (no recuperada, no salida muestra)
     const activos = piezas.filter(p => p.estatus !== 'RECUPERADA' && p.estatus !== 'SALIDA MUESTRA');
-    const hoy = new Date();
-    const buckets = { '0-30 días': 0, '31-60 días': 0, '61-90 días': 0, '90+ días': 0, 'sin fecha': 0 };
-    activos.forEach(p => {
-      if (!p.created_at) { buckets['sin fecha']++; return; }
-      const dias = Math.floor((hoy - new Date(p.created_at)) / 86400000);
-      if (dias <= 30) buckets['0-30 días']++;
-      else if (dias <= 60) buckets['31-60 días']++;
-      else if (dias <= 90) buckets['61-90 días']++;
-      else buckets['90+ días']++;
-    });
-    document.getElementById('r-antiguedad').innerHTML = Object.entries(buckets)
-      .filter(([, v]) => v > 0)
-      .map(([k, v]) => `<div class="stat-tile"><div class="n">${v}</div><div class="l">${k}</div></div>`)
+    document.getElementById('r-antiguedad').innerHTML = Object.keys(BUCKET_DEF)
+      .map(key => ({ key, cnt: activos.filter(BUCKET_DEF[key]).length }))
+      .filter(b => b.cnt > 0)
+      .map(b => `<button class="stat-tile" data-tipo="antiguedad" data-valor="${b.key}"><div class="n">${b.cnt}</div><div class="l">${BUCKET_LABELS[b.key]}</div></button>`)
       .join('');
 
     // top modelos (sobre el total historico, no solo activos)
@@ -775,7 +810,15 @@ async function cargarReporte() {
     piezas.forEach(p => { const m = p.modelo || '(sin modelo)'; porModelo[m] = (porModelo[m] || 0) + 1; });
     const topModelos = Object.entries(porModelo).sort((a, b) => b[1] - a[1]).slice(0, 10);
     document.getElementById('r-modelos').innerHTML = topModelos
-      .map(([modelo, cnt], i) => `<div class="rank-row"><span><span class="n">${i + 1}.</span>${modelo}</span><span class="cnt">${cnt}</span></div>`)
+      .map(([modelo, cnt], i) => `<button class="rank-row" data-tipo="modelo" data-valor="${escapeAttr(modelo)}"><span><span class="n">${i + 1}.</span>${escapeHtml(modelo)}</span><span class="cnt">${cnt}</span></button>`)
+      .join('') || '<div class="msg error">Sin datos</div>';
+
+    // por burrito
+    const porBurrito = {};
+    piezas.forEach(p => { const b = p.burrito || '(sin burrito)'; porBurrito[b] = (porBurrito[b] || 0) + 1; });
+    const topBurritos = Object.entries(porBurrito).sort((a, b) => b[1] - a[1]);
+    document.getElementById('r-burritos').innerHTML = topBurritos
+      .map(([burrito, cnt]) => `<button class="rank-row" data-tipo="burrito" data-valor="${escapeAttr(burrito)}"><span>📦 ${escapeHtml(burrito)}</span><span class="cnt">${cnt}</span></button>`)
       .join('') || '<div class="msg error">Sin datos</div>';
 
     cargando.style.display = 'none';
@@ -783,6 +826,46 @@ async function cargarReporte() {
     cargando.className = 'msg error';
     cargando.textContent = '✕ ' + err.message;
   }
+}
+
+document.getElementById('tab-reporte').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-tipo]');
+  if (!btn) return;
+  const tipo = btn.dataset.tipo, valor = btn.dataset.valor;
+  const titulo = tipo === 'antiguedad' ? `${BUCKET_LABELS[valor]} (activas)`
+    : tipo === 'burrito' ? `Burrito ${valor}`
+    : tipo === 'estatus' ? (ESTATUS_LABELS[valor] || valor)
+    : valor;
+  mostrarDetalleReporte(titulo, filtroReporte(tipo, valor));
+});
+
+function mostrarDetalleReporte(titulo, filtroFn) {
+  const piezas = (reporteCache || []).filter(filtroFn);
+  document.getElementById('r-detalle-titulo').textContent = `${titulo} (${piezas.length})`;
+  document.getElementById('r-detalle').innerHTML = piezas.length
+    ? piezas.map(renderPiezaCardSimple).join('')
+    : '<div class="msg error">Sin piezas</div>';
+  const card = document.getElementById('r-detalle-card');
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cerrarDetalleReporte() {
+  document.getElementById('r-detalle-card').style.display = 'none';
+}
+
+function renderPiezaCardSimple(r) {
+  const foto = r.foto_etiqueta_url ? `<img src="${r.foto_etiqueta_url}">` : `<img>`;
+  return `
+    <div class="pieza-card">
+      ${foto}
+      <div class="info">
+        <div class="modelo">${r.modelo || '(sin modelo)'}</div>
+        <div class="meta">${r.pieza} · ${r.color || ''} ${r.medidas ? '· ' + r.medidas : ''} ${r.acabado ? '· ' + r.acabado : ''}</div>
+        <div class="meta">Burrito: ${r.burrito || '—'}</div>
+        <span class="badge">${r.estatus}</span>
+      </div>
+    </div>`;
 }
 
 // ---------- RECUPERABLES (cruce contra pedidos pendientes de Odoo) ----------
