@@ -73,6 +73,9 @@
   .cut-list{margin:0 0 14px; padding-left:20px; font-size:13px;}
   .cut-list li{margin-bottom:3px;}
   .sheet-label{font-size:12px; color:var(--muted); margin-bottom:4px;}
+  .table-scroll{overflow-x:auto;}
+  .tarja-cell{display:flex; gap:4px;}
+  .tarja-cell input{width:50%;}
   @media print{
     body{background:#fff; color:#000; padding:0;}
     .panel:not(#resultsPanel){display:none !important;}
@@ -140,10 +143,12 @@
   <div class="panel">
     <h2>3. Piezas a cortar (lavabos / cocinetas)</h2>
     <div id="hintPieces" class="empty-hint" style="display:none;">Agrega los modelos/piezas de esta cotización con su ancho, alto y cantidad.</div>
-    <table id="tblPieces" style="display:none;">
-      <thead><tr><th class="col-name">Modelo / Pieza</th><th class="col-num">Ancho (mm)</th><th class="col-num">Alto (mm)</th><th style="width:9%;">Cant.</th><th style="width:15%;">Color/Lote</th><th style="width:11%;" title="Marca si esta pieza no se puede voltear por veta/patrón">No rotar</th><th class="col-del"></th></tr></thead>
+    <div class="table-scroll">
+    <table id="tblPieces" style="display:none; min-width:760px;">
+      <thead><tr><th class="col-name">Modelo / Pieza</th><th class="col-num">Ancho (mm)</th><th class="col-num">Alto (mm)</th><th style="width:8%;">Cant.</th><th style="width:12%;">Color/Lote</th><th style="width:9%;" title="Marca si esta pieza no se puede voltear por veta/patrón">No rotar</th><th style="width:13%;">Tipo de unión</th><th style="width:14%;" title="Medida del corte de la tarja/sink, si aplica">Tarja L x A (mm)</th><th class="col-del"></th></tr></thead>
       <tbody id="piecesBody"></tbody>
     </table>
+    </div>
     <div class="actions">
       <button class="btn secondary small" onclick="addPieceRow()">+ Agregar pieza</button>
     </div>
@@ -218,8 +223,23 @@ function addPieceRow(data){
     <td><input type="number" class="p-qty" min="1" value="${data?.qty||1}"></td>
     <td><input type="text" class="p-color" placeholder="opcional" value="${data?.color||''}"></td>
     <td style="text-align:center;"><input type="checkbox" class="p-norotate" ${data?.noRotate?'checked':''} title="No voltear por veta/patrón"></td>
+    <td>
+      <select class="p-joint">
+        <option value="">Ninguna</option>
+        <option value="inglete">Inglete (45°)</option>
+        <option value="recta">Recta a tope</option>
+        <option value="traslape">Traslape</option>
+      </select>
+    </td>
+    <td>
+      <div class="tarja-cell">
+        <input type="number" class="p-tarja-l" placeholder="L" min="0" value="${data?.tarjaL||''}">
+        <input type="number" class="p-tarja-a" placeholder="A" min="0" value="${data?.tarjaA||''}">
+      </div>
+    </td>
     <td><button class="btn danger" onclick="this.closest('tr').remove(); toggleEmptyStates();">×</button></td>
   `;
+  tr.querySelector('.p-joint').value = data?.joint || '';
   tbody.appendChild(tr);
   toggleEmptyStates();
 }
@@ -348,7 +368,7 @@ function packOneGroup(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotationGlo
   pieces.forEach(p => {
     const pieceAllowRotation = allowRotationGlobal && !p.noRotate;
     for (let i=0;i<p.qty;i++){
-      instances.push({ name:p.name, origW:p.w, origH:p.h, w:p.w+kerf, h:p.h+kerf, colorIdx: p.colorIdx, allowRotation: pieceAllowRotation });
+      instances.push({ name:p.name, origW:p.w, origH:p.h, w:p.w+kerf, h:p.h+kerf, colorIdx: p.colorIdx, allowRotation: pieceAllowRotation, joint:p.joint, tarjaL:p.tarjaL, tarjaA:p.tarjaA });
     }
   });
   instances.sort((a,b)=> Math.max(b.w,b.h)-Math.max(a.w,a.h) || (b.w*b.h)-(a.w*a.h));
@@ -375,7 +395,8 @@ function packOneGroup(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotationGlo
       placement = findBestPlacement(placedIn.freeRects, inst.w, inst.h, inst.allowRotation);
     }
     const node = { x:placement.freeRect.x, y:placement.freeRect.y, w:placement.ow, h:placement.oh,
-                   name:inst.name, origW:inst.origW, origH:inst.origH, rotated:placement.rotated, colorIdx:inst.colorIdx };
+                   name:inst.name, origW:inst.origW, origH:inst.origH, rotated:placement.rotated, colorIdx:inst.colorIdx,
+                   joint:inst.joint, tarjaL:inst.tarjaL, tarjaA:inst.tarjaA };
     placedIn.placed.push(node);
 
     if (cutMode === 'guillotine'){
@@ -442,6 +463,9 @@ function readInputs(){
     qty: parseInt(tr.querySelector('.p-qty').value) || 0,
     color: tr.querySelector('.p-color').value.trim(),
     noRotate: tr.querySelector('.p-norotate').checked,
+    joint: tr.querySelector('.p-joint').value,
+    tarjaL: parseFloat(tr.querySelector('.p-tarja-l').value) || 0,
+    tarjaA: parseFloat(tr.querySelector('.p-tarja-a').value) || 0,
     colorIdx: i % PALETTE.length
   })).filter(p => p.w>0 && p.h>0 && p.qty>0);
 
@@ -553,6 +577,14 @@ function renderSheetsForSelected(){
       const label = p.name.length > 16 ? p.name.slice(0,15)+'…' : p.name;
       svg += `<text x="${x+pw/2}" y="${y+ph/2-4}" text-anchor="middle" class="piece-label">${label}${p.rotated?' ↻':''}</text>`;
       svg += `<text x="${x+pw/2}" y="${y+ph/2+10}" text-anchor="middle" class="piece-dim">${p.origW}x${p.origH}mm</text>`;
+      if (p.tarjaL > 0 && p.tarjaA > 0){
+        const tw = p.rotated ? p.tarjaA : p.tarjaL;
+        const th = p.rotated ? p.tarjaL : p.tarjaA;
+        const cutW = Math.min(tw*scale, pw-4);
+        const cutH = Math.min(th*scale, ph-4);
+        const cx = x + pw/2 - cutW/2, cy = y + ph/2 - cutH/2;
+        svg += `<rect x="${cx}" y="${cy}" width="${cutW}" height="${cutH}" fill="none" stroke="#08201c" stroke-width="1.5" stroke-dasharray="3,2" rx="3"/>`;
+      }
     });
     if (res.cutMode === 'guillotine' && bin.cuts){
       bin.cuts.forEach((c, ci) => {
@@ -604,6 +636,10 @@ function renderCutSequence(entry){
   wrap.innerHTML = any ? html : '';
 }
 
+function jointLabel(v){
+  return { inglete:'Inglete (45°)', recta:'Recta a tope', traslape:'Traslape' }[v] || 'Ninguna';
+}
+
 function renderPieceReport(entry){
   const wrap = document.getElementById('reportWrap');
   const { res } = entry;
@@ -611,18 +647,20 @@ function renderPieceReport(entry){
   res.bins.forEach((bin, bi) => {
     bin.placed.forEach((p, pi) => {
       rows.push({ tag:`L${bi+1}-${pi+1}`, sheet:bi+1, name:p.name, color:bin.colorLabel||'—',
-                  w:p.origW, h:p.origH, x:Math.round(p.x), y:Math.round(p.y), rotated:p.rotated?'Sí':'No' });
+                  w:p.origW, h:p.origH, x:Math.round(p.x), y:Math.round(p.y), rotated:p.rotated?'Sí':'No',
+                  joint: jointLabel(p.joint),
+                  tarja: (p.tarjaL>0 && p.tarjaA>0) ? `${p.tarjaL}x${p.tarjaA}mm` : '—' });
     });
   });
 
   let html = `<h2>Reporte de piezas / etiquetas</h2>
-  <table class="cmp-table"><thead><tr>
-    <th>Etiqueta</th><th>Lámina</th><th>Pieza</th><th>Color/Lote</th><th>Ancho</th><th>Alto</th><th>Pos X</th><th>Pos Y</th><th>Rotada</th>
+  <div class="table-scroll"><table class="cmp-table" style="min-width:900px;"><thead><tr>
+    <th>Etiqueta</th><th>Lámina</th><th>Pieza</th><th>Color/Lote</th><th>Ancho</th><th>Alto</th><th>Pos X</th><th>Pos Y</th><th>Rotada</th><th>Unión</th><th>Tarja</th>
   </tr></thead><tbody>`;
   rows.forEach(r => {
-    html += `<tr><td>${r.tag}</td><td>${r.sheet}</td><td>${r.name}</td><td>${r.color}</td><td>${r.w}mm</td><td>${r.h}mm</td><td>${r.x}mm</td><td>${r.y}mm</td><td>${r.rotated}</td></tr>`;
+    html += `<tr><td>${r.tag}</td><td>${r.sheet}</td><td>${r.name}</td><td>${r.color}</td><td>${r.w}mm</td><td>${r.h}mm</td><td>${r.x}mm</td><td>${r.y}mm</td><td>${r.rotated}</td><td>${r.joint}</td><td>${r.tarja}</td></tr>`;
   });
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   wrap.innerHTML = html;
 }
 
