@@ -307,9 +307,9 @@ async function cargarCatalogo() {
   });
 
   const selBurrito = document.getElementById('c-burrito-num');
-  for (let n = 1; n <= 60; n++) {
+  for (let n = 1; n <= 32; n++) {
     const opt = document.createElement('option');
-    const val = String(n).padStart(2, '0');
+    const val = 'P' + String(n).padStart(2, '0');
     opt.value = val; opt.textContent = val;
     selBurrito.appendChild(opt);
   }
