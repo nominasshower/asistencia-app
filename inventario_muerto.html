@@ -209,7 +209,35 @@
         <option value="SALIDA MUESTRA">Salida muestra</option>
         <option value="RECUPERADA">Recuperada</option>
       </select>
-      <div id="l-count" class="msg info" style="display:none"></div>
+
+      <label class="fl">Modelo</label>
+      <select id="l-modelo" onchange="onModeloChangeListado(); cargarListado()">
+        <option value="">Todos</option>
+      </select>
+
+      <div class="row2">
+        <div>
+          <label class="fl">Color</label>
+          <select id="l-color" onchange="cargarListado()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div>
+          <label class="fl">Acabado</label>
+          <select id="l-acabado" onchange="cargarListado()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+      </div>
+
+      <label class="fl">Medida (ancho x alto)</label>
+      <select id="l-medida" onchange="cargarListado()" disabled>
+        <option value="">Todas</option>
+      </select>
+
+      <button class="big ghost" style="margin-top:10px" onclick="limpiarFiltrosListado()">✕ Limpiar filtros</button>
+
+      <div id="l-count" class="msg info" style="display:none; margin-top:10px"></div>
       <div id="l-resultados" style="margin-top:12px"></div>
     </div>
   </div>
@@ -304,6 +332,27 @@ async function cargarCatalogo() {
     const btn = document.createElement('button');
     btn.type = 'button'; btn.dataset.val = a; btn.textContent = a.toUpperCase();
     acabadoGroup.appendChild(btn);
+  });
+
+  const selModeloListado = document.getElementById('l-modelo');
+  catalogo.patrones.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    selModeloListado.appendChild(opt);
+  });
+
+  const selColorListado = document.getElementById('l-color');
+  catalogo.colores.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    selColorListado.appendChild(opt);
+  });
+
+  const selAcabadoListado = document.getElementById('l-acabado');
+  (catalogo.acabados.length ? catalogo.acabados : ['Mate', 'Brillo']).forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a; opt.textContent = a;
+    selAcabadoListado.appendChild(opt);
   });
 
   const selBurrito = document.getElementById('c-burrito-num');
@@ -699,15 +748,46 @@ async function cambiarEstatus(id, estatusAnterior, estatusNuevo, btn) {
 }
 
 // ---------- LISTADO ----------
+function onModeloChangeListado() {
+  const modelo = document.getElementById('l-modelo').value;
+  const selMedida = document.getElementById('l-medida');
+  const medidas = catalogo.medidas_por_patron[modelo] || [];
+  if (!modelo || !medidas.length) {
+    selMedida.innerHTML = '<option value="">Todas</option>';
+    selMedida.disabled = true;
+    return;
+  }
+  selMedida.innerHTML = '<option value="">Todas</option>' + medidas.map(m => `<option value="${m}">${m}</option>`).join('');
+  selMedida.disabled = false;
+}
+
+function limpiarFiltrosListado() {
+  document.getElementById('l-estatus').value = '';
+  document.getElementById('l-modelo').value = '';
+  document.getElementById('l-color').value = '';
+  document.getElementById('l-acabado').value = '';
+  onModeloChangeListado();
+  cargarListado();
+}
+
 async function cargarListado() {
   const estatus = document.getElementById('l-estatus').value;
+  const modelo = document.getElementById('l-modelo').value;
+  const color = document.getElementById('l-color').value;
+  const acabado = document.getElementById('l-acabado').value;
+  const medida = document.getElementById('l-medida').value;
   const cont = document.getElementById('l-resultados');
   const countEl = document.getElementById('l-count');
   cont.innerHTML = '<div class="msg info">Cargando…</div>';
   countEl.style.display = 'none';
 
   try {
-    const filtro = estatus ? `&estatus=eq.${encodeURIComponent(estatus)}` : '';
+    let filtro = '';
+    if (estatus) filtro += `&estatus=eq.${encodeURIComponent(estatus)}`;
+    if (modelo) filtro += `&modelo=eq.${encodeURIComponent(modelo)}`;
+    if (color) filtro += `&color=eq.${encodeURIComponent(color)}`;
+    if (acabado) filtro += `&acabado=eq.${encodeURIComponent(acabado)}`;
+    if (medida) filtro += `&medidas=eq.${encodeURIComponent(medida)}`;
     const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?select=*&order=created_at.desc&limit=100${filtro}`, {
       headers: { ...HEADERS, Prefer: 'count=exact' },
     });
