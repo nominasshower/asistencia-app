@@ -363,11 +363,18 @@ document.getElementById('c-acabado-group').addEventListener('click', (e) => {
 let codeReader = null;
 let torchTrack = null;
 let torchOn = false;
-let scannerDestino = null; // 'captura' | 'mover'
+let scannerDestino = null; // 'captura' | 'mover' | 'recuperar'
+let recuperarContexto = null; // { id, estatusAnterior }
+
+const TITULOS_SCANNER = {
+  captura: 'Escanear código de la pieza',
+  mover: 'Escanear pieza a buscar',
+  recuperar: 'Escanear SKU de la pieza nueva (ya vaciada)',
+};
 
 async function abrirScanner(destino) {
   scannerDestino = destino;
-  document.getElementById('scanner-titulo').textContent = destino === 'captura' ? 'Escanear código de la pieza' : 'Escanear pieza a buscar';
+  document.getElementById('scanner-titulo').textContent = TITULOS_SCANNER[destino] || 'Escanear código';
   document.getElementById('scanner-modal').style.display = 'block';
   try {
     codeReader = new ZXing.BrowserMultiFormatReader();
@@ -432,6 +439,8 @@ function onCodigoEscaneado(texto) {
   if (scannerDestino === 'mover') {
     document.getElementById('m-buscar').value = codigo;
     buscarPieza();
+  } else if (scannerDestino === 'recuperar') {
+    finalizarRecuperacion(codigo);
   } else {
     document.getElementById('c-pieza-valor').textContent = codigo;
     document.getElementById('c-pieza-sin-escanear').style.display = 'none';
@@ -588,6 +597,9 @@ function renderPiezaCard(r) {
     .filter(a => a.val !== r.estatus)
     .map(a => `<button class="big ghost" onclick="cambiarEstatus(${r.id}, '${r.estatus}', '${a.val}', this)">${a.label}</button>`)
     .join('');
+  const btnRecuperar = r.estatus !== 'RECUPERADA'
+    ? `<button class="big primary" style="margin-top:8px" onclick="iniciarRecuperacion(${r.id}, '${r.estatus}')">♻️ Recuperar (cortar a otra pieza)</button>`
+    : '';
   return `
     <div class="pieza-card" id="pieza-${r.id}">
       ${foto}
@@ -597,9 +609,57 @@ function renderPiezaCard(r) {
         <div class="meta">Burrito: ${r.burrito || '—'}</div>
         <span class="badge">${r.estatus}</span>
         <div class="accion-grid">${acciones}</div>
+        ${btnRecuperar}
         <div id="pieza-msg-${r.id}"></div>
       </div>
     </div>`;
+}
+
+function iniciarRecuperacion(id, estatusAnterior) {
+  recuperarContexto = { id, estatusAnterior };
+  abrirScanner('recuperar');
+}
+
+async function finalizarRecuperacion(skuNuevo) {
+  const ctx = recuperarContexto;
+  recuperarContexto = null;
+  if (!ctx) return;
+
+  let infoVaciado = null;
+  try {
+    const res = await fetch(`${SUP_URL}/rest/v1/vaciados?sku=eq.${encodeURIComponent(skuNuevo)}&select=sku,patron,medida,color,acabado,fecha&limit=1`, { headers: HEADERS });
+    const rows = await res.json();
+    infoVaciado = rows[0] || null;
+  } catch (err) { /* si falla la consulta, seguimos y preguntamos igual */ }
+
+  let confirmado;
+  if (infoVaciado) {
+    confirmado = confirm(
+      `SKU nuevo: ${skuNuevo}\n\nEncontrado en vaciados:\n${infoVaciado.patron || '?'} · ${infoVaciado.color || '?'} · ${infoVaciado.medida || '?'} · ${infoVaciado.acabado || '?'}\nVaciada: ${infoVaciado.fecha || '?'}\n\n¿Marcar la pieza muerta como RECUPERADA hacia este SKU?`
+    );
+  } else {
+    confirmado = confirm(`SKU nuevo: ${skuNuevo}\n\nNo se encontró en la tabla de vaciados (puede que aún no se sincronice o esté mal escaneado).\n\n¿Marcar de todas formas como RECUPERADA hacia este SKU?`);
+  }
+  if (!confirmado) return;
+
+  try {
+    const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?id=eq.${ctx.id}`, {
+      method: 'PATCH',
+      headers: { ...HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ estatus: 'RECUPERADA' }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+
+    await fetch(`${SUP_URL}/rest/v1/inventario_muerto_movimientos`, {
+      method: 'POST',
+      headers: { ...HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ inventario_id: ctx.id, estatus_anterior: ctx.estatusAnterior, estatus_nuevo: 'RECUPERADA', sku_nuevo: skuNuevo }),
+    });
+
+    buscarPieza();
+  } catch (err) {
+    alert('✕ ' + err.message);
+  }
 }
 
 async function cambiarEstatus(id, estatusAnterior, estatusNuevo, btn) {
