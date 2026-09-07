@@ -311,7 +311,7 @@ function collectProjectData(){
       joint: tr.querySelector('.p-joint').value,
       tarjaL: tr.querySelector('.p-tarja-l').value,
       tarjaA: tr.querySelector('.p-tarja-a').value
-    }))
+    })).filter(p => parseFloat(p.w) > 0 && parseFloat(p.h) > 0)
   };
 }
 
