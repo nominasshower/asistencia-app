@@ -141,6 +141,7 @@
       </div>
       <div id="c-pieza-escaneada" style="display:none">
         <div class="scan-resultado" id="c-pieza-valor"></div>
+        <div id="c-autofill-msg" style="margin-top:8px"></div>
         <button class="big ghost" style="margin-top:10px" onclick="reescanearPieza()">✕ Volver a escanear</button>
       </div>
     </div>
@@ -683,11 +684,52 @@ function onCodigoEscaneado(texto) {
     document.getElementById('c-pieza-valor').textContent = codigo;
     document.getElementById('c-pieza-sin-escanear').style.display = 'none';
     document.getElementById('c-pieza-escaneada').style.display = 'block';
+    autocompletarDesdeVaciado(codigo);
+  }
+}
+
+function asegurarOpcionYSeleccionar(select, valor) {
+  if (!valor) return;
+  if (![...select.options].some(o => o.value === valor)) {
+    const opt = document.createElement('option');
+    opt.value = valor; opt.textContent = valor + ' (de ConnectIt)';
+    select.appendChild(opt);
+  }
+  select.value = valor;
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+async function autocompletarDesdeVaciado(codigo) {
+  const msg = document.getElementById('c-autofill-msg');
+  msg.innerHTML = '<div class="msg info">Buscando en ConnectIt…</div>';
+  try {
+    const res = await fetch(`${SUP_URL}/rest/v1/vaciados?sku=eq.${encodeURIComponent(codigo)}&select=sku,patron,medida,color,acabado,fecha&limit=1`, { headers: HEADERS });
+    const rows = await res.json();
+    const v = rows[0];
+    if (!v) {
+      msg.innerHTML = '<div class="msg error">No se encontró ese código en ConnectIt — captura los datos a mano</div>';
+      return;
+    }
+
+    asegurarOpcionYSeleccionar(document.getElementById('c-modelo'), v.patron);
+    sincronizarComboTexto('c-modelo');
+    if (v.medida) asegurarOpcionYSeleccionar(document.getElementById('c-medida'), v.medida);
+    asegurarOpcionYSeleccionar(document.getElementById('c-color'), v.color);
+
+    if (v.acabado) {
+      const btn = [...document.querySelectorAll('#c-acabado-group button')].find(b => b.dataset.val === v.acabado);
+      if (btn) btn.click();
+    }
+
+    msg.innerHTML = `<div class="msg ok">✓ Datos jalados de ConnectIt (vaciada ${(v.fecha || '').slice(0, 10)}) — verifica antes de guardar</div>`;
+  } catch (err) {
+    msg.innerHTML = `<div class="msg error">✕ No se pudo consultar ConnectIt (${err.message}) — captura a mano</div>`;
   }
 }
 
 function reescanearPieza() {
   document.getElementById('c-pieza-valor').textContent = '';
+  document.getElementById('c-autofill-msg').innerHTML = '';
   document.getElementById('c-pieza-sin-escanear').style.display = 'block';
   document.getElementById('c-pieza-escaneada').style.display = 'none';
 }
