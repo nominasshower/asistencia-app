@@ -227,7 +227,10 @@
   <!-- ===== TAB: LISTADO ===== -->
   <div class="tab-panel" id="tab-listado">
     <div class="card">
-      <h2>Filtrar por estatus</h2>
+      <h2>Buscar</h2>
+      <input type="text" id="l-buscar" placeholder="Escribe: ID, burrito o código de pieza…" oninput="onBuscarListadoInput()">
+
+      <label class="fl">Estatus</label>
       <select id="l-estatus" onchange="cargarListado()">
         <option value="">Todas</option>
         <option value="EN INVENTARIO">En inventario</option>
@@ -272,6 +275,20 @@
 
   <!-- ===== TAB: REPORTE ===== -->
   <div class="tab-panel" id="tab-reporte">
+    <div class="card">
+      <h2>Rango de fechas</h2>
+      <div class="row2">
+        <div>
+          <label class="fl">Desde</label>
+          <input type="date" id="r-fecha-desde" onchange="cargarReporte()">
+        </div>
+        <div>
+          <label class="fl">Hasta</label>
+          <input type="date" id="r-fecha-hasta" onchange="cargarReporte()">
+        </div>
+      </div>
+      <button class="big ghost" style="margin-top:10px" onclick="limpiarRangoReporte()">✕ Ver todo el historial</button>
+    </div>
     <div class="card">
       <h2>Por estatus</h2>
       <div id="r-cargando" class="msg info">Calculando…</div>
@@ -737,7 +754,9 @@ function limpiarFiltrosMover() {
   document.getElementById('m-resultados').innerHTML = '';
 }
 
+let moverPeticionId = 0;
 async function buscarPieza() {
+  const miPeticion = ++moverPeticionId;
   const q = document.getElementById('m-buscar').value.trim();
   const modelo = document.getElementById('m-modelo').value;
   const color = document.getElementById('m-color').value;
@@ -762,10 +781,11 @@ async function buscarPieza() {
 
     const res = await fetch(`${SUP_URL}/rest/v1/inventario_muerto?select=*${filtro}&order=created_at.desc&limit=${q ? 10 : 100}`, { headers: HEADERS });
     const rows = await res.json();
+    if (miPeticion !== moverPeticionId) return;
     if (!rows.length) { cont.innerHTML = '<div class="msg error">No se encontró</div>'; return; }
     cont.innerHTML = rows.map(renderPiezaCard).join('');
   } catch (err) {
-    cont.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
+    if (miPeticion === moverPeticionId) cont.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
   }
 }
 
@@ -1054,6 +1074,7 @@ function onModeloChangeListado() {
 }
 
 function limpiarFiltrosListado() {
+  document.getElementById('l-buscar').value = '';
   document.getElementById('l-estatus').value = '';
   document.getElementById('l-modelo').value = '';
   document.getElementById('l-color').value = '';
@@ -1062,7 +1083,16 @@ function limpiarFiltrosListado() {
   cargarListado();
 }
 
+let listadoBuscarTimer = null;
+function onBuscarListadoInput() {
+  clearTimeout(listadoBuscarTimer);
+  listadoBuscarTimer = setTimeout(cargarListado, 300);
+}
+
+let listadoPeticionId = 0;
 async function cargarListado() {
+  const miPeticion = ++listadoPeticionId;
+  const q = document.getElementById('l-buscar').value.trim();
   const estatus = document.getElementById('l-estatus').value;
   const modelo = document.getElementById('l-modelo').value;
   const color = document.getElementById('l-color').value;
@@ -1075,6 +1105,11 @@ async function cargarListado() {
 
   try {
     let filtro = '';
+    if (q) {
+      filtro += /^\d+$/.test(q)
+        ? `&id=eq.${q}`
+        : `&or=(pieza.ilike.*${encodeURIComponent(q)}*,burrito.ilike.*${encodeURIComponent(q)}*)`;
+    }
     if (estatus) filtro += `&estatus=eq.${encodeURIComponent(estatus)}`;
     if (modelo) filtro += `&modelo=eq.${encodeURIComponent(modelo)}`;
     if (color) filtro += `&color=eq.${encodeURIComponent(color)}`;
@@ -1084,13 +1119,14 @@ async function cargarListado() {
       headers: { ...HEADERS, Prefer: 'count=exact' },
     });
     const rows = await res.json();
+    if (miPeticion !== listadoPeticionId) return; // llegó otra búsqueda más nueva primero, se descarta esta
     const rangeTotal = res.headers.get('content-range')?.split('/')?.[1];
     const total = (rangeTotal && rangeTotal !== '*') ? Number(rangeTotal) : rows.length;
     countEl.style.display = 'block';
     countEl.textContent = `${total} pieza(s)` + (rows.length < total ? ` — mostrando las últimas ${rows.length}` : '');
     cont.innerHTML = rows.length ? rows.map(renderPiezaCard).join('') : '<div class="msg error">Sin piezas</div>';
   } catch (err) {
-    cont.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
+    if (miPeticion === listadoPeticionId) cont.innerHTML = `<div class="msg error">✕ ${err.message}</div>`;
   }
 }
 
@@ -1161,8 +1197,25 @@ function mesLabel(key) {
 
 let reporteCache = null;
 let movimientosCache = null;
+let piezasReporteFiltradas = [];
+
+function fechaEnRango(fechaStr, desde, hasta) {
+  if (!fechaStr) return false;
+  const dia = fechaStr.slice(0, 10); // fecha UTC (created_at trae offset +00:00)
+  if (desde && dia < desde) return false;
+  if (hasta && dia > hasta) return false;
+  return true;
+}
+
+function limpiarRangoReporte() {
+  document.getElementById('r-fecha-desde').value = '';
+  document.getElementById('r-fecha-hasta').value = '';
+  cargarReporte();
+}
+
 async function cargarReporte() {
   const cargando = document.getElementById('r-cargando');
+  cargando.className = 'msg info';
   cargando.style.display = 'block';
   cargando.textContent = 'Calculando…';
   try {
@@ -1176,8 +1229,11 @@ async function cargarReporte() {
         'inventario_muerto_movimientos?select=inventario_id,estatus_anterior,estatus_nuevo,pedido,modelo_viejo,color_viejo,medida_vieja,modelo_nuevo,color_nuevo,medida_nueva,acabado_nuevo,created_at&order=id.asc'
       );
     }
-    const piezas = reporteCache;
-    const movimientos = movimientosCache;
+    const desde = document.getElementById('r-fecha-desde').value;
+    const hasta = document.getElementById('r-fecha-hasta').value;
+    const piezas = (desde || hasta) ? reporteCache.filter(p => fechaEnRango(p.created_at, desde, hasta)) : reporteCache;
+    const movimientos = (desde || hasta) ? movimientosCache.filter(m => fechaEnRango(m.created_at, desde, hasta)) : movimientosCache;
+    piezasReporteFiltradas = piezas;
 
     // por estatus
     const porEstatus = {};
@@ -1246,7 +1302,13 @@ async function cargarReporte() {
         </div>`).join('')
       : '<div class="msg error">Sin datos</div>';
 
-    cargando.style.display = 'none';
+    if (desde || hasta) {
+      cargando.className = 'msg info';
+      cargando.style.display = 'block';
+      cargando.textContent = `Mostrando ${piezas.length} pieza(s) capturada(s) entre ${desde || 'siempre'} y ${hasta || 'hoy'}`;
+    } else {
+      cargando.style.display = 'none';
+    }
   } catch (err) {
     cargando.className = 'msg error';
     cargando.textContent = '✕ ' + err.message;
@@ -1265,7 +1327,7 @@ document.getElementById('tab-reporte').addEventListener('click', (e) => {
 });
 
 function mostrarDetalleReporte(titulo, filtroFn) {
-  const piezas = (reporteCache || []).filter(filtroFn);
+  const piezas = (piezasReporteFiltradas || []).filter(filtroFn);
   document.getElementById('r-detalle-titulo').textContent = `${titulo} (${piezas.length})`;
   document.getElementById('r-detalle').innerHTML = piezas.length
     ? piezas.map(renderPiezaCardSimple).join('')
