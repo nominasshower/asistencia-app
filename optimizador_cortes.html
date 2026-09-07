@@ -100,6 +100,24 @@
 </div>
 
 <div class="panel">
+  <h2>Cotización / Proyecto</h2>
+  <div class="row">
+    <div style="width:260px;">
+      <label>Nombre del proyecto / cotización</label>
+      <input type="text" id="projectName" placeholder="Ej. Cotización Hotel XYZ">
+    </div>
+    <button class="btn" style="margin-top:18px;" onclick="saveProject()">Guardar cotización</button>
+    <div style="width:260px;">
+      <label>Cotizaciones guardadas</label>
+      <select id="projectSelector" style="width:100%;"><option value="">— Selecciona —</option></select>
+    </div>
+    <button class="btn secondary" style="margin-top:18px;" onclick="loadSelectedProject()">Cargar</button>
+    <button class="btn danger" style="margin-top:18px;" onclick="deleteSelectedProject()">Eliminar</button>
+  </div>
+  <div id="projectMsg" class="sub" style="margin:0;"></div>
+</div>
+
+<div class="panel">
   <h2>1. Configuración de corte</h2>
   <div class="row">
     <div style="width:160px;">
@@ -261,6 +279,92 @@ function initSizes(){
     toggleEmptyStates();
   }
   addPieceRow();
+}
+
+// ---------- Guardar/cargar cotizaciones (proyectos) ----------
+const PROJECTS_KEY = 'optimizador_cortes_proyectos';
+
+function loadProjects(){
+  try { return JSON.parse(localStorage.getItem(PROJECTS_KEY)) || {}; } catch(e){ return {}; }
+}
+function saveProjectsMap(map){
+  try { localStorage.setItem(PROJECTS_KEY, JSON.stringify(map)); } catch(e){ /* storage no disponible (ej. vista previa en sandbox) */ }
+}
+
+function collectProjectData(){
+  return {
+    kerf: document.getElementById('kerf').value,
+    edgeMargin: document.getElementById('edgeMargin').value,
+    allowRotation: document.getElementById('allowRotation').checked,
+    cutMode: document.getElementById('cutMode').value,
+    pieces: [...document.querySelectorAll('#piecesBody tr')].map(tr => ({
+      name: tr.querySelector('.p-name').value,
+      w: tr.querySelector('.p-w').value,
+      h: tr.querySelector('.p-h').value,
+      qty: tr.querySelector('.p-qty').value,
+      color: tr.querySelector('.p-color').value,
+      noRotate: tr.querySelector('.p-norotate').checked,
+      joint: tr.querySelector('.p-joint').value,
+      tarjaL: tr.querySelector('.p-tarja-l').value,
+      tarjaA: tr.querySelector('.p-tarja-a').value
+    })),
+    savedAt: new Date().toISOString()
+  };
+}
+
+function populateProjectSelector(selectName){
+  const map = loadProjects();
+  const sel = document.getElementById('projectSelector');
+  const names = Object.keys(map).sort();
+  sel.innerHTML = '<option value="">— Selecciona —</option>' + names.map(n => `<option value="${n}">${n}</option>`).join('');
+  if (selectName) sel.value = selectName;
+}
+
+function saveProject(){
+  const nameEl = document.getElementById('projectName');
+  const name = nameEl.value.trim();
+  const msg = document.getElementById('projectMsg');
+  if (!name){ msg.textContent = 'Ponle un nombre al proyecto antes de guardar.'; msg.style.color = 'var(--danger)'; return; }
+  const map = loadProjects();
+  map[name] = collectProjectData();
+  saveProjectsMap(map);
+  populateProjectSelector(name);
+  msg.textContent = `Guardado "${name}" (${new Date().toLocaleString('es-MX')})`;
+  msg.style.color = 'var(--good)';
+}
+
+function loadSelectedProject(){
+  const sel = document.getElementById('projectSelector');
+  const name = sel.value;
+  const msg = document.getElementById('projectMsg');
+  if (!name) return;
+  const map = loadProjects();
+  const data = map[name];
+  if (!data) return;
+  document.getElementById('projectName').value = name;
+  document.getElementById('kerf').value = data.kerf;
+  document.getElementById('edgeMargin').value = data.edgeMargin;
+  document.getElementById('allowRotation').checked = data.allowRotation;
+  document.getElementById('cutMode').value = data.cutMode;
+  document.getElementById('piecesBody').innerHTML = '';
+  (data.pieces || []).forEach(p => addPieceRow(p));
+  if (!data.pieces || !data.pieces.length) addPieceRow();
+  toggleEmptyStates();
+  msg.textContent = `Cargado "${name}" (guardado ${new Date(data.savedAt).toLocaleString('es-MX')})`;
+  msg.style.color = 'var(--good)';
+}
+
+function deleteSelectedProject(){
+  const sel = document.getElementById('projectSelector');
+  const name = sel.value;
+  if (!name) return;
+  if (!confirm(`¿Eliminar la cotización guardada "${name}"?`)) return;
+  const map = loadProjects();
+  delete map[name];
+  saveProjectsMap(map);
+  populateProjectSelector();
+  document.getElementById('projectMsg').textContent = `Eliminado "${name}".`;
+  document.getElementById('projectMsg').style.color = '';
 }
 
 // ---------- MaxRects bin packing ----------
@@ -665,6 +769,7 @@ function renderPieceReport(entry){
 }
 
 initSizes();
+populateProjectSelector();
 </script>
 </body>
 </html>
