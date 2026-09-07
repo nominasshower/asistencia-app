@@ -32,6 +32,19 @@
     background:var(--bg3); color:var(--text); font-size:16px;
   }
   select:disabled { opacity:.5; }
+  .combo-wrap { position:relative; }
+  .combo-input { cursor:text; }
+  .combo-lista {
+    display:none; position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:25;
+    max-height:260px; overflow-y:auto; background:var(--bg3); border:1px solid var(--border);
+    border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.4);
+  }
+  .combo-lista.abierta { display:block; }
+  .combo-item { padding:11px 12px; font-size:15px; cursor:pointer; border-bottom:1px solid var(--border); }
+  .combo-item:last-child { border-bottom:none; }
+  .combo-item:hover, .combo-item:active { background:var(--accent2); color:#fff; }
+  .combo-item.combo-vacio { color:var(--muted); cursor:default; }
+  .combo-item.combo-vacio:hover { background:none; color:var(--muted); }
   .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .toggle-group { display:flex; gap:8px; margin-top:4px; }
   .toggle-group button { flex:1; padding:13px; border-radius:10px; border:1px solid var(--border); background:var(--bg3); color:var(--text); font-size:14px; font-weight:600; cursor:pointer; }
@@ -431,6 +444,71 @@ async function cargarCatalogo() {
   });
 
   poblarBurritoSelect(document.getElementById('c-burrito-num'));
+
+  hacerComboBuscable('c-modelo');
+  hacerComboBuscable('m-modelo');
+  hacerComboBuscable('l-modelo');
+}
+
+// ---------- COMBO CON BUSCADOR (para selects con muchas opciones, ej. Modelo) ----------
+function hacerComboBuscable(selectId) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  if (select.dataset.comboListo) { sincronizarComboTexto(selectId); return; }
+  select.dataset.comboListo = '1';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'combo-wrap';
+  select.parentNode.insertBefore(wrap, select);
+  wrap.appendChild(select);
+  select.style.display = 'none';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'combo-input';
+  input.placeholder = 'Escribe para buscar…';
+  input.autocomplete = 'off';
+  wrap.appendChild(input);
+
+  const lista = document.createElement('div');
+  lista.className = 'combo-lista';
+  wrap.appendChild(lista);
+
+  const opciones = () => [...select.options].filter(o => o.value !== '');
+
+  function render(filtroTexto) {
+    const f = (filtroTexto || '').toLowerCase();
+    const opts = opciones().filter(o => o.textContent.toLowerCase().includes(f));
+    lista.innerHTML = opts.length
+      ? opts.map(o => `<div class="combo-item" data-value="${escapeAttr(o.value)}">${escapeHtml(o.textContent)}</div>`).join('')
+      : '<div class="combo-item combo-vacio">Sin resultados</div>';
+    lista.classList.add('abierta');
+  }
+  const cerrar = () => lista.classList.remove('abierta');
+
+  input.addEventListener('focus', () => render(''));
+  input.addEventListener('input', () => render(input.value));
+  input.addEventListener('blur', () => setTimeout(cerrar, 150));
+  lista.addEventListener('pointerdown', (e) => {
+    const item = e.target.closest('.combo-item[data-value]');
+    if (!item) return;
+    e.preventDefault();
+    select.value = item.dataset.value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    input.value = item.textContent;
+    cerrar();
+  });
+
+  sincronizarComboTexto(selectId);
+}
+
+function sincronizarComboTexto(selectId) {
+  const select = document.getElementById(selectId);
+  const input = select?.parentElement?.querySelector('.combo-input');
+  if (input) {
+    const opt = select.selectedOptions[0];
+    input.value = (opt && opt.value) ? opt.textContent : '';
+  }
 }
 
 function poblarBurritoSelect(select, seleccionado) {
@@ -710,6 +788,7 @@ function limpiarCaptura() {
   document.getElementById('c-burrito-lado').value = 'IZQ';
   reescanearPieza();
   document.getElementById('c-modelo').value = '';
+  sincronizarComboTexto('c-modelo');
   document.getElementById('c-color').value = '';
   document.getElementById('c-linea').value = 'LINEA 1';
   onModeloChange();
@@ -748,6 +827,7 @@ function onModeloChangeMover() {
 function limpiarFiltrosMover() {
   document.getElementById('m-buscar').value = '';
   document.getElementById('m-modelo').value = '';
+  sincronizarComboTexto('m-modelo');
   document.getElementById('m-color').value = '';
   document.getElementById('m-acabado').value = '';
   onModeloChangeMover();
@@ -885,6 +965,7 @@ function abrirEdicion(id) {
     </div>`;
 
   poblarSelectConActual(document.getElementById(`e-modelo-${id}`), catalogo.patrones, r.modelo);
+  hacerComboBuscable(`e-modelo-${id}`);
   poblarSelectConActual(document.getElementById(`e-color-${id}`), catalogo.colores, r.color);
   poblarSelectConActual(document.getElementById(`e-linea-${id}`), ['LINEA 1', 'LINEA 2', 'Sin Linea'], r.linea);
   poblarSelectConActual(document.getElementById(`e-acabado-${id}`), catalogo.acabados.length ? catalogo.acabados : ['Mate', 'Brillo'], r.acabado);
@@ -1077,6 +1158,7 @@ function limpiarFiltrosListado() {
   document.getElementById('l-buscar').value = '';
   document.getElementById('l-estatus').value = '';
   document.getElementById('l-modelo').value = '';
+  sincronizarComboTexto('l-modelo');
   document.getElementById('l-color').value = '';
   document.getElementById('l-acabado').value = '';
   onModeloChangeListado();
