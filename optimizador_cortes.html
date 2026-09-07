@@ -281,23 +281,27 @@ function initSizes(){
   addPieceRow();
 }
 
-// ---------- Guardar/cargar cotizaciones (proyectos) ----------
-const PROJECTS_KEY = 'optimizador_cortes_proyectos';
+// ---------- Guardar/cargar cotizaciones (proyectos) — Supabase ----------
+const SUP_URL = 'https://xzwlbrirzfogbqhywtvj.supabase.co';
+const SUP_KEY = 'sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G';
+const SUP_HEADERS = { apikey: SUP_KEY, Authorization: 'Bearer ' + SUP_KEY };
+const COTIZ_TABLE = 'cotizaciones_cortes';
 
-function loadProjects(){
-  try { return JSON.parse(localStorage.getItem(PROJECTS_KEY)) || {}; } catch(e){ return {}; }
-}
-function saveProjectsMap(map){
-  try { localStorage.setItem(PROJECTS_KEY, JSON.stringify(map)); } catch(e){ /* storage no disponible (ej. vista previa en sandbox) */ }
+function setProjectMsg(text, kind){
+  const msg = document.getElementById('projectMsg');
+  msg.textContent = text;
+  msg.style.color = kind === 'ok' ? 'var(--good)' : kind === 'err' ? 'var(--danger)' : '';
 }
 
 function collectProjectData(){
   return {
-    kerf: document.getElementById('kerf').value,
-    edgeMargin: document.getElementById('edgeMargin').value,
-    allowRotation: document.getElementById('allowRotation').checked,
-    cutMode: document.getElementById('cutMode').value,
-    pieces: [...document.querySelectorAll('#piecesBody tr')].map(tr => ({
+    config: {
+      kerf: document.getElementById('kerf').value,
+      edgeMargin: document.getElementById('edgeMargin').value,
+      allowRotation: document.getElementById('allowRotation').checked,
+      cutMode: document.getElementById('cutMode').value
+    },
+    piezas: [...document.querySelectorAll('#piecesBody tr')].map(tr => ({
       name: tr.querySelector('.p-name').value,
       w: tr.querySelector('.p-w').value,
       h: tr.querySelector('.p-h').value,
@@ -307,64 +311,88 @@ function collectProjectData(){
       joint: tr.querySelector('.p-joint').value,
       tarjaL: tr.querySelector('.p-tarja-l').value,
       tarjaA: tr.querySelector('.p-tarja-a').value
-    })),
-    savedAt: new Date().toISOString()
+    }))
   };
 }
 
-function populateProjectSelector(selectName){
-  const map = loadProjects();
+async function populateProjectSelector(selectName){
   const sel = document.getElementById('projectSelector');
-  const names = Object.keys(map).sort();
-  sel.innerHTML = '<option value="">— Selecciona —</option>' + names.map(n => `<option value="${n}">${n}</option>`).join('');
-  if (selectName) sel.value = selectName;
+  try {
+    const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?select=nombre&order=nombre.asc`, { headers: SUP_HEADERS });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = await r.json();
+    sel.innerHTML = '<option value="">— Selecciona —</option>' + rows.map(row => `<option value="${row.nombre}">${row.nombre}</option>`).join('');
+    if (selectName) sel.value = selectName;
+  } catch(e){
+    setProjectMsg('No se pudo cargar la lista de cotizaciones guardadas (revisa tu conexión).', 'err');
+  }
 }
 
-function saveProject(){
+async function saveProject(){
   const nameEl = document.getElementById('projectName');
   const name = nameEl.value.trim();
-  const msg = document.getElementById('projectMsg');
-  if (!name){ msg.textContent = 'Ponle un nombre al proyecto antes de guardar.'; msg.style.color = 'var(--danger)'; return; }
-  const map = loadProjects();
-  map[name] = collectProjectData();
-  saveProjectsMap(map);
-  populateProjectSelector(name);
-  msg.textContent = `Guardado "${name}" (${new Date().toLocaleString('es-MX')})`;
-  msg.style.color = 'var(--good)';
+  if (!name){ setProjectMsg('Ponle un nombre al proyecto antes de guardar.', 'err'); return; }
+  setProjectMsg('Guardando…');
+  try {
+    const data = collectProjectData();
+    const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?on_conflict=nombre`, {
+      method: 'POST',
+      headers: { ...SUP_HEADERS, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ nombre: name, config: data.config, piezas: data.piezas })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+    await populateProjectSelector(name);
+    setProjectMsg(`Guardado "${name}" en Supabase (${new Date().toLocaleString('es-MX')})`, 'ok');
+  } catch(e){
+    setProjectMsg('Error al guardar en Supabase: ' + e.message, 'err');
+  }
 }
 
-function loadSelectedProject(){
+async function loadSelectedProject(){
   const sel = document.getElementById('projectSelector');
   const name = sel.value;
-  const msg = document.getElementById('projectMsg');
   if (!name) return;
-  const map = loadProjects();
-  const data = map[name];
-  if (!data) return;
-  document.getElementById('projectName').value = name;
-  document.getElementById('kerf').value = data.kerf;
-  document.getElementById('edgeMargin').value = data.edgeMargin;
-  document.getElementById('allowRotation').checked = data.allowRotation;
-  document.getElementById('cutMode').value = data.cutMode;
-  document.getElementById('piecesBody').innerHTML = '';
-  (data.pieces || []).forEach(p => addPieceRow(p));
-  if (!data.pieces || !data.pieces.length) addPieceRow();
-  toggleEmptyStates();
-  msg.textContent = `Cargado "${name}" (guardado ${new Date(data.savedAt).toLocaleString('es-MX')})`;
-  msg.style.color = 'var(--good)';
+  setProjectMsg('Cargando…');
+  try {
+    const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?nombre=eq.${encodeURIComponent(name)}&select=*`, { headers: SUP_HEADERS });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = await r.json();
+    const data = rows[0];
+    if (!data){ setProjectMsg(`No se encontró "${name}".`, 'err'); return; }
+    document.getElementById('projectName').value = name;
+    const cfg = data.config || {};
+    document.getElementById('kerf').value = cfg.kerf ?? 5;
+    document.getElementById('edgeMargin').value = cfg.edgeMargin ?? 10;
+    document.getElementById('allowRotation').checked = !!cfg.allowRotation;
+    document.getElementById('cutMode').value = cfg.cutMode || 'guillotine';
+    document.getElementById('piecesBody').innerHTML = '';
+    const piezas = data.piezas || [];
+    piezas.forEach(p => addPieceRow(p));
+    if (!piezas.length) addPieceRow();
+    toggleEmptyStates();
+    setProjectMsg(`Cargado "${name}" (guardado ${new Date(data.updated_at).toLocaleString('es-MX')})`, 'ok');
+  } catch(e){
+    setProjectMsg('Error al cargar desde Supabase: ' + e.message, 'err');
+  }
 }
 
-function deleteSelectedProject(){
+async function deleteSelectedProject(){
   const sel = document.getElementById('projectSelector');
   const name = sel.value;
   if (!name) return;
   if (!confirm(`¿Eliminar la cotización guardada "${name}"?`)) return;
-  const map = loadProjects();
-  delete map[name];
-  saveProjectsMap(map);
-  populateProjectSelector();
-  document.getElementById('projectMsg').textContent = `Eliminado "${name}".`;
-  document.getElementById('projectMsg').style.color = '';
+  setProjectMsg('Eliminando…');
+  try {
+    const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?nombre=eq.${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+      headers: { ...SUP_HEADERS, Prefer: 'return=minimal' }
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    await populateProjectSelector();
+    setProjectMsg(`Eliminado "${name}".`);
+  } catch(e){
+    setProjectMsg('Error al eliminar en Supabase: ' + e.message, 'err');
+  }
 }
 
 // ---------- MaxRects bin packing ----------
