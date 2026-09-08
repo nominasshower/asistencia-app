@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Piezas Vaciadas con Peso — Shower Walls</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--border:rgba(255,255,255,0.07);--text:#e8eaf0;--muted:#6b7280;--accent:#22c55e;--accent2:#3b82f6;--warn:#f59e0b;--danger:#ef4444;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;}
+.logo{padding:20px 20px 12px;font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;}
+.logo svg{width:18px;height:18px;}
+.logo-sub{font-size:10px;color:var(--muted);font-weight:400;margin-top:1px;}
+.nav-group{padding:0 8px;margin-bottom:4px;}
+.nav-label{font-size:10px;color:var(--muted);padding:8px 12px 4px;letter-spacing:.8px;text-transform:uppercase;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:6px;font-size:13px;color:var(--muted);cursor:pointer;transition:all .15s;border:1px solid transparent;}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{background:rgba(34,197,94,.1);color:var(--accent);border-color:rgba(34,197,94,.2);}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;}
+.main{margin-left:220px;min-height:100vh;}
+.topbar{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg2);position:sticky;top:0;z-index:50;gap:12px;flex-wrap:wrap;}
+.topbar-title{font-size:15px;font-weight:600;}
+.topbar-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.content{padding:20px 24px;}
+.btn{font-size:12px;padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px;font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap;}
+.btn:hover{background:var(--bg);border-color:rgba(255,255,255,.15);}
+.btn-green{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600;}
+.btn-green:hover{background:#16a34a;}
+input[type=date]{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer;}
+label.lbl{font-size:11px;color:var(--muted);white-space:nowrap;}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+.metric{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.metric-label{font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+.metric-val{font-size:20px;font-weight:600;line-height:1;font-family:'Roboto Mono',monospace;}
+.metric-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.metric.warn .metric-val{color:var(--warn);}
+.metric.ok .metric-val{color:var(--accent);}
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px;}
+.table-header{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.table-header-title{font-size:13px;font-weight:600;}
+table{width:100%;border-collapse:collapse;}
+th{padding:8px 12px;text-align:left;font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:9px 12px;font-size:12px;border-bottom:1px solid var(--border);white-space:nowrap;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+.mono{font-family:'Roboto Mono',monospace;font-size:11px;}
+.badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
+.b-ok{background:rgba(34,197,94,.15);color:#4ade80;}
+.b-warn{background:rgba(245,158,11,.15);color:#fbbf24;}
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;gap:12px;color:var(--muted);}
+.spinner{width:24px;height:24px;border:2px solid var(--bg3);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.empty{color:var(--muted);font-size:12px;text-align:center;padding:30px;}
+.info-banner{padding:10px 14px;border-radius:8px;border:1px solid var(--border);font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:12px;background:var(--bg2);}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+    <div>Shower Walls<div class="logo-sub">Piezas Vaciadas · Peso</div></div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Ir a</div>
+    <div class="nav-item" onclick="window.open('consumos.html','_self')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+      Consumos de Materiales
+    </div>
+    <div class="nav-item" onclick="window.open('produccion.html','_self')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Calidad Producción
+    </div>
+  </div>
+  <div class="sidebar-bottom" style="margin-top:auto;padding:12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);text-align:center;" id="sidebar-update">—</div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-title">⚖️ Piezas Vaciadas con Peso</div>
+      <div class="topbar-sub" id="sub">Bases (tipo Piso) · excluye piezas de Recuperación</div>
+    </div>
+    <div class="topbar-right">
+      <label class="lbl">Desde</label>
+      <input type="date" id="desde">
+      <label class="lbl">Hasta</label>
+      <input type="date" id="hasta">
+      <button class="btn btn-green" onclick="cargar()">Aplicar</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="info-banner">
+      ℹ️ El peso solo se suma para modelo+medida que ya están en <span class="mono">pesos_base</span> (medidos en planta, SolidWorks, o calculados del plano). Lo demás aparece marcado como "Sin peso" — no se inventa ningún número.
+    </div>
+
+    <div class="metrics" id="metrics"></div>
+
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-header-title">Detalle por modelo + medida</div></div>
+      <div id="tabla-cont"><div class="loading"><div class="spinner"></div>Cargando…</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+const HDR = {apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`};
+
+function hoy(){ return new Date().toISOString().slice(0,10); }
+
+async function fetchTodos(url){
+  let rows = [], offset = 0;
+  while(true){
+    const res = await fetch(url, {headers:{...HDR, Range:`${offset}-${offset+999}`}});
+    const batch = await res.json();
+    if(!Array.isArray(batch)) throw new Error(batch.message || 'Error Supabase');
+    rows = rows.concat(batch);
+    if(batch.length < 1000) break;
+    offset += 1000;
+  }
+  return rows;
+}
+
+async function cargar(){
+  document.getElementById('tabla-cont').innerHTML = `<div class="loading"><div class="spinner"></div>Cargando…</div>`;
+  const desde = document.getElementById('desde').value || hoy();
+  const hasta = document.getElementById('hasta').value || hoy();
+
+  const [vaciados, excluidos, pesos] = await Promise.all([
+    fetchTodos(`${SUP_URL}/rest/v1/vaciados?tipo=eq.Piso&fecha=gte.${desde}T00:00:00&fecha=lte.${hasta}T23:59:59&select=sku,patron,medida,fecha`),
+    fetchTodos(`${SUP_URL}/rest/v1/recuperacion_skus?select=sku`),
+    fetchTodos(`${SUP_URL}/rest/v1/pesos_base?select=patron,medida,peso_kg,fuente,confianza`),
+  ]);
+
+  const excluidosSet = new Set(excluidos.map(r => r.sku));
+  const pesosMap = new Map(pesos.map(p => [p.patron+'|'+p.medida, p]));
+
+  const piezas = vaciados.filter(v => !excluidosSet.has(v.sku));
+  const excluidasCount = vaciados.length - piezas.length;
+
+  const grupos = new Map();
+  for(const p of piezas){
+    const key = p.patron+'|'+p.medida;
+    if(!grupos.has(key)) grupos.set(key, {patron:p.patron, medida:p.medida, piezas:0});
+    grupos.get(key).piezas++;
+  }
+
+  let totalPiezas=0, totalKg=0, sinPesoPiezas=0, gruposSinPeso=0;
+  const filas = [...grupos.values()].map(g => {
+    const peso = pesosMap.get(g.patron+'|'+g.medida);
+    totalPiezas += g.piezas;
+    if(peso){
+      totalKg += peso.peso_kg * g.piezas;
+    } else {
+      sinPesoPiezas += g.piezas;
+      gruposSinPeso++;
+    }
+    return {...g, peso};
+  }).sort((a,b) => a.patron.localeCompare(b.patron) || a.medida.localeCompare(b.medida));
+
+  pintarMetricas(totalPiezas, totalKg, sinPesoPiezas, excluidasCount);
+  pintarTabla(filas);
+  document.getElementById('sidebar-update').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('sub').textContent = `Bases (tipo Piso) · ${desde} a ${hasta} · excluye piezas de Recuperación`;
+}
+
+function pintarMetricas(totalPiezas, totalKg, sinPesoPiezas, excluidas){
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Piezas vaciadas</div><div class="metric-val">${totalPiezas}</div><div class="metric-sub">bases, ya sin recuperadas</div></div>
+    <div class="metric ok"><div class="metric-label">Peso total</div><div class="metric-val">${totalKg.toFixed(1)} kg</div><div class="metric-sub">solo modelos con peso registrado</div></div>
+    <div class="metric ${sinPesoPiezas ? 'warn' : ''}"><div class="metric-label">Sin peso registrado</div><div class="metric-val">${sinPesoPiezas}</div><div class="metric-sub">piezas no sumadas al total kg</div></div>
+    <div class="metric"><div class="metric-label">Excluidas (recuperación)</div><div class="metric-val">${excluidas}</div><div class="metric-sub">ya existían, no es vaciado nuevo</div></div>
+  `;
+}
+
+function pintarTabla(filas){
+  const cont = document.getElementById('tabla-cont');
+  if(!filas.length){ cont.innerHTML = `<div class="empty">Sin piezas de base en este rango</div>`; return; }
+  cont.innerHTML = `<table>
+    <thead><tr><th>Modelo</th><th>Medida</th><th>Piezas</th><th>Peso unit. (kg)</th><th>Kg totales</th><th>Fuente</th><th>Estado</th></tr></thead>
+    <tbody>${filas.map(f => `<tr>
+      <td>${f.patron}</td>
+      <td class="mono">${f.medida}</td>
+      <td>${f.piezas}</td>
+      <td class="mono">${f.peso ? f.peso.peso_kg.toFixed(1) : '—'}</td>
+      <td class="mono">${f.peso ? (f.peso.peso_kg*f.piezas).toFixed(1) : '—'}</td>
+      <td>${f.peso ? f.peso.fuente : '—'}</td>
+      <td>${f.peso ? `<span class="badge b-ok">Con peso</span>` : `<span class="badge b-warn">Sin peso</span>`}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+document.getElementById('desde').value = hoy();
+document.getElementById('hasta').value = hoy();
+cargar();
+</script>
+</body>
+</html>
