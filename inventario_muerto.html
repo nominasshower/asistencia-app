@@ -180,7 +180,7 @@
 
       <label class="fl">Tipo de entrada</label>
       <select id="c-tipo-entrada">
-        <option value="CORTE">CORTE</option>
+        <option value="INVENTARIO">INVENTARIO</option>
         <option value="RECUPERADA">RECUPERADA</option>
         <option value="SOBRANTE PRODUCCION">SOBRANTE PRODUCCIÓN</option>
         <option value="OTRO">OTRO</option>
@@ -834,7 +834,7 @@ function limpiarCaptura() {
   document.getElementById('c-color').value = '';
   document.getElementById('c-linea').value = 'LINEA 1';
   onModeloChange();
-  document.getElementById('c-tipo-entrada').value = 'CORTE';
+  document.getElementById('c-tipo-entrada').value = 'INVENTARIO';
   acabadoSel = null;
   fotoFile = null;
   document.querySelectorAll('#c-acabado-group button').forEach(b => b.classList.remove('sel'));
@@ -1011,7 +1011,7 @@ function abrirEdicion(id) {
   poblarSelectConActual(document.getElementById(`e-color-${id}`), catalogo.colores, r.color);
   poblarSelectConActual(document.getElementById(`e-linea-${id}`), ['LINEA 1', 'LINEA 2', 'Sin Linea'], r.linea);
   poblarSelectConActual(document.getElementById(`e-acabado-${id}`), catalogo.acabados.length ? catalogo.acabados : ['Mate', 'Brillo'], r.acabado);
-  poblarSelectConActual(document.getElementById(`e-tipo-${id}`), ['CORTE', 'RECUPERADA', 'SOBRANTE PRODUCCION', 'OTRO'], r.tipo_entrada);
+  poblarSelectConActual(document.getElementById(`e-tipo-${id}`), ['INVENTARIO', 'RECUPERADA', 'SOBRANTE PRODUCCION', 'OTRO'], r.tipo_entrada);
   poblarBurritoSelect(document.getElementById(`e-burrito-num-${id}`), burritoParts[0]);
   document.getElementById(`e-burrito-lado-${id}`).value = burritoParts[1] || '';
   actualizarMedidaEdicion(id);
