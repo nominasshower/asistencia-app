@@ -703,7 +703,7 @@ async function autocompletarDesdeVaciado(codigo) {
   const msg = document.getElementById('c-autofill-msg');
   msg.innerHTML = '<div class="msg info">Buscando en ConnectIt…</div>';
   try {
-    const res = await fetch(`${SUP_URL}/rest/v1/vaciados?sku=eq.${encodeURIComponent(codigo)}&select=sku,patron,medida,color,acabado,fecha&limit=1`, { headers: HEADERS });
+    const res = await fetch(`${SUP_URL}/rest/v1/vaciados?sku=eq.${encodeURIComponent(codigo.toLowerCase())}&select=sku,patron,medida,color,acabado,fecha&limit=1`, { headers: HEADERS });
     const rows = await res.json();
     const v = rows[0];
     if (!v) {
@@ -1113,7 +1113,7 @@ async function finalizarRecuperacion(skuNuevo) {
 
   let infoVaciado = null;
   try {
-    const res = await fetch(`${SUP_URL}/rest/v1/vaciados?sku=eq.${encodeURIComponent(skuNuevo)}&select=sku,patron,medida,color,acabado,fecha&limit=1`, { headers: HEADERS });
+    const res = await fetch(`${SUP_URL}/rest/v1/vaciados?sku=eq.${encodeURIComponent(skuNuevo.toLowerCase())}&select=sku,patron,medida,color,acabado,fecha&limit=1`, { headers: HEADERS });
     const rows = await res.json();
     infoVaciado = rows[0] || null;
   } catch (err) { /* si falla la consulta, seguimos y preguntamos igual */ }
