@@ -102,19 +102,25 @@
 <div class="panel">
   <h2>Cotización / Proyecto</h2>
   <div class="row">
-    <div style="width:260px;">
+    <div style="width:220px;">
       <label>Nombre del proyecto / cotización</label>
       <input type="text" id="projectName" placeholder="Ej. Cotización Hotel XYZ">
     </div>
+    <div style="width:180px;">
+      <label>Persona / responsable</label>
+      <input type="text" id="projectPerson" placeholder="Ej. Juan Pérez">
+    </div>
     <button class="btn" style="margin-top:18px;" onclick="saveProject()">Guardar cotización</button>
-    <div style="width:260px;">
+    <div style="width:220px;">
       <label>Cotizaciones guardadas</label>
       <select id="projectSelector" style="width:100%;"><option value="">— Selecciona —</option></select>
     </div>
     <button class="btn secondary" style="margin-top:18px;" onclick="loadSelectedProject()">Cargar</button>
     <button class="btn danger" style="margin-top:18px;" onclick="deleteSelectedProject()">Eliminar</button>
+    <button class="btn secondary" style="margin-top:18px;" onclick="toggleReport()">Ver reporte de cotizaciones</button>
   </div>
   <div id="projectMsg" class="sub" style="margin:0;"></div>
+  <div id="quotesReportWrap" style="margin-top:14px; display:none;"></div>
 </div>
 
 <div class="panel">
@@ -331,14 +337,16 @@ async function populateProjectSelector(selectName){
 async function saveProject(){
   const nameEl = document.getElementById('projectName');
   const name = nameEl.value.trim();
+  const persona = document.getElementById('projectPerson').value.trim();
   if (!name){ setProjectMsg('Ponle un nombre al proyecto antes de guardar.', 'err'); return; }
+  if (!persona){ setProjectMsg('Indica quién captura esta cotización antes de guardar.', 'err'); return; }
   setProjectMsg('Guardando…');
   try {
     const data = collectProjectData();
     const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?on_conflict=nombre`, {
       method: 'POST',
       headers: { ...SUP_HEADERS, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ nombre: name, config: data.config, piezas: data.piezas })
+      body: JSON.stringify({ nombre: name, persona: persona, config: data.config, piezas: data.piezas })
     });
     if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
     await populateProjectSelector(name);
@@ -352,6 +360,11 @@ async function loadSelectedProject(){
   const sel = document.getElementById('projectSelector');
   const name = sel.value;
   if (!name) return;
+  await loadProjectByName(name);
+}
+
+async function loadProjectByName(name){
+  document.getElementById('projectSelector').value = name;
   setProjectMsg('Cargando…');
   try {
     const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?nombre=eq.${encodeURIComponent(name)}&select=*`, { headers: SUP_HEADERS });
@@ -360,6 +373,7 @@ async function loadSelectedProject(){
     const data = rows[0];
     if (!data){ setProjectMsg(`No se encontró "${name}".`, 'err'); return; }
     document.getElementById('projectName').value = name;
+    document.getElementById('projectPerson').value = data.persona || '';
     const cfg = data.config || {};
     document.getElementById('kerf').value = cfg.kerf ?? 5;
     document.getElementById('edgeMargin').value = cfg.edgeMargin ?? 10;
@@ -390,8 +404,66 @@ async function deleteSelectedProject(){
     if (!r.ok) throw new Error('HTTP ' + r.status);
     await populateProjectSelector();
     setProjectMsg(`Eliminado "${name}".`);
+    document.getElementById('quotesReportWrap').style.display !== 'none' && loadQuotesReport();
   } catch(e){
     setProjectMsg('Error al eliminar en Supabase: ' + e.message, 'err');
+  }
+}
+
+function toggleReport(){
+  const wrap = document.getElementById('quotesReportWrap');
+  const showing = wrap.style.display !== 'none';
+  if (showing){ wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  loadQuotesReport();
+}
+
+async function loadQuotesReport(){
+  const wrap = document.getElementById('quotesReportWrap');
+  wrap.innerHTML = '<div class="sub" style="margin:0;">Cargando reporte…</div>';
+  try {
+    const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?select=*&order=updated_at.desc`, { headers: SUP_HEADERS });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = await r.json();
+    if (!rows.length){ wrap.innerHTML = '<div class="sub" style="margin:0;">Todavía no hay cotizaciones guardadas.</div>'; return; }
+
+    const porPersona = {};
+    rows.forEach(row => {
+      const p = row.persona || 'Sin nombre';
+      porPersona[p] = (porPersona[p] || 0) + 1;
+    });
+    const resumenPersonas = Object.entries(porPersona).sort((a,b)=>b[1]-a[1])
+      .map(([p,n]) => `${p}: ${n}`).join(' · ');
+
+    let html = `<div class="results-summary">
+      <div class="stat"><div class="val">${rows.length}</div><div class="lbl">Cotizaciones guardadas</div></div>
+      <div class="stat"><div class="val">${Object.keys(porPersona).length}</div><div class="lbl">Personas distintas</div></div>
+    </div>
+    <div class="sub" style="margin-bottom:10px;">${resumenPersonas}</div>
+    <div class="table-scroll"><table class="cmp-table" style="min-width:820px;"><thead><tr>
+      <th>Nombre</th><th>Persona</th><th>Modelos</th><th>Piezas (cant.)</th><th>Área total (m²)</th><th>Modo corte</th><th>Guardado</th><th></th>
+    </tr></thead><tbody>`;
+    rows.forEach(row => {
+      const piezas = row.piezas || [];
+      const totalQty = piezas.reduce((s,p)=>s+(parseInt(p.qty)||0),0);
+      const totalArea = piezas.reduce((s,p)=>s+((parseFloat(p.w)||0)*(parseFloat(p.h)||0)*(parseInt(p.qty)||0)),0) / 1e6;
+      const cutModeLabel = (row.config && row.config.cutMode === 'free') ? 'Libre/CNC' : 'Guillotina';
+      const fecha = row.updated_at ? new Date(row.updated_at).toLocaleString('es-MX') : '—';
+      html += `<tr>
+        <td>${row.nombre}</td>
+        <td>${row.persona || '—'}</td>
+        <td>${piezas.length}</td>
+        <td>${totalQty}</td>
+        <td>${totalArea.toFixed(2)}</td>
+        <td>${cutModeLabel}</td>
+        <td>${fecha}</td>
+        <td><button class="btn secondary small" onclick="loadProjectByName('${row.nombre.replace(/'/g,"\\'")}')">Cargar</button></td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    wrap.innerHTML = html;
+  } catch(e){
+    wrap.innerHTML = `<div class="sub" style="margin:0; color:var(--danger);">Error al cargar el reporte: ${e.message}</div>`;
   }
 }
 

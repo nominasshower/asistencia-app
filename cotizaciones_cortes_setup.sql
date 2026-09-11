@@ -4,11 +4,15 @@
 CREATE TABLE IF NOT EXISTS cotizaciones_cortes (
   id           bigserial PRIMARY KEY,
   nombre       text NOT NULL UNIQUE,     -- nombre del proyecto/cotizacion
+  persona      text,                     -- quien capturo/guardo la cotizacion
   config       jsonb,                    -- kerf, margen, rotacion, modo de corte
   piezas       jsonb,                    -- lista de piezas capturadas
   created_at   timestamptz DEFAULT now(),
   updated_at   timestamptz DEFAULT now()
 );
+
+-- si la tabla ya existia de una version anterior de este script:
+ALTER TABLE cotizaciones_cortes ADD COLUMN IF NOT EXISTS persona text;
 
 ALTER TABLE cotizaciones_cortes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "rw publico cotizaciones_cortes" ON cotizaciones_cortes;
