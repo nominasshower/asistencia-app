@@ -1502,6 +1502,7 @@ function renderSemana() {
           <option value="">Todas las áreas</option>
           ${[...areasSet].sort().map(a=>`<option value="${a}" ${filtrarArea===a?"selected":""}>${a}</option>`).join("")}
         </select>
+        <button class="btn" onclick="exportarSemanaExcel()">⬇ Descargar Excel</button>
       </div>
     </div>
     <div class="table-wrap" style="overflow-x:auto">
@@ -1533,6 +1534,105 @@ function renderSemana() {
       ${[["NORMAL","#4ade80"],["EXTRA","#60a5fa"],["RETARDO","#fbbf24"],["RETARDO CON EXTRA","#a78bfa"],["INCOMPLETO","#f87171"],["AUSENTE","#ef4444"]]
         .map(([l,c])=>`<span style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:2px;background:${c};display:inline-block;opacity:.8"></span>${l}</span>`).join("")}
     </div>`;
+}
+
+async function exportarSemanaExcel() {
+  const sem = getSemanaNomina(semanaOffset);
+  const diasNombres = ["Jue","Vie","Sáb","Dom","Lun","Mar","Mié"];
+  const filtrarArea = document.getElementById("sg-area")?.value || "";
+
+  // Jornada estándar por turno (Supabase rh.turnos, campo horas_jornada) —
+  // la nómina paga la jornada completa del turno cuando hay asistencia
+  // normal; solo el excedente real se registra aparte en Horas Extra.
+  const nombreEmpresaSup = EMPRESAS[empresaActual]?.sup_empresa || "";
+  let jornadaPorTurno = {};
+  try {
+    const rT = await fetch(`${SUP_URL}/rest/v1/turnos?empresa=eq.${encodeURIComponent(nombreEmpresaSup)}&select=turno,horas_jornada`, {
+      headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Accept-Profile": "rh" }
+    });
+    const turnosData = await rT.json();
+    turnosData.forEach(t => { jornadaPorTurno[(t.turno||"").toUpperCase()] = parseFloat(t.horas_jornada) || 0; });
+  } catch (e) { console.warn("No se pudo cargar turnos para el export:", e); }
+
+  const lookup = {};
+  datos.forEach(r => {
+    const nom = g(r,"nomina","NOMINA");
+    const fecha = g(r,"fecha","Fecha");
+    if (nom && fecha) lookup[`${nom}_${fecha}`] = r;
+  });
+
+  const empMap = {};
+  datos.filter(r => { const f = g(r,"fecha","Fecha"); return f >= sem.desde && f <= sem.hasta; })
+    .forEach(r => {
+      const nom = g(r,"nomina","NOMINA");
+      if (!nom || empMap[nom]) return;
+      empMap[nom] = { nomina: nom, nombre: `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")}`.trim(), area: g(r,"area","Departamento") };
+    });
+  let emps = Object.values(empMap).sort((a,b) => a.nombre.localeCompare(b.nombre));
+  if (filtrarArea) emps = emps.filter(e => e.area === filtrarArea);
+
+  const colorEstado = {
+    "NORMAL":            "16A34A",
+    "EXTRA":             "2563EB",
+    "RETARDO":           "D97706",
+    "RETARDO CON EXTRA": "7C3AED",
+    "INCOMPLETO":        "DC2626",
+    "AUSENTE":           "991B1B",
+  };
+  // Respaldo si no encontramos jornada del turno: reloj + 45 min de comida.
+  const MIN_COMIDA_NOMINA = 45/60;
+  const celda = (r, esViernes) => {
+    if (!r) return { v: "—", color: null, hrs: 0 };
+    const est = g(r,"estado","EstadoAsistencia");
+    if (est === "AUSENTE") return { v: "AUS", color: colorEstado[est], hrs: 0 };
+    const turnoNombre = esViernes ? "VIERNES" : (g(r,"turno","Turno")||"").toUpperCase();
+    let jornada = jornadaPorTurno[turnoNombre];
+    if (!jornada) {
+      const htCrudo = calcHoras(r);
+      jornada = htCrudo > 0 ? Math.round((htCrudo + MIN_COMIDA_NOMINA) * 2) / 2 : 0;
+    }
+    const v = jornada > 0 ? `${jornada}h` : (est === "INCOMPLETO" ? "INC" : "—");
+    return { v, color: colorEstado[est] || null, hrs: jornada };
+  };
+
+  const HDR = ["Nómina","Empleado","Área", ...diasNombres.map((n,i)=>`${n} ${sem.dias[i].slice(5)}`), "Días","Total Hrs","Hrs Extra"];
+  const aoa = [HDR];
+  const celdasColor = []; // {r,c,color} para filas de datos
+
+  emps.forEach((e, ei) => {
+    const regs = sem.dias.map(d => lookup[`${e.nomina}_${d}`] || null);
+    const dias = regs.filter(r => r && !["AUSENTE","INCOMPLETO"].includes(g(r,"estado","EstadoAsistencia"))).length;
+    const totalExtra = Math.round(regs.reduce((s,r) => s + (r ? parseHoras(g(r,"horas_extra","HorasExtra")) : 0), 0) * 2) / 2;
+    const fila = [e.nomina, e.nombre, e.area];
+    let totalHrs = 0;
+    regs.forEach((r, di) => {
+      const c = celda(r, di === 1);
+      fila.push(c.v);
+      totalHrs += c.hrs;
+      if (c.color) celdasColor.push({ r: ei+1, c: 3+di, color: c.color });
+    });
+    fila.push(`${dias}/7`, totalHrs, totalExtra || "");
+    aoa.push(fila);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:8},{wch:28},{wch:16}, ...diasNombres.map(()=>({wch:9})), {wch:6},{wch:10},{wch:10}];
+
+  for (let ci = 0; ci < HDR.length; ci++) {
+    const addr = XLSX.utils.encode_cell({r:0, c:ci});
+    if (!ws[addr]) ws[addr] = {v:"", t:"s"};
+    ws[addr].s = { fill:{fgColor:{rgb:"1F3864"}}, font:{bold:true,color:{rgb:"FFFFFF"},sz:10} };
+  }
+  celdasColor.forEach(({r,c,color}) => {
+    const addr = XLSX.utils.encode_cell({r,c});
+    if (!ws[addr]) return;
+    ws[addr].s = { fill:{fgColor:{rgb:color}}, font:{bold:true,color:{rgb:"FFFFFF"},sz:10}, alignment:{horizontal:"center"} };
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `SEM_${sem.desde}`);
+  const nombreEmpresa = empresaActual ? EMPRESAS[empresaActual]?.nombre : "Todas";
+  XLSX.writeFile(wb, `GridSemanal_${nombreEmpresa}_${sem.desde}_${sem.hasta}.xlsx`);
 }
 
 // ─── NÓMINA ───────────────────────────────────────────────────
