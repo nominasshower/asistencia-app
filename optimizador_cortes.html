@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Optimizador de Cortes</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#0f1720; --panel:#1a2530; --panel2:#20303d; --border:#2c3e4c;
@@ -126,6 +127,13 @@
 <div class="panel">
   <h2>A. Piezas de la cotización (formato cliente)</h2>
   <div class="sub" style="margin-bottom:10px;">Captura aquí las medidas tal como en la cotización que se manda al cliente (pulgadas). "Factor $/sqft" es para piezas de cuarzo (vanity top, backsplash, isla); "Precio fijo" es para extras sin fórmula de sqft (ej. sink, instalación).</div>
+  <div class="row">
+    <div>
+      <label>Importar cotización existente (Excel formato Pro-forma)</label>
+      <input type="file" id="importCotizFile" accept=".xlsx,.xls">
+    </div>
+  </div>
+  <div id="importCotizMsg" class="sub" style="margin:0 0 10px;"></div>
   <div class="table-scroll">
     <table id="tblClientItems" style="min-width:920px;">
       <thead><tr>
@@ -344,6 +352,89 @@ function initSizes(){
     toggleEmptyStates();
   }
   addPieceRow();
+}
+
+// ---------- Importar cotización existente (Excel Pro-forma) ----------
+document.addEventListener('DOMContentLoaded', () => {
+  const fi = document.getElementById('importCotizFile');
+  if (fi) fi.addEventListener('change', handleImportCotizFile);
+});
+
+function normalizeCell(s){ return (s === null || s === undefined) ? '' : String(s).trim().toLowerCase(); }
+
+function handleImportCotizFile(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const msg = document.getElementById('importCotizMsg');
+  msg.textContent = 'Leyendo archivo…'; msg.style.color = '';
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, blankrows: false });
+
+      let headerIdx = -1;
+      for (let i = 0; i < rows.length; i++){
+        if (normalizeCell(rows[i][0]) === 'product' && rows[i].some(c => normalizeCell(c).includes('sq.ft'))){
+          headerIdx = i; break;
+        }
+      }
+      if (headerIdx === -1){
+        msg.textContent = 'No se reconoció el formato (se buscó una fila con "Product" y "Sq.Ft."). Captura a mano en la tabla de abajo.';
+        msg.style.color = 'var(--danger)';
+        return;
+      }
+
+      const items = [];
+      let grupoNum = 1;
+      let tieneRenglonesEnGrupo = false;
+      for (let i = headerIdx + 2; i < rows.length; i++){
+        const r = rows[i];
+        if (!r) continue;
+        const hasSubtotal = r.some(c => normalizeCell(c).includes('sub-total') || normalizeCell(c).includes('subtotal'));
+        if (hasSubtotal){
+          if (tieneRenglonesEnGrupo) grupoNum++;
+          tieneRenglonesEnGrupo = false;
+          continue;
+        }
+        const producto = r[0];
+        const d = parseFloat(r[1]);
+        if (!producto || !d) continue;
+        const w = parseFloat(r[3]) || 0;
+        const sqft = parseFloat(r[6]) || 0;
+        const factor = parseFloat(r[7]) || 0;
+        const cant = parseInt(r[8]) || 1;
+        const unitPrice = parseFloat(r[9]) || 0;
+        items.push({
+          producto: String(producto).trim(),
+          grupo: `Grupo ${grupoNum}`,
+          d, w,
+          factor: factor > 0 ? factor : '',
+          precioFijo: factor > 0 ? '' : unitPrice,
+          cant,
+          esCorte: sqft > 0
+        });
+        tieneRenglonesEnGrupo = true;
+      }
+
+      if (!items.length){
+        msg.textContent = 'No se detectaron renglones de producto en el archivo.';
+        msg.style.color = 'var(--danger)';
+        return;
+      }
+
+      document.getElementById('clientItemsBody').innerHTML = '';
+      items.forEach(it => addClientItemRow(it));
+      renderClientTotals();
+      msg.textContent = `Importados ${items.length} renglón(es) en ${grupoNum} grupo(s). Revisa "¿Corte?" antes de generar piezas.`;
+      msg.style.color = 'var(--good)';
+    } catch(err){
+      msg.textContent = 'Error leyendo el archivo: ' + err.message;
+      msg.style.color = 'var(--danger)';
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 // ---------- A. Piezas de la cotización (cliente) ----------
