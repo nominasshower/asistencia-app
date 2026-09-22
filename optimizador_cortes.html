@@ -124,6 +124,34 @@
 </div>
 
 <div class="panel">
+  <h2>A. Piezas de la cotización (formato cliente)</h2>
+  <div class="sub" style="margin-bottom:10px;">Captura aquí las medidas tal como en la cotización que se manda al cliente (pulgadas). "Factor $/sqft" es para piezas de cuarzo (vanity top, backsplash, isla); "Precio fijo" es para extras sin fórmula de sqft (ej. sink, instalación).</div>
+  <div class="table-scroll">
+    <table id="tblClientItems" style="min-width:920px;">
+      <thead><tr>
+        <th style="width:16%;">Producto</th><th style="width:12%;">Grupo (subtotal)</th>
+        <th style="width:8%;">Prof. D (in)</th><th style="width:8%;">Ancho W (in)</th>
+        <th style="width:9%;">Factor $/sqft</th><th style="width:9%;">Precio fijo</th><th style="width:6%;">Cant.</th>
+        <th style="width:7%;" title="Desmarca si es un accesorio (ej. sink) que no se corta de la placa">¿Corte?</th>
+        <th style="width:8%;">Sq.Ft.</th><th style="width:9%;">Precio unit.</th><th style="width:9%;">Total</th><th class="col-del"></th>
+      </tr></thead>
+      <tbody id="clientItemsBody"></tbody>
+    </table>
+  </div>
+  <div class="actions">
+    <button class="btn secondary small" onclick="addClientItemRow()">+ Agregar renglón</button>
+    <button class="btn small" onclick="generarPiezasDeCorte()">Generar piezas de corte desde esta lista →</button>
+  </div>
+  <div id="clientGenMsg" class="sub" style="margin:6px 0 0;"></div>
+
+  <div class="row" style="margin-top:14px;">
+    <div style="width:140px;"><label>Freight</label><input type="number" id="freight" value="0" min="0" step="0.01" oninput="renderClientTotals()"></div>
+    <div style="width:140px;"><label>Deposit</label><input type="number" id="deposit" value="0" min="0" step="0.01" oninput="renderClientTotals()"></div>
+  </div>
+  <div id="clientTotalsWrap" style="margin-top:10px;"></div>
+</div>
+
+<div class="panel">
   <h2>1. Configuración de corte</h2>
   <div class="row">
     <div style="width:160px;">
@@ -197,6 +225,37 @@
   <div id="sheetsWrap" class="sheets-wrap" style="margin-top:16px;"></div>
   <div id="cutSeqWrap" style="margin-top:20px;"></div>
   <div id="reportWrap" style="margin-top:20px;"></div>
+</div>
+
+<div class="panel" id="costeoPanel" style="display:none;">
+  <h2>Costeo interno (fórmulas del Reporte de Cotizaciones)</h2>
+  <div class="results-summary">
+    <div class="stat"><div class="val" id="c-placas">—</div><div class="lbl">Placas necesarias</div></div>
+    <div class="stat"><div class="val" id="c-pulgadas">—</div><div class="lbl">Pulgadas de corte</div></div>
+    <div class="stat"><div class="val" id="c-sqftproyecto">—</div><div class="lbl">Sqft proyecto</div></div>
+    <div class="stat"><div class="val" id="c-sqftfab">—</div><div class="lbl">Sqft fabricados</div></div>
+    <div class="stat good"><div class="val" id="c-optim">—</div><div class="lbl">% Optimización</div></div>
+  </div>
+  <div class="row">
+    <div style="width:160px;"><label>Costo × Placa ($)</label><input type="number" id="costoPlaca" value="" min="0" step="0.01" placeholder="la única variable manual" oninput="renderCosteo()"></div>
+    <div style="width:160px;"><label>Costo × Pulgada ($)</label><input type="number" id="costoPulgada" value="0.17" min="0" step="0.01" oninput="renderCosteo()"></div>
+    <div style="width:160px;"><label>Tipo de corte</label>
+      <select id="tipoCorteCosteo" style="width:100%;" onchange="renderCosteo()">
+        <option value="Normal">Normal</option>
+        <option value="Laminado">Laminado</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-scroll">
+    <table class="cmp-table" style="min-width:640px; margin-top:10px;">
+      <thead><tr><th>Costo Placas</th><th>Costo Corte</th><th>Costo Total</th><th>Costo × Sqft</th><th>Precio sugerido (÷0.7)</th><th>Precio sugerido (÷0.65)</th></tr></thead>
+      <tbody><tr>
+        <td id="c-costoplacas">—</td><td id="c-costocorte">—</td><td id="c-costototal">—</td>
+        <td id="c-costosqft">—</td><td id="c-precioA">—</td><td id="c-precioB">—</td>
+      </tr></tbody>
+    </table>
+  </div>
+  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz": Sqft Fabricados=Placas×56.44 · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Precios sugeridos=Costo×Sqft÷0.7 y ÷0.65.</div>
 </div>
 
 <script>
@@ -287,6 +346,80 @@ function initSizes(){
   addPieceRow();
 }
 
+// ---------- A. Piezas de la cotización (cliente) ----------
+function addClientItemRow(data){
+  const tbody = document.getElementById('clientItemsBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="ci-producto" placeholder="Ej. Vanity Top Center" value="${data?.producto||''}"></td>
+    <td><input type="text" class="ci-grupo" placeholder="Ej. Baño 1" value="${data?.grupo||''}"></td>
+    <td><input type="number" class="ci-d" min="0" step="0.01" value="${data?.d||''}"></td>
+    <td><input type="number" class="ci-w" min="0" step="0.01" value="${data?.w||''}"></td>
+    <td><input type="number" class="ci-factor" min="0" step="0.01" placeholder="$/sqft" value="${data?.factor||''}"></td>
+    <td><input type="number" class="ci-preciofijo" min="0" step="0.01" placeholder="opcional" value="${data?.precioFijo||''}"></td>
+    <td><input type="number" class="ci-cant" min="1" value="${data?.cant||1}"></td>
+    <td style="text-align:center;"><input type="checkbox" class="ci-escorte" ${data?.esCorte === false ? '' : 'checked'}></td>
+    <td class="ci-sqft">—</td><td class="ci-unit">—</td><td class="ci-total">—</td>
+    <td><button class="btn danger" onclick="this.closest('tr').remove(); renderClientTotals();">×</button></td>
+  `;
+  tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', renderClientTotals));
+  tbody.appendChild(tr);
+}
+
+function computeClientItems(){
+  return [...document.querySelectorAll('#clientItemsBody tr')].map(tr => {
+    const producto = tr.querySelector('.ci-producto').value.trim() || 'Pieza';
+    const grupo = tr.querySelector('.ci-grupo').value.trim() || 'Sin grupo';
+    const d = parseFloat(tr.querySelector('.ci-d').value) || 0;
+    const w = parseFloat(tr.querySelector('.ci-w').value) || 0;
+    const factor = parseFloat(tr.querySelector('.ci-factor').value) || 0;
+    const precioFijo = parseFloat(tr.querySelector('.ci-preciofijo').value) || 0;
+    const cant = parseInt(tr.querySelector('.ci-cant').value) || 1;
+    const esCorte = tr.querySelector('.ci-escorte').checked;
+    const sqft = (d > 0 && w > 0) ? (d * w / 144) : 0;
+    const unit = sqft > 0 && factor > 0 ? sqft * factor : precioFijo;
+    const total = unit * cant;
+    return { tr, producto, grupo, d, w, factor, precioFijo, cant, esCorte, sqft, unit, total };
+  });
+}
+
+function renderClientTotals(){
+  const items = computeClientItems();
+  items.forEach(it => {
+    it.tr.querySelector('.ci-sqft').textContent = it.sqft > 0 ? it.sqft.toFixed(2) : '—';
+    it.tr.querySelector('.ci-unit').textContent = it.unit > 0 ? '$' + it.unit.toFixed(2) : '—';
+    it.tr.querySelector('.ci-total').textContent = it.total > 0 ? '$' + it.total.toFixed(2) : '—';
+  });
+
+  const grupos = {};
+  items.forEach(it => { grupos[it.grupo] = (grupos[it.grupo] || 0) + it.total; });
+  const freight = parseFloat(document.getElementById('freight').value) || 0;
+  const deposit = parseFloat(document.getElementById('deposit').value) || 0;
+  const sumaItems = items.reduce((s, it) => s + it.total, 0);
+  const balance = sumaItems + freight - deposit;
+
+  let html = '<div class="table-scroll"><table class="cmp-table" style="min-width:400px;"><thead><tr><th>Grupo</th><th>Subtotal</th></tr></thead><tbody>';
+  Object.entries(grupos).forEach(([g, t]) => { html += `<tr><td>${g}</td><td>$${t.toFixed(2)}</td></tr>`; });
+  html += `<tr class="cmp-row-best"><td>Balance (+ Freight − Deposit)</td><td>$${balance.toFixed(2)}</td></tr>`;
+  html += '</tbody></table></div>';
+  document.getElementById('clientTotalsWrap').innerHTML = html;
+
+  renderCosteo();
+  return items;
+}
+
+function generarPiezasDeCorte(){
+  const msg = document.getElementById('clientGenMsg');
+  const items = computeClientItems().filter(it => it.esCorte && it.d > 0 && it.w > 0);
+  if (!items.length){ msg.textContent = 'No hay renglones marcados como "¿Corte?" con Prof./Ancho capturados.'; msg.style.color = 'var(--danger)'; return; }
+  items.forEach(it => {
+    addPieceRow({ name: it.producto, w: Math.round(it.d*25.4*100)/100, h: Math.round(it.w*25.4*100)/100, qty: it.cant });
+  });
+  toggleEmptyStates();
+  msg.style.color = 'var(--good)';
+  msg.textContent = `Se generaron ${items.length} pieza(s) de corte en la tabla de abajo.`;
+}
+
 // ---------- Guardar/cargar cotizaciones (proyectos) — Supabase ----------
 const SUP_URL = 'https://xzwlbrirzfogbqhywtvj.supabase.co';
 const SUP_KEY = 'sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G';
@@ -305,7 +438,22 @@ function collectProjectData(){
       kerf: document.getElementById('kerf').value,
       edgeMargin: document.getElementById('edgeMargin').value,
       allowRotation: document.getElementById('allowRotation').checked,
-      cutMode: document.getElementById('cutMode').value
+      cutMode: document.getElementById('cutMode').value,
+      freight: document.getElementById('freight').value,
+      deposit: document.getElementById('deposit').value,
+      costoPlaca: document.getElementById('costoPlaca').value,
+      costoPulgada: document.getElementById('costoPulgada').value,
+      tipoCorteCosteo: document.getElementById('tipoCorteCosteo').value,
+      clientItems: [...document.querySelectorAll('#clientItemsBody tr')].map(tr => ({
+        producto: tr.querySelector('.ci-producto').value,
+        grupo: tr.querySelector('.ci-grupo').value,
+        d: tr.querySelector('.ci-d').value,
+        w: tr.querySelector('.ci-w').value,
+        factor: tr.querySelector('.ci-factor').value,
+        precioFijo: tr.querySelector('.ci-preciofijo').value,
+        cant: tr.querySelector('.ci-cant').value,
+        esCorte: tr.querySelector('.ci-escorte').checked
+      }))
     },
     piezas: [...document.querySelectorAll('#piecesBody tr')].map(tr => ({
       name: tr.querySelector('.p-name').value,
@@ -379,11 +527,21 @@ async function loadProjectByName(name){
     document.getElementById('edgeMargin').value = cfg.edgeMargin ?? 10;
     document.getElementById('allowRotation').checked = !!cfg.allowRotation;
     document.getElementById('cutMode').value = cfg.cutMode || 'guillotine';
+    document.getElementById('freight').value = cfg.freight ?? 0;
+    document.getElementById('deposit').value = cfg.deposit ?? 0;
+    document.getElementById('costoPlaca').value = cfg.costoPlaca ?? '';
+    document.getElementById('costoPulgada').value = cfg.costoPulgada ?? 0.17;
+    document.getElementById('tipoCorteCosteo').value = cfg.tipoCorteCosteo || 'Normal';
+    document.getElementById('clientItemsBody').innerHTML = '';
+    const clientItems = cfg.clientItems || [];
+    clientItems.forEach(ci => addClientItemRow(ci));
+    if (!clientItems.length) addClientItemRow();
     document.getElementById('piecesBody').innerHTML = '';
     const piezas = data.piezas || [];
     piezas.forEach(p => addPieceRow(p));
     if (!piezas.length) addPieceRow();
     toggleEmptyStates();
+    renderClientTotals();
     setProjectMsg(`Cargado "${name}" (guardado ${new Date(data.updated_at).toLocaleString('es-MX')})`, 'ok');
   } catch(e){
     setProjectMsg('Error al cargar desde Supabase: ' + e.message, 'err');
@@ -814,6 +972,47 @@ function renderSheetsForSelected(){
 
   renderCutSequence(entry);
   renderPieceReport(entry);
+  renderCosteo();
+}
+
+function renderCosteo(){
+  const panel = document.getElementById('costeoPanel');
+  const idx = parseInt(document.getElementById('sizeSelector')?.value);
+  const entry = lastResults[idx];
+  if (!entry || entry.res.error){ panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  const { res } = entry;
+
+  const placas = res.sheetsCount;
+  let pulgadasCorte = 0;
+  if (res.cutMode === 'guillotine'){
+    res.bins.forEach(bin => (bin.cuts || []).forEach(c => { pulgadasCorte += (c.to - c.from) / 25.4; }));
+  }
+  const sqftProyecto = computeClientItems().filter(it => it.esCorte && it.d > 0 && it.w > 0).reduce((s, it) => s + it.sqft * it.cant, 0);
+  const sqftFabricados = placas * 56.44;
+  const optim = sqftFabricados > 0 ? (sqftProyecto / sqftFabricados) * 100 : 0;
+
+  document.getElementById('c-placas').textContent = placas;
+  document.getElementById('c-pulgadas').textContent = res.cutMode === 'guillotine' ? Math.round(pulgadasCorte) : '— (modo libre/CNC)';
+  document.getElementById('c-sqftproyecto').textContent = sqftProyecto.toFixed(2);
+  document.getElementById('c-sqftfab').textContent = sqftFabricados.toFixed(2);
+  document.getElementById('c-optim').textContent = sqftFabricados > 0 ? optim.toFixed(1) + '%' : '—';
+
+  const costoPlaca = parseFloat(document.getElementById('costoPlaca').value) || 0;
+  const costoPulgada = parseFloat(document.getElementById('costoPulgada').value) || 0;
+  const costoPlacas = costoPlaca * placas;
+  const costoCorte = costoPulgada * pulgadasCorte;
+  const costoTotal = costoPlacas + costoCorte;
+  const costoSqft = sqftProyecto > 0 ? costoTotal / sqftProyecto : 0;
+  const precioA = costoSqft / 0.7;
+  const precioB = costoSqft / 0.65;
+
+  document.getElementById('c-costoplacas').textContent = '$' + costoPlacas.toFixed(2);
+  document.getElementById('c-costocorte').textContent = '$' + costoCorte.toFixed(2);
+  document.getElementById('c-costototal').textContent = '$' + costoTotal.toFixed(2);
+  document.getElementById('c-costosqft').textContent = costoSqft > 0 ? '$' + costoSqft.toFixed(2) + '/sqft' : '—';
+  document.getElementById('c-precioA').textContent = precioA > 0 ? '$' + precioA.toFixed(2) + '/sqft (total $' + (precioA*sqftProyecto).toFixed(2) + ')' : '—';
+  document.getElementById('c-precioB').textContent = precioB > 0 ? '$' + precioB.toFixed(2) + '/sqft (total $' + (precioB*sqftProyecto).toFixed(2) + ')' : '—';
 }
 
 function renderCutSequence(entry){
@@ -869,6 +1068,8 @@ function renderPieceReport(entry){
 }
 
 initSizes();
+addClientItemRow();
+renderClientTotals();
 populateProjectSelector();
 </script>
 </body>
