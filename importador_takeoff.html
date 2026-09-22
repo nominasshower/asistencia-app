@@ -67,7 +67,8 @@
     </table>
   </div>
   <div class="row" style="margin-top:14px;">
-    <button class="btn" onclick="copiarJSON()">Copiar como JSON (piezas)</button>
+    <button class="btn" onclick="enviarAlOptimizador()">Enviar al optimizador de cortes →</button>
+    <button class="btn secondary" onclick="copiarJSON()">Copiar como JSON (piezas)</button>
     <button class="btn secondary" onclick="copiarTexto()">Copiar como texto (nombre, ancho, alto, cant.)</button>
   </div>
   <div id="copyMsg" class="msg"></div>
@@ -200,6 +201,23 @@ function collectEdited(){
     h: parseFloat(tr.querySelector('.o-h').value) || 0,
     qty: parseInt(tr.querySelector('.o-qty').value) || 1
   }));
+}
+
+function enviarAlOptimizador(){
+  const data = collectEdited().filter(p => p.w > 0 && p.h > 0);
+  if (!data.length){
+    document.getElementById('copyMsg').textContent = 'No hay piezas válidas para enviar (revisa ancho/alto).';
+    document.getElementById('copyMsg').style.color = 'var(--danger)';
+    return;
+  }
+  try {
+    localStorage.setItem('takeoff_import_pending', JSON.stringify(data));
+  } catch(e){
+    document.getElementById('copyMsg').textContent = 'No se pudo pasar los datos (localStorage no disponible). Usa "Copiar como JSON" en su lugar.';
+    document.getElementById('copyMsg').style.color = 'var(--danger)';
+    return;
+  }
+  window.location.href = 'optimizador_cortes.html';
 }
 
 function copiarJSON(){
