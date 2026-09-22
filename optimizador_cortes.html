@@ -287,18 +287,6 @@ function initSizes(){
   addPieceRow();
 }
 
-function importarDesdeTakeoff(){
-  let pending;
-  try { pending = JSON.parse(localStorage.getItem('takeoff_import_pending') || 'null'); } catch(e){ pending = null; }
-  if (!pending || !pending.length) return;
-  localStorage.removeItem('takeoff_import_pending');
-  document.getElementById('piecesBody').innerHTML = '';
-  pending.forEach(p => addPieceRow({ name: p.name, w: p.w, h: p.h, qty: p.qty }));
-  toggleEmptyStates();
-  document.getElementById('errorMsg').style.color = 'var(--good)';
-  document.getElementById('errorMsg').textContent = `Se importaron ${pending.length} pieza(s) desde el take-off.`;
-}
-
 // ---------- Guardar/cargar cotizaciones (proyectos) — Supabase ----------
 const SUP_URL = 'https://xzwlbrirzfogbqhywtvj.supabase.co';
 const SUP_KEY = 'sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G';
@@ -882,7 +870,6 @@ function renderPieceReport(entry){
 
 initSizes();
 populateProjectSelector();
-importarDesdeTakeoff();
 </script>
 </body>
 </html>
