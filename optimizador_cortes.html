@@ -101,20 +101,15 @@
 </div>
 
 <div class="panel">
-  <h2>Cotización / Proyecto</h2>
+  <h2>Buscar cotización guardada</h2>
   <div class="row">
-    <div style="width:220px;">
-      <label>Nombre del proyecto / cotización</label>
-      <input type="text" id="projectName" placeholder="Ej. Cotización Hotel XYZ">
+    <div style="width:260px;">
+      <label>Buscar por nombre / cliente / proyecto</label>
+      <input type="text" id="projectSearch" placeholder="Escribe para filtrar…" oninput="filterProjectSelector()">
     </div>
-    <div style="width:180px;">
-      <label>Persona / responsable</label>
-      <input type="text" id="projectPerson" placeholder="Ej. Juan Pérez">
-    </div>
-    <button class="btn" style="margin-top:18px;" onclick="saveProject()">Guardar cotización</button>
-    <div style="width:220px;">
-      <label>Cotizaciones guardadas</label>
-      <select id="projectSelector" style="width:100%;"><option value="">— Selecciona —</option></select>
+    <div style="width:260px;">
+      <label>Resultados</label>
+      <select id="projectSelector" style="width:100%;" size="1"><option value="">— Selecciona —</option></select>
     </div>
     <button class="btn secondary" style="margin-top:18px;" onclick="loadSelectedProject()">Cargar</button>
     <button class="btn danger" style="margin-top:18px;" onclick="deleteSelectedProject()">Eliminar</button>
@@ -122,6 +117,23 @@
   </div>
   <div id="projectMsg" class="sub" style="margin:0;"></div>
   <div id="quotesReportWrap" style="margin-top:14px; display:none;"></div>
+</div>
+
+<div class="panel">
+  <h2>Datos de esta cotización</h2>
+  <div class="sub" style="margin:0 0 8px;">Cliente/Contacto/Proyecto se llenan solos al importar el Excel (sección A). "Persona" es quién de nosotros la captura.</div>
+  <div class="row">
+    <div style="width:220px;">
+      <label>Nombre del proyecto / cotización</label>
+      <input type="text" id="projectName" placeholder="Se llena al importar, o escribe uno">
+    </div>
+    <div style="width:180px;">
+      <label>Persona / responsable</label>
+      <input type="text" id="projectPerson" placeholder="Ej. Juan Pérez">
+    </div>
+    <button class="btn" style="margin-top:18px;" onclick="saveProject()">Guardar cotización</button>
+  </div>
+  <div id="clientInfoWrap" class="sub" style="margin:6px 0 0;"></div>
 </div>
 
 <div class="panel">
@@ -374,6 +386,19 @@ function handleImportCotizFile(e){
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, blankrows: false });
 
+      const clientInfo = { date:'', customer:'', contact:'', phone:'', email:'', po:'', project:'' };
+      const labelMap = { 'date:':'date', 'customer:':'customer', 'contact:':'contact', 'phone:':'phone', 'email:':'email', 'po:':'po', 'project:':'project' };
+      rows.forEach(r => {
+        if (!r) return;
+        for (let c = 0; c < r.length - 1; c++){
+          const key = labelMap[normalizeCell(r[c])];
+          if (key && !clientInfo[key] && r[c+1] !== null && r[c+1] !== undefined && r[c+1] !== ''){
+            clientInfo[key] = r[c+1] instanceof Date ? r[c+1].toLocaleDateString('es-MX') : String(r[c+1]).trim();
+          }
+        }
+      });
+      applyClientInfo(clientInfo);
+
       let headerIdx = -1;
       for (let i = 0; i < rows.length; i++){
         if (normalizeCell(rows[i][0]) === 'product' && rows[i].some(c => normalizeCell(c).includes('sq.ft'))){
@@ -535,6 +560,7 @@ function collectProjectData(){
       costoPlaca: document.getElementById('costoPlaca').value,
       costoPulgada: document.getElementById('costoPulgada').value,
       tipoCorteCosteo: document.getElementById('tipoCorteCosteo').value,
+      clientInfo: lastClientInfo,
       clientItems: [...document.querySelectorAll('#clientItemsBody tr')].map(tr => ({
         producto: tr.querySelector('.ci-producto').value,
         grupo: tr.querySelector('.ci-grupo').value,
@@ -560,17 +586,50 @@ function collectProjectData(){
   };
 }
 
+let allProjectNames = [];
+
 async function populateProjectSelector(selectName){
   const sel = document.getElementById('projectSelector');
   try {
     const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?select=nombre&order=nombre.asc`, { headers: SUP_HEADERS });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const rows = await r.json();
-    sel.innerHTML = '<option value="">— Selecciona —</option>' + rows.map(row => `<option value="${row.nombre}">${row.nombre}</option>`).join('');
+    allProjectNames = rows.map(row => row.nombre);
+    sel.innerHTML = '<option value="">— Selecciona —</option>' + allProjectNames.map(n => `<option value="${n}">${n}</option>`).join('');
     if (selectName) sel.value = selectName;
   } catch(e){
     setProjectMsg('No se pudo cargar la lista de cotizaciones guardadas (revisa tu conexión).', 'err');
   }
+}
+
+function filterProjectSelector(){
+  const q = document.getElementById('projectSearch').value.trim().toLowerCase();
+  const sel = document.getElementById('projectSelector');
+  const matches = q ? allProjectNames.filter(n => n.toLowerCase().includes(q)) : allProjectNames;
+  sel.innerHTML = '<option value="">— Selecciona —</option>' + matches.map(n => `<option value="${n}">${n}</option>`).join('');
+}
+
+let lastClientInfo = {};
+
+function applyClientInfo(info){
+  lastClientInfo = info;
+  const projectField = document.getElementById('projectName');
+  const auto = info.project || info.customer || '';
+  if (auto) projectField.value = auto;
+  renderClientInfo();
+}
+
+function renderClientInfo(){
+  const info = lastClientInfo || {};
+  const parts = [
+    info.customer && `Cliente: ${info.customer}`,
+    info.contact && `Contacto: ${info.contact}`,
+    info.phone && `Tel: ${info.phone}`,
+    info.email && `Email: ${info.email}`,
+    info.po && `PO: ${info.po}`,
+    info.date && `Fecha: ${info.date}`
+  ].filter(Boolean);
+  document.getElementById('clientInfoWrap').textContent = parts.length ? parts.join(' · ') : 'Sin datos de cliente importados todavía.';
 }
 
 async function saveProject(){
@@ -623,6 +682,8 @@ async function loadProjectByName(name){
     document.getElementById('costoPlaca').value = cfg.costoPlaca ?? '';
     document.getElementById('costoPulgada').value = cfg.costoPulgada ?? 0.17;
     document.getElementById('tipoCorteCosteo').value = cfg.tipoCorteCosteo || 'Normal';
+    lastClientInfo = cfg.clientInfo || {};
+    renderClientInfo();
     document.getElementById('clientItemsBody').innerHTML = '';
     const clientItems = cfg.clientItems || [];
     clientItems.forEach(ci => addClientItemRow(ci));
@@ -1161,6 +1222,7 @@ function renderPieceReport(entry){
 initSizes();
 addClientItemRow();
 renderClientTotals();
+renderClientInfo();
 populateProjectSelector();
 </script>
 </body>
