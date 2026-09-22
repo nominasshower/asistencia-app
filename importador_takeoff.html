@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Importador de Take-off</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#1a2530; --panel2:#20303d; --border:#2c3e4c;
+    --text:#e8eef2; --muted:#8fa3b0; --accent:#3fb8af; --danger:#e06565; --good:#4caf7d;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); padding:24px;}
+  h1{font-size:22px; margin:0 0 4px;}
+  h2{font-size:16px; margin:0 0 12px; color:var(--accent);}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:20px;}
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:20px;}
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
+  label{font-size:12px; color:var(--muted); display:block; margin-bottom:3px;}
+  input[type=file], select{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:7px 9px; border-radius:6px; font-size:13px;
+  }
+  input[type=text], input[type=number]{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:6px 8px; border-radius:6px; font-size:13px; width:100%;
+  }
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:left; color:var(--muted); font-weight:500; padding:6px; border-bottom:1px solid var(--border); font-size:11px; text-transform:uppercase;}
+  td{padding:5px 6px; border-bottom:1px solid var(--border);}
+  .btn{background:var(--accent); border:none; color:#062421; font-weight:600; padding:9px 16px; border-radius:7px; cursor:pointer; font-size:13px;}
+  .btn.secondary{background:var(--panel2); color:var(--text); border:1px solid var(--border);}
+  .btn.danger{background:transparent; color:var(--danger); border:1px solid var(--danger); padding:4px 9px; font-size:12px;}
+  .table-scroll{overflow-x:auto;}
+  .msg{font-size:13px; margin-top:8px;}
+  textarea{width:100%; min-height:140px; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:8px; font-family:monospace; font-size:12px;}
+</style>
+</head>
+<body>
+
+<h1>Importador de Take-off (prueba)</h1>
+<div class="sub">Sube el Excel que manda el cliente (hotel/constructora) y extrae automáticamente las piezas — para probar antes de meterlo al optimizador de cortes.</div>
+
+<div class="panel">
+  <h2>1. Subir archivo</h2>
+  <div class="row">
+    <div>
+      <label>Archivo .xlsx</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls">
+    </div>
+    <div style="min-width:220px;">
+      <label>Hoja</label>
+      <select id="sheetSelect" disabled><option>—</option></select>
+    </div>
+  </div>
+  <div id="fileMsg" class="msg"></div>
+</div>
+
+<div class="panel" id="previewPanel" style="display:none;">
+  <h2>2. Piezas detectadas</h2>
+  <div class="sub" style="margin:0 0 10px;">Revisa y corrige antes de usar — la detección busca automáticamente las columnas de descripción, largo, ancho y cantidad. Medidas convertidas de pulgadas a mm.</div>
+  <div class="table-scroll">
+    <table id="tblPreview">
+      <thead><tr><th style="width:34%;">Nombre / Descripción</th><th style="width:12%;">Ancho (mm)</th><th style="width:12%;">Alto (mm)</th><th style="width:10%;">Cant.</th><th style="width:10%;">L orig (in)</th><th style="width:10%;">W orig (in)</th><th style="width:6%;"></th></tr></thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+  <div class="row" style="margin-top:14px;">
+    <button class="btn" onclick="copiarJSON()">Copiar como JSON (piezas)</button>
+    <button class="btn secondary" onclick="copiarTexto()">Copiar como texto (nombre, ancho, alto, cant.)</button>
+  </div>
+  <div id="copyMsg" class="msg"></div>
+  <textarea id="outputBox" style="margin-top:10px; display:none;"></textarea>
+</div>
+
+<script>
+let workbook = null;
+let rawRows = [];
+
+document.getElementById('fileInput').addEventListener('change', handleFile);
+document.getElementById('sheetSelect').addEventListener('change', () => parseSheet(document.getElementById('sheetSelect').value));
+
+function handleFile(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const msg = document.getElementById('fileMsg');
+  msg.textContent = 'Leyendo archivo…';
+  msg.style.color = '';
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const data = new Uint8Array(evt.target.result);
+      workbook = XLSX.read(data, { type: 'array' });
+      const sel = document.getElementById('sheetSelect');
+      sel.innerHTML = workbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
+      sel.disabled = false;
+      msg.textContent = `Archivo leído: ${workbook.SheetNames.length} hoja(s).`;
+      msg.style.color = 'var(--good)';
+      parseSheet(workbook.SheetNames[0]);
+    } catch(err){
+      msg.textContent = 'Error leyendo el archivo: ' + err.message;
+      msg.style.color = 'var(--danger)';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function normalize(s){
+  return (s === null || s === undefined) ? '' : String(s).trim().toLowerCase();
+}
+
+function findHeaderRow(rows){
+  for (let i = 0; i < rows.length; i++){
+    const cells = rows[i].map(normalize);
+    const hasL = cells.some(c => c === 'l' || c.includes('length') || c === 'largo');
+    const hasW = cells.some(c => c === 'w' || c.includes('width') || c === 'ancho');
+    const hasDesc = cells.some(c => c.includes('description') || c.includes('descripcion') || c.includes('room type'));
+    if (hasL && hasW && hasDesc) return i;
+  }
+  return -1;
+}
+
+function colIndexByNames(headerCells, candidates){
+  for (let i = 0; i < headerCells.length; i++){
+    const c = normalize(headerCells[i]);
+    if (candidates.some(cand => c === cand || (cand.length > 2 && c.includes(cand)))) return i;
+  }
+  return -1;
+}
+
+function parseSheet(sheetName){
+  const msg = document.getElementById('fileMsg');
+  const ws = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, blankrows: false });
+
+  const headerIdx = findHeaderRow(rows);
+  if (headerIdx === -1){
+    msg.textContent = 'No se detectaron columnas de Descripción/L/W en esta hoja — revisa el archivo manualmente.';
+    msg.style.color = 'var(--danger)';
+    document.getElementById('previewPanel').style.display = 'none';
+    return;
+  }
+  const header = rows[headerIdx];
+  const idxDesc = colIndexByNames(header, ['description','descripcion','room type']);
+  const idxL = colIndexByNames(header, ['l','length','largo']);
+  const idxW = colIndexByNames(header, ['w','width','ancho']);
+  const idxUnits = colIndexByNames(header, ['no.of units','no. of units','units','no.of unit']);
+  const idxQty = colIndexByNames(header, ['qty','cant']);
+
+  const pieces = [];
+  for (let i = headerIdx + 1; i < rows.length; i++){
+    const r = rows[i];
+    if (!r) continue;
+    const L = parseFloat(r[idxL]);
+    const W = parseFloat(r[idxW]);
+    if (!L || !W) continue; // salta filas de subtotal/categoria sin medidas
+    const name = (r[idxDesc] || `Pieza fila ${i+1}`).toString().trim();
+    let qty = idxUnits >= 0 ? parseInt(r[idxUnits]) : NaN;
+    if (!qty) qty = idxQty >= 0 ? Math.round(parseFloat(r[idxQty])) : 1;
+    if (!qty || qty < 1) qty = 1;
+    pieces.push({
+      name,
+      w: Math.round(L * 25.4 * 100) / 100,
+      h: Math.round(W * 25.4 * 100) / 100,
+      qty,
+      origL: L,
+      origW: W
+    });
+  }
+
+  rawRows = pieces;
+  renderPreview();
+  msg.textContent = `Detectadas ${pieces.length} pieza(s) en la hoja "${sheetName}" (encabezado en fila ${headerIdx+1}).`;
+  msg.style.color = pieces.length ? 'var(--good)' : 'var(--danger)';
+}
+
+function renderPreview(){
+  const panel = document.getElementById('previewPanel');
+  const tbody = document.getElementById('previewBody');
+  if (!rawRows.length){ panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  tbody.innerHTML = rawRows.map((p, i) => `
+    <tr>
+      <td><input type="text" class="o-name" data-i="${i}" value="${p.name.replace(/"/g,'&quot;')}"></td>
+      <td><input type="number" class="o-w" data-i="${i}" value="${p.w}"></td>
+      <td><input type="number" class="o-h" data-i="${i}" value="${p.h}"></td>
+      <td><input type="number" class="o-qty" data-i="${i}" value="${p.qty}"></td>
+      <td>${p.origL}</td>
+      <td>${p.origW}</td>
+      <td><button class="btn danger" onclick="rawRows.splice(${i},1); renderPreview();">×</button></td>
+    </tr>
+  `).join('');
+}
+
+function collectEdited(){
+  return [...document.querySelectorAll('#previewBody tr')].map(tr => ({
+    name: tr.querySelector('.o-name').value,
+    w: parseFloat(tr.querySelector('.o-w').value) || 0,
+    h: parseFloat(tr.querySelector('.o-h').value) || 0,
+    qty: parseInt(tr.querySelector('.o-qty').value) || 1
+  }));
+}
+
+function copiarJSON(){
+  const data = collectEdited();
+  const box = document.getElementById('outputBox');
+  box.style.display = 'block';
+  box.value = JSON.stringify(data, null, 2);
+  box.select();
+  document.execCommand('copy');
+  document.getElementById('copyMsg').textContent = `Copiado al portapapeles (${data.length} piezas, formato JSON).`;
+  document.getElementById('copyMsg').style.color = 'var(--good)';
+}
+
+function copiarTexto(){
+  const data = collectEdited();
+  const box = document.getElementById('outputBox');
+  box.style.display = 'block';
+  box.value = data.map(p => `${p.name}\t${p.w}\t${p.h}\t${p.qty}`).join('\n');
+  box.select();
+  document.execCommand('copy');
+  document.getElementById('copyMsg').textContent = `Copiado al portapapeles (${data.length} piezas, formato texto tabulado).`;
+  document.getElementById('copyMsg').style.color = 'var(--good)';
+}
+</script>
+</body>
+</html>
