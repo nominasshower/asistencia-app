@@ -24,7 +24,7 @@
   }
   input[type=text], input[type=number]{
     background:var(--panel2); border:1px solid var(--border); color:var(--text);
-    padding:6px 8px; border-radius:6px; font-size:13px; width:100%;
+    padding:6px 8px; border-radius:6px; font-size:13px; width:100%; min-width:70px;
   }
   table{width:100%; border-collapse:collapse; font-size:13px;}
   th{text-align:left; color:var(--muted); font-weight:500; padding:6px; border-bottom:1px solid var(--border); font-size:11px; text-transform:uppercase;}
@@ -61,7 +61,7 @@
   <h2>2. Piezas detectadas</h2>
   <div class="sub" style="margin:0 0 10px;">Revisa y corrige antes de usar — la detección busca automáticamente las columnas de descripción, largo, ancho y cantidad. Medidas convertidas de pulgadas a mm.</div>
   <div class="table-scroll">
-    <table id="tblPreview">
+    <table id="tblPreview" style="min-width:760px;">
       <thead><tr><th style="width:34%;">Nombre / Descripción</th><th style="width:12%;">Ancho (mm)</th><th style="width:12%;">Alto (mm)</th><th style="width:10%;">Cant.</th><th style="width:10%;">L orig (in)</th><th style="width:10%;">W orig (in)</th><th style="width:6%;"></th></tr></thead>
       <tbody id="previewBody"></tbody>
     </table>
