@@ -76,7 +76,10 @@
   .sheet-label{font-size:12px; color:var(--muted); margin-bottom:4px;}
   .table-scroll{overflow-x:auto;}
   .tarja-cell{display:flex; gap:4px;}
-  .tarja-cell input{width:50%; min-width:44px;}
+  .tarja-cell input{width:50%; min-width:58px;}
+  input[type=number]{ -moz-appearance:textfield; }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
   @media print{
     body{background:#fff; color:#000; padding:0;}
     .panel:not(#resultsPanel){display:none !important;}
@@ -216,7 +219,7 @@
     <h2>3. Piezas a cortar (lavabos / cocinetas)</h2>
     <div id="hintPieces" class="empty-hint" style="display:none;">Agrega los modelos/piezas de esta cotización con su ancho, alto y cantidad.</div>
     <div class="table-scroll">
-    <table id="tblPieces" style="display:none; min-width:960px;">
+    <table id="tblPieces" style="display:none; min-width:1050px;">
       <thead><tr><th class="col-name">Modelo / Pieza</th><th class="col-num">Ancho (mm)</th><th class="col-num">Alto (mm)</th><th style="width:8%;">Cant.</th><th style="width:12%;">Color/Lote</th><th style="width:9%;" title="Marca si esta pieza no se puede voltear por veta/patrón">No rotar</th><th style="width:13%;">Tipo de unión</th><th style="width:14%;" title="Medida del corte de la tarja/sink, si aplica">Tarja L x A (mm)</th><th class="col-del"></th></tr></thead>
       <tbody id="piecesBody"></tbody>
     </table>
