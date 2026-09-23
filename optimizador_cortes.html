@@ -82,7 +82,9 @@
   input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
   @media print{
     body{background:#fff; color:#000; padding:0;}
-    .panel:not(#resultsPanel){display:none !important;}
+    body[data-print="resultados"] .panel:not(#resultsPanel){display:none !important;}
+    body[data-print="cotizacion"] .panel:not(#cotizacionFinalPanel){display:none !important;}
+    body:not([data-print]) .panel:not(#resultsPanel):not(#cotizacionFinalPanel){display:none !important;}
     #resultsPanel{border:none; background:#fff; padding:0;}
     .top-actions{margin-bottom:10px;}
     select, .btn, #errorMsg{display:none !important;}
@@ -174,6 +176,12 @@
   <div id="clientTotalsWrap" style="margin-top:10px;"></div>
 </div>
 
+<div class="panel" id="cotizacionFinalPanel">
+  <h2>Cotización final (para el cliente)</h2>
+  <button class="btn secondary small" onclick="printPanel('cotizacion')" style="margin-bottom:10px;">Imprimir / PDF esta cotización</button>
+  <div id="cotizacionFinalWrap"></div>
+</div>
+
 <div class="panel">
   <h2>1. Configuración de corte</h2>
   <div class="row">
@@ -243,7 +251,7 @@
       <label>Ver diseño de lámina:</label>
       <select id="sizeSelector" onchange="renderSheetsForSelected()"></select>
     </div>
-    <button class="btn secondary" style="margin-top:18px;" onclick="window.print()">Imprimir reporte</button>
+    <button class="btn secondary" style="margin-top:18px;" onclick="printPanel('resultados')">Imprimir planos de corte / materiales (ingeniería)</button>
   </div>
   <div id="sheetsWrap" class="sheets-wrap" style="margin-top:16px;"></div>
   <div id="cutSeqWrap" style="margin-top:20px;"></div>
@@ -375,6 +383,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (fi) fi.addEventListener('change', handleImportCotizFile);
 });
 
+function printPanel(target){
+  document.body.setAttribute('data-print', target);
+  window.print();
+  setTimeout(() => document.body.removeAttribute('data-print'), 500);
+}
+
 function normalizeCell(s){ return (s === null || s === undefined) ? '' : String(s).trim().toLowerCase(); }
 
 function handleImportCotizFile(e){
@@ -389,14 +403,18 @@ function handleImportCotizFile(e){
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, blankrows: false });
 
-      const clientInfo = { date:'', customer:'', contact:'', phone:'', email:'', po:'', project:'' };
-      const labelMap = { 'date:':'date', 'customer:':'customer', 'contact:':'contact', 'phone:':'phone', 'email:':'email', 'po:':'po', 'project:':'project' };
+      const clientInfo = { date:'', customer:'', contact:'', phone:'', email:'', po:'', project:'', color:'', thickness:'' };
+      const labelMap = { 'date:':'date', 'customer:':'customer', 'contact:':'contact', 'phone:':'phone', 'email:':'email', 'po:':'po', 'project:':'project', 'color:':'color', 'thickness:':'thickness' };
       rows.forEach(r => {
         if (!r) return;
         for (let c = 0; c < r.length - 1; c++){
           const key = labelMap[normalizeCell(r[c])];
-          if (key && !clientInfo[key] && r[c+1] !== null && r[c+1] !== undefined && r[c+1] !== ''){
-            clientInfo[key] = r[c+1] instanceof Date ? r[c+1].toLocaleDateString('es-MX') : String(r[c+1]).trim();
+          if (!key || clientInfo[key]) continue;
+          for (let look = c + 1; look <= Math.min(c + 3, r.length - 1); look++){
+            if (r[look] !== null && r[look] !== undefined && r[look] !== ''){
+              clientInfo[key] = r[look] instanceof Date ? r[look].toLocaleDateString('es-MX') : String(r[look]).trim();
+              break;
+            }
           }
         }
       });
@@ -523,8 +541,52 @@ function renderClientTotals(){
   html += '</tbody></table></div>';
   document.getElementById('clientTotalsWrap').innerHTML = html;
 
+  renderCotizacionFinal(items, grupos, freight, deposit, balance);
   renderCosteo();
   return items;
+}
+
+function renderCotizacionFinal(items, grupos, freight, deposit, balance){
+  const wrap = document.getElementById('cotizacionFinalWrap');
+  if (!items.length){ wrap.innerHTML = '<div class="sub" style="margin:0;">Agrega o importa piezas en la sección A para ver aquí la cotización lista.</div>'; return; }
+
+  const info = lastClientInfo || {};
+  let html = '';
+  const headerLine = [
+    info.customer && `<b>Cliente:</b> ${info.customer}`,
+    info.contact && `<b>Contacto:</b> ${info.contact}`,
+    info.phone && `<b>Tel:</b> ${info.phone}`,
+    info.email && `<b>Email:</b> ${info.email}`,
+    info.po && `<b>PO:</b> ${info.po}`,
+    info.date && `<b>Fecha:</b> ${info.date}`,
+    info.color && `<b>Color:</b> ${info.color}`,
+    info.thickness && `<b>Espesor:</b> ${info.thickness}`
+  ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  if (headerLine) html += `<div class="sub" style="font-size:13px; color:var(--text); margin-bottom:14px;">${headerLine}</div>`;
+
+  Object.keys(grupos).forEach(g => {
+    const rowsGrupo = items.filter(it => it.grupo === g);
+    html += `<div class="sheet-label" style="font-size:13px; color:var(--text); font-weight:600; margin-top:12px;">${g}</div>
+    <div class="table-scroll"><table class="cmp-table" style="min-width:700px;"><thead><tr>
+      <th>Producto</th><th>Tamaño (D×W in)</th><th>Sq.Ft.</th><th>Precio unit.</th><th>Cant.</th><th>Total</th>
+    </tr></thead><tbody>`;
+    rowsGrupo.forEach(it => {
+      const tam = (it.d > 0 && it.w > 0) ? `${it.d}×${it.w}` : '—';
+      html += `<tr><td>${it.producto}</td><td>${tam}</td><td>${it.sqft > 0 ? it.sqft.toFixed(2) : '—'}</td><td>$${it.unit.toFixed(2)}</td><td>${it.cant}</td><td>$${it.total.toFixed(2)}</td></tr>`;
+    });
+    html += `<tr class="cmp-row-best"><td colspan="5">Sub-total ${g}</td><td>$${grupos[g].toFixed(2)}</td></tr>`;
+    html += '</tbody></table></div>';
+  });
+
+  const sumaItems = items.reduce((s, it) => s + it.total, 0);
+  html += `<div class="table-scroll"><table class="cmp-table" style="min-width:400px; margin-top:16px;"><tbody>
+    <tr><td>Suma de renglones</td><td>$${sumaItems.toFixed(2)}</td></tr>
+    <tr><td>Freight</td><td>$${freight.toFixed(2)}</td></tr>
+    <tr><td>Deposit</td><td>−$${deposit.toFixed(2)}</td></tr>
+    <tr class="cmp-row-best"><td><b>Balance</b></td><td><b>$${balance.toFixed(2)}</b></td></tr>
+  </tbody></table></div>`;
+
+  wrap.innerHTML = html;
 }
 
 function generarPiezasDeCorte(){
@@ -630,7 +692,9 @@ function renderClientInfo(){
     info.phone && `Tel: ${info.phone}`,
     info.email && `Email: ${info.email}`,
     info.po && `PO: ${info.po}`,
-    info.date && `Fecha: ${info.date}`
+    info.date && `Fecha: ${info.date}`,
+    info.color && `Color: ${info.color}`,
+    info.thickness && `Espesor: ${info.thickness}`
   ].filter(Boolean);
   document.getElementById('clientInfoWrap').textContent = parts.length ? parts.join(' · ') : 'Sin datos de cliente importados todavía.';
 }
