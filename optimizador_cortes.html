@@ -502,6 +502,13 @@ function addClientItemRow(data){
     <td><button class="btn danger" onclick="this.closest('tr').remove(); renderClientTotals();">×</button></td>
   `;
   tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', renderClientTotals));
+  tr.querySelector('.ci-factor').addEventListener('input', function(){
+    if (parseFloat(this.value) > 0) tr.querySelector('.ci-escorte').checked = true;
+  });
+  tr.querySelector('.ci-preciofijo').addEventListener('input', function(){
+    const factorVal = parseFloat(tr.querySelector('.ci-factor').value) || 0;
+    if (parseFloat(this.value) > 0 && factorVal === 0) tr.querySelector('.ci-escorte').checked = false;
+  });
   tbody.appendChild(tr);
 }
 
