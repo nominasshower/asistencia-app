@@ -286,7 +286,7 @@
       </tr></tbody>
     </table>
   </div>
-  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz": Sqft Fabricados=Placas×56.44 · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Precios sugeridos=Costo×Sqft÷0.7 y ÷0.65.</div>
+  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz": Sqft Fabricados=Placas×56.44 · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Precios sugeridos=Costo×Sqft÷0.7 y ÷0.65. Pulgadas de corte = separación de piezas (guillotina) + perímetro de cada tarja capturada (2×L + 2×A por pieza).</div>
 </div>
 
 <script>
@@ -1203,16 +1203,24 @@ function renderCosteo(){
   const { res } = entry;
 
   const placas = res.sheetsCount;
-  let pulgadasCorte = 0;
+  let pulgadasSeparacion = 0;
   if (res.cutMode === 'guillotine'){
-    res.bins.forEach(bin => (bin.cuts || []).forEach(c => { pulgadasCorte += (c.to - c.from) / 25.4; }));
+    res.bins.forEach(bin => (bin.cuts || []).forEach(c => { pulgadasSeparacion += (c.to - c.from) / 25.4; }));
   }
+  let pulgadasTarjas = 0;
+  res.bins.forEach(bin => bin.placed.forEach(p => {
+    if (p.tarjaL > 0 && p.tarjaA > 0) pulgadasTarjas += 2 * (p.tarjaL + p.tarjaA) / 25.4;
+  }));
+  const pulgadasCorte = pulgadasSeparacion + pulgadasTarjas;
   const sqftProyecto = computeClientItems().filter(it => it.esCorte && it.d > 0 && it.w > 0).reduce((s, it) => s + it.sqft * it.cant, 0);
   const sqftFabricados = placas * 56.44;
   const optim = sqftFabricados > 0 ? (sqftProyecto / sqftFabricados) * 100 : 0;
 
   document.getElementById('c-placas').textContent = placas;
-  document.getElementById('c-pulgadas').textContent = res.cutMode === 'guillotine' ? Math.round(pulgadasCorte) : '— (modo libre/CNC)';
+  const pulgadasLabel = res.cutMode === 'guillotine'
+    ? `${Math.round(pulgadasCorte)}${pulgadasTarjas > 0 ? ' (' + Math.round(pulgadasSeparacion) + ' separación + ' + Math.round(pulgadasTarjas) + ' tarjas)' : ''}`
+    : (pulgadasTarjas > 0 ? `${Math.round(pulgadasTarjas)} (solo tarjas — separación es CNC libre)` : '— (modo libre/CNC)');
+  document.getElementById('c-pulgadas').textContent = pulgadasLabel;
   document.getElementById('c-sqftproyecto').textContent = sqftProyecto.toFixed(2);
   document.getElementById('c-sqftfab').textContent = sqftFabricados.toFixed(2);
   document.getElementById('c-optim').textContent = sqftFabricados > 0 ? optim.toFixed(1) + '%' : '—';
