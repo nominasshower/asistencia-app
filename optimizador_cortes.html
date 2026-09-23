@@ -178,7 +178,8 @@
 
 <div class="panel" id="cotizacionFinalPanel">
   <h2>Cotización final (para el cliente)</h2>
-  <button class="btn secondary small" onclick="printPanel('cotizacion')" style="margin-bottom:10px;">Imprimir / PDF esta cotización</button>
+  <button class="btn secondary small" onclick="printPanel('cotizacion')" style="margin-bottom:4px;">📄 Guardar como PDF / Imprimir</button>
+  <div class="sub" style="margin:0 0 10px;">Se abre el diálogo de impresión — en "Destino" elige <b>"Guardar como PDF"</b> para bajar el archivo y mandarlo por correo, o elige tu impresora si vas a imprimir directo.</div>
   <div id="cotizacionFinalWrap"></div>
 </div>
 
@@ -251,8 +252,9 @@
       <label>Ver diseño de lámina:</label>
       <select id="sizeSelector" onchange="renderSheetsForSelected()"></select>
     </div>
-    <button class="btn secondary" style="margin-top:18px;" onclick="printPanel('resultados')">Imprimir planos de corte / materiales (ingeniería)</button>
+    <button class="btn secondary" style="margin-top:18px;" onclick="printPanel('resultados')">📄 Guardar como PDF / Imprimir planos de corte</button>
   </div>
+  <div class="sub" style="margin:6px 0 0;">Se abre el diálogo de impresión — en "Destino" elige <b>"Guardar como PDF"</b> para bajarlo y mandarlo a planta, o elige tu impresora.</div>
   <div id="sheetsWrap" class="sheets-wrap" style="margin-top:16px;"></div>
   <div id="cutSeqWrap" style="margin-top:20px;"></div>
   <div id="reportWrap" style="margin-top:20px;"></div>
