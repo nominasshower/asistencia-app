@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS sku_articulos (
   sustancia_peligrosa boolean NOT NULL DEFAULT false,        -- requiere ficha técnica / hoja de seguridad
   origen              text NOT NULL DEFAULT 'HERRAMIENTA',   -- 'ODOO' = ya existía al sembrar; 'HERRAMIENTA' = generado aquí
   en_odoo             boolean NOT NULL DEFAULT false,        -- ya se capturó manualmente en Odoo
+  ficha_tecnica_url   text,                                  -- PDF ficha técnica / hoja de seguridad en Storage
   creado_por          text,
   notas               text,
   created_at          timestamptz DEFAULT now(),
@@ -38,17 +39,28 @@ ALTER TABLE sku_articulos ADD COLUMN IF NOT EXISTS tipo_producto       text NOT 
 ALTER TABLE sku_articulos ADD COLUMN IF NOT EXISTS precio_estandar     numeric;
 ALTER TABLE sku_articulos ADD COLUMN IF NOT EXISTS moneda              text DEFAULT 'MN';
 ALTER TABLE sku_articulos ADD COLUMN IF NOT EXISTS sustancia_peligrosa boolean NOT NULL DEFAULT false;
+ALTER TABLE sku_articulos ADD COLUMN IF NOT EXISTS ficha_tecnica_url   text;
+
+-- Bucket para PDFs de ficha técnica / hoja de seguridad (público de lectura, cualquiera puede subir).
+INSERT INTO storage.buckets (id, name, public)
+  VALUES ('sku-fichas', 'sku-fichas', true) ON CONFLICT (id) DO NOTHING;
+DROP POLICY IF EXISTS "leer fichas sku" ON storage.objects;
+CREATE POLICY "leer fichas sku" ON storage.objects FOR SELECT USING (bucket_id = 'sku-fichas');
+DROP POLICY IF EXISTS "subir fichas sku" ON storage.objects;
+CREATE POLICY "subir fichas sku" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'sku-fichas');
 
 -- Asigna el consecutivo de forma atómica (dos personas al mismo tiempo no pueden sacar el mismo SKU).
 -- p_numero NULL = siguiente número libre de la secuencia normal (< 1000);
 -- p_numero con valor = número específico (ej. códigos por medida como EM-03-3018), valida que esté libre.
 DROP FUNCTION IF EXISTS generar_sku(text, text, text, text, text, text, int);
+DROP FUNCTION IF EXISTS generar_sku(text, text, text, text, text, text, int, text, numeric, text, boolean);
 
 CREATE OR REPLACE FUNCTION generar_sku(
   p_codigo text, p_nombre text, p_um text, p_empresa text,
   p_creado_por text, p_notas text, p_numero int DEFAULT NULL,
   p_tipo_producto text DEFAULT 'ALMACENABLE', p_precio numeric DEFAULT NULL,
-  p_moneda text DEFAULT 'MN', p_peligrosa boolean DEFAULT false
+  p_moneda text DEFAULT 'MN', p_peligrosa boolean DEFAULT false,
+  p_ficha_url text DEFAULT NULL
 ) RETURNS sku_articulos
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -84,10 +96,10 @@ BEGIN
   END IF;
 
   INSERT INTO sku_articulos (sku, codigo, consecutivo, nombre, um, empresa, tipo_producto,
-                              precio_estandar, moneda, sustancia_peligrosa, origen, creado_por, notas)
+                              precio_estandar, moneda, sustancia_peligrosa, ficha_tecnica_url, origen, creado_por, notas)
   VALUES (p_codigo || '-' || lpad(n::text, 4, '0'), p_codigo, n, upper(trim(p_nombre)),
           nullif(trim(p_um), ''), nullif(trim(p_empresa), ''), p_tipo_producto,
-          p_precio, nullif(trim(p_moneda), ''), p_peligrosa, 'HERRAMIENTA',
+          p_precio, nullif(trim(p_moneda), ''), p_peligrosa, nullif(trim(p_ficha_url), ''), 'HERRAMIENTA',
           nullif(trim(p_creado_por), ''), nullif(trim(p_notas), ''))
   RETURNING * INTO r;
   RETURN r;
@@ -102,8 +114,11 @@ CREATE POLICY "leer sku_catalogo" ON sku_catalogo FOR SELECT USING (true);
 DROP POLICY IF EXISTS "leer sku_articulos" ON sku_articulos;
 CREATE POLICY "leer sku_articulos" ON sku_articulos FOR SELECT USING (true);
 DROP POLICY IF EXISTS "marcar sku_articulos" ON sku_articulos;
-CREATE POLICY "marcar sku_articulos" ON sku_articulos FOR UPDATE USING (origen = 'HERRAMIENTA') WITH CHECK (origen = 'HERRAMIENTA');
+DROP POLICY IF EXISTS "actualizar campos permitidos sku_articulos" ON sku_articulos;
+-- La fila que se puede tocar la restringe esta policy; QUÉ columna se puede tocar lo restringen los GRANT de abajo:
+-- 'en_odoo' solo en artículos generados aquí; 'ficha_tecnica_url' en cualquier artículo (incluidos los ya de Odoo).
+CREATE POLICY "actualizar campos permitidos sku_articulos" ON sku_articulos FOR UPDATE USING (true) WITH CHECK (true);
 
 REVOKE UPDATE ON sku_articulos FROM anon, authenticated;
-GRANT  UPDATE (en_odoo) ON sku_articulos TO anon, authenticated;
-GRANT  EXECUTE ON FUNCTION generar_sku(text, text, text, text, text, text, int, text, numeric, text, boolean) TO anon, authenticated;
+GRANT  UPDATE (en_odoo, ficha_tecnica_url) ON sku_articulos TO anon, authenticated;
+GRANT  EXECUTE ON FUNCTION generar_sku(text, text, text, text, text, text, int, text, numeric, text, boolean, text) TO anon, authenticated;

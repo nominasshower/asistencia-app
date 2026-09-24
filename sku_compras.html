@@ -130,6 +130,10 @@
         <label><input type="checkbox" id="fPeligrosa"> Sustancia peligrosa (requiere ficha técnica y hoja de seguridad)</label>
       </div>
       <div class="full">
+        <label for="fFicha">Ficha técnica / hoja de seguridad (PDF, opcional)</label>
+        <input type="file" id="fFicha" accept="application/pdf">
+      </div>
+      <div class="full">
         <label for="fNotas">Notas (opcional)</label>
         <input type="text" id="fNotas" placeholder="Proveedor, proyecto, medida…">
       </div>
@@ -167,7 +171,7 @@
     <div class="muted" id="qCount" style="font-size:12px; margin-bottom:8px"></div>
     <div class="scroll">
       <table>
-        <thead><tr><th>SKU</th><th>Nombre</th><th>UM</th><th>Tipo</th><th>Precio</th><th>Empresa</th><th>Origen</th><th>¿En Odoo?</th><th>Alta</th></tr></thead>
+        <thead><tr><th>SKU</th><th>Nombre</th><th>UM</th><th>Tipo</th><th>Precio</th><th>Empresa</th><th>Ficha</th><th>Origen</th><th>¿En Odoo?</th><th>Alta</th></tr></thead>
         <tbody id="qBody"></tbody>
       </table>
     </div>
@@ -178,6 +182,17 @@
 const SUP_URL = 'https://xzwlbrirzfogbqhywtvj.supabase.co';
 const SUP_KEY = 'sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G';
 const SUP_HEADERS = { apikey: SUP_KEY, Authorization: 'Bearer ' + SUP_KEY };
+const FICHAS_BUCKET = 'sku-fichas';
+
+async function subirFichaPdf(file, codigo){
+  const nombre = file.name.replace(/[^A-Za-z0-9._-]/g, '_');
+  const path = `${codigo}/${Date.now()}_${nombre}`;
+  const r = await fetch(`${SUP_URL}/storage/v1/object/${FICHAS_BUCKET}/${path}`, {
+    method: 'POST', headers: { ...SUP_HEADERS, 'Content-Type': file.type || 'application/pdf' }, body: file
+  });
+  if (!r.ok) throw new Error('No se pudo subir el PDF: ' + await r.text());
+  return `${SUP_URL}/storage/v1/object/public/${FICHAS_BUCKET}/${path}`;
+}
 
 let catalogo = [];
 let articulos = [];
@@ -339,9 +354,13 @@ $('btnGenerar').addEventListener('click', async () => {
 
   const por = $('fPor').value.trim();
   try { localStorage.setItem('sku_creado_por', por); } catch (e) {}
+  const fichaFile = $('fFicha').files[0];
   $('btnGenerar').disabled = true;
-  msg.style.color = ''; msg.textContent = 'Generando…';
+  msg.style.color = ''; msg.textContent = fichaFile ? 'Subiendo PDF…' : 'Generando…';
   try {
+    let fichaUrl = null;
+    if (fichaFile) fichaUrl = await subirFichaPdf(fichaFile, sel.codigo);
+    msg.textContent = 'Generando…';
     const r = await fetch(`${SUP_URL}/rest/v1/rpc/generar_sku`, {
       method: 'POST',
       headers: { ...SUP_HEADERS, 'Content-Type': 'application/json' },
@@ -349,7 +368,7 @@ $('btnGenerar').addEventListener('click', async () => {
         p_codigo: sel.codigo, p_nombre: nombre, p_um: $('fUm').value, p_empresa: $('fEmpresa').value,
         p_creado_por: por, p_notas: $('fNotas').value.trim(), p_numero: numero,
         p_tipo_producto: $('fTipo').value, p_precio: $('fPrecio').value ? parseFloat($('fPrecio').value) : null,
-        p_moneda: $('fMoneda').value, p_peligrosa: $('fPeligrosa').checked
+        p_moneda: $('fMoneda').value, p_peligrosa: $('fPeligrosa').checked, p_ficha_url: fichaUrl
       })
     });
     const data = await r.json();
@@ -358,7 +377,7 @@ $('btnGenerar').addEventListener('click', async () => {
     msg.textContent = '';
     mostrarResultado(data);
     $('fNombre').value = ''; $('fNotas').value = ''; $('fNumero').value = ''; $('fPrecio').value = '';
-    $('fPeligrosa').checked = false; $('dupBox').innerHTML = '';
+    $('fPeligrosa').checked = false; $('fFicha').value = ''; $('dupBox').innerHTML = '';
     $('sugerido').textContent = siguienteSugerido(sel.codigo);
     pintarCodigos(); pintarFamilias();
   } catch (e) {
@@ -378,7 +397,8 @@ function mostrarResultado(a){
   $('resultado').innerHTML = `<div class="res">
     <div class="muted" style="font-size:12px">SKU generado</div>
     <div class="row"><span class="sku">${esc(a.sku)}</span><button class="btn sm" data-copy="${esc(a.sku)}">Copiar</button></div>
-    ${a.sustancia_peligrosa ? `<div class="warn" style="margin-top:10px">⚠ Marcado como sustancia peligrosa: sube ficha técnica y hoja de seguridad al darlo de alta en Odoo.</div>` : ''}
+    ${a.sustancia_peligrosa ? `<div class="warn" style="margin-top:10px">⚠ Marcado como sustancia peligrosa: sube ficha técnica y hoja de seguridad al darlo de alta en Odoo.
+      ${a.ficha_tecnica_url ? `<br><a href="${esc(a.ficha_tecnica_url)}" target="_blank" style="color:inherit">📄 Ver PDF adjunto</a>` : ' No adjuntaste PDF; agrégalo desde la pestaña Buscar/Historial cuando lo tengas.'}</div>` : ''}
     <div class="muted" style="font-size:12px; margin-top:10px">Datos para capturar en Odoo:</div>
     <div class="kv">${campos.map(([k, v]) => `<span>${k}</span><span>${esc(v)}</span>${v && k !== 'Empresa' ? `<button class="btn ghost sm" data-copy="${esc(v)}">Copiar</button>` : '<span></span>'}`).join('')}</div>
   </div>`;
@@ -414,6 +434,9 @@ function pintarLista(){
     <td>${esc(a.um || '')}</td><td style="font-size:12px">${esc(a.tipo_producto || '')}</td>
     <td style="font-size:12px">${a.precio_estandar != null ? esc(a.precio_estandar) + ' ' + esc(a.moneda || '') : ''}</td>
     <td style="font-size:12px">${esc(a.empresa || '')}</td>
+    <td>${a.ficha_tecnica_url
+        ? `<a href="${esc(a.ficha_tecnica_url)}" target="_blank" class="tag" style="color:var(--accent)">📄 Ver PDF</a>`
+        : `<label class="btn ghost sm" style="cursor:pointer; display:inline-block">Adjuntar<input type="file" accept="application/pdf" data-ficha="${a.id}" data-codigo="${esc(a.codigo)}" style="display:none"></label>`}</td>
     <td>${a.origen === 'HERRAMIENTA' ? '<span class="tag new">Generado aquí</span>' : '<span class="tag">Odoo</span>'}</td>
     <td>${a.origen === 'HERRAMIENTA' ? `<input type="checkbox" data-odoo="${a.id}" ${a.en_odoo ? 'checked' : ''}>` : '✓'}</td>
     <td style="font-size:12px" class="muted">${a.origen === 'HERRAMIENTA' ? esc((a.creado_por || '') + ' ' + new Date(a.created_at).toLocaleDateString('es-MX')) : ''}</td>
@@ -424,19 +447,40 @@ $('qBuscar').addEventListener('input', () => { clearTimeout(qTimer); qTimer = se
 $('qOrigen').addEventListener('change', pintarLista);
 
 $('qBody').addEventListener('change', async e => {
-  const cb = e.target.closest('[data-odoo]'); if (!cb) return;
-  const a = articulos.find(x => x.id == cb.dataset.odoo);
-  cb.disabled = true;
+  const cb = e.target.closest('[data-odoo]');
+  if (cb){
+    const a = articulos.find(x => x.id == cb.dataset.odoo);
+    cb.disabled = true;
+    try {
+      const r = await fetch(`${SUP_URL}/rest/v1/sku_articulos?id=eq.${a.id}`, {
+        method: 'PATCH', headers: { ...SUP_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ en_odoo: cb.checked })
+      });
+      if (!r.ok) throw new Error(await r.text());
+      a.en_odoo = cb.checked;
+    } catch (err) {
+      cb.checked = !cb.checked; alert('No se pudo guardar: ' + err.message);
+    } finally { cb.disabled = false; }
+    return;
+  }
+  const fi = e.target.closest('[data-ficha]'); if (!fi) return;
+  const file = fi.files[0]; if (!file) return;
+  const a = articulos.find(x => x.id == fi.dataset.ficha);
+  const label = fi.closest('label'); const original = label.firstChild.textContent;
+  label.firstChild.textContent = 'Subiendo…'; fi.disabled = true;
   try {
+    const url = await subirFichaPdf(file, fi.dataset.codigo);
     const r = await fetch(`${SUP_URL}/rest/v1/sku_articulos?id=eq.${a.id}`, {
       method: 'PATCH', headers: { ...SUP_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ en_odoo: cb.checked })
+      body: JSON.stringify({ ficha_tecnica_url: url })
     });
     if (!r.ok) throw new Error(await r.text());
-    a.en_odoo = cb.checked;
+    a.ficha_tecnica_url = url;
+    pintarLista();
   } catch (err) {
-    cb.checked = !cb.checked; alert('No se pudo guardar: ' + err.message);
-  } finally { cb.disabled = false; }
+    label.firstChild.textContent = original; fi.disabled = false;
+    alert('No se pudo subir el PDF: ' + err.message);
+  }
 });
 
 $('btnExport').addEventListener('click', () => {
@@ -444,11 +488,11 @@ $('btnExport').addEventListener('click', () => {
   if (!pend.length){ alert('No hay artículos pendientes de dar de alta en Odoo.'); return; }
   const cat = Object.fromEntries(catalogo.map(c => [c.codigo, c.categoria_odoo || '']));
   const rows = [
-    ['nombre del producto', 'codigo interno', 'unidad de medida', 'unidad de compra', 'Tipo de producto', 'Se compra?', 'Se vende?', 'Costo', 'Moneda', 'Impuestos', 'Categoría', 'Empresa', 'Sustancia peligrosa'],
-    ['name', 'default_code', 'uom_id', 'uom_po_id', 'detailed_type', 'purchase_ok', 'sale_ok', 'standard_price', 'moneda', 'supplier_taxes_id', 'categ_id', 'company_id', ''],
+    ['nombre del producto', 'codigo interno', 'unidad de medida', 'unidad de compra', 'Tipo de producto', 'Se compra?', 'Se vende?', 'Costo', 'Moneda', 'Impuestos', 'Categoría', 'Empresa', 'Sustancia peligrosa', 'Ficha técnica (PDF)'],
+    ['name', 'default_code', 'uom_id', 'uom_po_id', 'detailed_type', 'purchase_ok', 'sale_ok', 'standard_price', 'moneda', 'supplier_taxes_id', 'categ_id', 'company_id', '', ''],
     ...pend.map(a => [a.nombre, a.sku, a.um || '', a.um || '', a.tipo_producto || 'ALMACENABLE', 'TRUE', 'FALSE',
                        a.precio_estandar ?? '', a.moneda || '', '', cat[a.codigo], a.empresa === 'COMPARTIDO' ? '' : a.empresa,
-                       a.sustancia_peligrosa ? 'SI' : ''])
+                       a.sustancia_peligrosa ? 'SI' : '', a.ficha_tecnica_url || ''])
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Plantilla Suministro');
