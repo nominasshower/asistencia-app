@@ -13,28 +13,42 @@ CREATE TABLE IF NOT EXISTS sku_catalogo (
 );
 
 CREATE TABLE IF NOT EXISTS sku_articulos (
-  id           bigserial PRIMARY KEY,
-  sku          text NOT NULL UNIQUE,
-  codigo       text NOT NULL REFERENCES sku_catalogo(codigo),
-  consecutivo  int  NOT NULL,
-  nombre       text NOT NULL,
-  um           text,
-  empresa      text,
-  origen       text NOT NULL DEFAULT 'HERRAMIENTA',   -- 'ODOO' = ya existía al sembrar; 'HERRAMIENTA' = generado aquí
-  en_odoo      boolean NOT NULL DEFAULT false,         -- ya se capturó manualmente en Odoo
-  creado_por   text,
-  notas        text,
-  created_at   timestamptz DEFAULT now(),
+  id                  bigserial PRIMARY KEY,
+  sku                 text NOT NULL UNIQUE,
+  codigo              text NOT NULL REFERENCES sku_catalogo(codigo),
+  consecutivo         int  NOT NULL,
+  nombre              text NOT NULL,
+  um                  text,
+  empresa             text,
+  tipo_producto       text NOT NULL DEFAULT 'ALMACENABLE',  -- ALMACENABLE | CONSUMIBLE | SERVICIO
+  precio_estandar     numeric,
+  moneda              text DEFAULT 'MN',                    -- MN | USD
+  sustancia_peligrosa boolean NOT NULL DEFAULT false,        -- requiere ficha técnica / hoja de seguridad
+  origen              text NOT NULL DEFAULT 'HERRAMIENTA',   -- 'ODOO' = ya existía al sembrar; 'HERRAMIENTA' = generado aquí
+  en_odoo             boolean NOT NULL DEFAULT false,        -- ya se capturó manualmente en Odoo
+  creado_por          text,
+  notas               text,
+  created_at          timestamptz DEFAULT now(),
   UNIQUE (codigo, consecutivo)
 );
 CREATE INDEX IF NOT EXISTS sku_articulos_codigo_idx ON sku_articulos (codigo);
 
+-- Si la tabla ya existía de una versión anterior de este script:
+ALTER TABLE sku_articulos ADD COLUMN IF NOT EXISTS tipo_producto       text NOT NULL DEFAULT 'ALMACENABLE';
+ALTER TABLE sku_articulos ADD COLUMN IF NOT EXISTS precio_estandar     numeric;
+ALTER TABLE sku_articulos ADD COLUMN IF NOT EXISTS moneda              text DEFAULT 'MN';
+ALTER TABLE sku_articulos ADD COLUMN IF NOT EXISTS sustancia_peligrosa boolean NOT NULL DEFAULT false;
+
 -- Asigna el consecutivo de forma atómica (dos personas al mismo tiempo no pueden sacar el mismo SKU).
 -- p_numero NULL = siguiente número libre de la secuencia normal (< 1000);
 -- p_numero con valor = número específico (ej. códigos por medida como EM-03-3018), valida que esté libre.
+DROP FUNCTION IF EXISTS generar_sku(text, text, text, text, text, text, int);
+
 CREATE OR REPLACE FUNCTION generar_sku(
   p_codigo text, p_nombre text, p_um text, p_empresa text,
-  p_creado_por text, p_notas text, p_numero int DEFAULT NULL
+  p_creado_por text, p_notas text, p_numero int DEFAULT NULL,
+  p_tipo_producto text DEFAULT 'ALMACENABLE', p_precio numeric DEFAULT NULL,
+  p_moneda text DEFAULT 'MN', p_peligrosa boolean DEFAULT false
 ) RETURNS sku_articulos
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -46,6 +60,9 @@ BEGIN
   END IF;
   IF coalesce(trim(p_nombre), '') = '' THEN
     RAISE EXCEPTION 'Falta el nombre del artículo';
+  END IF;
+  IF p_tipo_producto NOT IN ('ALMACENABLE', 'CONSUMIBLE', 'SERVICIO') THEN
+    RAISE EXCEPTION 'Tipo de producto inválido: %', p_tipo_producto;
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext('sku:' || p_codigo));
@@ -66,9 +83,11 @@ BEGIN
     END LOOP;
   END IF;
 
-  INSERT INTO sku_articulos (sku, codigo, consecutivo, nombre, um, empresa, origen, creado_por, notas)
+  INSERT INTO sku_articulos (sku, codigo, consecutivo, nombre, um, empresa, tipo_producto,
+                              precio_estandar, moneda, sustancia_peligrosa, origen, creado_por, notas)
   VALUES (p_codigo || '-' || lpad(n::text, 4, '0'), p_codigo, n, upper(trim(p_nombre)),
-          nullif(trim(p_um), ''), nullif(trim(p_empresa), ''), 'HERRAMIENTA',
+          nullif(trim(p_um), ''), nullif(trim(p_empresa), ''), p_tipo_producto,
+          p_precio, nullif(trim(p_moneda), ''), p_peligrosa, 'HERRAMIENTA',
           nullif(trim(p_creado_por), ''), nullif(trim(p_notas), ''))
   RETURNING * INTO r;
   RETURN r;
@@ -87,4 +106,4 @@ CREATE POLICY "marcar sku_articulos" ON sku_articulos FOR UPDATE USING (origen =
 
 REVOKE UPDATE ON sku_articulos FROM anon, authenticated;
 GRANT  UPDATE (en_odoo) ON sku_articulos TO anon, authenticated;
-GRANT  EXECUTE ON FUNCTION generar_sku(text, text, text, text, text, text, int) TO anon, authenticated;
+GRANT  EXECUTE ON FUNCTION generar_sku(text, text, text, text, text, text, int, text, numeric, text, boolean) TO anon, authenticated;

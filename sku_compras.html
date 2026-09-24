@@ -107,8 +107,27 @@
         </select>
       </div>
       <div>
+        <label for="fTipo">Tipo de producto</label>
+        <select id="fTipo">
+          <option value="ALMACENABLE">Almacenable</option>
+          <option value="CONSUMIBLE">Consumible</option>
+          <option value="SERVICIO">Servicio</option>
+        </select>
+      </div>
+      <div>
+        <label for="fPrecio">Precio estándar (opcional)</label>
+        <input type="number" id="fPrecio" step="0.01" min="0" placeholder="0.00">
+      </div>
+      <div>
+        <label for="fMoneda">Moneda</label>
+        <select id="fMoneda"><option value="MN">MN (pesos)</option><option value="USD">USD</option></select>
+      </div>
+      <div>
         <label for="fPor">Quién lo da de alta</label>
         <input type="text" id="fPor" placeholder="Tu nombre">
+      </div>
+      <div class="full">
+        <label><input type="checkbox" id="fPeligrosa"> Sustancia peligrosa (requiere ficha técnica y hoja de seguridad)</label>
       </div>
       <div class="full">
         <label for="fNotas">Notas (opcional)</label>
@@ -148,7 +167,7 @@
     <div class="muted" id="qCount" style="font-size:12px; margin-bottom:8px"></div>
     <div class="scroll">
       <table>
-        <thead><tr><th>SKU</th><th>Nombre</th><th>UM</th><th>Empresa</th><th>Origen</th><th>¿En Odoo?</th><th>Alta</th></tr></thead>
+        <thead><tr><th>SKU</th><th>Nombre</th><th>UM</th><th>Tipo</th><th>Precio</th><th>Empresa</th><th>Origen</th><th>¿En Odoo?</th><th>Alta</th></tr></thead>
         <tbody id="qBody"></tbody>
       </table>
     </div>
@@ -235,10 +254,17 @@ function siguienteSugerido(codigo){
 
 function pintarDatos(){
   const c = catalogo.find(x => x.codigo === sel.codigo);
+  const arts = delCodigo(c.codigo);
+  const peligrosos = arts.filter(a => a.sustancia_peligrosa);
   $('ruta').innerHTML = `${esc(c.familia)} › ${esc(c.subfamilia)} › <b class="mono">${esc(c.codigo)}</b>` +
-    (c.categoria_odoo ? `<br>Categoría en Odoo: <b>${esc(c.categoria_odoo)}</b>` : '');
+    (c.categoria_odoo ? `<br>Categoría en Odoo: <b>${esc(c.categoria_odoo)}</b>` : '') +
+    (peligrosos.length ? `<br><span style="color:var(--accent2)">⚠ ${peligrosos.length} artículo(s) de este código son sustancia peligrosa — si el nuevo también lo es, marca la casilla (requiere ficha técnica y hoja de seguridad).</span>` : '');
   $('sugerido').textContent = siguienteSugerido(c.codigo);
   $('manualPref').textContent = c.codigo + '-';
+  const tipos = arts.map(a => a.tipo_producto).filter(Boolean);
+  if (tipos.length) $('fTipo').value = tipos.sort((a,b) => tipos.filter(t=>t===b).length - tipos.filter(t=>t===a).length)[0];
+  const monedas = arts.map(a => a.moneda).filter(Boolean);
+  if (monedas.length) $('fMoneda').value = monedas.filter(m => m === 'USD').length > monedas.length / 2 ? 'USD' : 'MN';
   revisarDuplicados();
 }
 
@@ -321,7 +347,9 @@ $('btnGenerar').addEventListener('click', async () => {
       headers: { ...SUP_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         p_codigo: sel.codigo, p_nombre: nombre, p_um: $('fUm').value, p_empresa: $('fEmpresa').value,
-        p_creado_por: por, p_notas: $('fNotas').value.trim(), p_numero: numero
+        p_creado_por: por, p_notas: $('fNotas').value.trim(), p_numero: numero,
+        p_tipo_producto: $('fTipo').value, p_precio: $('fPrecio').value ? parseFloat($('fPrecio').value) : null,
+        p_moneda: $('fMoneda').value, p_peligrosa: $('fPeligrosa').checked
       })
     });
     const data = await r.json();
@@ -329,7 +357,8 @@ $('btnGenerar').addEventListener('click', async () => {
     articulos.push(data);
     msg.textContent = '';
     mostrarResultado(data);
-    $('fNombre').value = ''; $('fNotas').value = ''; $('fNumero').value = ''; $('dupBox').innerHTML = '';
+    $('fNombre').value = ''; $('fNotas').value = ''; $('fNumero').value = ''; $('fPrecio').value = '';
+    $('fPeligrosa').checked = false; $('dupBox').innerHTML = '';
     $('sugerido').textContent = siguienteSugerido(sel.codigo);
     pintarCodigos(); pintarFamilias();
   } catch (e) {
@@ -343,11 +372,13 @@ function mostrarResultado(a){
   const c = catalogo.find(x => x.codigo === a.codigo);
   const campos = [
     ['Referencia interna', a.sku], ['Nombre', a.nombre], ['Unidad de medida', a.um || ''],
+    ['Tipo de producto', a.tipo_producto], ['Precio estándar', a.precio_estandar != null ? `${a.precio_estandar} ${a.moneda || ''}` : ''],
     ['Categoría', c?.categoria_odoo || ''], ['Empresa', a.empresa === 'COMPARTIDO' ? '(dejar vacío = todas)' : a.empresa]
   ];
   $('resultado').innerHTML = `<div class="res">
     <div class="muted" style="font-size:12px">SKU generado</div>
     <div class="row"><span class="sku">${esc(a.sku)}</span><button class="btn sm" data-copy="${esc(a.sku)}">Copiar</button></div>
+    ${a.sustancia_peligrosa ? `<div class="warn" style="margin-top:10px">⚠ Marcado como sustancia peligrosa: sube ficha técnica y hoja de seguridad al darlo de alta en Odoo.</div>` : ''}
     <div class="muted" style="font-size:12px; margin-top:10px">Datos para capturar en Odoo:</div>
     <div class="kv">${campos.map(([k, v]) => `<span>${k}</span><span>${esc(v)}</span>${v && k !== 'Empresa' ? `<button class="btn ghost sm" data-copy="${esc(v)}">Copiar</button>` : '<span></span>'}`).join('')}</div>
   </div>`;
@@ -379,8 +410,10 @@ function pintarLista(){
   const rows = filtrados();
   $('qCount').textContent = `${rows.length} de ${articulos.length} artículos` + (rows.length > 300 ? ' (mostrando 300, afina la búsqueda)' : '');
   $('qBody').innerHTML = rows.slice(0, 300).map(a => `<tr>
-    <td class="mono">${esc(a.sku)}</td><td>${esc(a.nombre)}${a.notas ? `<div class="muted" style="font-size:11px">${esc(a.notas)}</div>` : ''}</td>
-    <td>${esc(a.um || '')}</td><td style="font-size:12px">${esc(a.empresa || '')}</td>
+    <td class="mono">${esc(a.sku)}</td><td>${esc(a.nombre)}${a.sustancia_peligrosa ? ' <span class="tag" style="color:var(--accent2)">⚠ peligroso</span>' : ''}${a.notas ? `<div class="muted" style="font-size:11px">${esc(a.notas)}</div>` : ''}</td>
+    <td>${esc(a.um || '')}</td><td style="font-size:12px">${esc(a.tipo_producto || '')}</td>
+    <td style="font-size:12px">${a.precio_estandar != null ? esc(a.precio_estandar) + ' ' + esc(a.moneda || '') : ''}</td>
+    <td style="font-size:12px">${esc(a.empresa || '')}</td>
     <td>${a.origen === 'HERRAMIENTA' ? '<span class="tag new">Generado aquí</span>' : '<span class="tag">Odoo</span>'}</td>
     <td>${a.origen === 'HERRAMIENTA' ? `<input type="checkbox" data-odoo="${a.id}" ${a.en_odoo ? 'checked' : ''}>` : '✓'}</td>
     <td style="font-size:12px" class="muted">${a.origen === 'HERRAMIENTA' ? esc((a.creado_por || '') + ' ' + new Date(a.created_at).toLocaleDateString('es-MX')) : ''}</td>
@@ -411,9 +444,11 @@ $('btnExport').addEventListener('click', () => {
   if (!pend.length){ alert('No hay artículos pendientes de dar de alta en Odoo.'); return; }
   const cat = Object.fromEntries(catalogo.map(c => [c.codigo, c.categoria_odoo || '']));
   const rows = [
-    ['nombre del producto', 'codigo interno', 'unidad de medida', 'unidad de compra', 'Tipo de producto', 'Se compra?', 'Se vende?', 'Costo', 'Impuestos', 'Categoría', 'Empresa'],
-    ['name', 'default_code', 'uom_id', 'uom_po_id', 'detailed_type', 'purchase_ok', 'sale_ok', 'standard_price', 'supplier_taxes_id', 'categ_id', 'company_id'],
-    ...pend.map(a => [a.nombre, a.sku, a.um || '', a.um || '', 'product', 'TRUE', 'FALSE', '', '', cat[a.codigo], a.empresa === 'COMPARTIDO' ? '' : a.empresa])
+    ['nombre del producto', 'codigo interno', 'unidad de medida', 'unidad de compra', 'Tipo de producto', 'Se compra?', 'Se vende?', 'Costo', 'Moneda', 'Impuestos', 'Categoría', 'Empresa', 'Sustancia peligrosa'],
+    ['name', 'default_code', 'uom_id', 'uom_po_id', 'detailed_type', 'purchase_ok', 'sale_ok', 'standard_price', 'moneda', 'supplier_taxes_id', 'categ_id', 'company_id', ''],
+    ...pend.map(a => [a.nombre, a.sku, a.um || '', a.um || '', a.tipo_producto || 'ALMACENABLE', 'TRUE', 'FALSE',
+                       a.precio_estandar ?? '', a.moneda || '', '', cat[a.codigo], a.empresa === 'COMPARTIDO' ? '' : a.empresa,
+                       a.sustancia_peligrosa ? 'SI' : ''])
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Plantilla Suministro');
