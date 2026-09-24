@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador SKU Compras</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#1a2530; --panel2:#20303d; --border:#2c3e4c;
+    --text:#e8eef2; --muted:#8fa3b0; --accent:#3fb8af; --accent2:#f2a154;
+    --danger:#e06565; --good:#4caf7d;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); padding:24px;}
+  @media(max-width:600px){body{padding:16px;}}
+  h1{font-size:22px; margin:0 0 4px;}
+  h2{font-size:15px; margin:0 0 12px; color:var(--accent); display:flex; align-items:center; gap:8px;}
+  .num{display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--accent); color:#062421; font-size:12px; font-weight:700; align-items:center; justify-content:center;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:20px;}
+  .tabs{display:flex; gap:6px; margin-bottom:18px; flex-wrap:wrap;}
+  .tab{background:var(--panel); border:1px solid var(--border); color:var(--muted); padding:8px 14px; border-radius:8px; cursor:pointer; font-size:13px;}
+  .tab.on{color:var(--text); border-color:var(--accent);}
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:16px;}
+  .panel.off{opacity:.45; pointer-events:none;}
+  .chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{background:var(--panel2); border:1px solid var(--border); color:var(--text); padding:9px 13px; border-radius:8px; cursor:pointer; font-size:13px; text-align:left;}
+  .chip:hover{border-color:var(--muted);}
+  .chip.on{border-color:var(--accent); background:#173a38;}
+  .chip small{display:block; color:var(--muted); font-size:11px; margin-top:2px;}
+  .codes{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:8px;}
+  .codes .chip{width:100%;}
+  .codes .chip b{font-family:Consolas,monospace; font-size:14px;}
+  .codes .ej{display:block; color:var(--muted); font-size:11px; margin-top:4px; line-height:1.4;}
+  label{font-size:12px; color:var(--muted); display:block; margin-bottom:4px;}
+  input[type=text], input[type=number], select, textarea{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:8px 10px; border-radius:6px; font-size:14px; width:100%; font-family:inherit;
+  }
+  .form{display:grid; grid-template-columns:2fr 1fr 1fr; gap:12px;}
+  .form .full{grid-column:1/-1;}
+  @media(max-width:800px){.form{grid-template-columns:1fr;}}
+  .btn{background:var(--accent); border:none; color:#062421; font-weight:600; padding:10px 18px; border-radius:8px; cursor:pointer; font-size:14px;}
+  .btn:disabled{opacity:.5; cursor:not-allowed;}
+  .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--text); font-weight:500;}
+  .btn.sm{padding:5px 10px; font-size:12px;}
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .msg{font-size:13px; margin-top:10px; min-height:18px;}
+  .ruta{font-size:13px; color:var(--muted); margin-bottom:12px;}
+  .ruta b{color:var(--text);}
+  .warn{background:#3a2c17; border:1px solid #6b4f22; color:#f5d6a8; border-radius:8px; padding:10px 12px; font-size:13px; margin-top:10px;}
+  .warn ul{margin:6px 0 0; padding-left:18px;}
+  .res{background:#123330; border:1px solid var(--accent); border-radius:10px; padding:18px; margin-top:14px;}
+  .res .sku{font-family:Consolas,monospace; font-size:34px; font-weight:700; letter-spacing:.02em;}
+  .kv{display:grid; grid-template-columns:auto 1fr auto; gap:6px 12px; align-items:center; font-size:13px; margin-top:12px;}
+  .kv span:nth-child(3n+1){color:var(--muted);}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:left; color:var(--muted); font-weight:500; padding:6px; border-bottom:1px solid var(--border); font-size:11px; text-transform:uppercase; letter-spacing:.03em;}
+  td{padding:6px; border-bottom:1px solid var(--border); vertical-align:top;}
+  td.mono{font-family:Consolas,monospace; white-space:nowrap;}
+  .tag{font-size:11px; padding:2px 6px; border-radius:4px; background:var(--panel2); color:var(--muted); white-space:nowrap;}
+  .tag.new{background:#173a38; color:var(--accent);}
+  .scroll{overflow-x:auto;}
+  .muted{color:var(--muted);}
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+<h1>Generador de SKU de Compras</h1>
+<div class="sub">Elige familia, subfamilia y código, escribe el nombre y te da el siguiente SKU libre. Luego lo das de alta tú en Odoo.</div>
+
+<div class="tabs">
+  <button class="tab on" data-tab="nuevo">Nuevo SKU</button>
+  <button class="tab" data-tab="lista">Buscar / Historial</button>
+</div>
+
+<div id="loadMsg" class="msg muted">Cargando catálogo…</div>
+
+<section id="tab-nuevo" class="hidden">
+  <div class="panel" id="pFam"><h2><span class="num">1</span>Familia</h2><div class="chips" id="famChips"></div></div>
+  <div class="panel off" id="pSub"><h2><span class="num">2</span>Subfamilia</h2><div class="chips" id="subChips"></div></div>
+  <div class="panel off" id="pCod"><h2><span class="num">3</span>Código</h2><div class="codes" id="codChips"></div></div>
+  <div class="panel off" id="pDatos">
+    <h2><span class="num">4</span>Datos del artículo</h2>
+    <div class="ruta" id="ruta"></div>
+    <div class="form">
+      <div class="full">
+        <label for="fNombre">Nombre del artículo *</label>
+        <input type="text" id="fNombre" placeholder="Ej. RESINA POLIESTER 33540" autocomplete="off">
+      </div>
+      <div>
+        <label for="fUm">Unidad de medida (como en Odoo)</label>
+        <select id="fUm">
+          <option>Units</option><option>kg</option><option>m</option><option>L</option>
+          <option>PAR</option><option>gal (US)</option><option>PAQ</option><option>MIL</option>
+          <option>ft</option><option>Service Unit</option>
+        </select>
+      </div>
+      <div>
+        <label for="fEmpresa">Empresa</label>
+        <select id="fEmpresa">
+          <option value="COMPARTIDO">Compartido (todas)</option>
+          <option>SHOWER WALLS</option>
+          <option>MODULAR VANITY TOPS SA DE CV</option>
+          <option>MODUL-WOODS</option>
+          <option>KUARTZ SURFACES AND KITCHENS SA DE CV</option>
+        </select>
+      </div>
+      <div>
+        <label for="fPor">Quién lo da de alta</label>
+        <input type="text" id="fPor" placeholder="Tu nombre">
+      </div>
+      <div class="full">
+        <label for="fNotas">Notas (opcional)</label>
+        <input type="text" id="fNotas" placeholder="Proveedor, proyecto, medida…">
+      </div>
+      <div class="full">
+        <label><input type="checkbox" id="fManual"> Usar un número específico en vez del siguiente consecutivo</label>
+        <div id="manualBox" class="hidden row" style="margin-top:6px">
+          <span class="mono" id="manualPref"></span>
+          <input type="number" id="fNumero" min="1" max="9999" style="width:120px" placeholder="3018">
+          <span class="muted" style="font-size:12px">Para códigos que numeran por medida (ej. EM-03-3018 = caja 18x30).</span>
+        </div>
+      </div>
+    </div>
+    <div id="dupBox"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="btnGenerar">Generar SKU</button>
+      <span class="muted" style="font-size:13px">Siguiente sugerido: <b class="mono" id="sugerido">—</b></span>
+    </div>
+    <div class="msg" id="genMsg"></div>
+    <div id="resultado"></div>
+  </div>
+</section>
+
+<section id="tab-lista" class="hidden">
+  <div class="panel">
+    <div class="row" style="margin-bottom:12px">
+      <input type="text" id="qBuscar" placeholder="Buscar por SKU o nombre…" style="flex:1; min-width:200px">
+      <select id="qOrigen" style="width:auto">
+        <option value="">Todos</option>
+        <option value="HERRAMIENTA">Generados aquí</option>
+        <option value="PENDIENTE">Pendientes de dar de alta en Odoo</option>
+        <option value="ODOO">Ya existían en Odoo</option>
+      </select>
+      <button class="btn ghost" id="btnExport">Exportar pendientes (plantilla Odoo)</button>
+    </div>
+    <div class="muted" id="qCount" style="font-size:12px; margin-bottom:8px"></div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>SKU</th><th>Nombre</th><th>UM</th><th>Empresa</th><th>Origen</th><th>¿En Odoo?</th><th>Alta</th></tr></thead>
+        <tbody id="qBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<script>
+const SUP_URL = 'https://xzwlbrirzfogbqhywtvj.supabase.co';
+const SUP_KEY = 'sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G';
+const SUP_HEADERS = { apikey: SUP_KEY, Authorization: 'Bearer ' + SUP_KEY };
+
+let catalogo = [];
+let articulos = [];
+const sel = { familia: null, subfamilia: null, codigo: null };
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]+/g, ' ').trim();
+const pad4 = n => String(n).padStart(4, '0');
+
+async function supGet(path){
+  const out = [];
+  for (let from = 0; ; from += 1000){
+    const r = await fetch(`${SUP_URL}/rest/v1/${path}`, { headers: { ...SUP_HEADERS, Range: `${from}-${from + 999}` } });
+    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    const rows = await r.json();
+    out.push(...rows);
+    if (rows.length < 1000) return out;
+  }
+}
+
+async function cargar(){
+  try {
+    [catalogo, articulos] = await Promise.all([
+      supGet('sku_catalogo?select=*&activo=eq.true&order=orden.asc'),
+      supGet('sku_articulos?select=*&order=id.asc')
+    ]);
+    $('loadMsg').classList.add('hidden');
+    $('tab-nuevo').classList.remove('hidden');
+    pintarFamilias();
+  } catch (e) {
+    $('loadMsg').style.color = 'var(--danger)';
+    $('loadMsg').textContent = 'No se pudo cargar el catálogo desde Supabase: ' + e.message;
+  }
+}
+
+function uniq(arr){ return [...new Set(arr)]; }
+function delCodigo(c){ return articulos.filter(a => a.codigo === c); }
+
+function pintarFamilias(){
+  const fams = uniq(catalogo.map(c => c.familia));
+  $('famChips').innerHTML = fams.map(f => {
+    const n = catalogo.filter(c => c.familia === f).reduce((s, c) => s + delCodigo(c.codigo).length, 0);
+    return `<button class="chip${sel.familia === f ? ' on' : ''}" data-f="${esc(f)}">${esc(f)}<small>${n} artículos</small></button>`;
+  }).join('');
+}
+
+function pintarSubfamilias(){
+  const subs = uniq(catalogo.filter(c => c.familia === sel.familia).map(c => c.subfamilia));
+  $('subChips').innerHTML = subs.map(s => {
+    const cods = catalogo.filter(c => c.familia === sel.familia && c.subfamilia === s);
+    return `<button class="chip${sel.subfamilia === s ? ' on' : ''}" data-s="${esc(s)}">${esc(s)}<small>${cods.length} código${cods.length > 1 ? 's' : ''}</small></button>`;
+  }).join('');
+}
+
+function pintarCodigos(){
+  const cods = catalogo.filter(c => c.familia === sel.familia && c.subfamilia === sel.subfamilia);
+  $('codChips').innerHTML = cods.map(c => {
+    const arts = delCodigo(c.codigo).sort((a, b) => b.consecutivo - a.consecutivo);
+    const ej = arts.slice(0, 3).map(a => `${esc(a.sku)} · ${esc(a.nombre)}`).join('<br>') || 'Sin artículos todavía';
+    return `<button class="chip${sel.codigo === c.codigo ? ' on' : ''}" data-c="${esc(c.codigo)}">
+      <b>${esc(c.codigo)}</b> <span class="muted">— ${arts.length} artículos</span>
+      ${c.descripcion ? `<small>${esc(c.descripcion)}</small>` : ''}
+      <span class="ej">${ej}</span></button>`;
+  }).join('');
+}
+
+function siguienteSugerido(codigo){
+  const usados = new Set(delCodigo(codigo).map(a => a.consecutivo));
+  let n = Math.max(0, ...[...usados].filter(x => x < 1000)) + 1;
+  while (usados.has(n)) n++;
+  return `${codigo}-${pad4(n)}`;
+}
+
+function pintarDatos(){
+  const c = catalogo.find(x => x.codigo === sel.codigo);
+  $('ruta').innerHTML = `${esc(c.familia)} › ${esc(c.subfamilia)} › <b class="mono">${esc(c.codigo)}</b>` +
+    (c.categoria_odoo ? `<br>Categoría en Odoo: <b>${esc(c.categoria_odoo)}</b>` : '');
+  $('sugerido').textContent = siguienteSugerido(c.codigo);
+  $('manualPref').textContent = c.codigo + '-';
+  revisarDuplicados();
+}
+
+function activar(id, on){ $(id).classList.toggle('off', !on); }
+
+function limpiarResultado(){ $('resultado').innerHTML = ''; $('genMsg').textContent = ''; }
+
+$('famChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-f]'); if (!b) return;
+  sel.familia = b.dataset.f; sel.subfamilia = null; sel.codigo = null;
+  pintarFamilias(); pintarSubfamilias(); $('codChips').innerHTML = '';
+  activar('pSub', true); activar('pCod', false); activar('pDatos', false); limpiarResultado();
+});
+
+$('subChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-s]'); if (!b) return;
+  sel.subfamilia = b.dataset.s; sel.codigo = null;
+  pintarSubfamilias(); pintarCodigos();
+  activar('pCod', true); activar('pDatos', false); limpiarResultado();
+  const cods = catalogo.filter(c => c.familia === sel.familia && c.subfamilia === sel.subfamilia);
+  if (cods.length === 1) elegirCodigo(cods[0].codigo);
+});
+
+function elegirCodigo(c){
+  sel.codigo = c; pintarCodigos(); pintarDatos(); activar('pDatos', true); limpiarResultado();
+  $('fNombre').focus();
+}
+$('codChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-c]'); if (b) elegirCodigo(b.dataset.c);
+});
+
+$('fManual').addEventListener('change', () => $('manualBox').classList.toggle('hidden', !$('fManual').checked));
+
+function parecidos(nombre){
+  const t = norm(nombre).split(' ').filter(w => w.length >= 2);
+  if (!t.length) return [];
+  return articulos.map(a => {
+    const words = new Set(norm(a.nombre).split(' '));
+    const hit = t.filter(w => words.has(w)).length;
+    return { a, score: hit / t.length };
+  }).filter(x => x.score >= 0.6 && (t.length > 1 || x.score === 1))
+    .sort((x, y) => y.score - x.score).slice(0, 8).map(x => x.a);
+}
+
+function revisarDuplicados(){
+  const nombre = $('fNombre').value;
+  const exacto = articulos.find(a => norm(a.nombre) === norm(nombre));
+  const lista = parecidos(nombre);
+  if (!norm(nombre) || !lista.length){ $('dupBox').innerHTML = ''; return; }
+  $('dupBox').innerHTML = `<div class="warn">${exacto
+    ? `<b>Ya existe un artículo con este mismo nombre: ${esc(exacto.sku)}.</b> Revisa antes de generar otro.`
+    : 'Artículos con nombre parecido (revisa que no sea el mismo):'}
+    <ul>${lista.map(a => `<li><span class="mono">${esc(a.sku)}</span> — ${esc(a.nombre)} <span class="muted">(${esc(a.empresa || '')})</span></li>`).join('')}</ul></div>`;
+}
+let dupTimer;
+$('fNombre').addEventListener('input', () => { clearTimeout(dupTimer); dupTimer = setTimeout(revisarDuplicados, 200); });
+
+try { $('fPor').value = localStorage.getItem('sku_creado_por') || ''; } catch (e) {}
+
+$('btnGenerar').addEventListener('click', async () => {
+  const msg = $('genMsg');
+  const nombre = $('fNombre').value.trim();
+  if (!sel.codigo){ msg.style.color = 'var(--danger)'; msg.textContent = 'Elige un código.'; return; }
+  if (!nombre){ msg.style.color = 'var(--danger)'; msg.textContent = 'Escribe el nombre del artículo.'; $('fNombre').focus(); return; }
+  let numero = null;
+  if ($('fManual').checked){
+    numero = parseInt($('fNumero').value, 10);
+    if (!(numero >= 1 && numero <= 9999)){ msg.style.color = 'var(--danger)'; msg.textContent = 'El número debe estar entre 1 y 9999.'; return; }
+  }
+  if (articulos.some(a => norm(a.nombre) === norm(nombre)) &&
+      !confirm('Ya existe un artículo con ese mismo nombre. ¿Generar otro SKU de todas formas?')) return;
+
+  const por = $('fPor').value.trim();
+  try { localStorage.setItem('sku_creado_por', por); } catch (e) {}
+  $('btnGenerar').disabled = true;
+  msg.style.color = ''; msg.textContent = 'Generando…';
+  try {
+    const r = await fetch(`${SUP_URL}/rest/v1/rpc/generar_sku`, {
+      method: 'POST',
+      headers: { ...SUP_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        p_codigo: sel.codigo, p_nombre: nombre, p_um: $('fUm').value, p_empresa: $('fEmpresa').value,
+        p_creado_por: por, p_notas: $('fNotas').value.trim(), p_numero: numero
+      })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.message || JSON.stringify(data));
+    articulos.push(data);
+    msg.textContent = '';
+    mostrarResultado(data);
+    $('fNombre').value = ''; $('fNotas').value = ''; $('fNumero').value = ''; $('dupBox').innerHTML = '';
+    $('sugerido').textContent = siguienteSugerido(sel.codigo);
+    pintarCodigos(); pintarFamilias();
+  } catch (e) {
+    msg.style.color = 'var(--danger)'; msg.textContent = 'No se generó: ' + e.message;
+  } finally {
+    $('btnGenerar').disabled = false;
+  }
+});
+
+function mostrarResultado(a){
+  const c = catalogo.find(x => x.codigo === a.codigo);
+  const campos = [
+    ['Referencia interna', a.sku], ['Nombre', a.nombre], ['Unidad de medida', a.um || ''],
+    ['Categoría', c?.categoria_odoo || ''], ['Empresa', a.empresa === 'COMPARTIDO' ? '(dejar vacío = todas)' : a.empresa]
+  ];
+  $('resultado').innerHTML = `<div class="res">
+    <div class="muted" style="font-size:12px">SKU generado</div>
+    <div class="row"><span class="sku">${esc(a.sku)}</span><button class="btn sm" data-copy="${esc(a.sku)}">Copiar</button></div>
+    <div class="muted" style="font-size:12px; margin-top:10px">Datos para capturar en Odoo:</div>
+    <div class="kv">${campos.map(([k, v]) => `<span>${k}</span><span>${esc(v)}</span>${v && k !== 'Empresa' ? `<button class="btn ghost sm" data-copy="${esc(v)}">Copiar</button>` : '<span></span>'}`).join('')}</div>
+  </div>`;
+}
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  try { await navigator.clipboard.writeText(b.dataset.copy); const t = b.textContent; b.textContent = '¡Copiado!'; setTimeout(() => b.textContent = t, 1200); } catch (err) {}
+});
+
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  if (!catalogo.length) return;
+  $('tab-nuevo').classList.toggle('hidden', t.dataset.tab !== 'nuevo');
+  $('tab-lista').classList.toggle('hidden', t.dataset.tab !== 'lista');
+  if (t.dataset.tab === 'lista') pintarLista();
+}));
+
+function filtrados(){
+  const q = norm($('qBuscar').value), o = $('qOrigen').value;
+  return articulos.filter(a => {
+    if (o === 'PENDIENTE' && !(a.origen === 'HERRAMIENTA' && !a.en_odoo)) return false;
+    if (o && o !== 'PENDIENTE' && a.origen !== o) return false;
+    return !q || norm(a.sku + ' ' + a.nombre).includes(q);
+  }).sort((a, b) => (b.origen === 'HERRAMIENTA') - (a.origen === 'HERRAMIENTA') || (b.id - a.id));
+}
+
+function pintarLista(){
+  const rows = filtrados();
+  $('qCount').textContent = `${rows.length} de ${articulos.length} artículos` + (rows.length > 300 ? ' (mostrando 300, afina la búsqueda)' : '');
+  $('qBody').innerHTML = rows.slice(0, 300).map(a => `<tr>
+    <td class="mono">${esc(a.sku)}</td><td>${esc(a.nombre)}${a.notas ? `<div class="muted" style="font-size:11px">${esc(a.notas)}</div>` : ''}</td>
+    <td>${esc(a.um || '')}</td><td style="font-size:12px">${esc(a.empresa || '')}</td>
+    <td>${a.origen === 'HERRAMIENTA' ? '<span class="tag new">Generado aquí</span>' : '<span class="tag">Odoo</span>'}</td>
+    <td>${a.origen === 'HERRAMIENTA' ? `<input type="checkbox" data-odoo="${a.id}" ${a.en_odoo ? 'checked' : ''}>` : '✓'}</td>
+    <td style="font-size:12px" class="muted">${a.origen === 'HERRAMIENTA' ? esc((a.creado_por || '') + ' ' + new Date(a.created_at).toLocaleDateString('es-MX')) : ''}</td>
+  </tr>`).join('');
+}
+let qTimer;
+$('qBuscar').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(pintarLista, 150); });
+$('qOrigen').addEventListener('change', pintarLista);
+
+$('qBody').addEventListener('change', async e => {
+  const cb = e.target.closest('[data-odoo]'); if (!cb) return;
+  const a = articulos.find(x => x.id == cb.dataset.odoo);
+  cb.disabled = true;
+  try {
+    const r = await fetch(`${SUP_URL}/rest/v1/sku_articulos?id=eq.${a.id}`, {
+      method: 'PATCH', headers: { ...SUP_HEADERS, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ en_odoo: cb.checked })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    a.en_odoo = cb.checked;
+  } catch (err) {
+    cb.checked = !cb.checked; alert('No se pudo guardar: ' + err.message);
+  } finally { cb.disabled = false; }
+});
+
+$('btnExport').addEventListener('click', () => {
+  const pend = articulos.filter(a => a.origen === 'HERRAMIENTA' && !a.en_odoo);
+  if (!pend.length){ alert('No hay artículos pendientes de dar de alta en Odoo.'); return; }
+  const cat = Object.fromEntries(catalogo.map(c => [c.codigo, c.categoria_odoo || '']));
+  const rows = [
+    ['nombre del producto', 'codigo interno', 'unidad de medida', 'unidad de compra', 'Tipo de producto', 'Se compra?', 'Se vende?', 'Costo', 'Impuestos', 'Categoría', 'Empresa'],
+    ['name', 'default_code', 'uom_id', 'uom_po_id', 'detailed_type', 'purchase_ok', 'sale_ok', 'standard_price', 'supplier_taxes_id', 'categ_id', 'company_id'],
+    ...pend.map(a => [a.nombre, a.sku, a.um || '', a.um || '', 'product', 'TRUE', 'FALSE', '', '', cat[a.codigo], a.empresa === 'COMPARTIDO' ? '' : a.empresa])
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Plantilla Suministro');
+  XLSX.writeFile(wb, `SKU_pendientes_Odoo_${new Date().toISOString().slice(0, 10)}.xlsx`);
+});
+
+cargar();
+</script>
+</body>
+</html>
