@@ -158,6 +158,35 @@
     .rk-row{grid-template-columns:1fr auto; }
     .rk-bar-track{display:none;}
   }
+
+  /* Baston (Web Serial) */
+  .baston-card{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px; display:flex; flex-direction:column; gap:16px;}
+  .baston-card p{margin:0; font-size:.9rem; color:var(--ink-soft); line-height:1.5;}
+  .baston-pasos{display:flex; flex-direction:column; gap:10px;}
+  .baston-paso{display:flex; align-items:center; gap:14px; padding:12px 14px; background:var(--surface-2); border-radius:8px; opacity:.55;}
+  .baston-paso.activo{opacity:1;}
+  .baston-paso.hecho{opacity:1;}
+  .paso-num{width:22px; height:22px; border-radius:50%; background:var(--bg); border:1px solid var(--border); color:var(--ink-soft);
+    font-family:'DM Mono', monospace; font-size:.78rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none;}
+  .baston-paso.hecho .paso-num{background:var(--good); border-color:var(--good); color:#062421;}
+  .paso-cuerpo{flex:1; min-width:0;}
+  .paso-titulo{font-size:.9rem; font-weight:600;}
+  .paso-sub{font-size:.78rem; color:var(--ink-soft); margin-top:1px;}
+  .btn{background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--ink); padding:9px 16px;
+    font-size:.83rem; font-weight:600; font-family:'DM Sans',sans-serif; cursor:pointer; white-space:nowrap;}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+  .btn-green{background:rgba(34,197,94,.15); border-color:rgba(34,197,94,.4); color:var(--good);}
+  .btn-danger{background:rgba(239,68,68,.15); border-color:rgba(239,68,68,.4); color:var(--critical);}
+  .btn-danger.confirmando{background:var(--critical); color:#fff;}
+  .baston-log{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 14px; font-size:.8rem;
+    color:var(--ink-soft); max-height:220px; overflow-y:auto; white-space:pre-wrap; line-height:1.6;}
+  .baston-log .ok{color:var(--good);}
+  .baston-log .err{color:var(--critical);}
+  .baston-log .warn{color:var(--warn);}
+  @media (max-width:560px){
+    .baston-paso{flex-wrap:wrap;}
+    .btn{width:100%;}
+  }
 </style>
 
 <div class="wrap">
@@ -173,6 +202,7 @@
   <nav class="tabs">
     <button class="tab-btn active" data-tab="bitacora">Bitácora</button>
     <button class="tab-btn" data-tab="mapa">Mapa de recorrido</button>
+    <button class="tab-btn" data-tab="baston">⬇️ Bastón</button>
   </nav>
 
   <div class="panel" id="panel-bitacora">
@@ -250,6 +280,52 @@
       </div>
       <div class="mapa-card">
         <div id="mapaTrack"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-baston" hidden>
+    <section>
+      <div class="sec-head">
+        <h2>Descargar el bastón</h2>
+        <span class="nota">conecta la base DigiTool por USB y descarga sin abrir ningún otro programa</span>
+      </div>
+
+      <div class="baston-card" id="basNoSoportado" hidden>
+        <p>Este navegador no soporta acceso a puertos USB (Web Serial). Ábrelo con <strong>Chrome</strong> o <strong>Edge</strong> en esta misma PC.</p>
+      </div>
+
+      <div class="baston-card" id="basPanel">
+        <div class="baston-pasos">
+          <div class="baston-paso" id="pasoConectar">
+            <div class="paso-num">1</div>
+            <div class="paso-cuerpo">
+              <div class="paso-titulo">Conectar</div>
+              <div class="paso-sub">elige el puerto de la base DigiTool (FTDI / USB Serial)</div>
+            </div>
+            <button class="btn btn-green" id="btnConectar">🔌 Conectar</button>
+          </div>
+
+          <div class="baston-paso" id="pasoDescargar">
+            <div class="paso-num">2</div>
+            <div class="paso-cuerpo">
+              <div class="paso-titulo">Descargar y subir a Supabase</div>
+              <div class="paso-sub">lee la memoria del bastón, nunca la borra en este paso</div>
+            </div>
+            <button class="btn" id="btnDescargar" disabled>⬇️ Descargar</button>
+          </div>
+
+          <div class="baston-paso" id="pasoBorrar">
+            <div class="paso-num">3</div>
+            <div class="paso-cuerpo">
+              <div class="paso-titulo">Vaciar el bastón</div>
+              <div class="paso-sub">solo cuando la memoria esté por llenarse; requiere haber verificado la subida</div>
+            </div>
+            <button class="btn btn-danger" id="btnBorrar" disabled>🗑️ Borrar bastón</button>
+          </div>
+        </div>
+
+        <div class="baston-log mono" id="basLog">Esperando conexión…</div>
       </div>
     </section>
   </div>
@@ -359,6 +435,7 @@
       btn.classList.add('active');
       document.getElementById('panel-bitacora').hidden = btn.dataset.tab!=='bitacora';
       document.getElementById('panel-mapa').hidden = btn.dataset.tab!=='mapa';
+      document.getElementById('panel-baston').hidden = btn.dataset.tab!=='baston';
     });
   });
 
@@ -451,6 +528,247 @@
 
   selMapa.addEventListener('change', ()=>renderMapa(selMapa.value));
   renderMapa('prom');
+
+  // ================= Bastón (Web Serial) =================
+  const SUP_URL = 'https://xzwlbrirzfogbqhywtvj.supabase.co';
+  const SUP_KEY = 'sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G';
+  const PC_ID = 0x51, BASE_ID = 0x01, CODIGO_PC = [0x88, 0x88];
+  const EPOCA_MS = Date.UTC(2000, 0, 1);
+
+  const basLog = document.getElementById('basLog');
+  const btnConectar = document.getElementById('btnConectar');
+  const btnDescargar = document.getElementById('btnDescargar');
+  const btnBorrar = document.getElementById('btnBorrar');
+  const pasoConectar = document.getElementById('pasoConectar');
+  const pasoDescargar = document.getElementById('pasoDescargar');
+  const pasoBorrar = document.getElementById('pasoBorrar');
+
+  function basPrint(msg, clase){
+    const ts = new Date().toLocaleTimeString('es-MX', {hour12:false});
+    const linea = document.createElement('div');
+    if(clase) linea.className = clase;
+    linea.textContent = `[${ts}] ${msg}`;
+    basLog.appendChild(linea);
+    basLog.scrollTop = basLog.scrollHeight;
+  }
+
+  if(!('serial' in navigator)){
+    document.getElementById('basNoSoportado').hidden = false;
+    document.getElementById('basPanel').hidden = true;
+  } else {
+    let port=null, reader=null, writer=null, rxBuf=new Uint8Array(0), leyendo=false;
+    let ultimaDescargaVerificada = false;
+
+    function concat(a,b){ const r=new Uint8Array(a.length+b.length); r.set(a,0); r.set(b,a.length); return r; }
+
+    function construirTrama(datos){
+      const cuerpo = [0x03, BASE_ID, 0x03, PC_ID, (datos.length>>8)&0xFF, datos.length&0xFF, ...datos];
+      let s=0; for(const b of cuerpo) s=(s+b)&0xFF;
+      return new Uint8Array([0xFF,0xFF,0xFF,0x55, ...cuerpo, s]);
+    }
+
+    function extraerTramas(buf){
+      const out=[];
+      while(true){
+        let idx=-1;
+        for(let k=0;k<buf.length-1;k++){ if(buf[k]===0x55 && buf[k+1]===0x03){ idx=k; break; } }
+        if(idx<0) return {tramas:out, resto:new Uint8Array(0)};
+        if(buf.length < idx+8) return {tramas:out, resto:buf.slice(idx)};
+        const largo=(buf[idx+5]<<8)|buf[idx+6];
+        const fin = idx+7+largo+1;
+        if(buf.length<fin) return {tramas:out, resto:buf.slice(idx)};
+        let suma=0; for(let k=idx+1;k<fin-1;k++) suma=(suma+buf[k])&0xFF;
+        if(suma===buf[fin-1]){ out.push(buf.slice(idx+7, fin-1)); buf=buf.slice(fin); }
+        else { buf=buf.slice(idx+1); }
+      }
+    }
+
+    function decodificar(memoria){
+      const hex=n=>n.toString(16).padStart(2,'0').toUpperCase();
+      const lector = hex(memoria[4])+hex(memoria[5])+hex(memoria[3])+hex(memoria[2]);
+      const lecturas=[]; let hora=null, dia=null;
+      for(let i=8;i<memoria.length-3;i+=4){
+        const r=memoria.slice(i,i+4);
+        if(r[0]===0&&r[1]===0&&r[2]===0&&r[3]===0) break;
+        if(r[3]===0xAA){ hora=r[0]; dia=r[1]|(r[2]<<8); }
+        else if(hora!==null && r[3]<60){
+          const fh = new Date(EPOCA_MS + dia*86400000);
+          fh.setUTCHours(hora, r[3], 0, 0);
+          lecturas.push({boton: hex(r[2])+hex(r[1])+hex(r[0]), fecha_hora: fh});
+        }
+      }
+      return {lector, lecturas};
+    }
+
+    async function bucleLectura(){
+      leyendo=true;
+      try{
+        while(port && port.readable){
+          const {value, done} = await reader.read();
+          if(done) break;
+          if(value) rxBuf = concat(rxBuf, value);
+        }
+      } catch(e){ /* puerto cerrado */ }
+      leyendo=false;
+    }
+
+    function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+    async function enviarComando(datos, {esperaMs=2000, hastaFin=false}={}){
+      rxBuf = new Uint8Array(0);
+      await writer.write(construirTrama(datos));
+      const inicio = Date.now();
+      let ultimoLen=0, ultimoCambio=Date.now();
+      while(true){
+        await sleep(50);
+        if(rxBuf.length!==ultimoLen){ ultimoLen=rxBuf.length; ultimoCambio=Date.now(); }
+        const sinCambios = Date.now()-ultimoCambio;
+        if(hastaFin){ if(ultimoLen>0 && sinCambios>1000) break; if(Date.now()-inicio>esperaMs && ultimoLen===0) break; }
+        else { if(ultimoLen>0 && sinCambios>300) break; if(Date.now()-inicio>esperaMs) break; }
+      }
+      return extraerTramas(rxBuf).tramas;
+    }
+
+    async function identificar(){ const t=await enviarComando([0x11]); return t.length>0 && t[0][0]===0x80; }
+    async function leerMemoria(){
+      const t = await enviarComando([0x72, ...CODIGO_PC, 0,0,0], {esperaMs:6000, hastaFin:true});
+      const partes = t.filter(tr=>tr[0]===0xf3 && tr.length>100).map(tr=>tr.slice(1));
+      let total=0; for(const p of partes) total+=p.length;
+      const memoria=new Uint8Array(total); let off=0;
+      for(const p of partes){ memoria.set(p, off); off+=p.length; }
+      return memoria;
+    }
+    async function ponerHora(){
+      const ahora=new Date();
+      const dia = Math.floor((Date.UTC(ahora.getFullYear(),ahora.getMonth(),ahora.getDate()) - EPOCA_MS)/86400000);
+      return enviarComando([0x12, ...CODIGO_PC, ahora.getHours(), ahora.getMinutes(), (dia>>8)&0xFF, dia&0xFF]);
+    }
+    async function borrarMemoria(){ return enviarComando([0x72, ...CODIGO_PC, 0xff]); }
+
+    async function supFetch(method, path, body, extraHeaders={}){
+      const res = await fetch(`${SUP_URL}/rest/v1/${path}`, {
+        method,
+        headers: {apikey:SUP_KEY, Authorization:`Bearer ${SUP_KEY}`, 'Content-Type':'application/json', ...extraHeaders},
+        body: body!==undefined ? JSON.stringify(body) : undefined,
+      });
+      if(!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
+      const txt = await res.text();
+      return txt ? JSON.parse(txt) : null;
+    }
+
+    function fmtSQL(d){
+      const p=n=>String(n).padStart(2,'0');
+      return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+    }
+
+    async function darDeAltaPuntosNuevos(lecturas){
+      const existentes = await supFetch('GET', 'rondines_puntos?select=id_boton');
+      const conocidos = new Set(existentes.map(p=>p.id_boton));
+      const nuevos = [...new Set(lecturas.map(l=>l.boton))].filter(b=>!conocidos.has(b));
+      for(const b of nuevos){
+        basPrint(`aviso: botón ${b} no está en el catálogo, se agrega sin nombre`, 'warn');
+        await supFetch('POST', 'rondines_puntos', {id_boton:b, nombre:null, orden:null});
+      }
+    }
+
+    async function subirLecturas(lector, lecturas){
+      const filas = lecturas.map(x=>({lector, id_boton:x.boton, fecha_hora: fmtSQL(x.fecha_hora)}));
+      for(let i=0;i<filas.length;i+=500){
+        await supFetch('POST', 'rondines_lecturas?on_conflict=lector,id_boton,fecha_hora', filas.slice(i,i+500),
+          {Prefer:'resolution=ignore-duplicates'});
+      }
+    }
+
+    async function contarEnSupabase(lector, desde, hasta){
+      const r = await supFetch('GET',
+        `rondines_lecturas?select=id_boton&lector=eq.${lector}&fecha_hora=gte.${desde}&fecha_hora=lte.${hasta}`);
+      return r.length;
+    }
+
+    btnConectar.addEventListener('click', async ()=>{
+      try{
+        port = await navigator.serial.requestPort();
+        await port.open({baudRate:9600});
+        writer = port.writable.getWriter();
+        reader = port.readable.getReader();
+        bucleLectura();
+        basPrint('Puerto abierto. Identificando la base…');
+        const ok = await identificar();
+        if(!ok){ basPrint('La base no contestó. Revisa que esté encendida y el bastón puesto.', 'err'); return; }
+        basPrint('Base encontrada.', 'ok');
+        pasoConectar.classList.add('hecho');
+        pasoDescargar.classList.add('activo');
+        btnConectar.disabled = true;
+        btnDescargar.disabled = false;
+      } catch(e){
+        basPrint('No se pudo conectar: ' + e.message, 'err');
+      }
+    });
+
+    btnDescargar.addEventListener('click', async ()=>{
+      btnDescargar.disabled = true;
+      try{
+        basPrint('Leyendo memoria del bastón (no se borra nada todavía)…');
+        const memoria = await leerMemoria();
+        const {lector, lecturas} = decodificar(memoria);
+        basPrint(`Lector ${lector}: ${lecturas.length} lecturas en la memoria.`);
+        if(lecturas.length===0){
+          basPrint('Sin lecturas nuevas. Nada que subir.', 'warn');
+          btnDescargar.disabled = false;
+          return;
+        }
+        basPrint('Subiendo a Supabase…');
+        await darDeAltaPuntosNuevos(lecturas);
+        await subirLecturas(lector, lecturas);
+        const fechas = lecturas.map(x=>x.fecha_hora);
+        const desde = fmtSQL(new Date(Math.min(...fechas)));
+        const hasta = fmtSQL(new Date(Math.max(...fechas)));
+        const enSupabase = await contarEnSupabase(lector, desde, hasta);
+        basPrint(`Verificado: Supabase tiene ${enSupabase} lecturas de este lector en ese rango.`, 'ok');
+        pasoDescargar.classList.add('hecho');
+        if(enSupabase>0){
+          ultimaDescargaVerificada = true;
+          pasoBorrar.classList.add('activo');
+          btnBorrar.disabled = false;
+        }
+      } catch(e){
+        basPrint('Error subiendo a Supabase: ' + e.message, 'err');
+        basPrint('El bastón no se tocó. Puedes volver a intentar.', 'warn');
+      } finally {
+        btnDescargar.disabled = false;
+      }
+    });
+
+    let confirmando=false;
+    btnBorrar.addEventListener('click', async ()=>{
+      if(!ultimaDescargaVerificada){
+        basPrint('Primero descarga y verifica la subida.', 'err');
+        return;
+      }
+      if(!confirmando){
+        confirmando=true;
+        btnBorrar.textContent = '⚠️ Confirmar borrado';
+        btnBorrar.classList.add('confirmando');
+        setTimeout(()=>{ confirmando=false; btnBorrar.textContent='🗑️ Borrar bastón'; btnBorrar.classList.remove('confirmando'); }, 5000);
+        return;
+      }
+      confirmando=false;
+      btnBorrar.disabled = true;
+      btnBorrar.textContent = '🗑️ Borrar bastón';
+      btnBorrar.classList.remove('confirmando');
+      try{
+        basPrint('Borrando memoria del bastón y poniendo la hora…');
+        await borrarMemoria();
+        await ponerHora();
+        basPrint('Listo: bastón vaciado y con la hora actualizada.', 'ok');
+        pasoBorrar.classList.add('hecho');
+        ultimaDescargaVerificada = false;
+      } catch(e){
+        basPrint('Error al borrar: ' + e.message, 'err');
+        btnBorrar.disabled = false;
+      }
+    });
+  }
 })();
 </script>
 </body>
