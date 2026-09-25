@@ -264,7 +264,7 @@
     <table class="cmp-table" style="min-width:1200px; margin-top:10px;">
       <thead><tr>
         <th>Color/Material</th><th>Tipo corte</th><th>Placas</th><th>Pulgadas corte</th><th>Sqft proyecto</th><th>Sqft fabricado</th><th>Aprov.</th>
-        <th>Costo Placas</th><th>Costo Corte</th><th>Costo Total</th><th>Costo×Sqft</th><th>Sugerido A</th><th>Sugerido B</th>
+        <th>Costo Placas</th><th>Costo Corte</th><th>Costo Total</th><th>Costo×Sqft</th><th>Sugerido A</th><th>Sugerido B</th><th>Aplicar a cotización</th>
       </tr></thead>
       <tbody id="materialCosteoBody"></tbody>
       <tfoot id="materialCosteoFoot"></tfoot>
@@ -1361,6 +1361,10 @@ function renderCosteo(){
       <td>${f.costoSqft > 0 ? '$' + f.costoSqft.toFixed(2) : '—'}</td>
       <td>${f.precioA > 0 ? '$' + f.precioA.toFixed(2) + ' (÷' + f.margenA + ')' : '—'}</td>
       <td>${f.precioB > 0 ? '$' + f.precioB.toFixed(2) + ' (÷' + f.margenB + ')' : '—'}</td>
+      <td>${(f.precioA > 0 || f.precioB > 0) ? `
+        ${f.precioA > 0 ? `<button class="btn small" style="margin:2px;" onclick="aplicarFactorSugerido('${f.color.replace(/'/g,"\\'")}', ${f.precioA})">Usar A</button>` : ''}
+        ${f.precioB > 0 ? `<button class="btn secondary small" style="margin:2px;" onclick="aplicarFactorSugerido('${f.color.replace(/'/g,"\\'")}', ${f.precioB})">Usar B</button>` : ''}
+      ` : '—'}</td>
     </tr>`).join('');
 
   const totalPlacas = filas.reduce((s,f)=>s+f.placas,0);
@@ -1380,7 +1384,26 @@ function renderCosteo(){
     <td>${totalCostoSqft>0 ? '$'+totalCostoSqft.toFixed(2) : '—'}</td>
     <td title="Cada material puede usar un margen distinto — ve el detalle por fila arriba">—</td>
     <td title="Cada material puede usar un margen distinto — ve el detalle por fila arriba">—</td>
+    <td>—</td>
   </tr>`;
+}
+
+function aplicarFactorSugerido(color, precio){
+  let n = 0;
+  document.querySelectorAll('#clientItemsBody tr').forEach(tr => {
+    const itColor = tr.querySelector('.ci-color').value.trim();
+    if ((itColor || 'Sin color') !== color) return;
+    tr.querySelector('.ci-factor').value = precio.toFixed(2);
+    tr.querySelector('.ci-preciofijo').value = '';
+    tr.querySelector('.ci-escorte').checked = true;
+    n++;
+  });
+  renderClientTotals();
+  const msg = document.getElementById('clientGenMsg');
+  msg.style.color = 'var(--good)';
+  msg.textContent = n
+    ? `Factor $${precio.toFixed(2)}/sqft aplicado a ${n} renglón(es) de "${color}" en la cotización.`
+    : `No hay renglones con Color/Material = "${color}" en la cotización.`;
 }
 
 function renderCutSequence(bins, cutMode){
