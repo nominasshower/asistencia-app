@@ -1038,7 +1038,13 @@ function packOneGroup(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotationGlo
   return { bins };
 }
 
-function packSheets(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotation, cutMode){
+function findCatalogForColor(sizes, color){
+  const key = (color || '').trim().toLowerCase();
+  if (!key) return null;
+  return sizes.find(s => s.name.trim().toLowerCase() === key) || null;
+}
+
+function packAllColors(pieces, sizes, kerf, edgeMargin, allowRotation, cutMode){
   const groups = {};
   pieces.forEach(p => {
     const key = p.color ? p.color.toLowerCase() : '__default__';
@@ -1046,20 +1052,47 @@ function packSheets(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotation, cut
   });
 
   const allBins = [];
+  const matchInfo = [];
+
   for (const key of Object.keys(groups)){
-    const res = packOneGroup(groups[key], sheetW, sheetH, kerf, edgeMargin, allowRotation, cutMode);
-    if (res.error) return { error: res.error };
-    const colorLabel = key === '__default__' ? null : groups[key][0].color;
-    res.bins.forEach(b => { b.colorLabel = colorLabel; });
-    allBins.push(...res.bins);
+    const groupPieces = groups[key];
+    const colorLabel = key === '__default__' ? null : groupPieces[0].color;
+
+    if (colorLabel){
+      const matched = findCatalogForColor(sizes, colorLabel);
+      const sizeUsed = matched || sizes[0];
+      if (!sizeUsed){ matchInfo.push({ colorLabel, error: 'No hay ninguna lámina en el catálogo.' }); continue; }
+      const res = packOneGroup(groupPieces, sizeUsed.w, sizeUsed.h, kerf, edgeMargin, allowRotation, cutMode);
+      if (res.error){ matchInfo.push({ colorLabel, sizeUsed, matched: !!matched, error: res.error }); continue; }
+      res.bins.forEach(b => { b.colorLabel = colorLabel; b.sheetW = sizeUsed.w; b.sheetH = sizeUsed.h; });
+      allBins.push(...res.bins);
+      matchInfo.push({
+        colorLabel, sizeUsed, matched: !!matched, sheetsCount: res.bins.length,
+        totalCost: sizeUsed.cost > 0 ? res.bins.length * sizeUsed.cost : null,
+        shortfall: sizeUsed.qty > 0 && res.bins.length > sizeUsed.qty ? res.bins.length - sizeUsed.qty : 0
+      });
+    } else {
+      // sin color especificado: compara todas las opciones del catálogo y usa la mejor (comportamiento original)
+      let best = null;
+      for (const sizeOpt of sizes){
+        const res = packOneGroup(groupPieces, sizeOpt.w, sizeOpt.h, kerf, edgeMargin, allowRotation, cutMode);
+        if (res.error) continue;
+        const totalCost = sizeOpt.cost > 0 ? res.bins.length * sizeOpt.cost : null;
+        const score = totalCost != null ? totalCost : res.bins.length * 1e6;
+        if (!best || score < best.score) best = { res, sizeOpt, score, totalCost };
+      }
+      if (!best){ matchInfo.push({ colorLabel: 'Sin color', error: 'Ninguna lámina del catálogo alcanza para estas piezas.' }); continue; }
+      best.res.bins.forEach(b => { b.colorLabel = null; b.sheetW = best.sizeOpt.w; b.sheetH = best.sizeOpt.h; });
+      allBins.push(...best.res.bins);
+      matchInfo.push({
+        colorLabel: 'Sin color', sizeUsed: best.sizeOpt, matched: true, sheetsCount: best.res.bins.length,
+        totalCost: best.totalCost,
+        shortfall: best.sizeOpt.qty > 0 && best.res.bins.length > best.sizeOpt.qty ? best.res.bins.length - best.sizeOpt.qty : 0
+      });
+    }
   }
 
-  const sheetArea = sheetW*sheetH;
-  const totalUsed = allBins.reduce((s,b)=>s+b.usedArea,0);
-  const totalArea = sheetArea * allBins.length;
-  const wastePct = totalArea ? 100*(1-totalUsed/totalArea) : 0;
-
-  return { bins: allBins, sheetW, sheetH, usableW: sheetW-2*edgeMargin, usableH: sheetH-2*edgeMargin, edgeMargin, totalArea, totalUsed, wastePct, sheetsCount: allBins.length, cutMode };
+  return { bins: allBins, matchInfo, sheetsCount: allBins.length, cutMode, edgeMargin };
 }
 
 function readInputs(){
@@ -1103,89 +1136,68 @@ function runOptimization(){
   if (!sizes.length){ errEl.textContent = 'Agrega al menos un tamaño de lámina.'; return; }
   if (!pieces.length){ errEl.textContent = 'Agrega al menos una pieza a cortar.'; return; }
 
-  lastResults = [];
-  for (const size of sizes){
-    const res = packSheets(pieces, size.w, size.h, kerf, edgeMargin, allowRotation, cutMode);
-    if (!res.error){
-      res.totalCost = size.cost > 0 ? res.sheetsCount * size.cost : null;
-      res.shortfall = size.qty > 0 && res.sheetsCount > size.qty ? res.sheetsCount - size.qty : 0;
-    }
-    lastResults.push({ size, res });
-  }
+  const res = packAllColors(pieces, sizes, kerf, edgeMargin, allowRotation, cutMode);
+  lastResults = [{ res }];
 
   document.getElementById('resultsPanel').style.display = 'block';
-  const bestIdx = renderComparison();
+  renderComparison();
 
   const selector = document.getElementById('sizeSelector');
-  selector.innerHTML = lastResults.map((r,i) => `<option value="${i}">${r.size.name} (${r.size.w}x${r.size.h}mm)</option>`).join('');
-  if (bestIdx >= 0) selector.value = bestIdx;
+  const colors = [...new Set(res.bins.map(b => b.colorLabel || 'Sin color'))];
+  selector.innerHTML = '<option value="all">Todos los materiales</option>' + colors.map(c => `<option value="${c}">${c}</option>`).join('');
   renderSheetsForSelected();
-}
-
-function pickBestIdx(){
-  const valid = lastResults.map((r,i)=>({r,i})).filter(x => !x.r.res.error);
-  if (!valid.length) return -1;
-  const sufficient = valid.filter(x => !x.r.res.shortfall);
-  const pool = sufficient.length ? sufficient : valid;
-  const allHaveCost = pool.every(x => x.r.res.totalCost != null);
-  let best = pool[0], bestScore = Infinity;
-  pool.forEach(x => {
-    const score = allHaveCost
-      ? x.r.res.totalCost * 1e6 + x.r.res.wastePct
-      : x.r.res.sheetsCount * 1e6 + x.r.res.wastePct;
-    if (score < bestScore){ bestScore = score; best = x; }
-  });
-  return best.i;
 }
 
 function renderComparison(){
   const wrap = document.getElementById('cmpWrap');
-  const bestIdx = pickBestIdx();
-  const anyCost = lastResults.some(r => !r.res.error && r.res.totalCost != null);
+  const entry = lastResults[0];
+  const matchInfo = entry.res.matchInfo;
+  const anyCost = matchInfo.some(m => !m.error && m.totalCost != null);
 
   let html = `<table class="cmp-table"><thead><tr>
-    <th>Tamaño de lámina</th><th>Láminas necesarias</th><th>Material usado (m²)</th><th>Desperdicio (m²)</th><th>% desperdicio</th>${anyCost?'<th>Costo total</th>':''}<th>Disponibilidad</th>
+    <th>Color/Material</th><th>Lámina usada</th><th>¿Coincide por nombre?</th><th>Láminas necesarias</th>${anyCost?'<th>Costo total</th>':''}<th>Disponibilidad</th>
   </tr></thead><tbody>`;
-  lastResults.forEach((r,i) => {
-    if (r.res.error){
-      html += `<tr><td>${r.size.name}</td><td colspan="${anyCost?6:5}" style="color:var(--danger);">${r.res.error}</td></tr>`;
-    } else {
-      const usedM2 = (r.res.totalUsed/1e6).toFixed(2);
-      const wasteM2 = ((r.res.totalArea-r.res.totalUsed)/1e6).toFixed(2);
-      const costCell = anyCost ? `<td>${r.res.totalCost!=null ? '$'+r.res.totalCost.toFixed(2) : '—'}</td>` : '';
-      const availCell = r.res.shortfall
-        ? `<td style="color:var(--danger);">Faltan ${r.res.shortfall}</td>`
-        : (r.size.qty>0 ? `<td style="color:var(--good);">OK</td>` : `<td>—</td>`);
-      html += `<tr class="${i===bestIdx?'cmp-row-best':''}">
-        <td>${r.size.name} (${r.size.w}x${r.size.h})</td>
-        <td>${r.res.sheetsCount}</td>
-        <td>${usedM2}</td>
-        <td>${wasteM2}</td>
-        <td>${r.res.wastePct.toFixed(1)}%</td>
-        ${costCell}
-        ${availCell}
-      </tr>`;
+  matchInfo.forEach(m => {
+    if (m.error){
+      html += `<tr><td>${m.colorLabel}</td><td colspan="${anyCost?5:4}" style="color:var(--danger);">${m.error}</td></tr>`;
+      return;
     }
+    const matchCell = m.colorLabel === 'Sin color'
+      ? '—'
+      : (m.matched ? '<span style="color:var(--good);">Sí</span>' : `<span style="color:var(--accent2);">No — usando "${m.sizeUsed.name}" de respaldo</span>`);
+    const costCell = anyCost ? `<td>${m.totalCost!=null ? '$'+m.totalCost.toFixed(2) : '—'}</td>` : '';
+    const availCell = m.shortfall
+      ? `<td style="color:var(--danger);">Faltan ${m.shortfall}</td>`
+      : (m.sizeUsed.qty>0 ? `<td style="color:var(--good);">OK</td>` : `<td>—</td>`);
+    html += `<tr>
+      <td>${m.colorLabel}</td>
+      <td>${m.sizeUsed.name} (${m.sizeUsed.w}x${m.sizeUsed.h})</td>
+      <td>${matchCell}</td>
+      <td>${m.sheetsCount}</td>
+      ${costCell}
+      ${availCell}
+    </tr>`;
   });
   html += '</tbody></table>';
-  if (bestIdx >= 0) html += `<div class="waste-note">✓ Mejor opción resaltada: ${anyCost?'menor costo total':'menos láminas y/o menor desperdicio'}, con inventario suficiente cuando aplica.</div>`;
+  const anyUnmatched = matchInfo.some(m => m.colorLabel !== 'Sin color' && !m.error && !m.matched);
+  if (anyUnmatched) html += `<div class="waste-note" style="color:var(--accent2);">⚠ Hay material(es) sin una lámina del mismo nombre en el catálogo — agrégala con el nombre exacto del color/material para que use su tamaño y costo real, si no está usando la primera lámina del catálogo como respaldo.</div>`;
   wrap.innerHTML = html;
-  return bestIdx;
 }
 
 function renderSheetsForSelected(){
-  const idx = parseInt(document.getElementById('sizeSelector').value);
-  const entry = lastResults[idx];
+  const filterVal = document.getElementById('sizeSelector').value || 'all';
+  const entry = lastResults[0];
   const wrap = document.getElementById('sheetsWrap');
   wrap.innerHTML = '';
-  if (!entry || entry.res.error) return;
+  if (!entry) return;
 
   const { res } = entry;
+  const bins = filterVal === 'all' ? res.bins : res.bins.filter(b => (b.colorLabel || 'Sin color') === filterVal);
   const maxPx = 420;
-  const scale = Math.min(maxPx/res.sheetW, maxPx/res.sheetH);
 
-  res.bins.forEach((bin, bi) => {
-    const w = res.sheetW*scale, h = res.sheetH*scale;
+  bins.forEach((bin, bi) => {
+    const scale = Math.min(maxPx/bin.sheetW, maxPx/bin.sheetH);
+    const w = bin.sheetW*scale, h = bin.sheetH*scale;
     const em = res.edgeMargin*scale;
     let svg = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`;
     svg += `<rect x="0" y="0" width="${w}" height="${h}" fill="#0b141b" stroke="var(--border)" stroke-width="1"/>`;
@@ -1218,18 +1230,18 @@ function renderSheetsForSelected(){
     svg += '</svg>';
 
     const usedM2 = (bin.usedArea/1e6).toFixed(2);
-    const sheetM2 = (res.sheetW*res.sheetH/1e6).toFixed(2);
-    const wastePctBin = (100*(1-bin.usedArea/(res.sheetW*res.sheetH))).toFixed(1);
+    const sheetM2 = (bin.sheetW*bin.sheetH/1e6).toFixed(2);
+    const wastePctBin = (100*(1-bin.usedArea/(bin.sheetW*bin.sheetH))).toFixed(1);
 
     const colorTag = bin.colorLabel ? ` · Color/Lote: ${bin.colorLabel}` : '';
     const card = document.createElement('div');
     card.className = 'sheet-card';
-    card.innerHTML = `<div class="title">Lámina ${bi+1} de ${res.bins.length} · ${bin.placed.length} piezas · ${usedM2}/${sheetM2} m² usados · ${wastePctBin}% desperdicio${colorTag}</div>${svg}`;
+    card.innerHTML = `<div class="title">Lámina ${bi+1} de ${bins.length} · ${bin.placed.length} piezas · ${usedM2}/${sheetM2} m² usados · ${wastePctBin}% desperdicio${colorTag} · ${bin.sheetW}x${bin.sheetH}mm</div>${svg}`;
     wrap.appendChild(card);
   });
 
-  renderCutSequence(entry);
-  renderPieceReport(entry);
+  renderCutSequence(bins, res.cutMode);
+  renderPieceReport(bins);
   renderCosteo();
 }
 
@@ -1248,9 +1260,8 @@ function renderMaterialCostInputs(colors){
 
 function renderCosteo(){
   const panel = document.getElementById('costeoPanel');
-  const idx = parseInt(document.getElementById('sizeSelector')?.value);
-  const entry = lastResults[idx];
-  if (!entry || entry.res.error){ panel.style.display = 'none'; return; }
+  const entry = lastResults[0];
+  if (!entry){ panel.style.display = 'none'; return; }
   panel.style.display = 'block';
   const { res } = entry;
 
@@ -1327,15 +1338,14 @@ function renderCosteo(){
   </tr>`;
 }
 
-function renderCutSequence(entry){
+function renderCutSequence(bins, cutMode){
   const wrap = document.getElementById('cutSeqWrap');
   wrap.innerHTML = '';
-  const { res } = entry;
-  if (res.cutMode !== 'guillotine') return;
+  if (cutMode !== 'guillotine') return;
 
   let html = '<h2>Secuencia de cortes (guillotina)</h2>';
   let any = false;
-  res.bins.forEach((bin, bi) => {
+  bins.forEach((bin, bi) => {
     if (!bin.cuts || !bin.cuts.length) return;
     any = true;
     html += `<div class="sheet-label">Lámina ${bi+1}</div><ol class="cut-list">`;
@@ -1355,11 +1365,10 @@ function jointLabel(v){
   return { inglete:'Inglete (45°)', recta:'Recta a tope', traslape:'Traslape' }[v] || 'Ninguna';
 }
 
-function renderPieceReport(entry){
+function renderPieceReport(bins){
   const wrap = document.getElementById('reportWrap');
-  const { res } = entry;
   const rows = [];
-  res.bins.forEach((bin, bi) => {
+  bins.forEach((bin, bi) => {
     bin.placed.forEach((p, pi) => {
       rows.push({ tag:`L${bi+1}-${pi+1}`, sheet:bi+1, name:p.name, color:bin.colorLabel||'—',
                   w:p.origW, h:p.origH, x:Math.round(p.x), y:Math.round(p.y), rotated:p.rotated?'Sí':'No',
