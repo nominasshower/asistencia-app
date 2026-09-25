@@ -422,7 +422,7 @@ function handleImportCotizFile(e){
   const reader = new FileReader();
   reader.onload = (evt) => {
     try {
-      const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+      const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array', cellDates: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, blankrows: false });
 
@@ -435,7 +435,16 @@ function handleImportCotizFile(e){
           if (!key || clientInfo[key]) continue;
           for (let look = c + 1; look <= Math.min(c + 3, r.length - 1); look++){
             if (r[look] !== null && r[look] !== undefined && r[look] !== ''){
-              clientInfo[key] = r[look] instanceof Date ? r[look].toLocaleDateString('es-MX') : String(r[look]).trim();
+              let v = r[look];
+              if (v instanceof Date){
+                clientInfo[key] = v.toLocaleDateString('es-MX');
+              } else if (key === 'date' && typeof v === 'number' && v > 20000 && v < 60000){
+                // numero de serie de Excel que no se convirtio a Date (celda combinada/formato raro)
+                const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+                clientInfo[key] = new Date(excelEpoch.getTime() + v*86400000).toLocaleDateString('es-MX');
+              } else {
+                clientInfo[key] = String(v).trim();
+              }
               break;
             }
           }
@@ -459,7 +468,7 @@ function handleImportCotizFile(e){
       let grupoNum = 1;
       let tieneRenglonesEnGrupo = false;
       let pendingItemsIdx = [];
-      let curColor = '', curThickness = '', curCostoPlaca = 0;
+      let curColor = '', curThickness = '';
       const materialRates = {};
 
       for (let i = headerIdx + 2; i < rows.length; i++){
@@ -476,12 +485,9 @@ function handleImportCotizFile(e){
             for (let look = c+1; look <= Math.min(c+3, r.length-1); look++){
               if (r[look] !== null && r[look] !== undefined && r[look] !== ''){ curThickness = String(r[look]).trim(); break; }
             }
-          } else if (norm === 'costo placa' || norm === 'costo placa:'){
-            for (let look = c+1; look <= Math.min(c+3, r.length-1); look++){
-              if (r[look] !== null && r[look] !== undefined && r[look] !== ''){ curCostoPlaca = parseFloat(r[look]) || 0; break; }
-            }
+            // "Thickness:" cierra el bloque de material (con o sin "Costo Placa" despues) -> asignar a piezas pendientes
             pendingItemsIdx.forEach(idx => { items[idx].color = curColor; });
-            if (curColor) materialRates[curColor] = { costoPlaca: curCostoPlaca, thickness: curThickness };
+            if (curColor) materialRates[curColor] = { thickness: curThickness };
             pendingItemsIdx = [];
           }
         }
