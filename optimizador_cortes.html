@@ -243,6 +243,10 @@
 
 <div class="panel" id="resultsPanel" style="display:none;">
   <h2>Resultados</h2>
+  <div id="staleBanner" style="display:none; background:rgba(242,161,84,.15); border:1px solid var(--accent2); border-radius:8px; padding:10px 14px; margin-bottom:14px; align-items:center; gap:12px; flex-wrap:wrap;">
+    <span style="color:var(--accent2);">⚠ Cambiaste algo (catálogo, piezas o configuración) después de optimizar — estos resultados pueden estar desactualizados.</span>
+    <button class="btn small" onclick="runOptimization()">🔄 Recalcular</button>
+  </div>
   <div id="cmpWrap"></div>
   <div class="row" style="margin-top:16px;">
     <div style="width:280px;">
@@ -259,7 +263,8 @@
 
 <div class="panel" id="costeoPanel" style="display:none;">
   <h2>Costeo interno (fórmulas del Reporte de Cotizaciones)</h2>
-  <div class="sub" style="margin-bottom:10px;">Todos los valores (Costo×Placa, Costo×Pulgada, Tipo de corte) se leen directo del catálogo de la Sección 2 — un renglón ahí es un material completo. Si mezclas materiales que se cortan distinto, cada uno usa su propia tarifa automáticamente.</div>
+  <div class="sub" style="margin-bottom:10px;">Todos los valores (Costo×Placa, Costo×Pulgada, Tipo de corte) se leen directo del catálogo de la Sección 2 — un renglón ahí es un material completo. Si mezclas materiales que se cortan distinto, cada uno usa su propia tarifa automáticamente. Costo/margen se actualizan solos; si cambias ancho/alto de una lámina o las piezas, dale <b>Recalcular</b>.</div>
+  <button class="btn secondary small" onclick="runOptimization()" style="margin-bottom:10px;">🔄 Recalcular</button>
   <div class="table-scroll">
     <table class="cmp-table" style="min-width:1200px; margin-top:10px;">
       <thead><tr>
@@ -1163,10 +1168,31 @@ function readInputs(){
 
 let lastResults = [];
 
+function markStale(){
+  if (!lastResults.length) return;
+  const banner = document.getElementById('staleBanner');
+  if (banner) banner.style.display = 'flex';
+}
+
+// Detecta cambios en datos que SI afectan el acomodo/nesting (no solo costo, que ya se actualiza solo)
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  const staleClasses = ['s-w','s-h','s-name','p-w','p-h','p-qty','p-color','p-norotate','p-tarja-l','p-tarja-a'];
+  if (staleClasses.some(c => t.classList && t.classList.contains(c))) markStale();
+  if (['kerf','edgeMargin'].includes(t.id)) markStale();
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (['allowRotation','cutMode'].includes(t.id)) markStale();
+  if (t.classList && (t.classList.contains('p-joint') || t.classList.contains('s-name'))) markStale();
+});
+
 function runOptimization(){
   const errEl = document.getElementById('errorMsg');
   errEl.textContent = '';
   saveSizes();
+  const banner = document.getElementById('staleBanner');
+  if (banner) banner.style.display = 'none';
   const { kerf, edgeMargin, allowRotation, cutMode, sizes, pieces } = readInputs();
 
   if (!sizes.length){ errEl.textContent = 'Agrega al menos un tamaño de lámina.'; return; }
