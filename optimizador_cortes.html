@@ -471,16 +471,14 @@ function handleImportCotizFile(e){
         if (!producto || !d) continue;
         const w = parseFloat(r[3]) || 0;
         const sqft = parseFloat(r[6]) || 0;
-        const factor = parseFloat(r[7]) || 0;
         const cant = parseInt(r[8]) || 1;
-        const unitPrice = parseFloat(r[9]) || 0;
         items.push({
           producto: String(producto).trim(),
           grupo: `Grupo ${grupoNum}`,
           color: '',
           d, w,
-          factor: factor > 0 ? factor : '',
-          precioFijo: factor > 0 ? '' : unitPrice,
+          factor: '',
+          precioFijo: '',
           cant,
           esCorte: sqft > 0
         });
@@ -498,10 +496,10 @@ function handleImportCotizFile(e){
 
       document.getElementById('clientItemsBody').innerHTML = '';
       items.forEach(it => addClientItemRow(it));
-      Object.entries(materialRates).forEach(([color, rate]) => { costoPorMaterial[color] = rate.costoPlaca; });
+      Object.entries(materialRates).forEach(([color, rate]) => { materialThickness[color] = rate.thickness; });
       renderClientTotals();
       const nMat = Object.keys(materialRates).length;
-      msg.textContent = `Importados ${items.length} renglón(es) en ${grupoNum} grupo(s)${nMat ? `, ${nMat} material(es) con Costo×Placa detectado` : ''}. Revisa "¿Corte?" antes de generar piezas.`;
+      msg.textContent = `Importados ${items.length} renglón(es) en ${grupoNum} grupo(s)${nMat ? `, ${nMat} material(es) detectado(s) (color + espesor)` : ''}. Captura tú el Costo×Placa de cada material en el panel de Costeo.`;
       msg.style.color = 'var(--good)';
     } catch(err){
       msg.textContent = 'Error leyendo el archivo: ' + err.message;
@@ -715,6 +713,7 @@ function filterProjectSelector(){
 let lastClientInfo = {};
 let lastMaterialRates = {};
 let costoPorMaterial = {};
+let materialThickness = {};
 
 function applyClientInfo(info){
   lastClientInfo = info;
@@ -1240,9 +1239,10 @@ function renderMaterialCostInputs(colors){
   wrap.querySelectorAll('.mat-costo-placa').forEach(inp => { existing[inp.dataset.color] = inp.value; });
   wrap.innerHTML = colors.map(color => {
     const label = color || 'Sin color especificado';
+    const thickness = materialThickness[color];
     const prefill = costoPorMaterial[color];
     const val = existing[color] !== undefined && existing[color] !== '' ? existing[color] : (prefill !== undefined ? prefill : '');
-    return `<div style="width:200px;"><label>Costo×Placa — ${label}</label><input type="number" class="mat-costo-placa" data-color="${color}" min="0" step="0.01" placeholder="$/placa" value="${val}" oninput="renderCosteo()"></div>`;
+    return `<div style="width:200px;"><label>Costo×Placa — ${label}${thickness ? ' ('+thickness+')' : ''}</label><input type="number" class="mat-costo-placa" data-color="${color}" min="0" step="0.01" placeholder="$/placa" value="${val}" oninput="renderCosteo()"></div>`;
   }).join('');
 }
 
