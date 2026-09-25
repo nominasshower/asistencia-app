@@ -209,8 +209,8 @@
     <h2>2. Catálogo de tamaños de lámina</h2>
     <div id="hintSizes" class="empty-hint" style="display:none;">Agrega los tamaños de lámina que manejas. Se guardan en este navegador para tus próximas cotizaciones.</div>
     <div class="table-scroll">
-    <table id="tblSizes" style="display:none; min-width:900px;">
-      <thead><tr><th style="width:16%;">Nombre</th><th style="width:8%;">Grosor</th><th style="width:9%;">Ancho (mm)</th><th style="width:9%;">Alto (mm)</th><th style="width:10%;">Costo/lámina</th><th style="width:9%;">Cant. disp.</th><th style="width:10%;">Costo×Pulgada</th><th style="width:11%;">Tipo de corte</th><th class="col-del"></th></tr></thead>
+    <table id="tblSizes" style="display:none; min-width:1150px;">
+      <thead><tr><th style="width:14%;">Nombre</th><th style="width:7%;">Grosor</th><th style="width:8%;">Ancho (mm)</th><th style="width:8%;">Alto (mm)</th><th style="width:9%;">Costo/lámina</th><th style="width:8%;">Cant. disp.</th><th style="width:9%;">Costo×Pulgada</th><th style="width:10%;">Tipo de corte</th><th style="width:9%;" title="Divisor para Precio Sugerido A. Reporte real: varía 0.65-0.9 según negociación">Margen A (÷)</th><th style="width:9%;" title="Divisor para Precio Sugerido B. Reporte real: varía 0.6-0.85 según negociación">Margen B (÷)</th><th class="col-del"></th></tr></thead>
       <tbody id="sizesBody"></tbody>
     </table>
     </div>
@@ -264,13 +264,13 @@
     <table class="cmp-table" style="min-width:1200px; margin-top:10px;">
       <thead><tr>
         <th>Color/Material</th><th>Tipo corte</th><th>Placas</th><th>Pulgadas corte</th><th>Sqft proyecto</th><th>Sqft fabricado</th><th>Aprov.</th>
-        <th>Costo Placas</th><th>Costo Corte</th><th>Costo Total</th><th>Costo×Sqft</th><th>Sugerido ÷0.7</th><th>Sugerido ÷0.65</th>
+        <th>Costo Placas</th><th>Costo Corte</th><th>Costo Total</th><th>Costo×Sqft</th><th>Sugerido A</th><th>Sugerido B</th>
       </tr></thead>
       <tbody id="materialCosteoBody"></tbody>
       <tfoot id="materialCosteoFoot"></tfoot>
     </table>
   </div>
-  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz", aplicadas por material: Sqft Fabricados=Placas×56.44 · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Sugeridos=Costo×Sqft÷0.7 y ÷0.65. Pulgadas de corte = separación de piezas (guillotina) + perímetro de cada tarja capturada (2×L + 2×A por pieza).</div>
+  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz", aplicadas por material: Sqft Fabricados=Placas×56.44 · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Sugerido A/B=Costo×Sqft÷Margen A/B (cada material define su propio margen en el catálogo, default 0.7/0.65). Pulgadas de corte = separación de piezas (guillotina) + perímetro de cada tarja capturada (2×L + 2×A por pieza).</div>
 </div>
 
 <div class="panel" id="cotizacionFinalPanel">
@@ -296,7 +296,9 @@ function saveSizes(){
     cost: parseFloat(tr.querySelector('.s-cost').value) || 0,
     qty: parseInt(tr.querySelector('.s-qty').value) || 0,
     costPerInch: parseFloat(tr.querySelector('.s-costoin').value) || 0,
-    cutType: tr.querySelector('.s-tipocorte').value
+    cutType: tr.querySelector('.s-tipocorte').value,
+    margenA: parseFloat(tr.querySelector('.s-margenA').value) || 0,
+    margenB: parseFloat(tr.querySelector('.s-margenB').value) || 0
   }));
   try { localStorage.setItem(LS_KEY, JSON.stringify(rows)); } catch(e){ /* storage no disponible (ej. vista previa en sandbox) */ }
 }
@@ -320,6 +322,8 @@ function addSizeRow(data){
         <option value="Laminado">Laminado</option>
       </select>
     </td>
+    <td><input type="number" class="s-margenA" min="0.01" max="1" step="0.01" placeholder="0.7" value="${data?.margenA||''}"></td>
+    <td><input type="number" class="s-margenB" min="0.01" max="1" step="0.01" placeholder="0.65" value="${data?.margenB||''}"></td>
     <td><button class="btn danger" onclick="this.closest('tr').remove(); saveSizes(); toggleEmptyStates();">×</button></td>
   `;
   tr.querySelector('.s-tipocorte').value = data?.cutType || 'Normal';
@@ -1135,7 +1139,9 @@ function readInputs(){
     cost: parseFloat(tr.querySelector('.s-cost').value) || 0,
     qty: parseInt(tr.querySelector('.s-qty').value) || 0,
     costPerInch: parseFloat(tr.querySelector('.s-costoin').value) || 0,
-    cutType: tr.querySelector('.s-tipocorte').value
+    cutType: tr.querySelector('.s-tipocorte').value,
+    margenA: parseFloat(tr.querySelector('.s-margenA').value) || 0.7,
+    margenB: parseFloat(tr.querySelector('.s-margenB').value) || 0.65
   })).filter(s => s.w>0 && s.h>0);
 
   const pieces = [...document.querySelectorAll('#piecesBody tr')].map((tr,i) => ({
@@ -1283,7 +1289,9 @@ function getSizesMapLive(){
       name,
       cost: parseFloat(tr.querySelector('.s-cost').value) || 0,
       costPerInch: parseFloat(tr.querySelector('.s-costoin').value) || 0,
-      cutType: tr.querySelector('.s-tipocorte').value
+      cutType: tr.querySelector('.s-tipocorte').value,
+      margenA: parseFloat(tr.querySelector('.s-margenA').value) || 0.7,
+      margenB: parseFloat(tr.querySelector('.s-margenB').value) || 0.65
     };
   });
   return map;
@@ -1327,10 +1335,12 @@ function renderCosteo(){
     const costoCorte = costoPulgada * pulgadasCorte;
     const costoTotal = costoPlacas + costoCorte;
     const costoSqft = sqftProyecto > 0 ? costoTotal / sqftProyecto : 0;
-    const precioA = costoSqft / 0.7;
-    const precioB = costoSqft / 0.65;
+    const margenA = live.margenA || 0.7;
+    const margenB = live.margenB || 0.65;
+    const precioA = costoSqft / margenA;
+    const precioB = costoSqft / margenB;
 
-    return { color, tipoCorte, placas, pulgadasCorte, pulgadasSeparacion, pulgadasTarjas,
+    return { color, tipoCorte, margenA, margenB, placas, pulgadasCorte, pulgadasSeparacion, pulgadasTarjas,
              sqftProyecto, sqftFabricados, optim, costoPlacas, costoCorte, costoTotal, costoSqft, precioA, precioB };
   });
 
@@ -1348,8 +1358,8 @@ function renderCosteo(){
       <td>$${f.costoCorte.toFixed(2)}</td>
       <td>$${f.costoTotal.toFixed(2)}</td>
       <td>${f.costoSqft > 0 ? '$' + f.costoSqft.toFixed(2) : '—'}</td>
-      <td>${f.precioA > 0 ? '$' + f.precioA.toFixed(2) : '—'}</td>
-      <td>${f.precioB > 0 ? '$' + f.precioB.toFixed(2) : '—'}</td>
+      <td>${f.precioA > 0 ? '$' + f.precioA.toFixed(2) + ' (÷' + f.margenA + ')' : '—'}</td>
+      <td>${f.precioB > 0 ? '$' + f.precioB.toFixed(2) + ' (÷' + f.margenB + ')' : '—'}</td>
     </tr>`).join('');
 
   const totalPlacas = filas.reduce((s,f)=>s+f.placas,0);
@@ -1367,8 +1377,8 @@ function renderCosteo(){
     <td>$${totalCostoPlacas.toFixed(2)}</td><td>$${totalCostoCorte.toFixed(2)}</td>
     <td><b>$${totalCostoTotal.toFixed(2)}</b></td>
     <td>${totalCostoSqft>0 ? '$'+totalCostoSqft.toFixed(2) : '—'}</td>
-    <td>${totalCostoSqft>0 ? '$'+(totalCostoSqft/0.7).toFixed(2) : '—'}</td>
-    <td>${totalCostoSqft>0 ? '$'+(totalCostoSqft/0.65).toFixed(2) : '—'}</td>
+    <td title="Cada material puede usar un margen distinto — ve el detalle por fila arriba">—</td>
+    <td title="Cada material puede usar un margen distinto — ve el detalle por fila arriba">—</td>
   </tr>`;
 }
 
