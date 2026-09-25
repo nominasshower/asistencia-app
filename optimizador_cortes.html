@@ -152,13 +152,13 @@
   </div>
   <div id="importCotizMsg" class="sub" style="margin:0 0 10px;"></div>
   <div class="table-scroll">
-    <table id="tblClientItems" style="min-width:920px;">
+    <table id="tblClientItems" style="min-width:1080px;">
       <thead><tr>
-        <th style="width:16%;">Producto</th><th style="width:12%;">Grupo (subtotal)</th>
-        <th style="width:8%;">Prof. D (in)</th><th style="width:8%;">Ancho W (in)</th>
-        <th style="width:9%;">Factor $/sqft</th><th style="width:9%;">Precio fijo</th><th style="width:6%;">Cant.</th>
-        <th style="width:7%;" title="Desmarca si es un accesorio (ej. sink) que no se corta de la placa">¿Corte?</th>
-        <th style="width:8%;">Sq.Ft.</th><th style="width:9%;">Precio unit.</th><th style="width:9%;">Total</th><th class="col-del"></th>
+        <th style="width:14%;">Producto</th><th style="width:10%;">Grupo (subtotal)</th><th style="width:10%;">Color/Material</th>
+        <th style="width:7%;">Prof. D (in)</th><th style="width:7%;">Ancho W (in)</th>
+        <th style="width:8%;">Factor $/sqft</th><th style="width:8%;">Precio fijo</th><th style="width:5%;">Cant.</th>
+        <th style="width:6%;" title="Desmarca si es un accesorio (ej. sink) que no se corta de la placa">¿Corte?</th>
+        <th style="width:7%;">Sq.Ft.</th><th style="width:8%;">Precio unit.</th><th style="width:8%;">Total</th><th class="col-del"></th>
       </tr></thead>
       <tbody id="clientItemsBody"></tbody>
     </table>
@@ -262,15 +262,9 @@
 
 <div class="panel" id="costeoPanel" style="display:none;">
   <h2>Costeo interno (fórmulas del Reporte de Cotizaciones)</h2>
-  <div class="results-summary">
-    <div class="stat"><div class="val" id="c-placas">—</div><div class="lbl">Placas necesarias</div></div>
-    <div class="stat"><div class="val" id="c-pulgadas">—</div><div class="lbl">Pulgadas de corte</div></div>
-    <div class="stat"><div class="val" id="c-sqftproyecto">—</div><div class="lbl">Sqft proyecto</div></div>
-    <div class="stat"><div class="val" id="c-sqftfab">—</div><div class="lbl">Sqft fabricados</div></div>
-    <div class="stat good"><div class="val" id="c-optim">—</div><div class="lbl">% Optimización</div></div>
-  </div>
+  <div class="sub" style="margin-bottom:10px;">Si la cotización mezcla varias placas/colores distintos, cada uno tiene su propio Costo×Placa (se detecta solo al importar el Excel) pero todo se ve junto, en la misma cotización.</div>
+  <div class="row" id="materialCostRows"></div>
   <div class="row">
-    <div style="width:160px;"><label>Costo × Placa ($)</label><input type="number" id="costoPlaca" value="" min="0" step="0.01" placeholder="la única variable manual" oninput="renderCosteo()"></div>
     <div style="width:160px;"><label>Costo × Pulgada ($)</label><input type="number" id="costoPulgada" value="0.17" min="0" step="0.01" oninput="renderCosteo()"></div>
     <div style="width:160px;"><label>Tipo de corte</label>
       <select id="tipoCorteCosteo" style="width:100%;" onchange="renderCosteo()">
@@ -280,15 +274,16 @@
     </div>
   </div>
   <div class="table-scroll">
-    <table class="cmp-table" style="min-width:640px; margin-top:10px;">
-      <thead><tr><th>Costo Placas</th><th>Costo Corte</th><th>Costo Total</th><th>Costo × Sqft</th><th>Precio sugerido (÷0.7)</th><th>Precio sugerido (÷0.65)</th></tr></thead>
-      <tbody><tr>
-        <td id="c-costoplacas">—</td><td id="c-costocorte">—</td><td id="c-costototal">—</td>
-        <td id="c-costosqft">—</td><td id="c-precioA">—</td><td id="c-precioB">—</td>
-      </tr></tbody>
+    <table class="cmp-table" style="min-width:1100px; margin-top:10px;">
+      <thead><tr>
+        <th>Color/Material</th><th>Placas</th><th>Pulgadas corte</th><th>Sqft proyecto</th><th>Sqft fabricado</th><th>Aprov.</th>
+        <th>Costo Placas</th><th>Costo Corte</th><th>Costo Total</th><th>Costo×Sqft</th><th>Sugerido ÷0.7</th><th>Sugerido ÷0.65</th>
+      </tr></thead>
+      <tbody id="materialCosteoBody"></tbody>
+      <tfoot id="materialCosteoFoot"></tfoot>
     </table>
   </div>
-  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz": Sqft Fabricados=Placas×56.44 · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Precios sugeridos=Costo×Sqft÷0.7 y ÷0.65. Pulgadas de corte = separación de piezas (guillotina) + perímetro de cada tarja capturada (2×L + 2×A por pieza).</div>
+  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz", aplicadas por material: Sqft Fabricados=Placas×56.44 · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Sugeridos=Costo×Sqft÷0.7 y ÷0.65. Pulgadas de corte = separación de piezas (guillotina) + perímetro de cada tarja capturada (2×L + 2×A por pieza).</div>
 </div>
 
 <script>
@@ -437,9 +432,34 @@ function handleImportCotizFile(e){
       const items = [];
       let grupoNum = 1;
       let tieneRenglonesEnGrupo = false;
+      let pendingItemsIdx = [];
+      let curColor = '', curThickness = '', curCostoPlaca = 0;
+      const materialRates = {};
+
       for (let i = headerIdx + 2; i < rows.length; i++){
         const r = rows[i];
         if (!r) continue;
+
+        for (let c = 0; c < r.length - 1; c++){
+          const norm = normalizeCell(r[c]);
+          if (norm === 'color:'){
+            for (let look = c+1; look <= Math.min(c+3, r.length-1); look++){
+              if (r[look] !== null && r[look] !== undefined && r[look] !== ''){ curColor = String(r[look]).trim(); break; }
+            }
+          } else if (norm === 'thickness:'){
+            for (let look = c+1; look <= Math.min(c+3, r.length-1); look++){
+              if (r[look] !== null && r[look] !== undefined && r[look] !== ''){ curThickness = String(r[look]).trim(); break; }
+            }
+          } else if (norm === 'costo placa' || norm === 'costo placa:'){
+            for (let look = c+1; look <= Math.min(c+3, r.length-1); look++){
+              if (r[look] !== null && r[look] !== undefined && r[look] !== ''){ curCostoPlaca = parseFloat(r[look]) || 0; break; }
+            }
+            pendingItemsIdx.forEach(idx => { items[idx].color = curColor; });
+            if (curColor) materialRates[curColor] = { costoPlaca: curCostoPlaca, thickness: curThickness };
+            pendingItemsIdx = [];
+          }
+        }
+
         const hasSubtotal = r.some(c => normalizeCell(c).includes('sub-total') || normalizeCell(c).includes('subtotal'));
         if (hasSubtotal){
           if (tieneRenglonesEnGrupo) grupoNum++;
@@ -457,14 +477,18 @@ function handleImportCotizFile(e){
         items.push({
           producto: String(producto).trim(),
           grupo: `Grupo ${grupoNum}`,
+          color: '',
           d, w,
           factor: factor > 0 ? factor : '',
           precioFijo: factor > 0 ? '' : unitPrice,
           cant,
           esCorte: sqft > 0
         });
+        pendingItemsIdx.push(items.length - 1);
         tieneRenglonesEnGrupo = true;
       }
+
+      lastMaterialRates = materialRates;
 
       if (!items.length){
         msg.textContent = 'No se detectaron renglones de producto en el archivo.';
@@ -474,8 +498,10 @@ function handleImportCotizFile(e){
 
       document.getElementById('clientItemsBody').innerHTML = '';
       items.forEach(it => addClientItemRow(it));
+      Object.entries(materialRates).forEach(([color, rate]) => { costoPorMaterial[color] = rate.costoPlaca; });
       renderClientTotals();
-      msg.textContent = `Importados ${items.length} renglón(es) en ${grupoNum} grupo(s). Revisa "¿Corte?" antes de generar piezas.`;
+      const nMat = Object.keys(materialRates).length;
+      msg.textContent = `Importados ${items.length} renglón(es) en ${grupoNum} grupo(s)${nMat ? `, ${nMat} material(es) con Costo×Placa detectado` : ''}. Revisa "¿Corte?" antes de generar piezas.`;
       msg.style.color = 'var(--good)';
     } catch(err){
       msg.textContent = 'Error leyendo el archivo: ' + err.message;
@@ -492,6 +518,7 @@ function addClientItemRow(data){
   tr.innerHTML = `
     <td><input type="text" class="ci-producto" placeholder="Ej. Vanity Top Center" value="${data?.producto||''}"></td>
     <td><input type="text" class="ci-grupo" placeholder="Ej. Baño 1" value="${data?.grupo||''}"></td>
+    <td><input type="text" class="ci-color" placeholder="Ej. Manhatan Gray" value="${data?.color||''}"></td>
     <td><input type="number" class="ci-d" min="0" step="0.01" value="${data?.d||''}"></td>
     <td><input type="number" class="ci-w" min="0" step="0.01" value="${data?.w||''}"></td>
     <td><input type="number" class="ci-factor" min="0" step="0.01" placeholder="$/sqft" value="${data?.factor||''}"></td>
@@ -516,6 +543,7 @@ function computeClientItems(){
   return [...document.querySelectorAll('#clientItemsBody tr')].map(tr => {
     const producto = tr.querySelector('.ci-producto').value.trim() || 'Pieza';
     const grupo = tr.querySelector('.ci-grupo').value.trim() || 'Sin grupo';
+    const color = tr.querySelector('.ci-color').value.trim();
     const d = parseFloat(tr.querySelector('.ci-d').value) || 0;
     const w = parseFloat(tr.querySelector('.ci-w').value) || 0;
     const factor = parseFloat(tr.querySelector('.ci-factor').value) || 0;
@@ -525,7 +553,7 @@ function computeClientItems(){
     const sqft = (d > 0 && w > 0) ? (d * w / 144) : 0;
     const unit = sqft > 0 && factor > 0 ? sqft * factor : precioFijo;
     const total = unit * cant;
-    return { tr, producto, grupo, d, w, factor, precioFijo, cant, esCorte, sqft, unit, total };
+    return { tr, producto, grupo, color, d, w, factor, precioFijo, cant, esCorte, sqft, unit, total };
   });
 }
 
@@ -603,7 +631,7 @@ function generarPiezasDeCorte(){
   const items = computeClientItems().filter(it => it.esCorte && it.d > 0 && it.w > 0);
   if (!items.length){ msg.textContent = 'No hay renglones marcados como "¿Corte?" con Prof./Ancho capturados.'; msg.style.color = 'var(--danger)'; return; }
   items.forEach(it => {
-    addPieceRow({ name: it.producto, w: Math.round(it.d*25.4*100)/100, h: Math.round(it.w*25.4*100)/100, qty: it.cant });
+    addPieceRow({ name: it.producto, w: Math.round(it.d*25.4*100)/100, h: Math.round(it.w*25.4*100)/100, qty: it.cant, color: it.color });
   });
   toggleEmptyStates();
   msg.style.color = 'var(--good)';
@@ -631,13 +659,14 @@ function collectProjectData(){
       cutMode: document.getElementById('cutMode').value,
       freight: document.getElementById('freight').value,
       deposit: document.getElementById('deposit').value,
-      costoPlaca: document.getElementById('costoPlaca').value,
+      costoPorMaterial: costoPorMaterial,
       costoPulgada: document.getElementById('costoPulgada').value,
       tipoCorteCosteo: document.getElementById('tipoCorteCosteo').value,
       clientInfo: lastClientInfo,
       clientItems: [...document.querySelectorAll('#clientItemsBody tr')].map(tr => ({
         producto: tr.querySelector('.ci-producto').value,
         grupo: tr.querySelector('.ci-grupo').value,
+        color: tr.querySelector('.ci-color').value,
         d: tr.querySelector('.ci-d').value,
         w: tr.querySelector('.ci-w').value,
         factor: tr.querySelector('.ci-factor').value,
@@ -684,6 +713,8 @@ function filterProjectSelector(){
 }
 
 let lastClientInfo = {};
+let lastMaterialRates = {};
+let costoPorMaterial = {};
 
 function applyClientInfo(info){
   lastClientInfo = info;
@@ -755,7 +786,7 @@ async function loadProjectByName(name){
     document.getElementById('cutMode').value = cfg.cutMode || 'guillotine';
     document.getElementById('freight').value = cfg.freight ?? 0;
     document.getElementById('deposit').value = cfg.deposit ?? 0;
-    document.getElementById('costoPlaca').value = cfg.costoPlaca ?? '';
+    costoPorMaterial = cfg.costoPorMaterial || {};
     document.getElementById('costoPulgada').value = cfg.costoPulgada ?? 0.17;
     document.getElementById('tipoCorteCosteo').value = cfg.tipoCorteCosteo || 'Normal';
     lastClientInfo = cfg.clientInfo || {};
@@ -1203,6 +1234,18 @@ function renderSheetsForSelected(){
   renderCosteo();
 }
 
+function renderMaterialCostInputs(colors){
+  const wrap = document.getElementById('materialCostRows');
+  const existing = {};
+  wrap.querySelectorAll('.mat-costo-placa').forEach(inp => { existing[inp.dataset.color] = inp.value; });
+  wrap.innerHTML = colors.map(color => {
+    const label = color || 'Sin color especificado';
+    const prefill = costoPorMaterial[color];
+    const val = existing[color] !== undefined && existing[color] !== '' ? existing[color] : (prefill !== undefined ? prefill : '');
+    return `<div style="width:200px;"><label>Costo×Placa — ${label}</label><input type="number" class="mat-costo-placa" data-color="${color}" min="0" step="0.01" placeholder="$/placa" value="${val}" oninput="renderCosteo()"></div>`;
+  }).join('');
+}
+
 function renderCosteo(){
   const panel = document.getElementById('costeoPanel');
   const idx = parseInt(document.getElementById('sizeSelector')?.value);
@@ -1211,44 +1254,77 @@ function renderCosteo(){
   panel.style.display = 'block';
   const { res } = entry;
 
-  const placas = res.sheetsCount;
-  let pulgadasSeparacion = 0;
-  if (res.cutMode === 'guillotine'){
-    res.bins.forEach(bin => (bin.cuts || []).forEach(c => { pulgadasSeparacion += (c.to - c.from) / 25.4; }));
-  }
-  let pulgadasTarjas = 0;
-  res.bins.forEach(bin => bin.placed.forEach(p => {
-    if (p.tarjaL > 0 && p.tarjaA > 0) pulgadasTarjas += 2 * (p.tarjaL + p.tarjaA) / 25.4;
-  }));
-  const pulgadasCorte = pulgadasSeparacion + pulgadasTarjas;
-  const sqftProyecto = computeClientItems().filter(it => it.esCorte && it.d > 0 && it.w > 0).reduce((s, it) => s + it.sqft * it.cant, 0);
-  const sqftFabricados = placas * 56.44;
-  const optim = sqftFabricados > 0 ? (sqftProyecto / sqftFabricados) * 100 : 0;
-
-  document.getElementById('c-placas').textContent = placas;
-  const pulgadasLabel = res.cutMode === 'guillotine'
-    ? `${Math.round(pulgadasCorte)}${pulgadasTarjas > 0 ? ' (' + Math.round(pulgadasSeparacion) + ' separación + ' + Math.round(pulgadasTarjas) + ' tarjas)' : ''}`
-    : (pulgadasTarjas > 0 ? `${Math.round(pulgadasTarjas)} (solo tarjas — separación es CNC libre)` : '— (modo libre/CNC)');
-  document.getElementById('c-pulgadas').textContent = pulgadasLabel;
-  document.getElementById('c-sqftproyecto').textContent = sqftProyecto.toFixed(2);
-  document.getElementById('c-sqftfab').textContent = sqftFabricados.toFixed(2);
-  document.getElementById('c-optim').textContent = sqftFabricados > 0 ? optim.toFixed(1) + '%' : '—';
-
-  const costoPlaca = parseFloat(document.getElementById('costoPlaca').value) || 0;
+  const colors = [...new Set(res.bins.map(b => b.colorLabel || ''))];
+  renderMaterialCostInputs(colors);
   const costoPulgada = parseFloat(document.getElementById('costoPulgada').value) || 0;
-  const costoPlacas = costoPlaca * placas;
-  const costoCorte = costoPulgada * pulgadasCorte;
-  const costoTotal = costoPlacas + costoCorte;
-  const costoSqft = sqftProyecto > 0 ? costoTotal / sqftProyecto : 0;
-  const precioA = costoSqft / 0.7;
-  const precioB = costoSqft / 0.65;
+  const clientItems = computeClientItems();
 
-  document.getElementById('c-costoplacas').textContent = '$' + costoPlacas.toFixed(2);
-  document.getElementById('c-costocorte').textContent = '$' + costoCorte.toFixed(2);
-  document.getElementById('c-costototal').textContent = '$' + costoTotal.toFixed(2);
-  document.getElementById('c-costosqft').textContent = costoSqft > 0 ? '$' + costoSqft.toFixed(2) + '/sqft' : '—';
-  document.getElementById('c-precioA').textContent = precioA > 0 ? '$' + precioA.toFixed(2) + '/sqft (total $' + (precioA*sqftProyecto).toFixed(2) + ')' : '—';
-  document.getElementById('c-precioB').textContent = precioB > 0 ? '$' + precioB.toFixed(2) + '/sqft (total $' + (precioB*sqftProyecto).toFixed(2) + ')' : '—';
+  const filas = colors.map(color => {
+    const binsColor = res.bins.filter(b => (b.colorLabel || '') === color);
+    const placas = binsColor.length;
+    let pulgadasSeparacion = 0;
+    if (res.cutMode === 'guillotine'){
+      binsColor.forEach(bin => (bin.cuts || []).forEach(c => { pulgadasSeparacion += (c.to - c.from) / 25.4; }));
+    }
+    let pulgadasTarjas = 0;
+    binsColor.forEach(bin => bin.placed.forEach(p => {
+      if (p.tarjaL > 0 && p.tarjaA > 0) pulgadasTarjas += 2 * (p.tarjaL + p.tarjaA) / 25.4;
+    }));
+    const pulgadasCorte = pulgadasSeparacion + pulgadasTarjas;
+    const sqftProyecto = clientItems.filter(it => it.esCorte && it.d > 0 && it.w > 0 && (it.color || '') === color)
+      .reduce((s, it) => s + it.sqft * it.cant, 0);
+    const sqftFabricados = placas * 56.44;
+    const optim = sqftFabricados > 0 ? (sqftProyecto / sqftFabricados) * 100 : 0;
+
+    const inp = document.querySelector(`.mat-costo-placa[data-color="${color}"]`);
+    const costoPlaca = parseFloat(inp?.value) || 0;
+    costoPorMaterial[color] = costoPlaca;
+    const costoPlacas = costoPlaca * placas;
+    const costoCorte = costoPulgada * pulgadasCorte;
+    const costoTotal = costoPlacas + costoCorte;
+    const costoSqft = sqftProyecto > 0 ? costoTotal / sqftProyecto : 0;
+    const precioA = costoSqft / 0.7;
+    const precioB = costoSqft / 0.65;
+
+    return { color: color || 'Sin color especificado', placas, pulgadasCorte, pulgadasSeparacion, pulgadasTarjas,
+             sqftProyecto, sqftFabricados, optim, costoPlacas, costoCorte, costoTotal, costoSqft, precioA, precioB };
+  });
+
+  const tbody = document.getElementById('materialCosteoBody');
+  tbody.innerHTML = filas.map(f => `
+    <tr>
+      <td>${f.color}</td>
+      <td>${f.placas}</td>
+      <td>${Math.round(f.pulgadasCorte)}${f.pulgadasTarjas > 0 ? ' (' + Math.round(f.pulgadasSeparacion) + '+' + Math.round(f.pulgadasTarjas) + 'tarja)' : ''}</td>
+      <td>${f.sqftProyecto.toFixed(2)}</td>
+      <td>${f.sqftFabricados.toFixed(2)}</td>
+      <td>${f.sqftFabricados > 0 ? f.optim.toFixed(1) + '%' : '—'}</td>
+      <td>$${f.costoPlacas.toFixed(2)}</td>
+      <td>$${f.costoCorte.toFixed(2)}</td>
+      <td>$${f.costoTotal.toFixed(2)}</td>
+      <td>${f.costoSqft > 0 ? '$' + f.costoSqft.toFixed(2) : '—'}</td>
+      <td>${f.precioA > 0 ? '$' + f.precioA.toFixed(2) : '—'}</td>
+      <td>${f.precioB > 0 ? '$' + f.precioB.toFixed(2) : '—'}</td>
+    </tr>`).join('');
+
+  const totalPlacas = filas.reduce((s,f)=>s+f.placas,0);
+  const totalPulgadas = filas.reduce((s,f)=>s+f.pulgadasCorte,0);
+  const totalSqftP = filas.reduce((s,f)=>s+f.sqftProyecto,0);
+  const totalSqftF = filas.reduce((s,f)=>s+f.sqftFabricados,0);
+  const totalCostoPlacas = filas.reduce((s,f)=>s+f.costoPlacas,0);
+  const totalCostoCorte = filas.reduce((s,f)=>s+f.costoCorte,0);
+  const totalCostoTotal = filas.reduce((s,f)=>s+f.costoTotal,0);
+  const totalCostoSqft = totalSqftP > 0 ? totalCostoTotal / totalSqftP : 0;
+  document.getElementById('materialCosteoFoot').innerHTML = `<tr class="cmp-row-best">
+    <td><b>TOTAL</b></td><td>${totalPlacas}</td><td>${Math.round(totalPulgadas)}</td>
+    <td>${totalSqftP.toFixed(2)}</td><td>${totalSqftF.toFixed(2)}</td>
+    <td>${totalSqftF>0 ? (totalSqftP/totalSqftF*100).toFixed(1)+'%' : '—'}</td>
+    <td>$${totalCostoPlacas.toFixed(2)}</td><td>$${totalCostoCorte.toFixed(2)}</td>
+    <td><b>$${totalCostoTotal.toFixed(2)}</b></td>
+    <td>${totalCostoSqft>0 ? '$'+totalCostoSqft.toFixed(2) : '—'}</td>
+    <td>${totalCostoSqft>0 ? '$'+(totalCostoSqft/0.7).toFixed(2) : '—'}</td>
+    <td>${totalCostoSqft>0 ? '$'+(totalCostoSqft/0.65).toFixed(2) : '—'}</td>
+  </tr>`;
 }
 
 function renderCutSequence(entry){
