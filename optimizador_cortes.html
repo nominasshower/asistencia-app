@@ -208,13 +208,17 @@
   <div class="panel">
     <h2>2. Catálogo de tamaños de lámina</h2>
     <div id="hintSizes" class="empty-hint" style="display:none;">Agrega los tamaños de lámina que manejas. Se guardan en este navegador para tus próximas cotizaciones.</div>
-    <table id="tblSizes" style="display:none;">
-      <thead><tr><th class="col-name">Nombre</th><th class="col-num">Ancho (mm)</th><th class="col-num">Alto (mm)</th><th class="col-num">Costo/lámina</th><th class="col-num">Cant. disp.</th><th class="col-del"></th></tr></thead>
+    <div class="table-scroll">
+    <table id="tblSizes" style="display:none; min-width:620px;">
+      <thead><tr><th class="col-name">Nombre</th><th style="width:10%;">Grosor</th><th class="col-num">Ancho (mm)</th><th class="col-num">Alto (mm)</th><th class="col-num">Costo/lámina</th><th class="col-num">Cant. disp.</th><th class="col-del"></th></tr></thead>
       <tbody id="sizesBody"></tbody>
     </table>
+    </div>
     <div class="actions">
       <button class="btn secondary small" onclick="addSizeRow()">+ Agregar tamaño de lámina</button>
+      <button class="btn small" onclick="sugerirMaterialesFaltantes()">Traer nombres de materiales de la cotización →</button>
     </div>
+    <div id="sugerirMsg" class="sub" style="margin:6px 0 0;"></div>
   </div>
 
   <div class="panel">
@@ -296,6 +300,7 @@ function loadSizes(){
 function saveSizes(){
   const rows = [...document.querySelectorAll('#sizesBody tr')].map(tr => ({
     name: tr.querySelector('.s-name').value,
+    thickness: tr.querySelector('.s-thickness').value,
     w: parseFloat(tr.querySelector('.s-w').value) || 0,
     h: parseFloat(tr.querySelector('.s-h').value) || 0,
     cost: parseFloat(tr.querySelector('.s-cost').value) || 0,
@@ -310,7 +315,8 @@ function addSizeRow(data){
   const tbody = document.getElementById('sizesBody');
   const tr = document.createElement('tr');
   tr.innerHTML = `
-    <td><input type="text" class="s-name" placeholder="Ej. Lámina grande" value="${data?.name||''}"></td>
+    <td><input type="text" class="s-name" placeholder="Ej. Manhatan Gray" value="${data?.name||''}"></td>
+    <td><input type="text" class="s-thickness" placeholder="Ej. 2cm" value="${data?.thickness||''}"></td>
     <td><input type="number" class="s-w" min="1" value="${data?.w||''}"></td>
     <td><input type="number" class="s-h" min="1" value="${data?.h||''}"></td>
     <td><input type="number" class="s-cost" min="0" step="0.01" placeholder="opcional" value="${data?.cost||''}"></td>
@@ -353,6 +359,26 @@ function addPieceRow(data){
   tr.querySelector('.p-joint').value = data?.joint || '';
   tbody.appendChild(tr);
   toggleEmptyStates();
+}
+
+function sugerirMaterialesFaltantes(){
+  const msg = document.getElementById('sugerirMsg');
+  const existentes = new Set([...document.querySelectorAll('.s-name')].map(inp => inp.value.trim().toLowerCase()).filter(Boolean));
+
+  const colores = new Set();
+  document.querySelectorAll('.ci-color').forEach(inp => { const v = inp.value.trim(); if (v) colores.add(v); });
+  document.querySelectorAll('.p-color').forEach(inp => { const v = inp.value.trim(); if (v) colores.add(v); });
+
+  const faltantes = [...colores].filter(c => !existentes.has(c.toLowerCase()));
+  if (!faltantes.length){
+    msg.textContent = colores.size ? 'Todos los materiales de la cotización ya tienen una fila en el catálogo.' : 'No hay ningún color/material capturado todavía en las piezas.';
+    msg.style.color = colores.size ? 'var(--good)' : 'var(--danger)';
+    return;
+  }
+  faltantes.forEach(color => addSizeRow({ name: color, thickness: materialThickness[color] || '' }));
+  saveSizes();
+  msg.style.color = 'var(--good)';
+  msg.textContent = `Se agregaron ${faltantes.length} material(es): ${faltantes.join(', ')}. Solo falta que pongas ancho, alto y costo de cada uno.`;
 }
 
 function toggleEmptyStates(){
