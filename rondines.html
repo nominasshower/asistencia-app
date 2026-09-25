@@ -1,0 +1,489 @@
+<title>Bitácora de Rondines</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    color-scheme: light;
+    --bg:#f2efe6;
+    --surface:#ffffff;
+    --surface-2:#e8e3d4;
+    --ink:#22271f;
+    --ink-soft:#5c6157;
+    --ink-faint:#8a8f83;
+    --border:#d9d3c0;
+    --accent:#b1502a;
+    --accent-ink:#ffffff;
+    --good:#3f6b45;
+    --good-bg:#e3ede2;
+    --warn:#a9791f;
+    --warn-bg:#f3e8cf;
+    --critical:#a53a30;
+    --critical-bg:#f4e0dc;
+    --chip-bg:#efe9d8;
+    --shadow: 0 1px 0 rgba(34,39,31,0.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --bg:#15181a;
+      --surface:#1c2023;
+      --surface-2:#23282b;
+      --ink:#eae7de;
+      --ink-soft:#a3a89c;
+      --ink-faint:#767d72;
+      --border:#31373a;
+      --accent:#e0824f;
+      --accent-ink:#171a13;
+      --good:#7bb379;
+      --good-bg:#1f2c22;
+      --warn:#dcae57;
+      --warn-bg:#332a17;
+      --critical:#e17b6c;
+      --critical-bg:#33201d;
+      --chip-bg:#282d24;
+      --shadow: 0 1px 0 rgba(0,0,0,0.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --bg:#15181a;
+    --surface:#1c2023;
+    --surface-2:#23282b;
+    --ink:#eae7de;
+    --ink-soft:#a3a89c;
+    --ink-faint:#767d72;
+    --border:#31373a;
+    --accent:#e0824f;
+    --accent-ink:#171a13;
+    --good:#7bb379;
+    --good-bg:#1f2c22;
+    --warn:#dcae57;
+    --warn-bg:#332a17;
+    --critical:#e17b6c;
+    --critical-bg:#33201d;
+    --chip-bg:#282d24;
+    --shadow: 0 1px 0 rgba(0,0,0,0.4);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Public Sans', system-ui, sans-serif;
+    padding-inline:16px;
+    padding-block:28px 48px;
+  }
+  .wrap{max-width:980px; margin:0 auto; display:flex; flex-direction:column; gap:28px;}
+
+  .display{font-family:'Big Shoulders Display', 'Arial Narrow', sans-serif; font-weight:800; text-transform:uppercase;}
+  .mono{font-family:'IBM Plex Mono', 'Courier New', monospace; font-variant-numeric: tabular-nums;}
+
+  header.top{display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:10px; border-bottom:3px solid var(--ink); padding-bottom:14px;}
+  header.top .eyebrow{font-family:'IBM Plex Mono', monospace; font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600;}
+  header.top h1{font-size:clamp(1.9rem, 4.5vw, 2.6rem); margin:2px 0 0; line-height:1; text-wrap:balance;}
+  header.top .rango{font-family:'IBM Plex Mono', monospace; font-size:.82rem; color:var(--ink-soft); text-align:right;}
+
+  .alerta{
+    display:flex; gap:12px; align-items:flex-start;
+    background:var(--critical-bg); border:1px solid var(--critical); border-left-width:4px;
+    border-radius:4px; padding:14px 16px; color:var(--ink);
+  }
+  .alerta .icono{font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--critical); font-size:1.1rem; line-height:1.3;}
+  .alerta strong{color:var(--critical);}
+  .alerta p{margin:4px 0 0; font-size:.92rem; color:var(--ink-soft); line-height:1.5;}
+
+  .stats{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:6px; overflow:hidden;}
+  .stat{background:var(--surface); padding:16px 18px; display:flex; flex-direction:column; gap:4px;}
+  .stat .num{font-family:'Big Shoulders Display', sans-serif; font-weight:800; font-size:2.3rem; line-height:1;}
+  .stat .lbl{font-size:.74rem; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.05em;}
+  .stat.ok .num{color:var(--good)}
+  .stat.bad .num{color:var(--critical)}
+
+  section{display:flex; flex-direction:column; gap:14px;}
+  .sec-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  .sec-head h2{font-family:'Big Shoulders Display', sans-serif; font-weight:700; font-size:1.35rem; margin:0; text-transform:uppercase; letter-spacing:.01em;}
+  .sec-head .nota{font-size:.82rem; color:var(--ink-soft);}
+
+  /* Chart */
+  .chart-card{background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:18px 18px 10px; box-shadow:var(--shadow);}
+  .chart-wrap{overflow-x:auto;}
+  svg text{fill:var(--ink-soft); font-family:'IBM Plex Mono', monospace;}
+  .bar-good{fill:var(--good)}
+  .bar-bad{fill:var(--critical)}
+  .bar-track{fill:var(--surface-2)}
+
+  /* Bitacora */
+  .log{display:flex; flex-direction:column; gap:10px;}
+  .ronda{background:var(--surface); border:1px solid var(--border); border-radius:6px; box-shadow:var(--shadow); overflow:hidden;}
+  .ronda-head{display:flex; align-items:center; gap:12px; padding:11px 14px; cursor:pointer; user-select:none;}
+  .ronda-head:hover{background:var(--surface-2)}
+  .estado-punto{width:9px; height:9px; border-radius:50%; flex:none;}
+  .estado-punto.ok{background:var(--good)}
+  .estado-punto.bad{background:var(--critical)}
+  .ronda-fecha{font-family:'IBM Plex Mono', monospace; font-size:.86rem; font-weight:600; white-space:nowrap;}
+  .ronda-horas{font-family:'IBM Plex Mono', monospace; font-size:.8rem; color:var(--ink-soft); white-space:nowrap;}
+  .ronda-resumen{flex:1; font-size:.85rem; color:var(--ink-soft); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pill{font-family:'IBM Plex Mono', monospace; font-size:.72rem; font-weight:600; padding:3px 8px; border-radius:20px; white-space:nowrap;}
+  .pill.ok{background:var(--good-bg); color:var(--good);}
+  .pill.bad{background:var(--critical-bg); color:var(--critical);}
+  .chev{color:var(--ink-faint); font-size:.75rem; transition:transform .15s; flex:none;}
+  .ronda[open] .chev{transform:rotate(90deg);}
+  .ronda-body{padding:4px 14px 14px; border-top:1px solid var(--border);}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; padding-top:10px;}
+  .chip{font-size:.76rem; padding:4px 9px; border-radius:4px; background:var(--chip-bg); color:var(--ink-soft); display:flex; gap:6px; align-items:center; border:1px solid var(--border);}
+  .chip .t{font-family:'IBM Plex Mono', monospace; color:var(--ink); font-weight:600;}
+  .chip.falta{background:var(--critical-bg); color:var(--critical); border-color:transparent;}
+  .chip.extra{background:var(--warn-bg); color:var(--warn); border-color:transparent;}
+  summary{list-style:none;}
+  summary::-webkit-details-marker{display:none;}
+
+  /* Ranking */
+  .ranking{background:var(--surface); border:1px solid var(--border); border-radius:6px; box-shadow:var(--shadow); padding:6px 0;}
+  .rk-row{display:grid; grid-template-columns:1fr auto 90px; align-items:center; gap:12px; padding:9px 16px;}
+  .rk-row+.rk-row{border-top:1px solid var(--border);}
+  .rk-nombre{font-size:.9rem;}
+  .rk-num{font-family:'IBM Plex Mono', monospace; font-size:.85rem; color:var(--critical); font-weight:600; text-align:right;}
+  .rk-bar-track{height:6px; background:var(--surface-2); border-radius:3px; overflow:hidden;}
+  .rk-bar{height:100%; background:var(--critical); border-radius:3px;}
+
+  /* Ruta */
+  .ruta{display:flex; flex-wrap:wrap; gap:0; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:16px; box-shadow:var(--shadow);}
+  .ruta-punto{font-size:.78rem; padding:6px 10px; background:var(--surface-2); border-radius:4px; white-space:nowrap;}
+  .ruta-flecha{color:var(--ink-faint); padding:0 6px; font-size:.8rem;}
+
+  footer{font-size:.78rem; color:var(--ink-faint); text-align:center; padding-top:6px; font-family:'IBM Plex Mono', monospace;}
+
+  /* Tabs */
+  .tabs{display:flex; gap:22px; border-bottom:1px solid var(--border);}
+  .tab-btn{font-family:'IBM Plex Mono', monospace; font-size:.8rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+    background:none; border:none; color:var(--ink-soft); padding:0 0 11px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;}
+  .tab-btn:hover{color:var(--ink);}
+  .tab-btn.active{color:var(--ink); border-bottom-color:var(--accent);}
+  .panel{display:flex; flex-direction:column; gap:28px;}
+
+  /* Mapa de recorrido */
+  .mapa-controls{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px 16px;}
+  .mapa-select{font-family:'IBM Plex Mono', monospace; font-size:.83rem; background:var(--surface-2); color:var(--ink);
+    border:1px solid var(--border); border-radius:4px; padding:8px 10px;}
+  .mapa-total{font-family:'IBM Plex Mono', monospace; font-size:.82rem; color:var(--ink-soft); text-align:right;}
+  .mapa-total b{color:var(--ink); font-size:.98rem;}
+  .mapa-card{background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:20px 22px 22px; box-shadow:var(--shadow);}
+  .mapa-row{display:flex; align-items:stretch; gap:16px;}
+  .mapa-track{width:26px; flex:none; position:relative; border-left:2px solid var(--border);}
+  .station .mapa-track{border-left-color:var(--border);}
+  .dot{position:absolute; left:-2px; top:50%; width:14px; height:14px; border-radius:50%; transform:translate(-50%,-50%);
+    background:var(--surface); border:2px solid var(--ink-faint); z-index:1;}
+  .dot.ok{background:var(--good); border-color:var(--good);}
+  .dot.bad{background:var(--surface); border-color:var(--critical);}
+  .station-info{padding:9px 0; display:flex; flex-direction:column; justify-content:center; gap:1px;}
+  .station-nombre{font-size:.92rem; font-weight:600;}
+  .station-hora{font-family:'IBM Plex Mono', monospace; font-size:.78rem; color:var(--ink-soft);}
+  .station-hora.miss{color:var(--critical);}
+  .seg-info{padding:5px 0; display:flex; align-items:center; flex-wrap:wrap; gap:4px 10px; min-height:26px;}
+  .seg-tiempo{font-family:'IBM Plex Mono', monospace; font-size:.85rem; font-weight:600; color:var(--ink-soft);}
+  .seg-tiempo.good{color:var(--good)}
+  .seg-tiempo.warn{color:var(--warn)}
+  .seg-tiempo.critical{color:var(--critical)}
+  .seg-prom{font-size:.76rem; color:var(--ink-faint);}
+  .seg-vacio{font-size:.8rem; color:var(--ink-faint); font-style:italic;}
+
+  @media (max-width:560px){
+    .ronda-resumen{display:none;}
+    .rk-row{grid-template-columns:1fr auto; }
+    .rk-bar-track{display:none;}
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <div class="eyebrow">Shower Walls · Control de acceso</div>
+      <h1 class="display">Bitácora de Rondines</h1>
+    </div>
+    <div class="rango">06 AGO 2025 → 14 ABR 2026<br>102 días con lecturas · 2,142 escaneos</div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="bitacora">Bitácora</button>
+    <button class="tab-btn" data-tab="mapa">Mapa de recorrido</button>
+  </nav>
+
+  <div class="panel" id="panel-bitacora">
+
+  <div class="alerta">
+    <div class="icono">!</div>
+    <div>
+      <strong>La memoria del bastón se llenó el 14/04/2026.</strong>
+      <p>Desde esa fecha no hay rondines nuevos guardados — la memoria de ~32&nbsp;KB se satura en unos 8 meses de uso. El sistema en desarrollo descarga y vacía el bastón de forma automática para que esto no vuelva a pasar.</p>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="num mono">181</div><div class="lbl">Rondines registrados</div></div>
+    <div class="stat ok"><div class="num mono">106</div><div class="lbl">Completos (12/12 puntos)</div></div>
+    <div class="stat bad"><div class="num mono">75</div><div class="lbl">Incompletos</div></div>
+    <div class="stat"><div class="num mono">2,142</div><div class="lbl">Lecturas de bastón</div></div>
+  </div>
+
+  <section>
+    <div class="sec-head">
+      <h2>Cumplimiento por mes</h2>
+      <span class="nota">rondines completos vs. incompletos</span>
+    </div>
+    <div class="chart-card">
+      <div class="chart-wrap">
+        <svg id="chart" width="100%" height="230" viewBox="0 0 900 230" preserveAspectRatio="xMinYMin meet"></svg>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Ruta del rondín</h2>
+      <span class="nota">12 puntos, orden fijo</span>
+    </div>
+    <div class="ruta" id="ruta"></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Puntos sin catalogar</h2>
+      <span class="nota">botones que el bastón registró pero aún no tienen nombre</span>
+    </div>
+    <div class="ranking" id="sinCatalogar"></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Puntos que más se saltan</h2>
+      <span class="nota">veces ausente en los 181 rondines</span>
+    </div>
+    <div class="ranking" id="ranking"></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Últimos rondines</h2>
+      <span class="nota">15 mar – 14 abr 2026 · toca uno para ver el detalle</span>
+    </div>
+    <div class="log" id="log"></div>
+  </section>
+
+  </div>
+
+  <div class="panel" id="panel-mapa" hidden>
+    <section>
+      <div class="sec-head">
+        <h2>Avance del recorrido</h2>
+        <span class="nota">tiempo real entre cada punto, en el orden en que se visitan</span>
+      </div>
+      <div class="mapa-controls">
+        <select class="mapa-select mono" id="selMapa"></select>
+        <div class="mapa-total mono" id="mapaTotal"></div>
+      </div>
+      <div class="mapa-card">
+        <div id="mapaTrack"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer>Generado a partir de la descarga real del bastón DigiTool GC-01 · ID lector 18D8987F · vista previa del reporte</footer>
+</div>
+
+<script id="datos" type="application/json">{"rondines_recientes": [{"fecha": "2026-03-23", "inicio": "15:11", "fin": "15:35", "puntos": 12, "faltantes": [], "completo": true, "detalle": [{"b": "B1 - Entrada principal", "t": "15:11"}, {"b": "B3 - Almacen", "t": "15:12"}, {"b": "B2 - Produccion", "t": "15:14"}, {"b": "B5 - Pintura", "t": "15:16"}, {"b": "B4 - Vaciado", "t": "15:18"}, {"b": "B7 - Acabado", "t": "15:19"}, {"b": "B6 - Empaque", "t": "15:21"}, {"b": "B8 - Bodega", "t": "15:22"}, {"b": "B9 - Patio", "t": "15:24"}, {"b": "Porton trasero", "t": "15:27"}, {"b": "Caseta vigilancia", "t": "15:31"}, {"b": "B10 - Oficinas", "t": "15:35"}]}, {"fecha": "2026-03-24", "inicio": "07:59", "fin": "08:29", "puntos": 4, "faltantes": ["B2 - Produccion", "B5 - Pintura", "B4 - Vaciado", "B7 - Acabado", "B6 - Empaque", "B8 - Bodega", "B9 - Patio", "Porton trasero", "Caseta vigilancia"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "07:59"}, {"b": "B3 - Almacen", "t": "08:00"}, {"b": "B10 - Oficinas", "t": "08:29"}, {"b": "B974D4", "t": "08:29"}]}, {"fecha": "2026-03-24", "inicio": "15:22", "fin": "15:49", "puntos": 11, "faltantes": ["B10 - Oficinas"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "15:22"}, {"b": "B3 - Almacen", "t": "15:23"}, {"b": "B2 - Produccion", "t": "15:28"}, {"b": "B5 - Pintura", "t": "15:30"}, {"b": "B4 - Vaciado", "t": "15:33"}, {"b": "B7 - Acabado", "t": "15:36"}, {"b": "B6 - Empaque", "t": "15:38"}, {"b": "B8 - Bodega", "t": "15:40"}, {"b": "B9 - Patio", "t": "15:42"}, {"b": "Porton trasero", "t": "15:46"}, {"b": "Caseta vigilancia", "t": "15:49"}]}, {"fecha": "2026-03-26", "inicio": "08:08", "fin": "08:37", "puntos": 14, "faltantes": ["B6 - Empaque"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "08:08"}, {"b": "B3 - Almacen", "t": "08:09"}, {"b": "B2 - Produccion", "t": "08:11"}, {"b": "B4 - Vaciado", "t": "08:13"}, {"b": "B5 - Pintura", "t": "08:15"}, {"b": "B7 - Acabado", "t": "08:17"}, {"b": "BA4148", "t": "08:20"}, {"b": "B8 - Bodega", "t": "08:23"}, {"b": "B9 - Patio", "t": "08:25"}, {"b": "Porton trasero", "t": "08:28"}, {"b": "BA02A8", "t": "08:30"}, {"b": "Caseta vigilancia", "t": "08:32"}, {"b": "B10 - Oficinas", "t": "08:37"}, {"b": "B974D4", "t": "08:37"}]}, {"fecha": "2026-03-27", "inicio": "07:49", "fin": "08:37", "puntos": 12, "faltantes": ["B3 - Almacen", "B2 - Produccion", "B6 - Empaque"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "07:49"}, {"b": "B4 - Vaciado", "t": "07:54"}, {"b": "B5 - Pintura", "t": "07:55"}, {"b": "B7 - Acabado", "t": "07:57"}, {"b": "BA4148", "t": "07:58"}, {"b": "B8 - Bodega", "t": "08:01"}, {"b": "B9 - Patio", "t": "08:03"}, {"b": "Porton trasero", "t": "08:06"}, {"b": "BA02A8", "t": "08:12"}, {"b": "Caseta vigilancia", "t": "08:13"}, {"b": "B10 - Oficinas", "t": "08:37"}, {"b": "B974D4", "t": "08:37"}]}, {"fecha": "2026-03-27", "inicio": "15:15", "fin": "15:52", "puntos": 12, "faltantes": [], "completo": true, "detalle": [{"b": "B1 - Entrada principal", "t": "15:15"}, {"b": "B3 - Almacen", "t": "15:17"}, {"b": "B2 - Produccion", "t": "15:21"}, {"b": "B5 - Pintura", "t": "15:28"}, {"b": "B4 - Vaciado", "t": "15:32"}, {"b": "B7 - Acabado", "t": "15:34"}, {"b": "B6 - Empaque", "t": "15:36"}, {"b": "B8 - Bodega", "t": "15:40"}, {"b": "B9 - Patio", "t": "15:41"}, {"b": "Porton trasero", "t": "15:44"}, {"b": "Caseta vigilancia", "t": "15:46"}, {"b": "B10 - Oficinas", "t": "15:52"}]}, {"fecha": "2026-03-28", "inicio": "14:20", "fin": "14:51", "puntos": 12, "faltantes": [], "completo": true, "detalle": [{"b": "B1 - Entrada principal", "t": "14:20"}, {"b": "B3 - Almacen", "t": "14:22"}, {"b": "B2 - Produccion", "t": "14:24"}, {"b": "B5 - Pintura", "t": "14:26"}, {"b": "B4 - Vaciado", "t": "14:28"}, {"b": "B7 - Acabado", "t": "14:30"}, {"b": "B6 - Empaque", "t": "14:32"}, {"b": "B8 - Bodega", "t": "14:33"}, {"b": "B9 - Patio", "t": "14:38"}, {"b": "Porton trasero", "t": "14:43"}, {"b": "Caseta vigilancia", "t": "14:46"}, {"b": "B10 - Oficinas", "t": "14:51"}]}, {"fecha": "2026-03-30", "inicio": "07:50", "fin": "08:17", "puntos": 14, "faltantes": ["B3 - Almacen", "B6 - Empaque"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "07:50"}, {"b": "B2 - Produccion", "t": "07:53"}, {"b": "B4 - Vaciado", "t": "07:54"}, {"b": "B4 - Vaciado", "t": "07:55"}, {"b": "B5 - Pintura", "t": "07:56"}, {"b": "B7 - Acabado", "t": "07:58"}, {"b": "BA4148", "t": "08:00"}, {"b": "B8 - Bodega", "t": "08:04"}, {"b": "B9 - Patio", "t": "08:05"}, {"b": "Porton trasero", "t": "08:08"}, {"b": "BA02A8", "t": "08:10"}, {"b": "Caseta vigilancia", "t": "08:12"}, {"b": "B10 - Oficinas", "t": "08:17"}, {"b": "B974D4", "t": "08:17"}]}, {"fecha": "2026-03-30", "inicio": "14:48", "fin": "15:16", "puntos": 11, "faltantes": ["B10 - Oficinas"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "14:48"}, {"b": "B3 - Almacen", "t": "14:49"}, {"b": "B2 - Produccion", "t": "14:51"}, {"b": "B5 - Pintura", "t": "14:54"}, {"b": "B4 - Vaciado", "t": "14:56"}, {"b": "B7 - Acabado", "t": "15:01"}, {"b": "B6 - Empaque", "t": "15:04"}, {"b": "B8 - Bodega", "t": "15:05"}, {"b": "B9 - Patio", "t": "15:08"}, {"b": "Porton trasero", "t": "15:11"}, {"b": "Caseta vigilancia", "t": "15:16"}]}, {"fecha": "2026-03-31", "inicio": "08:08", "fin": "08:18", "puntos": 6, "faltantes": ["B2 - Produccion", "B6 - Empaque", "B8 - Bodega", "B9 - Patio", "Porton trasero", "Caseta vigilancia", "B10 - Oficinas"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "08:08"}, {"b": "B3 - Almacen", "t": "08:10"}, {"b": "B4 - Vaciado", "t": "08:13"}, {"b": "B5 - Pintura", "t": "08:16"}, {"b": "B7 - Acabado", "t": "08:17"}, {"b": "BA4148", "t": "08:18"}]}, {"fecha": "2026-04-01", "inicio": "08:13", "fin": "08:25", "puntos": 8, "faltantes": ["B6 - Empaque", "B8 - Bodega", "B9 - Patio", "Porton trasero", "Caseta vigilancia", "B10 - Oficinas"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "08:13"}, {"b": "B3 - Almacen", "t": "08:14"}, {"b": "B2 - Produccion", "t": "08:17"}, {"b": "B4 - Vaciado", "t": "08:18"}, {"b": "B4 - Vaciado", "t": "08:19"}, {"b": "B5 - Pintura", "t": "08:20"}, {"b": "B7 - Acabado", "t": "08:23"}, {"b": "BA4148", "t": "08:25"}]}, {"fecha": "2026-04-01", "inicio": "14:52", "fin": "15:25", "puntos": 12, "faltantes": [], "completo": true, "detalle": [{"b": "B1 - Entrada principal", "t": "14:52"}, {"b": "B3 - Almacen", "t": "14:54"}, {"b": "B2 - Produccion", "t": "14:56"}, {"b": "B5 - Pintura", "t": "14:58"}, {"b": "B4 - Vaciado", "t": "15:00"}, {"b": "B7 - Acabado", "t": "15:03"}, {"b": "B6 - Empaque", "t": "15:04"}, {"b": "B8 - Bodega", "t": "15:06"}, {"b": "B9 - Patio", "t": "15:08"}, {"b": "Porton trasero", "t": "15:12"}, {"b": "Caseta vigilancia", "t": "15:15"}, {"b": "B10 - Oficinas", "t": "15:25"}]}, {"fecha": "2026-04-07", "inicio": "07:36", "fin": "07:36", "puntos": 1, "faltantes": ["B1 - Entrada principal", "B3 - Almacen", "B2 - Produccion", "B5 - Pintura", "B7 - Acabado", "B6 - Empaque", "B8 - Bodega", "B9 - Patio", "Porton trasero", "Caseta vigilancia", "B10 - Oficinas"], "completo": false, "detalle": [{"b": "B4 - Vaciado", "t": "07:36"}]}, {"fecha": "2026-04-10", "inicio": "14:23", "fin": "15:00", "puntos": 11, "faltantes": ["B3 - Almacen"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "14:23"}, {"b": "B2 - Produccion", "t": "14:27"}, {"b": "B5 - Pintura", "t": "14:29"}, {"b": "B4 - Vaciado", "t": "14:31"}, {"b": "B7 - Acabado", "t": "14:34"}, {"b": "B6 - Empaque", "t": "14:35"}, {"b": "B8 - Bodega", "t": "14:38"}, {"b": "B9 - Patio", "t": "14:41"}, {"b": "Porton trasero", "t": "14:46"}, {"b": "Caseta vigilancia", "t": "14:49"}, {"b": "B10 - Oficinas", "t": "15:00"}]}, {"fecha": "2026-04-13", "inicio": "08:03", "fin": "08:28", "puntos": 12, "faltantes": ["B2 - Produccion", "B5 - Pintura", "B7 - Acabado"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "08:03"}, {"b": "B3 - Almacen", "t": "08:04"}, {"b": "B4 - Vaciado", "t": "08:07"}, {"b": "BA4148", "t": "08:14"}, {"b": "B6 - Empaque", "t": "08:16"}, {"b": "B8 - Bodega", "t": "08:17"}, {"b": "B9 - Patio", "t": "08:19"}, {"b": "Porton trasero", "t": "08:21"}, {"b": "BA02A8", "t": "08:23"}, {"b": "Caseta vigilancia", "t": "08:24"}, {"b": "B10 - Oficinas", "t": "08:28"}, {"b": "B974D4", "t": "08:28"}]}, {"fecha": "2026-04-13", "inicio": "14:58", "fin": "15:33", "puntos": 12, "faltantes": [], "completo": true, "detalle": [{"b": "B1 - Entrada principal", "t": "14:58"}, {"b": "B3 - Almacen", "t": "15:00"}, {"b": "B2 - Produccion", "t": "15:13"}, {"b": "B5 - Pintura", "t": "15:14"}, {"b": "B4 - Vaciado", "t": "15:16"}, {"b": "B7 - Acabado", "t": "15:18"}, {"b": "B6 - Empaque", "t": "15:21"}, {"b": "B8 - Bodega", "t": "15:22"}, {"b": "B9 - Patio", "t": "15:24"}, {"b": "Porton trasero", "t": "15:27"}, {"b": "Caseta vigilancia", "t": "15:29"}, {"b": "B10 - Oficinas", "t": "15:33"}]}, {"fecha": "2026-04-14", "inicio": "07:54", "fin": "07:57", "puntos": 2, "faltantes": ["B2 - Produccion", "B5 - Pintura", "B4 - Vaciado", "B7 - Acabado", "B6 - Empaque", "B8 - Bodega", "B9 - Patio", "Porton trasero", "Caseta vigilancia", "B10 - Oficinas"], "completo": false, "detalle": [{"b": "B1 - Entrada principal", "t": "07:54"}, {"b": "B3 - Almacen", "t": "07:57"}]}], "resumen_mensual": {"2025-08": {"rondines": 26, "completos": 24}, "2025-09": {"rondines": 22, "completos": 21}, "2025-10": {"rondines": 18, "completos": 13}, "2025-11": {"rondines": 43, "completos": 22}, "2026-01": {"rondines": 31, "completos": 16}, "2026-02": {"rondines": 18, "completos": 4}, "2026-03": {"rondines": 16, "completos": 4}, "2026-04": {"rondines": 7, "completos": 2}}, "faltas_por_punto": {"B6 - Empaque": 34, "Caseta vigilancia": 31, "B10 - Oficinas": 26, "B3 - Almacen": 24, "B1 - Entrada principal": 23, "B5 - Pintura": 23, "Porton trasero": 22, "B2 - Produccion": 21, "B9 - Patio": 21, "B4 - Vaciado": 18, "B8 - Bodega": 18, "B7 - Acabado": 17}, "total_rondines": 181, "total_completos": 106, "total_lecturas": 2142, "rango_inicio": "2025-08-06", "rango_fin": "2026-04-14", "dias_con_datos": 102, "orden_puntos": ["B1 - Entrada principal", "B3 - Almacen", "B2 - Produccion", "B5 - Pintura", "B4 - Vaciado", "B7 - Acabado", "B6 - Empaque", "B8 - Bodega", "B9 - Patio", "Porton trasero", "Caseta vigilancia", "B10 - Oficinas"], "sin_catalogar": [{"id": "BA4148", "veces": 58}, {"id": "BA02A8", "veces": 58}, {"id": "B974D4", "veces": 58}, {"id": "BA2932", "veces": 28}, {"id": "BAFF43", "veces": 9}]}</script>
+<script id="datos-mapa" type="application/json">{"orden_puntos": ["B1 - Entrada principal", "B3 - Almacen", "B2 - Produccion", "B5 - Pintura", "B4 - Vaciado", "B7 - Acabado", "B6 - Empaque", "B8 - Bodega", "B9 - Patio", "Porton trasero", "Caseta vigilancia", "B10 - Oficinas"], "hop_promedio": {"0": {"prom": 105, "min": 60, "max": 2040, "n": 150}, "1": {"prom": 168, "min": 60, "max": 1020, "n": 151}, "2": {"prom": 191, "min": 60, "max": 1080, "n": 153}, "3": {"prom": 137, "min": 60, "max": 540, "n": 99}, "4": {"prom": 200, "min": 60, "max": 1380, "n": 159}, "5": {"prom": 192, "min": 60, "max": 840, "n": 146}, "6": {"prom": 103, "min": 60, "max": 420, "n": 144}, "7": {"prom": 125, "min": 60, "max": 1440, "n": 155}, "8": {"prom": 198, "min": 120, "max": 360, "n": 152}, "9": {"prom": 300, "min": 120, "max": 1140, "n": 142}, "10": {"prom": 519, "min": 180, "max": 3000, "n": 135}}, "rondines": [{"fecha": "2026-03-23", "inicio": "15:11", "fin": "15:35", "completo": true, "tiempos": ["15:11:00", "15:12:00", "15:14:00", "15:16:00", "15:18:00", "15:19:00", "15:21:00", "15:22:00", "15:24:00", "15:27:00", "15:31:00", "15:35:00"]}, {"fecha": "2026-03-24", "inicio": "07:59", "fin": "08:29", "completo": false, "tiempos": ["07:59:00", "08:00:00", null, null, null, null, null, null, null, null, null, "08:29:00"]}, {"fecha": "2026-03-24", "inicio": "15:22", "fin": "15:49", "completo": false, "tiempos": ["15:22:00", "15:23:00", "15:28:00", "15:30:00", "15:33:00", "15:36:00", "15:38:00", "15:40:00", "15:42:00", "15:46:00", "15:49:00", null]}, {"fecha": "2026-03-26", "inicio": "08:08", "fin": "08:37", "completo": false, "tiempos": ["08:08:00", "08:09:00", "08:11:00", "08:15:00", "08:13:00", "08:17:00", null, "08:23:00", "08:25:00", "08:28:00", "08:32:00", "08:37:00"]}, {"fecha": "2026-03-27", "inicio": "07:49", "fin": "08:37", "completo": false, "tiempos": ["07:49:00", null, null, "07:55:00", "07:54:00", "07:57:00", null, "08:01:00", "08:03:00", "08:06:00", "08:13:00", "08:37:00"]}, {"fecha": "2026-03-27", "inicio": "15:15", "fin": "15:52", "completo": true, "tiempos": ["15:15:00", "15:17:00", "15:21:00", "15:28:00", "15:32:00", "15:34:00", "15:36:00", "15:40:00", "15:41:00", "15:44:00", "15:46:00", "15:52:00"]}, {"fecha": "2026-03-28", "inicio": "14:20", "fin": "14:51", "completo": true, "tiempos": ["14:20:00", "14:22:00", "14:24:00", "14:26:00", "14:28:00", "14:30:00", "14:32:00", "14:33:00", "14:38:00", "14:43:00", "14:46:00", "14:51:00"]}, {"fecha": "2026-03-30", "inicio": "07:50", "fin": "08:17", "completo": false, "tiempos": ["07:50:00", null, "07:53:00", "07:56:00", "07:54:00", "07:58:00", null, "08:04:00", "08:05:00", "08:08:00", "08:12:00", "08:17:00"]}, {"fecha": "2026-03-30", "inicio": "14:48", "fin": "15:16", "completo": false, "tiempos": ["14:48:00", "14:49:00", "14:51:00", "14:54:00", "14:56:00", "15:01:00", "15:04:00", "15:05:00", "15:08:00", "15:11:00", "15:16:00", null]}, {"fecha": "2026-03-31", "inicio": "08:08", "fin": "08:18", "completo": false, "tiempos": ["08:08:00", "08:10:00", null, "08:16:00", "08:13:00", "08:17:00", null, null, null, null, null, null]}, {"fecha": "2026-04-01", "inicio": "08:13", "fin": "08:25", "completo": false, "tiempos": ["08:13:00", "08:14:00", "08:17:00", "08:20:00", "08:18:00", "08:23:00", null, null, null, null, null, null]}, {"fecha": "2026-04-01", "inicio": "14:52", "fin": "15:25", "completo": true, "tiempos": ["14:52:00", "14:54:00", "14:56:00", "14:58:00", "15:00:00", "15:03:00", "15:04:00", "15:06:00", "15:08:00", "15:12:00", "15:15:00", "15:25:00"]}, {"fecha": "2026-04-07", "inicio": "07:36", "fin": "07:36", "completo": false, "tiempos": [null, null, null, null, "07:36:00", null, null, null, null, null, null, null]}, {"fecha": "2026-04-10", "inicio": "14:23", "fin": "15:00", "completo": false, "tiempos": ["14:23:00", null, "14:27:00", "14:29:00", "14:31:00", "14:34:00", "14:35:00", "14:38:00", "14:41:00", "14:46:00", "14:49:00", "15:00:00"]}, {"fecha": "2026-04-13", "inicio": "08:03", "fin": "08:28", "completo": false, "tiempos": ["08:03:00", "08:04:00", null, null, "08:07:00", null, "08:16:00", "08:17:00", "08:19:00", "08:21:00", "08:24:00", "08:28:00"]}, {"fecha": "2026-04-13", "inicio": "14:58", "fin": "15:33", "completo": true, "tiempos": ["14:58:00", "15:00:00", "15:13:00", "15:14:00", "15:16:00", "15:18:00", "15:21:00", "15:22:00", "15:24:00", "15:27:00", "15:29:00", "15:33:00"]}, {"fecha": "2026-04-14", "inicio": "07:54", "fin": "07:57", "completo": false, "tiempos": ["07:54:00", "07:57:00", null, null, null, null, null, null, null, null, null, null]}]}</script>
+<script>
+(function(){
+  const data = JSON.parse(document.getElementById('datos').textContent);
+
+  // ---- Ruta ----
+  const ruta = document.getElementById('ruta');
+  data.orden_puntos.forEach((p,i)=>{
+    if(i>0){ const f=document.createElement('span'); f.className='ruta-flecha'; f.textContent='→'; ruta.appendChild(f); }
+    const el=document.createElement('span'); el.className='ruta-punto mono'; el.textContent=p; ruta.appendChild(el);
+  });
+
+  // ---- Ranking de faltas ----
+  const rk = document.getElementById('ranking');
+  const faltas = Object.entries(data.faltas_por_punto);
+  const maxF = Math.max(...faltas.map(f=>f[1]));
+  faltas.forEach(([nombre,n])=>{
+    const row=document.createElement('div'); row.className='rk-row';
+    row.innerHTML = `<div class="rk-nombre">${nombre}</div>
+      <div class="rk-bar-track"><div class="rk-bar" style="width:${(n/maxF*100).toFixed(0)}%"></div></div>
+      <div class="rk-num">${n}×</div>`;
+    rk.appendChild(row);
+  });
+
+  // ---- Puntos sin catalogar ----
+  const sc = document.getElementById('sinCatalogar');
+  const maxSC = Math.max(...data.sin_catalogar.map(p=>p.veces));
+  data.sin_catalogar.forEach(p=>{
+    const row=document.createElement('div'); row.className='rk-row';
+    row.innerHTML = `<div class="rk-nombre mono">${p.id} <span style="color:var(--ink-faint); font-weight:400;">— sin nombre asignado</span></div>
+      <div class="rk-bar-track"><div class="rk-bar" style="width:${(p.veces/maxSC*100).toFixed(0)}%; background:var(--warn)"></div></div>
+      <div class="rk-num" style="color:var(--warn)">${p.veces}×</div>`;
+    sc.appendChild(row);
+  });
+
+  // ---- Bitacora ----
+  const log = document.getElementById('log');
+  const dias = {lun:'lun',mar:'mar'};
+  const meses=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  data.rondines_recientes.slice().reverse().forEach(r=>{
+    const [y,m,d] = r.fecha.split('-');
+    const fechaCorta = `${d} ${meses[parseInt(m,10)-1]}`;
+    const det = document.createElement('details'); det.className='ronda';
+    const resumen = r.completo ? 'Rondín completo, los 12 puntos en orden.' :
+      (r.puntos<=2 ? 'Se interrumpió casi al inicio.' : `Faltó: ${r.faltantes.slice(0,3).join(', ')}${r.faltantes.length>3?'…':''}`);
+    det.innerHTML = `
+      <summary class="ronda-head">
+        <span class="estado-punto ${r.completo?'ok':'bad'}"></span>
+        <span class="ronda-fecha">${fechaCorta}</span>
+        <span class="ronda-horas">${r.inicio}–${r.fin}</span>
+        <span class="ronda-resumen">${resumen}</span>
+        <span class="pill ${r.completo?'ok':'bad'}">${12-r.faltantes.length}/12</span>
+        <span class="chev">▸</span>
+      </summary>
+      <div class="ronda-body">
+        <div class="chips">
+          ${r.detalle.map(x=>`<span class="chip ${data.orden_puntos.includes(x.b)?'':'extra'}"><span class="t">${x.t}</span>${x.b}</span>`).join('')}
+          ${r.faltantes.map(f=>`<span class="chip falta">✕ ${f}</span>`).join('')}
+        </div>
+      </div>`;
+    log.appendChild(det);
+  });
+
+  // ---- Chart mensual ----
+  const meses_full = {'01':'ene','02':'feb','03':'mar','04':'abr','05':'may','06':'jun','07':'jul','08':'ago','09':'sep','10':'oct','11':'nov','12':'dic'};
+  const svg = document.getElementById('chart');
+  const entries = Object.entries(data.resumen_mensual);
+  const W=900,H=230, padL=34, padB=28, padT=10, padR=6;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+  const maxV = Math.max(...entries.map(([,v])=>v.rondines));
+  const bw = plotW/entries.length;
+  let svgContent='';
+  // gridlines
+  const steps = 4;
+  for(let i=0;i<=steps;i++){
+    const val = Math.round(maxV*i/steps);
+    const y = padT + plotH - (val/maxV)*plotH;
+    svgContent += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--border)" stroke-width="1"/>`;
+    svgContent += `<text x="${padL-8}" y="${y+3}" font-size="11" text-anchor="end">${val}</text>`;
+  }
+  entries.forEach(([mes,v],i)=>{
+    const x = padL + i*bw + bw*0.18;
+    const barW = bw*0.64;
+    const hTotal = (v.rondines/maxV)*plotH;
+    const hOk = (v.completos/maxV)*plotH;
+    const yTotal = padT+plotH-hTotal;
+    const yOk = padT+plotH-hOk;
+    svgContent += `<rect class="bar-bad" x="${x}" y="${yTotal}" width="${barW}" height="${hTotal}" rx="2"/>`;
+    svgContent += `<rect class="bar-good" x="${x}" y="${yOk}" width="${barW}" height="${hOk}" rx="2"/>`;
+    const [yy,mm] = mes.split('-');
+    svgContent += `<text x="${x+barW/2}" y="${H-8}" font-size="11" text-anchor="middle">${meses_full[mm]} ${yy.slice(2)}</text>`;
+  });
+  svg.innerHTML = svgContent;
+
+  // ---- Tabs ----
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-bitacora').hidden = btn.dataset.tab!=='bitacora';
+      document.getElementById('panel-mapa').hidden = btn.dataset.tab!=='mapa';
+    });
+  });
+
+  // ---- Mapa de recorrido ----
+  const mapaData = JSON.parse(document.getElementById('datos-mapa').textContent);
+  const selMapa = document.getElementById('selMapa');
+  const optProm = document.createElement('option');
+  optProm.value = 'prom';
+  optProm.textContent = 'Promedio histórico (todas las rondas medibles)';
+  selMapa.appendChild(optProm);
+  mapaData.rondines.slice().reverse().forEach(r=>{
+    const idx = mapaData.rondines.indexOf(r);
+    const [y,m,d] = r.fecha.split('-');
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.textContent = `${d} ${meses[parseInt(m,10)-1]} · ${r.inicio}–${r.fin} · ${r.completo?'completo':'incompleto'}`;
+    selMapa.appendChild(opt);
+  });
+
+  function toSec(hms){ const [h,m,s]=hms.split(':').map(Number); return h*3600+m*60+s; }
+  function fmtDur(sec){ if(sec==null) return null; const m=Math.floor(sec/60), s=Math.round(sec%60); return `${m}:${String(s).padStart(2,'0')}`; }
+  function fmtHM(mins){ const h=Math.floor(mins/60), m=Math.round(mins%60); return h>0?`${h} h ${m} min`:`${m} min`; }
+
+  function renderMapa(sel){
+    const puntos = mapaData.orden_puntos;
+    const modoProm = sel==='prom';
+    const ronda = modoProm ? null : mapaData.rondines[parseInt(sel,10)];
+    const maxProm = Math.max(...Object.values(mapaData.hop_promedio).map(h=>h.prom));
+    let rows = '', totalSec = 0, tramosMedidos = 0;
+
+    for(let i=0;i<puntos.length;i++){
+      const hora = modoProm ? null : ronda.tiempos[i];
+      const ok = modoProm ? true : !!hora;
+      rows += `<div class="mapa-row station">
+        <div class="mapa-track"><span class="dot ${ok?'ok':'bad'}"></span></div>
+        <div class="station-info">
+          <span class="station-nombre">${puntos[i]}</span>
+          ${hora ? `<span class="station-hora mono">${hora.slice(0,5)}</span>` : (modoProm ? '' : '<span class="station-hora mono miss">no escaneado</span>')}
+        </div>
+      </div>`;
+
+      if(i < puntos.length-1){
+        const prom = mapaData.hop_promedio[String(i)];
+        let label=null, cls='', sub='', dashed=false;
+
+        if(modoProm){
+          if(prom){
+            const ratio = prom.prom/maxProm;
+            cls = ratio>0.55 ? 'critical' : (ratio>0.28 ? 'warn' : 'good');
+            label = fmtDur(prom.prom);
+            sub = `rango ${fmtDur(prom.min)}–${fmtDur(prom.max)} · ${prom.n} mediciones`;
+          } else dashed = true;
+        } else {
+          const tA = ronda.tiempos[i], tB = ronda.tiempos[i+1];
+          if(tA && tB){
+            const segSec = toSec(tB)-toSec(tA);
+            if(segSec>0){
+              label = fmtDur(segSec);
+              totalSec += segSec; tramosMedidos++;
+              if(prom){
+                const ratio = segSec/prom.prom;
+                if(ratio>1.6) cls='critical'; else if(ratio>1.15) cls='warn'; else if(ratio<0.7) cls='good';
+                if(cls) sub = `prom ${fmtDur(prom.prom)}`;
+              }
+            } else {
+              label = null; sub = 'orden distinto al habitual';
+            }
+          } else dashed = true;
+        }
+
+        rows += `<div class="mapa-row seg-info">
+          <div class="mapa-track" style="border-left-style:${dashed?'dashed':'solid'};${cls?`border-left-color:var(--${cls})`:''}"></div>
+          ${label ? `<span class="seg-tiempo ${cls}">${label}</span>` : `<span class="seg-vacio">${dashed?'sin registrar — no se escaneó uno de los dos puntos':sub}</span>`}
+          ${label && sub ? `<span class="seg-prom">${sub}</span>` : ''}
+        </div>`;
+      }
+    }
+
+    document.getElementById('mapaTrack').innerHTML = rows;
+    const totalEl = document.getElementById('mapaTotal');
+    if(modoProm){
+      const sumaProm = Object.values(mapaData.hop_promedio).reduce((a,h)=>a+h.prom,0);
+      totalEl.innerHTML = `Recorrido completo promedio: <b>${fmtHM(sumaProm/60)}</b>`;
+    } else {
+      totalEl.innerHTML = ronda.completo
+        ? `Recorrido completo · <b>${fmtHM((toSec(ronda.fin+':00')-toSec(ronda.inicio+':00'))/60)}</b> de inicio a fin`
+        : `Recorrido incompleto · ${tramosMedidos}/11 tramos con dato`;
+    }
+  }
+
+  selMapa.addEventListener('change', ()=>renderMapa(selMapa.value));
+  renderMapa('prom');
+})();
+</script>
