@@ -404,7 +404,7 @@ function initSizes(){
   } else {
     toggleEmptyStates();
   }
-  addPieceRow();
+  toggleEmptyStates();
 }
 
 // ---------- Importar cotización existente (Excel Pro-forma) ----------
@@ -1434,7 +1434,6 @@ function renderPieceReport(bins){
 }
 
 initSizes();
-addClientItemRow();
 renderClientTotals();
 renderClientInfo();
 populateProjectSelector();
