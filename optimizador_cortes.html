@@ -209,8 +209,8 @@
     <h2>2. Catálogo de tamaños de lámina</h2>
     <div id="hintSizes" class="empty-hint" style="display:none;">Agrega los tamaños de lámina que manejas. Se guardan en este navegador para tus próximas cotizaciones.</div>
     <div class="table-scroll">
-    <table id="tblSizes" style="display:none; min-width:620px;">
-      <thead><tr><th class="col-name">Nombre</th><th style="width:10%;">Grosor</th><th class="col-num">Ancho (mm)</th><th class="col-num">Alto (mm)</th><th class="col-num">Costo/lámina</th><th class="col-num">Cant. disp.</th><th class="col-del"></th></tr></thead>
+    <table id="tblSizes" style="display:none; min-width:900px;">
+      <thead><tr><th style="width:16%;">Nombre</th><th style="width:8%;">Grosor</th><th style="width:9%;">Ancho (mm)</th><th style="width:9%;">Alto (mm)</th><th style="width:10%;">Costo/lámina</th><th style="width:9%;">Cant. disp.</th><th style="width:10%;">Costo×Pulgada</th><th style="width:11%;">Tipo de corte</th><th class="col-del"></th></tr></thead>
       <tbody id="sizesBody"></tbody>
     </table>
     </div>
@@ -259,21 +259,11 @@
 
 <div class="panel" id="costeoPanel" style="display:none;">
   <h2>Costeo interno (fórmulas del Reporte de Cotizaciones)</h2>
-  <div class="sub" style="margin-bottom:10px;">Si la cotización mezcla varias placas/colores distintos, cada uno tiene su propio Costo×Placa (se detecta solo al importar el Excel) pero todo se ve junto, en la misma cotización.</div>
-  <div class="row" id="materialCostRows"></div>
-  <div class="row">
-    <div style="width:160px;"><label>Costo × Pulgada ($)</label><input type="number" id="costoPulgada" value="0.17" min="0" step="0.01" oninput="renderCosteo()"></div>
-    <div style="width:160px;"><label>Tipo de corte</label>
-      <select id="tipoCorteCosteo" style="width:100%;" onchange="renderCosteo()">
-        <option value="Normal">Normal</option>
-        <option value="Laminado">Laminado</option>
-      </select>
-    </div>
-  </div>
+  <div class="sub" style="margin-bottom:10px;">Todos los valores (Costo×Placa, Costo×Pulgada, Tipo de corte) se leen directo del catálogo de la Sección 2 — un renglón ahí es un material completo. Si mezclas materiales que se cortan distinto, cada uno usa su propia tarifa automáticamente.</div>
   <div class="table-scroll">
-    <table class="cmp-table" style="min-width:1100px; margin-top:10px;">
+    <table class="cmp-table" style="min-width:1200px; margin-top:10px;">
       <thead><tr>
-        <th>Color/Material</th><th>Placas</th><th>Pulgadas corte</th><th>Sqft proyecto</th><th>Sqft fabricado</th><th>Aprov.</th>
+        <th>Color/Material</th><th>Tipo corte</th><th>Placas</th><th>Pulgadas corte</th><th>Sqft proyecto</th><th>Sqft fabricado</th><th>Aprov.</th>
         <th>Costo Placas</th><th>Costo Corte</th><th>Costo Total</th><th>Costo×Sqft</th><th>Sugerido ÷0.7</th><th>Sugerido ÷0.65</th>
       </tr></thead>
       <tbody id="materialCosteoBody"></tbody>
@@ -304,7 +294,9 @@ function saveSizes(){
     w: parseFloat(tr.querySelector('.s-w').value) || 0,
     h: parseFloat(tr.querySelector('.s-h').value) || 0,
     cost: parseFloat(tr.querySelector('.s-cost').value) || 0,
-    qty: parseInt(tr.querySelector('.s-qty').value) || 0
+    qty: parseInt(tr.querySelector('.s-qty').value) || 0,
+    costPerInch: parseFloat(tr.querySelector('.s-costoin').value) || 0,
+    cutType: tr.querySelector('.s-tipocorte').value
   }));
   try { localStorage.setItem(LS_KEY, JSON.stringify(rows)); } catch(e){ /* storage no disponible (ej. vista previa en sandbox) */ }
 }
@@ -321,9 +313,19 @@ function addSizeRow(data){
     <td><input type="number" class="s-h" min="1" value="${data?.h||''}"></td>
     <td><input type="number" class="s-cost" min="0" step="0.01" placeholder="opcional" value="${data?.cost||''}"></td>
     <td><input type="number" class="s-qty" min="0" placeholder="ilimitado" value="${data?.qty||''}"></td>
+    <td><input type="number" class="s-costoin" min="0" step="0.01" placeholder="$/in" value="${data?.costPerInch||''}"></td>
+    <td>
+      <select class="s-tipocorte">
+        <option value="Normal">Normal</option>
+        <option value="Laminado">Laminado</option>
+      </select>
+    </td>
     <td><button class="btn danger" onclick="this.closest('tr').remove(); saveSizes(); toggleEmptyStates();">×</button></td>
   `;
+  tr.querySelector('.s-tipocorte').value = data?.cutType || 'Normal';
   tr.querySelectorAll('input').forEach(inp => inp.addEventListener('change', saveSizes));
+  tr.querySelector('.s-tipocorte').addEventListener('change', saveSizes);
+  tr.querySelectorAll('input, select').forEach(inp => inp.addEventListener('input', () => { if (lastResults.length) renderCosteo(); }));
   tbody.appendChild(tr);
   toggleEmptyStates();
 }
@@ -689,9 +691,6 @@ function collectProjectData(){
       cutMode: document.getElementById('cutMode').value,
       freight: document.getElementById('freight').value,
       deposit: document.getElementById('deposit').value,
-      costoPorMaterial: costoPorMaterial,
-      costoPulgada: document.getElementById('costoPulgada').value,
-      tipoCorteCosteo: document.getElementById('tipoCorteCosteo').value,
       clientInfo: lastClientInfo,
       clientItems: [...document.querySelectorAll('#clientItemsBody tr')].map(tr => ({
         producto: tr.querySelector('.ci-producto').value,
@@ -744,7 +743,6 @@ function filterProjectSelector(){
 
 let lastClientInfo = {};
 let lastMaterialRates = {};
-let costoPorMaterial = {};
 let materialThickness = {};
 
 function applyClientInfo(info){
@@ -817,9 +815,6 @@ async function loadProjectByName(name){
     document.getElementById('cutMode').value = cfg.cutMode || 'guillotine';
     document.getElementById('freight').value = cfg.freight ?? 0;
     document.getElementById('deposit').value = cfg.deposit ?? 0;
-    costoPorMaterial = cfg.costoPorMaterial || {};
-    document.getElementById('costoPulgada').value = cfg.costoPulgada ?? 0.17;
-    document.getElementById('tipoCorteCosteo').value = cfg.tipoCorteCosteo || 'Normal';
     lastClientInfo = cfg.clientInfo || {};
     renderClientInfo();
     document.getElementById('clientItemsBody').innerHTML = '';
@@ -1138,7 +1133,9 @@ function readInputs(){
     w: parseFloat(tr.querySelector('.s-w').value) || 0,
     h: parseFloat(tr.querySelector('.s-h').value) || 0,
     cost: parseFloat(tr.querySelector('.s-cost').value) || 0,
-    qty: parseInt(tr.querySelector('.s-qty').value) || 0
+    qty: parseInt(tr.querySelector('.s-qty').value) || 0,
+    costPerInch: parseFloat(tr.querySelector('.s-costoin').value) || 0,
+    cutType: tr.querySelector('.s-tipocorte').value
   })).filter(s => s.w>0 && s.h>0);
 
   const pieces = [...document.querySelectorAll('#piecesBody tr')].map((tr,i) => ({
@@ -1277,17 +1274,19 @@ function renderSheetsForSelected(){
   renderCosteo();
 }
 
-function renderMaterialCostInputs(colors){
-  const wrap = document.getElementById('materialCostRows');
-  const existing = {};
-  wrap.querySelectorAll('.mat-costo-placa').forEach(inp => { existing[inp.dataset.color] = inp.value; });
-  wrap.innerHTML = colors.map(color => {
-    const label = color || 'Sin color especificado';
-    const thickness = materialThickness[color];
-    const prefill = costoPorMaterial[color];
-    const val = existing[color] !== undefined && existing[color] !== '' ? existing[color] : (prefill !== undefined ? prefill : '');
-    return `<div style="width:200px;"><label>Costo×Placa — ${label}${thickness ? ' ('+thickness+')' : ''}</label><input type="number" class="mat-costo-placa" data-color="${color}" min="0" step="0.01" placeholder="$/placa" value="${val}" oninput="renderCosteo()"></div>`;
-  }).join('');
+function getSizesMapLive(){
+  const map = {};
+  document.querySelectorAll('#sizesBody tr').forEach(tr => {
+    const name = tr.querySelector('.s-name').value.trim();
+    if (!name) return;
+    map[name.toLowerCase()] = {
+      name,
+      cost: parseFloat(tr.querySelector('.s-cost').value) || 0,
+      costPerInch: parseFloat(tr.querySelector('.s-costoin').value) || 0,
+      cutType: tr.querySelector('.s-tipocorte').value
+    };
+  });
+  return map;
 }
 
 function renderCosteo(){
@@ -1296,15 +1295,20 @@ function renderCosteo(){
   if (!entry){ panel.style.display = 'none'; return; }
   panel.style.display = 'block';
   const { res } = entry;
-
-  const colors = [...new Set(res.bins.map(b => b.colorLabel || ''))];
-  renderMaterialCostInputs(colors);
-  const costoPulgada = parseFloat(document.getElementById('costoPulgada').value) || 0;
   const clientItems = computeClientItems();
+  const sizesLive = getSizesMapLive();
 
-  const filas = colors.map(color => {
-    const binsColor = res.bins.filter(b => (b.colorLabel || '') === color);
+  const filas = (res.matchInfo || []).filter(m => !m.error).map(m => {
+    const color = m.colorLabel;
+    const binsColor = res.bins.filter(b => (b.colorLabel || 'Sin color') === color);
     const placas = binsColor.length;
+
+    // usa el valor MAS RECIENTE del catalogo (si editas costo/tipo despues de optimizar, no hace falta re-optimizar)
+    const live = sizesLive[m.sizeUsed.name.toLowerCase()] || m.sizeUsed;
+    const costoPlaca = live.cost || 0;
+    const costoPulgada = live.costPerInch || 0;
+    const tipoCorte = live.cutType || 'Normal';
+
     let pulgadasSeparacion = 0;
     if (res.cutMode === 'guillotine'){
       binsColor.forEach(bin => (bin.cuts || []).forEach(c => { pulgadasSeparacion += (c.to - c.from) / 25.4; }));
@@ -1314,14 +1318,11 @@ function renderCosteo(){
       if (p.tarjaL > 0 && p.tarjaA > 0) pulgadasTarjas += 2 * (p.tarjaL + p.tarjaA) / 25.4;
     }));
     const pulgadasCorte = pulgadasSeparacion + pulgadasTarjas;
-    const sqftProyecto = clientItems.filter(it => it.esCorte && it.d > 0 && it.w > 0 && (it.color || '') === color)
+    const sqftProyecto = clientItems.filter(it => it.esCorte && it.d > 0 && it.w > 0 && (it.color || 'Sin color') === color)
       .reduce((s, it) => s + it.sqft * it.cant, 0);
     const sqftFabricados = placas * 56.44;
     const optim = sqftFabricados > 0 ? (sqftProyecto / sqftFabricados) * 100 : 0;
 
-    const inp = document.querySelector(`.mat-costo-placa[data-color="${color}"]`);
-    const costoPlaca = parseFloat(inp?.value) || 0;
-    costoPorMaterial[color] = costoPlaca;
     const costoPlacas = costoPlaca * placas;
     const costoCorte = costoPulgada * pulgadasCorte;
     const costoTotal = costoPlacas + costoCorte;
@@ -1329,7 +1330,7 @@ function renderCosteo(){
     const precioA = costoSqft / 0.7;
     const precioB = costoSqft / 0.65;
 
-    return { color: color || 'Sin color especificado', placas, pulgadasCorte, pulgadasSeparacion, pulgadasTarjas,
+    return { color, tipoCorte, placas, pulgadasCorte, pulgadasSeparacion, pulgadasTarjas,
              sqftProyecto, sqftFabricados, optim, costoPlacas, costoCorte, costoTotal, costoSqft, precioA, precioB };
   });
 
@@ -1337,6 +1338,7 @@ function renderCosteo(){
   tbody.innerHTML = filas.map(f => `
     <tr>
       <td>${f.color}</td>
+      <td>${f.tipoCorte}</td>
       <td>${f.placas}</td>
       <td>${Math.round(f.pulgadasCorte)}${f.pulgadasTarjas > 0 ? ' (' + Math.round(f.pulgadasSeparacion) + '+' + Math.round(f.pulgadasTarjas) + 'tarja)' : ''}</td>
       <td>${f.sqftProyecto.toFixed(2)}</td>
@@ -1359,7 +1361,7 @@ function renderCosteo(){
   const totalCostoTotal = filas.reduce((s,f)=>s+f.costoTotal,0);
   const totalCostoSqft = totalSqftP > 0 ? totalCostoTotal / totalSqftP : 0;
   document.getElementById('materialCosteoFoot').innerHTML = `<tr class="cmp-row-best">
-    <td><b>TOTAL</b></td><td>${totalPlacas}</td><td>${Math.round(totalPulgadas)}</td>
+    <td><b>TOTAL</b></td><td>—</td><td>${totalPlacas}</td><td>${Math.round(totalPulgadas)}</td>
     <td>${totalSqftP.toFixed(2)}</td><td>${totalSqftF.toFixed(2)}</td>
     <td>${totalSqftF>0 ? (totalSqftP/totalSqftF*100).toFixed(1)+'%' : '—'}</td>
     <td>$${totalCostoPlacas.toFixed(2)}</td><td>$${totalCostoCorte.toFixed(2)}</td>
