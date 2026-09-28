@@ -166,6 +166,7 @@
       <input type="text" id="projectPerson" placeholder="Ej. Juan Pérez">
     </div>
     <button class="btn" style="margin-top:18px;" onclick="saveProject()">Guardar cotización</button>
+    <button class="btn danger" style="margin-top:18px;" onclick="nuevaCotizacion()">🗑️ Nueva cotización (borrar todo)</button>
   </div>
   <div id="clientInfoWrap" class="sub" style="margin:6px 0 0;"></div>
 </div>
@@ -798,6 +799,29 @@ function applyClientInfo(info){
   const auto = info.project || info.customer || '';
   if (auto) projectField.value = auto;
   renderClientInfo();
+}
+
+function nuevaCotizacion(){
+  if (!confirm('¿Borrar todo lo capturado de esta cotización (cliente, piezas, resultados)? El catálogo de láminas (Sección 2) NO se borra.')) return;
+
+  document.getElementById('clientItemsBody').innerHTML = '';
+  document.getElementById('piecesBody').innerHTML = '';
+  document.getElementById('clientGenMsg').textContent = '';
+  document.getElementById('freight').value = 0;
+  document.getElementById('deposit').value = 0;
+  document.getElementById('projectName').value = '';
+  document.getElementById('projectPerson').value = '';
+
+  lastClientInfo = {};
+  renderClientInfo();
+
+  lastResults = [];
+  document.getElementById('resultsPanel').style.display = 'none';
+  document.getElementById('costeoPanel').style.display = 'none';
+  document.getElementById('cotizacionFinalWrap').innerHTML = '';
+
+  toggleEmptyStates();
+  renderClientTotals();
 }
 
 function renderClientInfo(){
