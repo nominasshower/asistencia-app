@@ -275,7 +275,7 @@
       <tfoot id="materialCosteoFoot"></tfoot>
     </table>
   </div>
-  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz", aplicadas por material: Sqft Fabricados=Placas×56.44 · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Sugerido A/B=Costo×Sqft÷Margen A/B (cada material define su propio margen en el catálogo, default 0.7/0.65). Pulgadas de corte = separación de piezas (guillotina) + perímetro de cada tarja capturada (2×L + 2×A por pieza).</div>
+  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz", aplicadas por material: Sqft Fabricados=suma del área real de cada lámina usada (Ancho×Alto del catálogo, en sqft) · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Sugerido A/B=Costo×Sqft÷Margen A/B (cada material define su propio margen en el catálogo, default 0.7/0.65). Pulgadas de corte = perímetro de cada pieza (2×Prof.+2×Ancho) + perímetro de cada tarja capturada (2×L + 2×A por pieza).</div>
 </div>
 
 <div class="panel" id="cotizacionFinalPanel">
@@ -1345,9 +1345,7 @@ function renderCosteo(){
     const tipoCorte = live.cutType || 'Normal';
 
     let pulgadasSeparacion = 0;
-    if (res.cutMode === 'guillotine'){
-      binsColor.forEach(bin => (bin.cuts || []).forEach(c => { pulgadasSeparacion += (c.to - c.from) / 25.4; }));
-    }
+    binsColor.forEach(bin => bin.placed.forEach(p => { pulgadasSeparacion += 2 * (p.origW + p.origH) / 25.4; }));
     let pulgadasTarjas = 0;
     binsColor.forEach(bin => bin.placed.forEach(p => {
       if (p.tarjaL > 0 && p.tarjaA > 0) pulgadasTarjas += 2 * (p.tarjaL + p.tarjaA) / 25.4;
@@ -1355,7 +1353,7 @@ function renderCosteo(){
     const pulgadasCorte = pulgadasSeparacion + pulgadasTarjas;
     const sqftProyecto = clientItems.filter(it => it.esCorte && it.d > 0 && it.w > 0 && (it.color || 'Sin color') === color)
       .reduce((s, it) => s + it.sqft * it.cant, 0);
-    const sqftFabricados = placas * 56.44;
+    const sqftFabricados = binsColor.reduce((s, b) => s + (b.sheetW / 25.4) * (b.sheetH / 25.4) / 144, 0);
     const optim = sqftFabricados > 0 ? (sqftProyecto / sqftFabricados) * 100 : 0;
 
     const costoPlacas = costoPlaca * placas;
