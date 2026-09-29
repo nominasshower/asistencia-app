@@ -1789,6 +1789,7 @@ async function guardarFila(nom, fecha) {
     horas_trabajadas: campos.horas_trabajadas || null,
     horas_extra: campos.horas_extra || null,
     estado: campos.estado,
+    editado_manual: true,
   };
 
   try {
@@ -1860,6 +1861,7 @@ function renderNomina() {
     const he     = parseHoras(g(r,"horas_extra","HorasExtra"));
     const ret    = parseRetardo(g(r,"minutos_retardo","MinutosRetardo"));
     const esEditando = filaEditando === `${nom}_${fecha}`;
+    const editadoManual = ["true","1"].includes(String(r.editado_manual).toLowerCase());
 
     const colorEst = { "NORMAL":"var(--accent)","EXTRA":"var(--accent2)","RETARDO":"var(--warn)","RETARDO CON EXTRA":"#a78bfa","INCOMPLETO":"var(--danger)","AUSENTE":"var(--danger)" };
     const bdr = esPrimera ? "border-top:2px solid rgba(255,255,255,0.1)" : "";
@@ -1902,7 +1904,10 @@ function renderNomina() {
       <td class="mono" style="text-align:right;color:${he>0?'var(--accent2)':'var(--muted)'}">${he>0?he.toFixed(2):"—"}</td>
       <td class="mono" style="color:${ret>0?'var(--warn)':'var(--muted)'}">${ret>0?ret+" min":"—"}</td>
       <td><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${colorEst[est]||'var(--bg3)'}22;color:${colorEst[est]||'var(--muted)'}">${est||"—"}</span></td>
-      <td><button class="btn" style="padding:2px 8px;font-size:11px" onclick="editarFila('${nom}','${fecha}')" title="Editar checadas de este día">✎ Editar</button></td>`;
+      <td style="white-space:nowrap">
+        <button class="btn" style="padding:2px 8px;font-size:11px" onclick="editarFila('${nom}','${fecha}')" title="Editar checadas de este día">✎ Editar</button>
+        ${editadoManual?'<span title="Editado a mano — la reverificación semanal ya no lo toca" style="margin-left:4px">🔒</span>':''}
+      </td>`;
     }
     html += `</tr>`;
 
