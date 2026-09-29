@@ -1526,8 +1526,6 @@ function renderCosteo(){
     binsColor.forEach(bin => bin.placed.forEach(p => {
       if (p.tarjaL > 0 && p.tarjaA > 0) pulgadasTarjas += 2 * (p.tarjaL + p.tarjaA) / 25.4;
     }));
-    const pulgadasCorte = pulgadasSeparacion + pulgadasTarjas;
-
     // Cortes extra: cada uno definido por pieza, con su propio nombre/costo/lado(s) — no usan la tarifa del catálogo
     let costoCorteExtra = 0, pulgadasCorteExtra = 0;
     binsColor.forEach(bin => bin.placed.forEach(p => {
@@ -1539,6 +1537,7 @@ function renderCosteo(){
         costoCorteExtra += lenIn * (parseFloat(c.cost) || 0);
       });
     }));
+    const pulgadasCorte = pulgadasSeparacion + pulgadasTarjas + pulgadasCorteExtra;
 
     const sqftProyecto = clientItems.filter(it => it.esCorte && it.d > 0 && it.w > 0 && (it.color || 'Sin color') === color)
       .reduce((s, it) => s + it.sqft * it.cant, 0);
@@ -1546,7 +1545,7 @@ function renderCosteo(){
     const optim = sqftFabricados > 0 ? (sqftProyecto / sqftFabricados) * 100 : 0;
 
     const costoPlacas = costoPlaca * placas;
-    const costoCorte = costoPulgada * pulgadasCorte;
+    const costoCorte = costoPulgada * (pulgadasSeparacion + pulgadasTarjas);
     const costoTotal = costoPlacas + costoCorte + costoCorteExtra;
     const costoSqft = sqftProyecto > 0 ? costoTotal / sqftProyecto : 0;
     const margenA = live.margenA || 0.7;
@@ -1564,7 +1563,9 @@ function renderCosteo(){
       <td>${f.color}</td>
       <td>${f.tipoCorte}</td>
       <td>${f.placas}</td>
-      <td>${Math.round(f.pulgadasCorte)}${f.pulgadasTarjas > 0 ? ' (' + Math.round(f.pulgadasSeparacion) + '+' + Math.round(f.pulgadasTarjas) + 'tarja)' : ''}</td>
+      <td>${Math.round(f.pulgadasCorte)}${(f.pulgadasTarjas > 0 || f.pulgadasCorteExtra > 0) ? ' (' + Math.round(f.pulgadasSeparacion)
+        + (f.pulgadasTarjas > 0 ? '+' + Math.round(f.pulgadasTarjas) + 'tarja' : '')
+        + (f.pulgadasCorteExtra > 0 ? '+' + Math.round(f.pulgadasCorteExtra) + 'extra' : '') + ')' : ''}</td>
       <td>${f.sqftProyecto.toFixed(2)}</td>
       <td>${f.sqftFabricados.toFixed(2)}</td>
       <td>${f.sqftFabricados > 0 ? f.optim.toFixed(1) + '%' : '—'}</td>
