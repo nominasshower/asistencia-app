@@ -1638,6 +1638,173 @@ async function exportarSemanaExcel() {
 // ─── NÓMINA ───────────────────────────────────────────────────
 let nominaOffset = 0;
 let nominaExportData = [];
+let filaEditando = null;      // "<nomina>_<fecha>" de la fila en edicion, o null
+let turnosCache = {};         // empresaActual -> { TURNO_NOMBRE: {hora_entrada, tolerancia_min, horas_jornada, ...} }
+
+async function asegurarTurnosCache() {
+  if (turnosCache[empresaActual]) return turnosCache[empresaActual];
+  const nombreEmpresaSup = EMPRESAS[empresaActual]?.sup_empresa || "";
+  const resp = await fetch(`${SUP_URL}/rest/v1/turnos?empresa=eq.${encodeURIComponent(nombreEmpresaSup)}&select=*`, {
+    headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Accept-Profile": "rh" }
+  });
+  const rows = await resp.json();
+  const map = {};
+  rows.forEach(t => { map[(t.turno||"").toUpperCase()] = t; });
+  turnosCache[empresaActual] = map;
+  return map;
+}
+
+function strAMin(s) {
+  if (!s) return null;
+  const partes = String(s).trim().split(":");
+  if (partes.length < 2) return null;
+  const h = parseInt(partes[0], 10), m = parseInt(partes[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
+function fmtMin(m) { return `${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`; }
+function normalizarHoraJS(h) {
+  const partes = String(h).trim().split(":");
+  return `${String(parseInt(partes[0],10)).padStart(2,"0")}:${String(parseInt(partes[1],10)||0).padStart(2,"0")}`;
+}
+
+// Puerto 1:1 de calcular_campos() de verificar_reloj.py — misma logica de
+// negocio (entrada/salida/comida/retardo/horas extra/estado) para que la
+// edicion manual recalcule exactamente igual que la sincronizacion del reloj.
+function calcularCamposJS(horasList, turnoInfo, fecha) {
+  const res = { entrada_real:"", salida_real:"", inicio_comer:"", regreso_comer:"",
+                minutos_retardo:0, horas_trabajadas:"", horas_extra:"", estado:"INCOMPLETO" };
+  if (!horasList || !horasList.length) { res.estado = "AUSENTE"; return res; }
+  let esSabado = false;
+  try { esSabado = new Date(fecha+"T12:00:00").getDay() === 6; } catch(e) {}
+  const minsSet = new Set();
+  horasList.forEach(h => { const m = strAMin(h); if (m !== null) minsSet.add(m); });
+  const mins = [...minsSet].sort((a,b)=>a-b);
+  if (!mins.length) { res.estado = "AUSENTE"; return res; }
+
+  const COMIDA_INICIO = 690, COMIDA_FIN = 900; // 11:30 - 15:00
+  const entradaMin = mins[0];
+  res.entrada_real = fmtMin(entradaMin);
+
+  let salidaMin = null;
+  if (mins.length > 1) {
+    const ultimo = mins[mins.length-1];
+    if (!(ultimo >= COMIDA_INICIO && ultimo <= COMIDA_FIN)) salidaMin = ultimo;
+  }
+  let inicioComerMin = null;
+  for (const m of mins.slice(1)) {
+    if (m === salidaMin) continue;
+    if (m >= COMIDA_INICIO && m <= COMIDA_FIN) { inicioComerMin = m; break; }
+  }
+  let regresoComerMin = null;
+  if (inicioComerMin !== null) {
+    res.inicio_comer = fmtMin(inicioComerMin);
+    for (const m of mins) {
+      if (m > inicioComerMin && (salidaMin === null || m < salidaMin)) { regresoComerMin = m; break; }
+    }
+    if (regresoComerMin !== null) res.regreso_comer = fmtMin(regresoComerMin);
+  }
+
+  if (salidaMin && salidaMin !== entradaMin) {
+    res.salida_real = fmtMin(salidaMin);
+    const comidaMin = (inicioComerMin !== null && regresoComerMin !== null) ? Math.max(0, regresoComerMin - inicioComerMin) : 0;
+    if (turnoInfo) {
+      const ep   = strAMin(turnoInfo.hora_entrada || "07:00");
+      const tol  = parseInt(turnoInfo.tolerancia_min ?? 10, 10);
+      const jorn = parseFloat(String(turnoInfo.horas_jornada ?? 8.5).replace(",", "."));
+      const ret  = ep !== null ? Math.max(0, entradaMin - ep) : 0;
+      res.minutos_retardo = ret;
+      const ht = (salidaMin - entradaMin - comidaMin) / 60;
+      res.horas_trabajadas = ht.toFixed(2);
+      const heRaw = esSabado ? ht : Math.max(0, ht - jorn);
+      const he = heRaw >= 1.0 ? Math.round(heRaw*2)/2 : 0.0;
+      res.horas_extra = he.toFixed(2);
+      const tarde = ret > tol;
+      if (tarde && he > 0) res.estado = "RETARDO CON EXTRA";
+      else if (tarde)      res.estado = "RETARDO";
+      else if (he > 0)     res.estado = "EXTRA";
+      else                 res.estado = "NORMAL";
+    } else {
+      const ht = (salidaMin - entradaMin - comidaMin) / 60;
+      res.horas_trabajadas = ht.toFixed(2);
+      res.estado = "NORMAL";
+    }
+  } else {
+    res.estado = "INCOMPLETO";
+    if (turnoInfo) {
+      const ep = strAMin(turnoInfo.hora_entrada || "07:00");
+      if (ep !== null && entradaMin > ep) res.minutos_retardo = entradaMin - ep;
+    }
+  }
+  return res;
+}
+
+async function editarFila(nom, fecha) {
+  await asegurarTurnosCache();
+  filaEditando = `${nom}_${fecha}`;
+  renderNomina();
+}
+function cancelarEdicionFila() {
+  filaEditando = null;
+  renderNomina();
+}
+
+async function guardarFila(nom, fecha) {
+  const idEnt = `ei-ent-${nom}-${fecha}`, idSal = `ei-sal-${nom}-${fecha}`,
+        idIc  = `ei-ic-${nom}-${fecha}`,  idRc  = `ei-rc-${nom}-${fecha}`;
+  const ent = (document.getElementById(idEnt)?.value || "").trim();
+  const sal = (document.getElementById(idSal)?.value || "").trim();
+  const ic  = (document.getElementById(idIc)?.value  || "").trim();
+  const rc  = (document.getElementById(idRc)?.value  || "").trim();
+
+  const crudos = [ent, sal, ic, rc].filter(Boolean);
+  for (const h of crudos) {
+    if (!/^\d{1,2}:\d{2}$/.test(h)) { alert(`Hora invalida: "${h}" — usa formato HH:MM`); return; }
+  }
+
+  const r = datos.find(x => g(x,"nomina","NOMINA") === nom && g(x,"fecha","Fecha") === fecha);
+  if (!r) { alert("No se encontró el registro."); return; }
+  const id = g(r,"id");
+  if (!id) { alert("Este registro no tiene id en Supabase, no se puede guardar."); return; }
+
+  const turnosMap = await asegurarTurnosCache();
+  const turnoAsignado = (g(r,"turno","Turno") || "").toUpperCase();
+  const diaSem = new Date(fecha+"T12:00:00").getDay(); // 0=domingo...6=sabado
+  let turnoNombre = turnoAsignado;
+  if (diaSem === 5 && turnosMap["VIERNES"]) turnoNombre = "VIERNES";
+  else if (diaSem === 6 && turnosMap["SABADO"]) turnoNombre = "SABADO";
+  const turnoInfo = turnosMap[turnoNombre] || turnosMap[turnoAsignado] || Object.values(turnosMap)[0] || null;
+
+  const horasOrdenadas = [...new Set(crudos.map(normalizarHoraJS))].sort();
+  const campos = calcularCamposJS(horasOrdenadas, turnoInfo, fecha);
+
+  const body = {
+    num_pases: horasOrdenadas.length,
+    horas: horasOrdenadas.join(";"),
+    entrada_real: campos.entrada_real,
+    salida_real: campos.salida_real,
+    inicio_comer: campos.inicio_comer,
+    regreso_comer: campos.regreso_comer,
+    minutos_retardo: campos.minutos_retardo,
+    horas_trabajadas: campos.horas_trabajadas || null,
+    horas_extra: campos.horas_extra || null,
+    estado: campos.estado,
+  };
+
+  try {
+    const resp = await fetch(`${SUP_URL}/rest/v1/registros?id=eq.${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Content-Profile": "rh", "Content-Type": "application/json", "Prefer": "return=minimal" },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    Object.entries(body).forEach(([k,v]) => { r[k] = (v === null || v === undefined) ? "" : String(v); });
+    filaEditando = null;
+    renderNomina();
+  } catch (e) {
+    alert("Error al guardar en Supabase: " + e.message);
+  }
+}
 
 function renderNomina() {
   const sem = getSemanaNomina(nominaOffset);
@@ -1692,18 +1859,39 @@ function renderNomina() {
     const ht     = calcHoras(r);
     const he     = parseHoras(g(r,"horas_extra","HorasExtra"));
     const ret    = parseRetardo(g(r,"minutos_retardo","MinutosRetardo"));
+    const esEditando = filaEditando === `${nom}_${fecha}`;
 
     const colorEst = { "NORMAL":"var(--accent)","EXTRA":"var(--accent2)","RETARDO":"var(--warn)","RETARDO CON EXTRA":"#a78bfa","INCOMPLETO":"var(--danger)","AUSENTE":"var(--danger)" };
     const bdr = esPrimera ? "border-top:2px solid rgba(255,255,255,0.1)" : "";
 
-    let html = `<tr style="${bdr}">`;
+    const inputHora = (id, val) => `<input type="text" id="${id}" value="${val==="—"?"":val}" placeholder="HH:MM" maxlength="5"
+      style="width:52px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px">`;
+
+    let html = `<tr style="${bdr}${esEditando?';background:rgba(59,130,246,0.06)':''}">`;
     if (esPrimera) {
       html += `<td class="mono" style="color:var(--muted);vertical-align:top" rowspan="${tot.filas}">${nom}</td>
                <td style="font-weight:600;vertical-align:top;white-space:nowrap" rowspan="${tot.filas}">${nombre}</td>
                <td style="font-size:11px;color:var(--muted);vertical-align:top;white-space:nowrap" rowspan="${tot.filas}">${g(r,"area","Departamento")}</td>
                <td style="font-size:11px;color:var(--muted);vertical-align:top;white-space:nowrap" rowspan="${tot.filas}">${g(r,"turno","Turno")}</td>`;
     }
-    html += `
+    if (esEditando) {
+      html += `
+      <td class="mono" style="color:var(--muted);white-space:nowrap">${fecha}</td>
+      <td style="color:var(--muted);font-size:11px;white-space:nowrap">${dow}</td>
+      <td>${inputHora(`ei-ent-${nom}-${fecha}`, ent)}</td>
+      <td>${inputHora(`ei-sal-${nom}-${fecha}`, sal)}</td>
+      <td>${inputHora(`ei-ic-${nom}-${fecha}`, ic)}</td>
+      <td>${inputHora(`ei-rc-${nom}-${fecha}`, rc)}</td>
+      <td class="mono" style="text-align:right;color:var(--muted)">—</td>
+      <td class="mono" style="text-align:right;color:var(--muted)">—</td>
+      <td class="mono" style="color:var(--muted)">—</td>
+      <td><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--bg3);color:var(--muted)">se recalcula</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn" style="padding:2px 8px;font-size:11px" onclick="guardarFila('${nom}','${fecha}')">✓ Guardar</button>
+        <button class="btn" style="padding:2px 8px;font-size:11px" onclick="cancelarEdicionFila()">✕</button>
+      </td>`;
+    } else {
+      html += `
       <td class="mono" style="color:var(--muted);white-space:nowrap">${fecha}</td>
       <td style="color:var(--muted);font-size:11px;white-space:nowrap">${dow}</td>
       <td class="mono" style="color:${ent!=="—"?'var(--text)':'var(--muted)'}">${ent}</td>
@@ -1713,7 +1901,9 @@ function renderNomina() {
       <td class="mono" style="text-align:right;font-weight:500;color:${ht>0?'var(--text)':'var(--muted)'}">${ht>0?ht.toFixed(2):"—"}</td>
       <td class="mono" style="text-align:right;color:${he>0?'var(--accent2)':'var(--muted)'}">${he>0?he.toFixed(2):"—"}</td>
       <td class="mono" style="color:${ret>0?'var(--warn)':'var(--muted)'}">${ret>0?ret+" min":"—"}</td>
-      <td><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${colorEst[est]||'var(--bg3)'}22;color:${colorEst[est]||'var(--muted)'}">${est||"—"}</span></td>`;
+      <td><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${colorEst[est]||'var(--bg3)'}22;color:${colorEst[est]||'var(--muted)'}">${est||"—"}</span></td>
+      <td><button class="btn" style="padding:2px 8px;font-size:11px" onclick="editarFila('${nom}','${fecha}')" title="Editar checadas de este día">✎ Editar</button></td>`;
+    }
     html += `</tr>`;
 
     // Fila de total por empleado al final del grupo
@@ -1727,6 +1917,7 @@ function renderNomina() {
         <td class="mono" style="font-weight:600;text-align:right;border-top:1px solid var(--border)">${tot.hrs.toFixed(2)}</td>
         <td class="mono" style="text-align:right;color:var(--accent2);border-top:1px solid var(--border)">${tot.extra>0?tot.extra.toFixed(2):"—"}</td>
         <td class="mono" style="border-top:1px solid var(--border);color:${retColor}" title="Suma bruta: ${retSem} min — tolerancia 10 min/semana">${retSem>0?retSem+' min brutos<br><span style="font-size:10px">-10 tol = '+retDescon+' min</span>':"—"}</td>
+        <td style="border-top:1px solid var(--border)"></td>
         <td style="border-top:1px solid var(--border)"></td>
       </tr>`;
     }
@@ -1786,13 +1977,16 @@ function renderNomina() {
         <th>I. Comida</th><th>R. Comida</th>
         <th style="text-align:right">Hrs. trab.</th>
         <th style="text-align:right">Hrs. extra</th>
-        <th>Retardo</th><th>Estado</th>
+        <th>Retardo</th><th>Estado</th><th>Acción</th>
       </tr></thead><tbody>
         ${dd.length===0
-          ? `<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:32px">Sin registros esta semana</td></tr>`
+          ? `<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:32px">Sin registros esta semana</td></tr>`
           : filasHTML}
       </tbody></table>
     </div>`;
+  // Restaurar foco en el buscador para que no se interrumpa al escribir
+  const inp = document.getElementById("n-busq");
+  if (inp) { inp.focus(); const len = inp.value.length; inp.setSelectionRange(len, len); }
 }
 
 function exportarNominaCSV() {
