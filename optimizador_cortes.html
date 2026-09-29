@@ -44,7 +44,10 @@
   .btn.secondary{background:var(--panel2); color:var(--text); border:1px solid var(--border);}
   .btn.danger{background:transparent; color:var(--danger); border:1px solid var(--danger); padding:4px 9px; font-size:12px;}
   .btn.small{padding:4px 9px; font-size:12px;}
-  .col-name{width:32%;} .col-num{width:16%;} .col-del{width:40px;}
+  .col-name{width:32%;} .col-num{width:16%;}
+  .col-del{width:40px; position:sticky; right:0; background:var(--panel2); box-shadow:-6px 0 8px -6px rgba(0,0,0,.5);}
+  th.col-del{background:var(--panel); z-index:2;}
+  td.col-del{z-index:1;}
   .actions{display:flex; gap:10px; margin-top:10px;}
   .empty-hint{color:var(--muted); font-size:12px; padding:12px 0; text-align:center; font-style:italic;}
   .results-summary{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:16px;}
@@ -346,6 +349,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="confirmNuevaModal">
+  <div class="modal-box">
+    <h3>Nueva cotización</h3>
+    <div class="sub" style="margin:0 0 16px;">¿Borrar todo lo capturado de esta cotización (cliente, piezas, resultados)? El catálogo de láminas (Sección 2) NO se borra.</div>
+    <div class="modal-actions">
+      <button class="btn secondary small" onclick="cerrarConfirmNueva()">Cancelar</button>
+      <button class="btn danger" onclick="confirmarNuevaCotizacion()">Sí, borrar todo</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const LS_KEY = 'optimizador_cortes_slab_sizes';
 const PALETTE = ['#3fb8af','#f2a154','#8a7fd6','#e06565','#4caf7d','#e0c05b','#5b9de0','#d67ab8','#6bc4c4','#c98a5b'];
@@ -391,7 +405,7 @@ function addSizeRow(data){
     </td>
     <td><input type="number" class="s-margenA" min="0.01" max="1" step="0.01" placeholder="0.7" value="${data?.margenA||''}"></td>
     <td><input type="number" class="s-margenB" min="0.01" max="1" step="0.01" placeholder="0.65" value="${data?.margenB||''}"></td>
-    <td><button class="btn danger" onclick="this.closest('tr').remove(); saveSizes(); toggleEmptyStates();">×</button></td>
+    <td class="col-del"><button class="btn danger" onclick="this.closest('tr').remove(); saveSizes(); toggleEmptyStates();">×</button></td>
   `;
   tr.querySelector('.s-tipocorte').value = data?.cutType || 'Normal';
   tr.querySelectorAll('input').forEach(inp => inp.addEventListener('change', saveSizes));
@@ -433,7 +447,7 @@ function addPieceRow(data){
         <button type="button" class="btn secondary small" onclick="abrirModalCorteExtra(this.closest('tr'))">+ Agregar corte</button>
       </div>
     </td>
-    <td><button class="btn danger" onclick="this.closest('tr').remove(); toggleEmptyStates();">×</button></td>
+    <td class="col-del"><button class="btn danger" onclick="this.closest('tr').remove(); toggleEmptyStates();">×</button></td>
   `;
   tr.querySelector('.p-joint').value = data?.joint || '';
   tr.dataset.extraCuts = JSON.stringify(data?.extraCuts || []);
@@ -699,7 +713,7 @@ function addClientItemRow(data){
     <td><input type="number" class="ci-cant" min="1" value="${data?.cant||1}"></td>
     <td style="text-align:center;"><input type="checkbox" class="ci-escorte" ${data?.esCorte === false ? '' : 'checked'}></td>
     <td class="ci-sqft">—</td><td class="ci-unit">—</td><td class="ci-total">—</td>
-    <td><button class="btn danger" onclick="this.closest('tr').remove(); renderClientTotals();">×</button></td>
+    <td class="col-del"><button class="btn danger" onclick="this.closest('tr').remove(); renderClientTotals();">×</button></td>
   `;
   tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', renderClientTotals));
   tr.querySelector('.ci-factor').addEventListener('input', function(){
@@ -904,7 +918,15 @@ function applyClientInfo(info){
 }
 
 function nuevaCotizacion(){
-  if (!confirm('¿Borrar todo lo capturado de esta cotización (cliente, piezas, resultados)? El catálogo de láminas (Sección 2) NO se borra.')) return;
+  document.getElementById('confirmNuevaModal').style.display = 'flex';
+}
+
+function cerrarConfirmNueva(){
+  document.getElementById('confirmNuevaModal').style.display = 'none';
+}
+
+function confirmarNuevaCotizacion(){
+  cerrarConfirmNueva();
 
   document.getElementById('clientItemsBody').innerHTML = '';
   document.getElementById('piecesBody').innerHTML = '';
