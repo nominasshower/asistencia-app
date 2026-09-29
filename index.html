@@ -1640,6 +1640,7 @@ let nominaOffset = 0;
 let nominaExportData = [];
 let filaEditando = null;      // "<nomina>_<fecha>" de la fila en edicion, o null
 let turnosCache = {};         // empresaActual -> { TURNO_NOMBRE: {hora_entrada, tolerancia_min, horas_jornada, ...} }
+let filasNominaIndex = {};    // "<nomina>_<fecha>" -> fila (real de datos[] o placeholder sin checadas)
 
 // Tipos de ausencia seleccionables al editar (en vez de llenar horario).
 // "cuenta": si SI aporta la jornada completa a horas trabajadas o NO aporta nada.
@@ -1783,10 +1784,9 @@ async function guardarFila(nom, fecha) {
     }
   }
 
-  const r = datos.find(x => g(x,"nomina","NOMINA") === nom && g(x,"fecha","Fecha") === fecha);
-  if (!r) { alert("No se encontró el registro."); return; }
-  const id = g(r,"id");
-  if (!id) { alert("Este registro no tiene id en Supabase, no se puede guardar."); return; }
+  const r = filasNominaIndex[`${nom}_${fecha}`];
+  if (!r) { alert("No se encontró la fila (recarga la página e intenta de nuevo)."); return; }
+  const id = g(r,"id") || null; // null = todavia no existe en Supabase, hay que crearlo
 
   const turnosMap = await asegurarTurnosCache();
   const turnoAsignado = (g(r,"turno","Turno") || "").toUpperCase();
@@ -1839,13 +1839,42 @@ async function guardarFila(nom, fecha) {
 
 async function guardarBody(r, id, body) {
   try {
-    const resp = await fetch(`${SUP_URL}/rest/v1/registros?id=eq.${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Content-Profile": "rh", "Content-Type": "application/json", "Prefer": "return=minimal" },
-      body: JSON.stringify(body)
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    Object.entries(body).forEach(([k,v]) => { r[k] = (v === null || v === undefined) ? "" : String(v); });
+    if (id) {
+      const resp = await fetch(`${SUP_URL}/rest/v1/registros?id=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Content-Profile": "rh", "Content-Type": "application/json", "Prefer": "return=minimal" },
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      Object.entries(body).forEach(([k,v]) => { r[k] = (v === null || v === undefined) ? "" : String(v); });
+    } else {
+      // Dia que no tenia ninguna checada -- crear el registro desde cero.
+      const fecha = g(r,"fecha","Fecha");
+      const diasEs = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+      const nuevaFila = {
+        empresa: EMPRESAS[empresaActual]?.sup_empresa || "",
+        nomina: g(r,"nomina","NOMINA"),
+        nombre: g(r,"nombre","Nombre"),
+        apellido: g(r,"apellido","Apellido"),
+        area: g(r,"area","Departamento"),
+        puesto: g(r,"puesto","Puesto") || "",
+        turno: g(r,"turno","Turno"),
+        fecha,
+        semana: diasEs[new Date(fecha+"T12:00:00").getDay()],
+        ...body,
+      };
+      const resp = await fetch(`${SUP_URL}/rest/v1/registros?on_conflict=empresa,nomina,fecha`, {
+        method: "POST",
+        headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Content-Profile": "rh", "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=representation" },
+        body: JSON.stringify(nuevaFila)
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const creado = (await resp.json())[0];
+      const filaFinal = {};
+      Object.entries(creado).forEach(([k,v]) => { filaFinal[k] = (v === null || v === undefined) ? "" : String(v); });
+      datos.push(filaFinal);
+      filasNominaIndex[`${filaFinal.nomina}_${filaFinal.fecha}`] = filaFinal;
+    }
     filaEditando = null;
     renderNomina();
   } catch (e) {
@@ -1864,23 +1893,75 @@ function renderNomina() {
   if (filtrarArea) dd = dd.filter(r => g(r,"area","Departamento") === filtrarArea);
   if (filtrarEmp)  dd = dd.filter(r => `${g(r,"nombre","Nombre")} ${g(r,"apellido","Apellido")} ${g(r,"nomina","NOMINA")}`.toLowerCase().includes(filtrarEmp));
 
-  // Ordenar: área → nombre → fecha
-  dd.sort((a,b) => {
-    const ka = `${g(a,"area","Departamento")}${g(a,"nombre","Nombre")}${g(a,"apellido","Apellido")}${g(a,"fecha","Fecha")}`;
-    const kb = `${g(b,"area","Departamento")}${g(b,"nombre","Nombre")}${g(b,"apellido","Apellido")}${g(b,"fecha","Fecha")}`;
-    return ka.localeCompare(kb);
-  });
+  // Empleados del catalogo (rh.empleados) para detectar dias SIN ninguna
+  // checada (ej. vacaciones desde el inicio de la semana) — sin esto esos
+  // dias/personas ni siquiera aparecen en el reporte y no hay boton Editar.
+  let catFiltrado = [];
+  if (datosEmpleados && datosEmpleados.length) {
+    const muestra = datosEmpleados[0];
+    const findKey = (...opts) => { for (const o of opts) { const f = Object.keys(muestra).find(k=>k.toLowerCase()===o.toLowerCase()); if (f) return f; } return null; };
+    const kN = findKey("nomina") || "nomina", kNm = findKey("nombre") || "nombre",
+          kAr = findKey("area") || "area", kPu = findKey("puesto") || "puesto",
+          kTu = findKey("turno") || "turno", kBaja = findKey("fecha_baja") || "fecha_baja";
+    catFiltrado = datosEmpleados
+      .filter(e => (e[kN]||"").toString().trim() && !(e[kBaja]||"").toString().trim())
+      .map(e => {
+        const nombreCompleto = (e[kNm]||"").trim();
+        const partes = nombreCompleto.split(" ");
+        return {
+          nomina: (e[kN]||"").toString().trim(),
+          nombre: partes[0] || nombreCompleto,
+          apellido: partes.slice(1).join(" "),
+          area: (e[kAr]||"").trim(), puesto: (e[kPu]||"").trim(), turno: (e[kTu]||"").trim(),
+        };
+      });
+    if (filtrarArea) catFiltrado = catFiltrado.filter(e => e.area === filtrarArea);
+    if (filtrarEmp)  catFiltrado = catFiltrado.filter(e => `${e.nombre} ${e.apellido} ${e.nomina}`.toLowerCase().includes(filtrarEmp));
+  }
 
-  // Totales
+  // Dias habiles de la semana (Jue,Vie,Lun,Mar,Mie) -- igual criterio que el
+  // layout de nomina en papel, sin Sabado/Domingo.
+  const diasHabiles = [sem.dias[0], sem.dias[1], sem.dias[4], sem.dias[5], sem.dias[6]];
+  const clavesConRegistro = new Set(dd.map(r => `${g(r,"nomina","NOMINA")}_${g(r,"fecha","Fecha")}`));
+  const placeholders = [];
+  catFiltrado.forEach(e => {
+    diasHabiles.forEach(fecha => {
+      if (clavesConRegistro.has(`${e.nomina}_${fecha}`)) return;
+      placeholders.push({
+        nomina: e.nomina, nombre: e.nombre, apellido: e.apellido,
+        area: e.area, puesto: e.puesto, turno: e.turno, fecha,
+        estado: "", entrada_real: "", salida_real: "", inicio_comer: "", regreso_comer: "",
+        minutos_retardo: "", horas_trabajadas: "", horas_extra: "", editado_manual: "",
+      });
+    });
+  });
+  const ddCompleto = dd.concat(placeholders);
+
+  // Totales (los placeholders aportan 0 — no alteran las sumas)
   const areasSet    = new Set(datos.filter(r=>{ const f=g(r,"fecha","Fecha"); return f>=sem.desde&&f<=sem.hasta; }).map(r=>g(r,"area","Departamento")).filter(Boolean));
   const totHoras    = dd.reduce((s,r)=>s+calcHoras(r),0);
   const totExtra    = dd.reduce((s,r)=>s+parseHoras(g(r,"horas_extra","HorasExtra")),0);
   const totRetardos = dd.filter(r=>g(r,"estado","EstadoAsistencia")?.includes("RETARDO")).length;
 
-  // Para agrupar visualmente: detectar cambio de empleado
-  let ultimoEmp = null;
+  // Agrupar por nomina (clave estable — no depende de que el texto de
+  // nombre/apellido coincida exacto entre rh.registros y rh.empleados)
+  const gruposPorNomina = {};
+  const ordenNominas = [];
+  ddCompleto.forEach(r => {
+    const nom = g(r,"nomina","NOMINA");
+    if (!gruposPorNomina[nom]) { gruposPorNomina[nom] = []; ordenNominas.push(nom); }
+    gruposPorNomina[nom].push(r);
+  });
+  ordenNominas.sort((nomA, nomB) => {
+    const a = gruposPorNomina[nomA][0], b = gruposPorNomina[nomB][0];
+    const ka = `${g(a,"area","Departamento")}${g(a,"nombre","Nombre")}${g(a,"apellido","Apellido")}`;
+    const kb = `${g(b,"area","Departamento")}${g(b,"nombre","Nombre")}${g(b,"apellido","Apellido")}`;
+    return ka.localeCompare(kb);
+  });
+  ordenNominas.forEach(nom => gruposPorNomina[nom].sort((a,b) => g(a,"fecha","Fecha").localeCompare(g(b,"fecha","Fecha"))));
+
   const filasTotales = {}; // nomina -> acumulados para fila total
-  dd.forEach(r => {
+  ddCompleto.forEach(r => {
     const nom = g(r,"nomina","NOMINA");
     if (!filasTotales[nom]) filasTotales[nom] = { dias:0, hrs:0, extra:0, retardo:0 };
     const est = g(r,"estado","EstadoAsistencia");
@@ -1890,7 +1971,11 @@ function renderNomina() {
     filasTotales[nom].retardo += parseRetardo(g(r,"minutos_retardo","MinutosRetardo"));
   });
 
-  // Guardar para CSV
+  // Indice para que editarFila/guardarFila encuentren tambien los placeholders
+  filasNominaIndex = {};
+  ddCompleto.forEach(r => { filasNominaIndex[`${g(r,"nomina","NOMINA")}_${g(r,"fecha","Fecha")}`] = r; });
+
+  // Guardar para CSV (solo checadas reales)
   nominaExportData = dd;
 
   const filaHTML = (r, esPrimera, esUltima, tot) => {
@@ -1984,20 +2069,15 @@ function renderNomina() {
     return html;
   };
 
-  // Agrupar filas por empleado
+  // Construir filas por empleado (grupos ya armados arriba por nomina)
   let filasHTML = "";
-  let i = 0;
-  while (i < dd.length) {
-    const nom = g(dd[i],"nomina","NOMINA");
-    let j = i;
-    while (j < dd.length && g(dd[j],"nomina","NOMINA") === nom) j++;
-    const grupo = dd.slice(i, j);
+  ordenNominas.forEach(nom => {
+    const grupo = gruposPorNomina[nom];
     const tot   = { filas: grupo.length + 1, ...filasTotales[nom] };
     grupo.forEach((r, idx) => {
       filasHTML += filaHTML(r, idx===0, idx===grupo.length-1, tot);
     });
-    i = j;
-  }
+  });
 
   document.getElementById("content").innerHTML = `
     <div class="filters" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -2039,7 +2119,7 @@ function renderNomina() {
         <th style="text-align:right">Hrs. extra</th>
         <th>Retardo</th><th>Estado</th><th>Acción</th>
       </tr></thead><tbody>
-        ${dd.length===0
+        ${ddCompleto.length===0
           ? `<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:32px">Sin registros esta semana</td></tr>`
           : filasHTML}
       </tbody></table>
