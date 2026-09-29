@@ -1641,6 +1641,23 @@ let nominaExportData = [];
 let filaEditando = null;      // "<nomina>_<fecha>" de la fila en edicion, o null
 let turnosCache = {};         // empresaActual -> { TURNO_NOMBRE: {hora_entrada, tolerancia_min, horas_jornada, ...} }
 
+// Tipos de ausencia seleccionables al editar (en vez de llenar horario).
+// "cuenta": si SI aporta la jornada completa a horas trabajadas o NO aporta nada.
+const TIPOS_AUSENCIA = {
+  V:   { estado: "VACACIONES",       cuenta: false, label: "V — Vacaciones" },
+  F:   { estado: "FALTA",            cuenta: false, label: "F — Falta" },
+  INC: { estado: "INCAPACIDAD",      cuenta: false, label: "INC — Incapacidad" },
+  PSG: { estado: "PERMISO SIN GOCE", cuenta: false, label: "PSG — Permiso sin goce" },
+  PCG: { estado: "NORMAL",           cuenta: true,  label: "PCG — Permiso con goce" },
+};
+function toggleTipoAusencia(nom, fecha) {
+  const tipo = document.getElementById(`ei-tipo-${nom}-${fecha}`)?.value || "";
+  ["ent","sal","ic","rc"].forEach(k => {
+    const el = document.getElementById(`ei-${k}-${nom}-${fecha}`);
+    if (el) el.disabled = !!tipo;
+  });
+}
+
 async function asegurarTurnosCache() {
   if (turnosCache[empresaActual]) return turnosCache[empresaActual];
   const nombreEmpresaSup = EMPRESAS[empresaActual]?.sup_empresa || "";
@@ -1750,6 +1767,8 @@ function cancelarEdicionFila() {
 }
 
 async function guardarFila(nom, fecha) {
+  const tipoSel = document.getElementById(`ei-tipo-${nom}-${fecha}`)?.value || "";
+
   const idEnt = `ei-ent-${nom}-${fecha}`, idSal = `ei-sal-${nom}-${fecha}`,
         idIc  = `ei-ic-${nom}-${fecha}`,  idRc  = `ei-rc-${nom}-${fecha}`;
   const ent = (document.getElementById(idEnt)?.value || "").trim();
@@ -1758,8 +1777,10 @@ async function guardarFila(nom, fecha) {
   const rc  = (document.getElementById(idRc)?.value  || "").trim();
 
   const crudos = [ent, sal, ic, rc].filter(Boolean);
-  for (const h of crudos) {
-    if (!/^\d{1,2}:\d{2}$/.test(h)) { alert(`Hora invalida: "${h}" — usa formato HH:MM`); return; }
+  if (!tipoSel) {
+    for (const h of crudos) {
+      if (!/^\d{1,2}:\d{2}$/.test(h)) { alert(`Hora invalida: "${h}" — usa formato HH:MM`); return; }
+    }
   }
 
   const r = datos.find(x => g(x,"nomina","NOMINA") === nom && g(x,"fecha","Fecha") === fecha);
@@ -1775,10 +1796,32 @@ async function guardarFila(nom, fecha) {
   else if (diaSem === 6 && turnosMap["SABADO"]) turnoNombre = "SABADO";
   const turnoInfo = turnosMap[turnoNombre] || turnosMap[turnoAsignado] || Object.values(turnosMap)[0] || null;
 
+  let body;
+  if (tipoSel) {
+    // V/F/INC/PSG/PCG: no se calcula de checadas, se aplica la regla del tipo.
+    const info = TIPOS_AUSENCIA[tipoSel];
+    const jornada = info.cuenta && turnoInfo ? parseFloat(String(turnoInfo.horas_jornada ?? 8.5).replace(",", ".")) : null;
+    body = {
+      num_pases: 0,
+      horas: "",
+      entrada_real: "",
+      salida_real: "",
+      inicio_comer: "",
+      regreso_comer: "",
+      minutos_retardo: 0,
+      horas_trabajadas: jornada !== null ? jornada.toFixed(2) : null,
+      horas_extra: null,
+      estado: info.estado,
+      editado_manual: true,
+    };
+    await guardarBody(r, id, body);
+    return;
+  }
+
   const horasOrdenadas = [...new Set(crudos.map(normalizarHoraJS))].sort();
   const campos = calcularCamposJS(horasOrdenadas, turnoInfo, fecha);
 
-  const body = {
+  body = {
     num_pases: horasOrdenadas.length,
     horas: horasOrdenadas.join(";"),
     entrada_real: campos.entrada_real,
@@ -1791,7 +1834,10 @@ async function guardarFila(nom, fecha) {
     estado: campos.estado,
     editado_manual: true,
   };
+  await guardarBody(r, id, body);
+}
 
+async function guardarBody(r, id, body) {
   try {
     const resp = await fetch(`${SUP_URL}/rest/v1/registros?id=eq.${encodeURIComponent(id)}`, {
       method: "PATCH",
@@ -1863,7 +1909,8 @@ function renderNomina() {
     const esEditando = filaEditando === `${nom}_${fecha}`;
     const editadoManual = ["true","1"].includes(String(r.editado_manual).toLowerCase());
 
-    const colorEst = { "NORMAL":"var(--accent)","EXTRA":"var(--accent2)","RETARDO":"var(--warn)","RETARDO CON EXTRA":"#a78bfa","INCOMPLETO":"var(--danger)","AUSENTE":"var(--danger)" };
+    const colorEst = { "NORMAL":"var(--accent)","EXTRA":"var(--accent2)","RETARDO":"var(--warn)","RETARDO CON EXTRA":"#a78bfa","INCOMPLETO":"var(--danger)","AUSENTE":"var(--danger)",
+      "VACACIONES":"#38bdf8","FALTA":"#ef4444","INCAPACIDAD":"#f472b6","PERMISO SIN GOCE":"#fb923c" };
     const bdr = esPrimera ? "border-top:2px solid rgba(255,255,255,0.1)" : "";
 
     const inputHora = (id, val) => `<input type="text" id="${id}" value="${val==="—"?"":val}" placeholder="HH:MM" maxlength="5"
@@ -1877,9 +1924,17 @@ function renderNomina() {
                <td style="font-size:11px;color:var(--muted);vertical-align:top;white-space:nowrap" rowspan="${tot.filas}">${g(r,"turno","Turno")}</td>`;
     }
     if (esEditando) {
+      const opcionesTipo = Object.entries(TIPOS_AUSENCIA).map(([cod,info]) => `<option value="${cod}">${info.label}</option>`).join("");
       html += `
       <td class="mono" style="color:var(--muted);white-space:nowrap">${fecha}</td>
-      <td style="color:var(--muted);font-size:11px;white-space:nowrap">${dow}</td>
+      <td style="color:var(--muted);font-size:11px;white-space:nowrap">
+        ${dow}<br>
+        <select id="ei-tipo-${nom}-${fecha}" onchange="toggleTipoAusencia('${nom}','${fecha}')"
+          style="margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px;color:var(--text);font-size:10px;max-width:90px">
+          <option value="">Llenar horario</option>
+          ${opcionesTipo}
+        </select>
+      </td>
       <td>${inputHora(`ei-ent-${nom}-${fecha}`, ent)}</td>
       <td>${inputHora(`ei-sal-${nom}-${fecha}`, sal)}</td>
       <td>${inputHora(`ei-ic-${nom}-${fecha}`, ic)}</td>
