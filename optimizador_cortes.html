@@ -77,6 +77,17 @@
   .table-scroll{overflow-x:auto;}
   .tarja-cell{display:flex; gap:4px;}
   .tarja-cell input{width:50%; min-width:58px;}
+  .extracuts-cell{display:flex; flex-direction:column; gap:5px;}
+  .extracuts-list{display:flex; flex-direction:column; gap:3px;}
+  .extracut-chip{display:flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--border);
+    border-radius:5px; padding:3px 7px; font-size:11px; color:var(--text); white-space:nowrap;}
+  .extracut-chip button{background:transparent; border:none; color:var(--danger); cursor:pointer; font-size:13px; line-height:1; padding:0;}
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; align-items:center; justify-content:center;}
+  .modal-box{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px; width:320px; max-width:90vw;}
+  .modal-box h3{margin:0 0 14px; font-size:15px; color:var(--accent);}
+  .modal-sides{display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin:4px 0 16px;}
+  .modal-sides label{display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:6px;}
   input[type=number]{ -moz-appearance:textfield; }
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
@@ -255,8 +266,8 @@
     <h2>3. Piezas a cortar (lavabos / cocinetas)</h2>
     <div id="hintPieces" class="empty-hint" style="display:none;">Agrega los modelos/piezas de esta cotización con su ancho, alto y cantidad.</div>
     <div class="table-scroll">
-    <table id="tblPieces" style="display:none; min-width:1050px;">
-      <thead><tr><th class="col-name">Modelo / Pieza</th><th class="col-num">Ancho (mm)</th><th class="col-num">Alto (mm)</th><th style="width:8%;">Cant.</th><th style="width:12%;">Color/Lote</th><th style="width:9%;" title="Marca si esta pieza no se puede voltear por veta/patrón">No rotar</th><th style="width:13%;">Tipo de unión</th><th style="width:14%;" title="Medida del corte de la tarja/sink, si aplica">Tarja L x A (mm)</th><th class="col-del"></th></tr></thead>
+    <table id="tblPieces" style="display:none; min-width:1180px;">
+      <thead><tr><th class="col-name">Modelo / Pieza</th><th class="col-num">Ancho (mm)</th><th class="col-num">Alto (mm)</th><th style="width:8%;">Cant.</th><th style="width:11%;">Color/Lote</th><th style="width:8%;" title="Marca si esta pieza no se puede voltear por veta/patrón">No rotar</th><th style="width:12%;">Tipo de unión</th><th style="width:13%;" title="Medida del corte de la tarja/sink, si aplica">Tarja L x A (mm)</th><th style="width:16%;" title="Cortes adicionales sobre esta pieza (ej. corte 45° en el faldón, pulido en un lateral): cada uno con su propio nombre, costo por pulgada y lado(s). No afecta a otras piezas.">Cortes extra</th><th class="col-del"></th></tr></thead>
       <tbody id="piecesBody"></tbody>
     </table>
     </div>
@@ -299,19 +310,40 @@
     <table class="cmp-table" style="min-width:1200px; margin-top:10px;">
       <thead><tr>
         <th>Color/Material</th><th>Tipo corte</th><th>Placas</th><th>Pulgadas corte</th><th>Sqft proyecto</th><th>Sqft fabricado</th><th>Aprov.</th>
-        <th>Costo Placas</th><th>Costo Corte</th><th>Costo Total</th><th>Costo×Sqft</th><th>Sugerido A</th><th>Sugerido B</th><th>Aplicar a cotización</th>
+        <th>Costo Placas</th><th>Costo Corte</th><th title="Suma de todos los 'Cortes extra' agregados por pieza en la Sección 3">Cortes extra</th><th>Costo Total</th><th>Costo×Sqft</th><th>Sugerido A</th><th>Sugerido B</th><th>Aplicar a cotización</th>
       </tr></thead>
       <tbody id="materialCosteoBody"></tbody>
       <tfoot id="materialCosteoFoot"></tfoot>
     </table>
   </div>
-  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz", aplicadas por material: Sqft Fabricados=suma del área real de cada lámina usada (Ancho×Alto del catálogo, en sqft) · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Sugerido A/B=Costo×Sqft÷Margen A/B (cada material define su propio margen en el catálogo, default 0.7/0.65). Pulgadas de corte = perímetro de cada pieza (2×Prof.+2×Ancho) + perímetro de cada tarja capturada (2×L + 2×A por pieza).</div>
+  <div class="sub" style="margin:6px 0 0;">Fórmulas idénticas a "Reporte de Cotizaciones Quartz", aplicadas por material: Sqft Fabricados=suma del área real de cada lámina usada (Ancho×Alto del catálogo, en sqft) · Costo Placas=Costo×Placa×Placas · Costo Corte=Costo×Pulgada×Pulgadas · Costo Total=suma · Costo×Sqft=Costo Total/Sqft Proyecto · Sugerido A/B=Costo×Sqft÷Margen A/B (cada material define su propio margen en el catálogo, default 0.7/0.65). Pulgadas de corte = perímetro de cada pieza (2×Prof.+2×Ancho) + perímetro de cada tarja capturada (2×L + 2×A por pieza). Los "Cortes extra" que agregues por pieza (Sección 3) se cobran aparte, cada uno con su propio nombre, costo×pulgada y lado(s), y se suman al Costo Total.</div>
 </div>
 
 <div class="panel" id="cotizacionFinalPanel">
   <h2>Cotización final (para el cliente)</h2>
   <button class="btn secondary small" onclick="printPanel('cotizacion')" style="margin-bottom:4px;">📄 Guardar como PDF / Imprimir</button>
   <div id="cotizacionFinalWrap"></div>
+</div>
+
+<div class="modal-overlay" id="corteExtraModal">
+  <div class="modal-box">
+    <h3>Agregar corte extra</h3>
+    <label>Nombre del corte</label>
+    <input type="text" id="c45ModalName" placeholder="Ej. Corte 45° faldón" style="margin-bottom:12px;">
+    <label>Costo × pulgada ($)</label>
+    <input type="number" id="c45ModalCost" min="0" step="0.01" placeholder="Ej. 0.25" style="margin-bottom:4px;">
+    <label style="margin-top:10px;">¿En qué lado(s) de la pieza?</label>
+    <div class="modal-sides">
+      <label><input type="checkbox" id="c45Modal_front"> Frontal</label>
+      <label><input type="checkbox" id="c45Modal_back"> Posterior</label>
+      <label><input type="checkbox" id="c45Modal_left"> Izquierdo</label>
+      <label><input type="checkbox" id="c45Modal_right"> Derecho</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary small" onclick="cerrarModalCorteExtra()">Cancelar</button>
+      <button class="btn small" onclick="guardarCorteExtra()">Agregar</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -395,11 +427,81 @@ function addPieceRow(data){
         <input type="number" class="p-tarja-a" placeholder="A" min="0" value="${data?.tarjaA||''}">
       </div>
     </td>
+    <td>
+      <div class="extracuts-cell">
+        <div class="extracuts-list"></div>
+        <button type="button" class="btn secondary small" onclick="abrirModalCorteExtra(this.closest('tr'))">+ Agregar corte</button>
+      </div>
+    </td>
     <td><button class="btn danger" onclick="this.closest('tr').remove(); toggleEmptyStates();">×</button></td>
   `;
   tr.querySelector('.p-joint').value = data?.joint || '';
+  tr.dataset.extraCuts = JSON.stringify(data?.extraCuts || []);
   tbody.appendChild(tr);
+  renderExtraCutsList(tr);
   toggleEmptyStates();
+}
+
+const LADO_LABEL = { front:'Frontal', back:'Posterior', left:'Izq.', right:'Der.' };
+
+function getExtraCuts(tr){
+  try { return JSON.parse(tr.dataset.extraCuts || '[]'); } catch(e){ return []; }
+}
+
+function renderExtraCutsList(tr){
+  const cuts = getExtraCuts(tr);
+  const wrap = tr.querySelector('.extracuts-list');
+  wrap.innerHTML = cuts.map((c, i) => {
+    const lados = Object.keys(LADO_LABEL).filter(k => c.sides[k]).map(k => LADO_LABEL[k]).join('/') || '—';
+    return `<span class="extracut-chip">${c.name} · ${lados} · $${parseFloat(c.cost).toFixed(2)}/in
+      <button type="button" onclick="quitarCorteExtra(this)" data-idx="${i}" title="Quitar">×</button></span>`;
+  }).join('');
+}
+
+function quitarCorteExtra(btn){
+  const tr = btn.closest('tr');
+  const idx = parseInt(btn.dataset.idx);
+  const cuts = getExtraCuts(tr);
+  cuts.splice(idx, 1);
+  tr.dataset.extraCuts = JSON.stringify(cuts);
+  renderExtraCutsList(tr);
+  markStale();
+}
+
+let corteExtraTargetRow = null;
+
+function abrirModalCorteExtra(tr){
+  corteExtraTargetRow = tr;
+  document.getElementById('c45ModalName').value = '';
+  document.getElementById('c45ModalCost').value = '';
+  ['front','back','left','right'].forEach(k => document.getElementById('c45Modal_'+k).checked = false);
+  document.getElementById('corteExtraModal').style.display = 'flex';
+  document.getElementById('c45ModalName').focus();
+}
+
+function cerrarModalCorteExtra(){
+  document.getElementById('corteExtraModal').style.display = 'none';
+  corteExtraTargetRow = null;
+}
+
+function guardarCorteExtra(){
+  const name = document.getElementById('c45ModalName').value.trim() || 'Corte extra';
+  const cost = parseFloat(document.getElementById('c45ModalCost').value) || 0;
+  const sides = {
+    front: document.getElementById('c45Modal_front').checked,
+    back: document.getElementById('c45Modal_back').checked,
+    left: document.getElementById('c45Modal_left').checked,
+    right: document.getElementById('c45Modal_right').checked
+  };
+  if (!Object.values(sides).some(Boolean)){ alert('Marca al menos un lado.'); return; }
+  if (cost <= 0){ alert('Captura el costo por pulgada de este corte.'); return; }
+  const tr = corteExtraTargetRow;
+  const cuts = getExtraCuts(tr);
+  cuts.push({ name, cost, sides });
+  tr.dataset.extraCuts = JSON.stringify(cuts);
+  renderExtraCutsList(tr);
+  cerrarModalCorteExtra();
+  markStale();
 }
 
 function sugerirMaterialesFaltantes(){
@@ -1086,7 +1188,7 @@ function packOneGroup(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotationGlo
   pieces.forEach(p => {
     const pieceAllowRotation = allowRotationGlobal && !p.noRotate;
     for (let i=0;i<p.qty;i++){
-      instances.push({ name:p.name, origW:p.w, origH:p.h, w:p.w+kerf, h:p.h+kerf, colorIdx: p.colorIdx, allowRotation: pieceAllowRotation, joint:p.joint, tarjaL:p.tarjaL, tarjaA:p.tarjaA });
+      instances.push({ name:p.name, origW:p.w, origH:p.h, w:p.w+kerf, h:p.h+kerf, colorIdx: p.colorIdx, allowRotation: pieceAllowRotation, joint:p.joint, tarjaL:p.tarjaL, tarjaA:p.tarjaA, extraCuts:p.extraCuts });
     }
   });
   instances.sort((a,b)=> Math.max(b.w,b.h)-Math.max(a.w,a.h) || (b.w*b.h)-(a.w*a.h));
@@ -1114,7 +1216,7 @@ function packOneGroup(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotationGlo
     }
     const node = { x:placement.freeRect.x, y:placement.freeRect.y, w:placement.ow, h:placement.oh,
                    name:inst.name, origW:inst.origW, origH:inst.origH, rotated:placement.rotated, colorIdx:inst.colorIdx,
-                   joint:inst.joint, tarjaL:inst.tarjaL, tarjaA:inst.tarjaA };
+                   joint:inst.joint, tarjaL:inst.tarjaL, tarjaA:inst.tarjaA, extraCuts:inst.extraCuts };
     placedIn.placed.push(node);
 
     if (cutMode === 'guillotine'){
@@ -1221,6 +1323,7 @@ function readInputs(){
     joint: tr.querySelector('.p-joint').value,
     tarjaL: parseFloat(tr.querySelector('.p-tarja-l').value) || 0,
     tarjaA: parseFloat(tr.querySelector('.p-tarja-a').value) || 0,
+    extraCuts: getExtraCuts(tr),
     colorIdx: i % PALETTE.length
   })).filter(p => p.w>0 && p.h>0 && p.qty>0);
 
@@ -1318,6 +1421,11 @@ function renderSheetsForSelected(){
   const bins = filterVal === 'all' ? res.bins : res.bins.filter(b => (b.colorLabel || 'Sin color') === filterVal);
   const maxPx = 420;
 
+  const prevLegend = document.getElementById('c45Legend'); if (prevLegend) prevLegend.remove();
+  if (bins.some(b => b.placed.some(p => (p.extraCuts||[]).length))){
+    wrap.insertAdjacentHTML('beforebegin', '<div class="waste-note" id="c45Legend"><span style="display:inline-block;width:16px;height:4px;background:#f2a154;vertical-align:middle;margin-right:5px;"></span>Lado con corte extra (ver detalle y costo en "Reporte de piezas" y "Costeo")</div>');
+  }
+
   bins.forEach((bin, bi) => {
     const scale = Math.min(maxPx/bin.sheetW, maxPx/bin.sheetH);
     const w = bin.sheetW*scale, h = bin.sheetH*scale;
@@ -1340,6 +1448,13 @@ function renderSheetsForSelected(){
         const cx = x + pw/2 - cutW/2, cy = y + ph/2 - cutH/2;
         svg += `<rect x="${cx}" y="${cy}" width="${cutW}" height="${cutH}" fill="none" stroke="#08201c" stroke-width="1.5" stroke-dasharray="3,2" rx="3"/>`;
       }
+      (p.extraCuts || []).forEach(c => {
+        const s = c.sides || {};
+        if (s.front) svg += `<line x1="${x+2}" y1="${y+ph-1.5}" x2="${x+pw-2}" y2="${y+ph-1.5}" stroke="#f2a154" stroke-width="4"/>`;
+        if (s.back)  svg += `<line x1="${x+2}" y1="${y+1.5}" x2="${x+pw-2}" y2="${y+1.5}" stroke="#f2a154" stroke-width="4"/>`;
+        if (s.left)  svg += `<line x1="${x+1.5}" y1="${y+2}" x2="${x+1.5}" y2="${y+ph-2}" stroke="#f2a154" stroke-width="4"/>`;
+        if (s.right) svg += `<line x1="${x+pw-1.5}" y1="${y+2}" x2="${x+pw-1.5}" y2="${y+ph-2}" stroke="#f2a154" stroke-width="4"/>`;
+      });
     });
     if (res.cutMode === 'guillotine' && bin.cuts){
       bin.cuts.forEach((c, ci) => {
@@ -1412,6 +1527,19 @@ function renderCosteo(){
       if (p.tarjaL > 0 && p.tarjaA > 0) pulgadasTarjas += 2 * (p.tarjaL + p.tarjaA) / 25.4;
     }));
     const pulgadasCorte = pulgadasSeparacion + pulgadasTarjas;
+
+    // Cortes extra: cada uno definido por pieza, con su propio nombre/costo/lado(s) — no usan la tarifa del catálogo
+    let costoCorteExtra = 0, pulgadasCorteExtra = 0;
+    binsColor.forEach(bin => bin.placed.forEach(p => {
+      (p.extraCuts || []).forEach(c => {
+        const s = c.sides || {};
+        const lenMm = (s.front ? p.origW : 0) + (s.back ? p.origW : 0) + (s.left ? p.origH : 0) + (s.right ? p.origH : 0);
+        const lenIn = lenMm / 25.4;
+        pulgadasCorteExtra += lenIn;
+        costoCorteExtra += lenIn * (parseFloat(c.cost) || 0);
+      });
+    }));
+
     const sqftProyecto = clientItems.filter(it => it.esCorte && it.d > 0 && it.w > 0 && (it.color || 'Sin color') === color)
       .reduce((s, it) => s + it.sqft * it.cant, 0);
     const sqftFabricados = binsColor.reduce((s, b) => s + (b.sheetW / 25.4) * (b.sheetH / 25.4) / 144, 0);
@@ -1419,15 +1547,15 @@ function renderCosteo(){
 
     const costoPlacas = costoPlaca * placas;
     const costoCorte = costoPulgada * pulgadasCorte;
-    const costoTotal = costoPlacas + costoCorte;
+    const costoTotal = costoPlacas + costoCorte + costoCorteExtra;
     const costoSqft = sqftProyecto > 0 ? costoTotal / sqftProyecto : 0;
     const margenA = live.margenA || 0.7;
     const margenB = live.margenB || 0.65;
     const precioA = costoSqft / margenA;
     const precioB = costoSqft / margenB;
 
-    return { color, tipoCorte, margenA, margenB, placas, pulgadasCorte, pulgadasSeparacion, pulgadasTarjas,
-             sqftProyecto, sqftFabricados, optim, costoPlacas, costoCorte, costoTotal, costoSqft, precioA, precioB };
+    return { color, tipoCorte, margenA, margenB, placas, pulgadasCorte, pulgadasSeparacion, pulgadasTarjas, pulgadasCorteExtra,
+             sqftProyecto, sqftFabricados, optim, costoPlacas, costoCorte, costoCorteExtra, costoTotal, costoSqft, precioA, precioB };
   });
 
   const tbody = document.getElementById('materialCosteoBody');
@@ -1442,6 +1570,7 @@ function renderCosteo(){
       <td>${f.sqftFabricados > 0 ? f.optim.toFixed(1) + '%' : '—'}</td>
       <td>$${f.costoPlacas.toFixed(2)}</td>
       <td>$${f.costoCorte.toFixed(2)}</td>
+      <td>${f.costoCorteExtra > 0 ? '$' + f.costoCorteExtra.toFixed(2) : '—'}</td>
       <td>$${f.costoTotal.toFixed(2)}</td>
       <td>${f.costoSqft > 0 ? '$' + f.costoSqft.toFixed(2) : '—'}</td>
       <td>${f.precioA > 0 ? '$' + f.precioA.toFixed(2) + ' (÷' + f.margenA + ')' : '—'}</td>
@@ -1458,6 +1587,7 @@ function renderCosteo(){
   const totalSqftF = filas.reduce((s,f)=>s+f.sqftFabricados,0);
   const totalCostoPlacas = filas.reduce((s,f)=>s+f.costoPlacas,0);
   const totalCostoCorte = filas.reduce((s,f)=>s+f.costoCorte,0);
+  const totalCostoCorteExtra = filas.reduce((s,f)=>s+f.costoCorteExtra,0);
   const totalCostoTotal = filas.reduce((s,f)=>s+f.costoTotal,0);
   const totalCostoSqft = totalSqftP > 0 ? totalCostoTotal / totalSqftP : 0;
   document.getElementById('materialCosteoFoot').innerHTML = `<tr class="cmp-row-best">
@@ -1465,6 +1595,7 @@ function renderCosteo(){
     <td>${totalSqftP.toFixed(2)}</td><td>${totalSqftF.toFixed(2)}</td>
     <td>${totalSqftF>0 ? (totalSqftP/totalSqftF*100).toFixed(1)+'%' : '—'}</td>
     <td>$${totalCostoPlacas.toFixed(2)}</td><td>$${totalCostoCorte.toFixed(2)}</td>
+    <td>${totalCostoCorteExtra > 0 ? '$' + totalCostoCorteExtra.toFixed(2) : '—'}</td>
     <td><b>$${totalCostoTotal.toFixed(2)}</b></td>
     <td>${totalCostoSqft>0 ? '$'+totalCostoSqft.toFixed(2) : '—'}</td>
     <td title="Cada material puede usar un margen distinto — ve el detalle por fila arriba">—</td>
@@ -1523,19 +1654,24 @@ function renderPieceReport(bins){
   const rows = [];
   bins.forEach((bin, bi) => {
     bin.placed.forEach((p, pi) => {
+      const extraCuts = (p.extraCuts || []).map(c => {
+        const lados = Object.keys(LADO_LABEL).filter(k => c.sides && c.sides[k]).map(k => LADO_LABEL[k]).join('/') || '—';
+        return `${c.name} (${lados})`;
+      }).join(', ') || '—';
       rows.push({ tag:`L${bi+1}-${pi+1}`, sheet:bi+1, name:p.name, color:bin.colorLabel||'—',
                   w:p.origW, h:p.origH, x:Math.round(p.x), y:Math.round(p.y), rotated:p.rotated?'Sí':'No',
                   joint: jointLabel(p.joint),
-                  tarja: (p.tarjaL>0 && p.tarjaA>0) ? `${p.tarjaL}x${p.tarjaA}mm` : '—' });
+                  tarja: (p.tarjaL>0 && p.tarjaA>0) ? `${p.tarjaL}x${p.tarjaA}mm` : '—',
+                  extraCuts });
     });
   });
 
   let html = `<h2>Reporte de piezas / etiquetas</h2>
-  <div class="table-scroll"><table class="cmp-table" style="min-width:900px;"><thead><tr>
-    <th>Etiqueta</th><th>Lámina</th><th>Pieza</th><th>Color/Lote</th><th>Ancho</th><th>Alto</th><th>Pos X</th><th>Pos Y</th><th>Rotada</th><th>Unión</th><th>Tarja</th>
+  <div class="table-scroll"><table class="cmp-table" style="min-width:1000px;"><thead><tr>
+    <th>Etiqueta</th><th>Lámina</th><th>Pieza</th><th>Color/Lote</th><th>Ancho</th><th>Alto</th><th>Pos X</th><th>Pos Y</th><th>Rotada</th><th>Unión</th><th>Tarja</th><th>Cortes extra</th>
   </tr></thead><tbody>`;
   rows.forEach(r => {
-    html += `<tr><td>${r.tag}</td><td>${r.sheet}</td><td>${r.name}</td><td>${r.color}</td><td>${r.w}mm</td><td>${r.h}mm</td><td>${r.x}mm</td><td>${r.y}mm</td><td>${r.rotated}</td><td>${r.joint}</td><td>${r.tarja}</td></tr>`;
+    html += `<tr><td>${r.tag}</td><td>${r.sheet}</td><td>${r.name}</td><td>${r.color}</td><td>${r.w}mm</td><td>${r.h}mm</td><td>${r.x}mm</td><td>${r.y}mm</td><td>${r.rotated}</td><td>${r.joint}</td><td>${r.tarja}</td><td>${r.extraCuts}</td></tr>`;
   });
   html += '</tbody></table></div>';
   wrap.innerHTML = html;
