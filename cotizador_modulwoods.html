@@ -88,8 +88,11 @@
     <div style="width:240px;"><label>Cliente</label><input type="text" id="cliente" placeholder="Nombre del cliente"></div>
     <div style="width:240px;"><label>Proyecto</label><input type="text" id="proyecto" placeholder="Ej. Cocina Fernanda Isasi"></div>
     <div style="width:150px;"><label>Fecha</label><input type="date" id="fecha"></div>
+    <div style="width:200px;"><label>Captura (quién cotiza)</label><input type="text" id="persona" placeholder="Tu nombre"></div>
+    <div><button class="btn" id="btnGuardar" onclick="guardarCotizacion(this)">Guardar cotización</button></div>
     <div><button class="btn danger" onclick="nuevaCotizacion(this)">Nueva cotización (borrar todo)</button></div>
   </div>
+  <div id="saveMsg" class="hint no-print"></div>
   <div class="row">
     <div style="width:130px;"><label>Tipo de cambio</label><input type="number" id="tc" step="0.01" min="1"></div>
     <div style="width:190px;"><label>Margen según acabado (tabla "%")</label>
@@ -111,6 +114,21 @@
       </tbody></table></div>
   </div>
   <div class="hint">El Excel calcula los cajones con corredera lateral: 13.5 mm de holgura por lado y 500 mm de largo. Cada gabinete con cajones puede usar un perfil distinto (selector en su renglón); por defecto usa el del proyecto. El precio de la corredera se cambia en la tabla de precios.</div>
+</div>
+
+<div class="panel no-print">
+  <details id="savedDetails" ontoggle="if(this.open) cargarLista()">
+    <summary>Cotizaciones guardadas</summary>
+    <div class="row" style="margin-top:12px;">
+      <div style="width:280px;"><label>Buscar (proyecto, cliente o quién capturó)</label><input type="text" id="savedSearch" oninput="renderLista()" placeholder="Buscar..."></div>
+      <div><button class="btn secondary small" onclick="cargarLista()">Actualizar lista</button></div>
+    </div>
+    <div class="table-scroll" style="margin-top:8px;">
+      <table style="min-width:760px;"><thead><tr><th>Guardada</th><th>Proyecto</th><th>Cliente</th><th>Capturó</th><th class="num">Gabinetes</th><th class="num">Total (USD)</th><th></th></tr></thead>
+      <tbody id="savedBody"></tbody></table>
+    </div>
+    <div id="savedEmpty" class="empty">Cargando...</div>
+  </details>
 </div>
 
 <div class="panel">
@@ -277,7 +295,7 @@ function modelOptions(sel){
   return Object.keys(groups).map(g => `<optgroup label="${g}">${groups[g].map(m => `<option value="${m.sku}" ${m.sku === sel ? 'selected' : ''}>${optLabel(m)}</option>`).join('')}</optgroup>`).join('');
 }
 
-function addCab(sku){
+function addCab(sku, noAsk){
   sku = sku || 'BL09';
   const m = MODELS[sku];
   const tr = document.createElement('tr');
@@ -314,8 +332,9 @@ function addCab(sku){
   };
   tr.querySelector('.c-sku').addEventListener('change', () => { syncModel(); if (usesN(MODELS[tr.querySelector('.c-sku').value])) askZoclo(tr); recalc(); });
   syncModel();
-  if (usesN(m)) askZoclo(tr);
+  if (usesN(m) && !noAsk) askZoclo(tr);
   recalc();
+  return tr;
 }
 function delRow(btn){
   const tr = btn.closest('tr');
@@ -362,8 +381,9 @@ function nuevaCotizacion(btn){
   }
   clearTimeout(nuevaTimer); delete btn.dataset.armed; btn.textContent = 'Nueva cotización (borrar todo)';
   document.getElementById('cabBody').innerHTML = ''; document.getElementById('extBody').innerHTML = '';
-  ['cliente', 'proyecto'].forEach(id => { document.getElementById(id).value = ''; });
+  ['cliente', 'proyecto', 'persona'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
+  loadedName = null; document.getElementById('saveMsg').textContent = '';
   lastNest = null; document.getElementById('hojasBody').innerHTML = '';
   PRICE_LIST.forEach(x => { prices[x.key] = x.price; }); renderPrices();
   setPricesChecked(false); openPrices(); recalc();
@@ -707,6 +727,152 @@ document.addEventListener('input', e => {
   recalc();
 });
 document.addEventListener('change', recalc);
+
+// ---------- Guardar / abrir cotizaciones (Supabase, tabla cotizaciones_modulwoods) ----------
+const SUP_URL = 'https://xzwlbrirzfogbqhywtvj.supabase.co';
+const SUP_KEY = 'sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G';
+const SUP_HEADERS = { apikey: SUP_KEY, Authorization: 'Bearer ' + SUP_KEY };
+const COTIZ_TABLE = 'cotizaciones_modulwoods';
+const $v = id => document.getElementById(id);
+const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let loadedName = null, savedRows = [], saveArmTimer = null;
+function setSaveMsg(t, kind){ const m = $v('saveMsg'); m.textContent = t; m.style.color = kind === 'ok' ? 'var(--good, #1b7f4c)' : kind === 'err' ? 'var(--danger, #c0392b)' : ''; }
+
+function collectQuote(){
+  const f = ['cliente', 'proyecto', 'fecha', 'tc', 'acabado', 'util', 'mo', 'gif', 'metodo', 'slideType', 'vigencia', 'nivelCotiz', 'pagoTxt'];
+  const d = { v: 1, campos: {}, perfiles: {}, precios: Object.assign({}, prices), preciosConfirmados: pricesChecked };
+  f.forEach(id => { d.campos[id] = $v(id).value; });
+  ['lateral', 'inferior', 'custom'].forEach(k => { d.perfiles[k] = [$v('slC_' + k).value, $v('slL_' + k).value]; });
+  d.gabinetes = [...document.querySelectorAll('#cabBody tr.cab')].map(tr => ({
+    sku: tr.querySelector('.c-sku').value, w: tr.querySelector('.c-w').value, h: tr.querySelector('.c-h').value, d: tr.querySelector('.c-d').value,
+    qty: tr.querySelector('.c-qty').value, area: tr.querySelector('.c-area').value, color: tr.querySelector('.c-color').value,
+    slide: tr.querySelector('.c-slide').value, ndiv: tr.querySelector('.c-ndiv').value, auto: tr.dataset.auto || '', incBase: tr.dataset.incBase || ''
+  }));
+  d.extras = [...document.querySelectorAll('#extBody tr.ext')].map(tr => ({
+    name: tr.querySelector('.e-name').value, cost: tr.querySelector('.e-cost').value, qty: tr.querySelector('.e-qty').value, direct: tr.querySelector('.e-direct').checked
+  }));
+  return d;
+}
+
+async function guardarCotizacion(btn){
+  const nombre = $v('proyecto').value.trim(), persona = $v('persona').value.trim();
+  if (!nombre){ setSaveMsg('Ponle nombre al proyecto antes de guardar.', 'err'); return; }
+  if (!persona){ setSaveMsg('Indica quién captura esta cotización antes de guardar.', 'err'); return; }
+  if (!document.querySelector('#cabBody tr.cab')){ setSaveMsg('Agrega al menos un gabinete antes de guardar.', 'err'); return; }
+  // no pisar en silencio otra cotizacion con el mismo nombre
+  if (nombre !== loadedName && !btn.dataset.armed){
+    try {
+      const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?nombre=eq.${encodeURIComponent(nombre)}&select=persona,updated_at`, { headers: SUP_HEADERS });
+      if (r.ok){
+        const ex = await r.json();
+        if (ex.length){
+          btn.dataset.armed = '1'; btn.textContent = 'Ya existe: pulsa otra vez para reemplazarla';
+          setSaveMsg(`Ya hay una cotización "${nombre}" guardada por ${ex[0].persona || '?'} (${new Date(ex[0].updated_at).toLocaleString('es-MX')}). Cambia el nombre o pulsa otra vez para reemplazarla.`, 'err');
+          clearTimeout(saveArmTimer); saveArmTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Guardar cotización'; }, 8000);
+          return;
+        }
+      }
+    } catch(e){ /* si falla la revision, el guardado de abajo reporta el error real */ }
+  }
+  clearTimeout(saveArmTimer); delete btn.dataset.armed; btn.textContent = 'Guardar cotización';
+  setSaveMsg('Guardando...');
+  try {
+    clearTimeout(nestTimer);
+    if ($v('metodo').value === 'opt' && cabinets().length) runNesting(); // el total guardado ya incluye las hojas enteras
+    recalc();
+    const q = window.__quote || {};
+    const gab = [...document.querySelectorAll('#cabBody tr.cab .c-qty')].reduce((a, e) => a + (parseInt(e.value) || 0), 0);
+    const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?on_conflict=nombre`, {
+      method: 'POST',
+      headers: { ...SUP_HEADERS, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ nombre, cliente: $v('cliente').value.trim(), persona, n_gabinetes: gab, total_usd: q.total ? +q.total.toFixed(2) : null, datos: collectQuote() })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+    loadedName = nombre;
+    setSaveMsg(`Guardada "${nombre}" (${new Date().toLocaleString('es-MX')}).`, 'ok');
+    if ($v('savedDetails').open) cargarLista();
+  } catch(e){
+    setSaveMsg('No se pudo guardar: ' + e.message + (/404|42P01|relation/.test(e.message) ? ' (falta crear la tabla cotizaciones_modulwoods en Supabase: corre cotizaciones_modulwoods_setup.sql)' : ''), 'err');
+  }
+}
+
+async function cargarLista(){
+  $v('savedEmpty').style.display = 'block'; $v('savedEmpty').textContent = 'Cargando...';
+  try {
+    const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?select=nombre,cliente,persona,n_gabinetes,total_usd,updated_at&order=updated_at.desc`, { headers: SUP_HEADERS });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    savedRows = await r.json(); renderLista();
+  } catch(e){ savedRows = []; renderLista(); $v('savedEmpty').style.display = 'block'; $v('savedEmpty').textContent = 'No se pudo cargar la lista (' + e.message + ').'; }
+}
+function renderLista(){
+  const q = $v('savedSearch').value.trim().toLowerCase();
+  const rows = savedRows.map((r, i) => ({ r, i })).filter(x => !q || [x.r.nombre, x.r.cliente, x.r.persona].join(' ').toLowerCase().includes(q));
+  $v('savedBody').innerHTML = rows.map(({ r, i }) => `<tr><td>${new Date(r.updated_at).toLocaleString('es-MX')}</td><td>${esc(r.nombre)}</td><td>${esc(r.cliente)}</td><td>${esc(r.persona)}</td>
+    <td class="num">${r.n_gabinetes ?? ''}</td><td class="num">${r.total_usd != null ? fmt(r.total_usd) : ''}</td>
+    <td style="white-space:nowrap;"><button class="btn small" onclick="abrirCotizacion(${i})">Abrir</button> <button class="btn danger small" onclick="borrarCotizacion(${i}, this)">Eliminar</button></td></tr>`).join('');
+  $v('savedEmpty').style.display = rows.length ? 'none' : 'block';
+  $v('savedEmpty').textContent = savedRows.length ? 'Sin coincidencias.' : 'Todavía no hay cotizaciones guardadas.';
+}
+
+async function abrirCotizacion(i){
+  const nombre = savedRows[i].nombre;
+  setSaveMsg('Abriendo...');
+  try {
+    const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?nombre=eq.${encodeURIComponent(nombre)}&select=*`, { headers: SUP_HEADERS });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const row = (await r.json())[0];
+    if (!row){ setSaveMsg(`No se encontró "${nombre}".`, 'err'); return; }
+    aplicarCotizacion(row);
+    setSaveMsg(`Abierta "${nombre}" (guardada ${new Date(row.updated_at).toLocaleString('es-MX')} por ${row.persona || '?'}).`, 'ok');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch(e){ setSaveMsg('No se pudo abrir: ' + e.message, 'err'); }
+}
+function aplicarCotizacion(row){
+  const d = row.datos || {};
+  $v('cabBody').innerHTML = ''; $v('extBody').innerHTML = '';
+  Object.keys(d.campos || {}).forEach(id => { if ($v(id)) $v(id).value = d.campos[id]; });
+  Object.keys(d.perfiles || {}).forEach(k => { $v('slC_' + k).value = d.perfiles[k][0]; $v('slL_' + k).value = d.perfiles[k][1]; });
+  PRICE_LIST.forEach(p => { prices[p.key] = (d.precios && d.precios[p.key] != null) ? d.precios[p.key] : p.price; });
+  renderPrices();
+  document.querySelectorAll('[data-price-key]').forEach(e => e.classList.toggle('changed', prices[e.dataset.priceKey] !== PRICE_LIST.find(x => x.key === e.dataset.priceKey).price));
+  $v('persona').value = row.persona || '';
+  (d.gabinetes || []).forEach(g => {
+    if (!MODELS[g.sku]) return;
+    const tr = addCab(g.sku, true);
+    tr.querySelector('.c-w').value = g.w; tr.querySelector('.c-h').value = g.h; tr.querySelector('.c-d').value = g.d;
+    tr.querySelector('.c-qty').value = g.qty; tr.querySelector('.c-area').value = g.area || '';
+    if (g.color) tr.querySelector('.c-color').value = g.color;
+    tr.querySelector('.c-slide').value = g.slide || '';
+    tr.querySelector('.c-ndiv').value = g.ndiv;
+    if (g.auto){
+      tr.dataset.auto = g.auto; tr.dataset.incBase = g.incBase || '0';
+      if (g.auto === '1'){ tr.querySelector('.c-w').disabled = true; tr.querySelector('.c-ndiv').disabled = true; }
+      else tr.querySelector('.c-zn').textContent = 'Zoclo manual: captura el largo (Ancho) y los divisores.';
+    }
+  });
+  (d.extras || []).forEach(e => {
+    addExtra();
+    const tr = [...document.querySelectorAll('#extBody tr.ext')].pop();
+    tr.querySelector('.e-name').value = e.name; tr.querySelector('.e-cost').value = e.cost; tr.querySelector('.e-qty').value = e.qty; tr.querySelector('.e-direct').checked = !!e.direct;
+  });
+  loadedName = row.nombre; lastNest = null; $v('hojasBody').innerHTML = '';
+  setPricesChecked(!!d.preciosConfirmados);
+  recalc();
+}
+async function borrarCotizacion(i, btn){
+  if (!btn.dataset.armed){
+    btn.dataset.armed = '1'; btn.textContent = 'Confirmar';
+    setTimeout(() => { if (btn.isConnected){ delete btn.dataset.armed; btn.textContent = 'Eliminar'; } }, 4000);
+    return;
+  }
+  const nombre = savedRows[i].nombre;
+  try {
+    const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?nombre=eq.${encodeURIComponent(nombre)}`, { method: 'DELETE', headers: { ...SUP_HEADERS, Prefer: 'return=minimal' } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (loadedName === nombre) loadedName = null;
+    setSaveMsg(`Eliminada "${nombre}".`); cargarLista();
+  } catch(e){ setSaveMsg('No se pudo eliminar: ' + e.message, 'err'); }
+}
 
 (function init(){
   const g = COCINAS_DATA.globals;
