@@ -111,33 +111,45 @@
   }
   #cotizacionFinalPanel{ background:#fff; }
   body[data-print="cotizacion"] #cotizacionFinalPanel{ padding:0; border:none; }
-  .quote-doc{ font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:#1a1a1a; }
-  .quote-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px;
-    border-bottom:3px solid #111; padding-bottom:8px; margin-bottom:10px; }
-  .quote-head img{ height:46px; background:#0c0c0c; padding:8px 12px; border-radius:4px; }
-  .quote-head .quote-title{ text-align:right; }
-  .quote-head .quote-title h2{ margin:0; color:#111; font-size:22px; letter-spacing:.06em; text-transform:uppercase; }
-  .quote-head .quote-title .quote-date{ color:#666; font-size:12px; margin-top:4px; }
-  .quote-meta{ display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:0 14px;
-    background:#f6f6f6; border:1px solid #e2e2e2; border-radius:6px; padding:7px 14px; margin-bottom:14px; font-size:11px; line-height:1.5; }
-  .quote-meta div{ padding:1px 0; }
-  .quote-meta b{ color:#555; font-weight:600; display:inline-block; min-width:50px; }
-  .quote-group{ margin-bottom:10px; break-inside:avoid; }
-  .quote-group-title{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
-    color:#fff; background:#1a1a1a; padding:4px 10px; border-radius:4px 4px 0 0; }
-  .quote-table{ width:100%; border-collapse:collapse; font-size:10.5px; }
-  .quote-table th{ text-align:left; background:#eee; color:#333; font-weight:600; padding:3px 10px;
-    border-bottom:1px solid #ccc; font-size:9px; text-transform:uppercase; letter-spacing:.03em; }
-  .quote-table td{ padding:3px 10px; border-bottom:1px solid #e6e6e6; }
-  .quote-table tr:last-child td{ border-bottom:1px solid #ccc; }
-  .quote-table .quote-subtotal td{ background:#f6f6f6; font-weight:700; border-top:1px solid #ccc; }
-  .quote-totals{ margin-left:auto; margin-top:12px; width:100%; max-width:340px; border-collapse:collapse; font-size:13px; }
-  .quote-totals td{ padding:6px 10px; }
-  .quote-totals tr:not(:last-child) td{ border-bottom:1px solid #eee; }
-  .quote-totals tr:last-child td{ border-top:2px solid #111; font-weight:700; font-size:15px; padding-top:9px; }
-  .quote-totals td:last-child{ text-align:right; }
-  .quote-footer{ margin-top:26px; padding-top:10px; border-top:1px solid #ddd; font-size:10.5px; color:#888; text-align:center; }
+  .quote-doc{font-family:'Hanken Grotesk',-apple-system,Segoe UI,Arial,sans-serif; color:#191919; background:#fff; border-radius:8px; overflow:hidden; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  .quote-doc .qd-body{padding:22px 34px 0;}
+  .qd-kicker{font-size:10px; letter-spacing:.2em; text-transform:uppercase; font-weight:600; color:#7d776c;}
+  .qd-hero{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; padding-bottom:16px; border-bottom:1px solid #191919;}
+  .qd-name{font-family:'Fraunces',Georgia,serif; font-weight:300; font-size:32px; line-height:1.05; margin-top:6px; letter-spacing:-.01em;}
+  .qd-sub{font-family:'Fraunces',Georgia,serif; font-style:italic; font-weight:300; font-size:15px; color:#5d5950; margin-top:6px;}
+  .qd-kpi{text-align:right;} .qd-kpi span{display:block; font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:#7d776c;}
+  .qd-kpi b{display:block; font-family:'Fraunces',Georgia,serif; font-weight:500; font-size:30px; line-height:1.1; margin-top:4px;} .qd-kpi i{display:block; font-style:normal; font-size:10px; color:#7d776c; margin-top:2px;}
+  .qd-info{display:flex; flex-wrap:wrap; padding:10px 0; border-bottom:1px solid #e3e0da;}
+  .qd-info > div{flex:1 1 130px; padding:2px 12px; border-left:1px solid #e3e0da; min-width:0;} .qd-info > div:first-child{padding-left:0; border-left:none;}
+  .qd-info span{display:block; font-size:8.5px; letter-spacing:.18em; text-transform:uppercase; color:#7d776c;} .qd-info b{display:block; font-size:11.5px; font-weight:600; margin-top:2px; overflow-wrap:anywhere;}
+  .quote-group{margin-top:16px;}
+  .quote-group-title{display:flex; align-items:baseline; gap:10px; padding-bottom:6px;}
+  .quote-group-title .qn{font-family:'Fraunces',Georgia,serif; font-weight:300; font-size:13px; color:#b9b2a6;}
+  .quote-group-title .qt{font-family:'Fraunces',Georgia,serif; font-weight:500; font-size:17px; color:#191919; text-transform:none; letter-spacing:0;}
+  .quote-group-title .qc{margin-left:auto; font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#7d776c;}
+  .quote-table{width:100%; border-collapse:collapse; font-size:10.5px;}
+  .quote-table thead th{text-align:left; background:#0d0d0d; color:#e9e5dc; font-weight:600; padding:6px 10px; font-size:8.5px; letter-spacing:.14em; text-transform:uppercase;}
+  .quote-table td{padding:6px 10px; border-bottom:1px solid #e3e0da; color:#191919; vertical-align:middle;}
+  .quote-table tbody tr:nth-child(even) td{background:#f6f4f0;}
+  .quote-table tr{break-inside:avoid;}
+  .quote-table th.num, .quote-table td.num{text-align:right; white-space:nowrap;}
+  .quote-table td .sku{color:#7d776c; font-size:9.5px; margin-left:5px;} .quote-table td.b{font-weight:600;}
+  .quote-table tr.quote-subtotal td{background:transparent !important; border-bottom:none; padding-top:8px; font-weight:700; color:#191919;}
+  .quote-table tr.quote-subtotal td:first-child{font-weight:500; color:#5d5950; letter-spacing:.03em;}
+  .quote-totals{margin-left:auto; margin-top:16px; width:100%; max-width:310px; border-collapse:collapse; font-size:11.5px; break-inside:avoid;}
+  .quote-totals td{padding:5px 10px; color:#5d5950;} .quote-totals td:last-child{text-align:right; white-space:nowrap;}
+  .quote-totals tr.grand td{background:#191919; color:#fff; padding:11px 14px; border-bottom:3px solid #b9b2a6;}
+  .quote-totals tr.grand td:first-child{font-size:9.5px; letter-spacing:.2em; text-transform:uppercase;}
+  .quote-totals tr.grand td:last-child{font-family:'Fraunces',Georgia,serif; font-weight:500; font-size:22px;}
+  .quote-totals tr.grand-gap td{padding:3px; background:transparent;}
+  .qd-notes{display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:22px; margin-top:22px; padding:14px 0 16px; border-top:1px solid #e3e0da; break-inside:avoid;}
+  .qd-notes div{font-size:9.5px; line-height:1.55; color:#5d5950;} .qd-notes div:last-child{text-align:right;}
+  .qd-notes span{display:block; font-size:8.5px; letter-spacing:.18em; text-transform:uppercase; color:#b9b2a6; font-weight:600; margin-bottom:4px;}
+  .qd-band{background:#191919; color:#b9b2a6; padding:10px 34px; font-size:9px; letter-spacing:.2em; text-transform:uppercase; display:flex; justify-content:space-between; gap:12px;}
+  .qd-topk{background:#0d0d0d; color:#fff; padding:26px 34px 22px; display:flex; justify-content:space-between; align-items:flex-start; gap:16px;} .qd-topk img{height:46px; display:block;} .qd-topk .qd-kicker{color:#b9b2a6; text-align:right;} .qd-topk .qd-dt{font-size:11px; color:#d9d4ca; margin-top:5px; text-align:right;}
+  .qd-stone{height:4px; background:#b9b2a6;}
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,300&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -776,47 +788,46 @@ function renderCotizacionFinal(items, grupos, freight, deposit, balance){
   if (!items.length){ wrap.innerHTML = '<div class="sub" style="margin:0;">Agrega o importa piezas en la sección A para ver aquí la cotización lista.</div>'; return; }
 
   const info = lastClientInfo || {};
+  const m2 = n => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   let html = '<div class="quote-doc">';
-
-  html += `<div class="quote-head">
-    <img src="data:image/webp;base64,${KUARTZ_LOGO_B64}" alt="Küartz Surfaces">
-    <div class="quote-title"><h2>Cotización</h2><div class="quote-date">${info.date ? 'Fecha: ' + info.date : ''}</div></div>
-  </div>`;
+  html += `<div class="qd-topk"><img src="data:image/webp;base64,${KUARTZ_LOGO_B64}" alt="Küartz Surfaces">
+    <div><div class="qd-kicker">Cotización · Quote</div><div class="qd-dt">${info.date || ''}</div></div></div><div class="qd-stone"></div>`;
+  html += `<div class="qd-body"><div class="qd-hero"><div><div class="qd-kicker">Cotización para</div><div class="qd-name">${info.customer || 'Cliente'}</div>${info.project ? `<div class="qd-sub">${info.project}</div>` : ''}</div>
+    <div class="qd-kpi"><span>Balance</span><b>$${m2(balance)}</b><i>USD</i></div></div>`;
 
   const metaFields = [
-    info.customer && ['Cliente', info.customer],
     info.contact && ['Contacto', info.contact],
-    info.phone && ['Tel', info.phone],
+    info.phone && ['Teléfono', info.phone],
     info.email && ['Email', info.email],
     info.po && ['PO', info.po],
-    info.color && ['Color', info.color],
-    info.thickness && ['Espesor', info.thickness]
+    (info.color || info.thickness) && ['Material', [info.color, info.thickness].filter(Boolean).join(' · ')]
   ].filter(Boolean);
-  if (metaFields.length) html += `<div class="quote-meta">${metaFields.map(([k,v]) => `<div><b>${k}:</b> ${v}</div>`).join('')}</div>`;
+  if (metaFields.length) html += `<div class="qd-info">${metaFields.map(([k,v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>`;
 
   Object.keys(grupos).forEach(g => {
     const rowsGrupo = items.filter(it => it.grupo === g);
-    html += `<div class="quote-group"><div class="quote-group-title">${g}</div>
-    <div class="table-scroll"><table class="quote-table"><thead><tr>
-      <th>Producto</th><th>Tamaño (D×W in)</th><th>Sq.Ft.</th><th>Precio unit.</th><th>Cant.</th><th>Total</th>
+    html += `<div class="quote-group"><div class="quote-group-title"><span class="qt">${g}</span><span class="qc">${rowsGrupo.length} ${rowsGrupo.length === 1 ? 'renglón' : 'renglones'}</span></div>
+    <table class="quote-table"><thead><tr>
+      <th>Producto</th><th>Tamaño (D×W in)</th><th class="num">Sq.Ft.</th><th class="num">Precio unit.</th><th class="num">Cant.</th><th class="num">Total</th>
     </tr></thead><tbody>`;
     rowsGrupo.forEach(it => {
       const tam = (it.d > 0 && it.w > 0) ? `${it.d}×${it.w}` : '—';
-      html += `<tr><td>${it.producto}</td><td>${tam}</td><td>${it.sqft > 0 ? it.sqft.toFixed(2) : '—'}</td><td>$${it.unit.toFixed(2)}</td><td>${it.cant}</td><td>$${it.total.toFixed(2)}</td></tr>`;
+      html += `<tr><td class="b">${it.producto}</td><td>${tam}</td><td class="num">${it.sqft > 0 ? it.sqft.toFixed(2) : '—'}</td><td class="num">$${m2(it.unit)}</td><td class="num">${it.cant}</td><td class="num b">$${m2(it.total)}</td></tr>`;
     });
-    html += `<tr class="quote-subtotal"><td colspan="5">Sub-total ${g}</td><td>$${grupos[g].toFixed(2)}</td></tr>`;
-    html += '</tbody></table></div></div>';
+    html += `<tr class="quote-subtotal"><td colspan="5">Sub-total ${g}</td><td class="num">$${m2(grupos[g])}</td></tr>`;
+    html += '</tbody></table></div>';
   });
 
   const sumaItems = items.reduce((s, it) => s + it.total, 0);
   html += `<table class="quote-totals"><tbody>
-    <tr><td>Suma de renglones</td><td>$${sumaItems.toFixed(2)}</td></tr>
-    <tr><td>Freight</td><td>$${freight.toFixed(2)}</td></tr>
-    <tr><td>Deposit</td><td>−$${deposit.toFixed(2)}</td></tr>
-    <tr><td>Balance</td><td>$${balance.toFixed(2)}</td></tr>
-  </tbody></table>`;
+    <tr><td>Suma de renglones</td><td>$${m2(sumaItems)}</td></tr>
+    <tr><td>Freight</td><td>$${m2(freight)}</td></tr>
+    <tr><td>Deposit</td><td>−$${m2(deposit)}</td></tr>
+    <tr class="grand-gap"><td colspan="2"></td></tr>
+    <tr class="grand"><td>Balance</td><td>$${m2(balance)}</td></tr>
+  </tbody></table><div style="height:22px"></div></div>`;
 
-  html += `<div class="quote-footer">Küartz Surfaces · Quartz surfaces manufactured in Mexico · Parte de Grupo Modular</div>`;
+  html += `<div class="qd-band"><div>Küartz Surfaces</div><div>Quartz surfaces manufactured in Mexico · Grupo Modular</div></div>`;
   html += '</div>';
 
   wrap.innerHTML = html;
