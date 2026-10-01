@@ -87,6 +87,14 @@
   .meter{height:6px; background:var(--line); border-radius:3px; margin-top:8px; overflow:hidden;} .meter i{display:block; height:6px; background:var(--accent); border-radius:3px;}
   .side-card .sc-foot{font-size:11px; color:var(--muted); margin-top:8px;}
   .main{padding:22px 24px 48px 8px; min-width:0;}
+  .side-actions{display:flex; flex-direction:column; gap:8px; padding:0 0 14px; margin-bottom:6px; border-bottom:1px solid var(--border);}
+  .side-actions .btn{width:100%; padding:11px 14px;}
+  .steps-list{display:flex; flex-direction:column; gap:3px; flex:1;}
+  .end-actions{display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-top:22px; padding:16px 18px; background:var(--accent-soft); border:1px solid var(--border); border-radius:12px;}
+  .end-actions b{display:block; font-family:'Fraunces',Georgia,serif; font-size:17px; font-weight:500;}
+  .end-actions span{font-size:12px; color:var(--muted);}
+  .toast{position:fixed; right:20px; bottom:20px; z-index:200; max-width:380px; background:var(--text); color:#fff; padding:12px 16px; border-radius:10px; font-size:13px; box-shadow:0 10px 30px rgba(31,27,23,.3); opacity:0; transform:translateY(8px); transition:opacity .2s, transform .2s; pointer-events:none;}
+  .toast.show{opacity:1; transform:none;} .toast.err{background:var(--danger);} .toast.ok{background:#2f6b45;}
   .mcards{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:4px 0 16px;}
   .mcard{text-align:left; background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px; cursor:pointer; font-family:inherit; color:var(--text); transition:border-color .15s, background .15s;}
   .mcard:hover{border-color:#cfc6b8;}
@@ -182,11 +190,17 @@
   <div class="tb-sep tb-hide-sm"></div>
   <div style="min-width:0;"><div class="tb-kicker">Cotizador de cocinas</div><div class="tb-proj" id="tbProj">Nueva cotización</div></div>
   <div class="tb-total"><div class="tb-kicker">Total USD</div><b id="tbTotal">$0.00</b></div>
-  <button class="btn secondary tb-hide-sm" onclick="guardarCotizacion(document.getElementById('btnGuardar'))">Guardar</button>
+  <button class="btn secondary tb-hide-sm js-save" data-label="Guardar" onclick="guardarCotizacion()">Guardar</button>
   <button class="btn dark" onclick="printCotizacion()">PDF para el cliente</button>
 </header>
 <div class="layout">
-<nav class="steps no-print" id="steps"></nav>
+<nav class="steps no-print">
+  <div class="side-actions">
+    <button class="btn js-save" id="btnGuardar" data-label="Guardar cotización" onclick="guardarCotizacion()">Guardar cotización</button>
+    <button class="btn danger js-new" data-label="Nueva cotización" onclick="nuevaCotizacion(this)">Nueva cotización</button>
+  </div>
+  <div id="steps" class="steps-list"></div>
+</nav>
 <main class="main">
 
 <div id="draftBanner" class="banner no-print" style="display:none; border-color:var(--accent,#d9a35b); background:rgba(217,163,91,.12);"><span class="txt"></span>
@@ -198,8 +212,6 @@
     <div style="width:240px;"><label>Proyecto</label><input type="text" id="proyecto" placeholder="Ej. Cocina Fernanda Isasi"></div>
     <div style="width:150px;"><label>Fecha</label><input type="date" id="fecha"></div>
     <div style="width:200px;"><label>Captura (quién cotiza)</label><input type="text" id="persona" placeholder="Tu nombre"></div>
-    <div><button class="btn" id="btnGuardar" onclick="guardarCotizacion(this)">Guardar cotización</button></div>
-    <div><button class="btn danger" onclick="nuevaCotizacion(this)">Nueva cotización (borrar todo)</button></div>
   </div>
   <div id="saveMsg" class="hint no-print"></div>
 </div>
@@ -322,6 +334,11 @@
   </div>
   <div id="cotizMsg" class="hint bad no-print"></div>
   <div id="cotizWrap"></div>
+  <div class="end-actions no-print">
+    <div><b>¿Terminaste?</b><span>Guarda la cotización para que quede en la lista con su folio.</span></div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;"><button class="btn js-save" data-label="Guardar cotización" onclick="guardarCotizacion()">Guardar cotización</button>
+    <button class="btn danger js-new" data-label="Nueva cotización" onclick="nuevaCotizacion(this)">Nueva cotización</button></div>
+  </div>
 </div>
 
 <div class="panel no-print">
@@ -354,6 +371,8 @@
 
 </main>
 </div>
+
+<div id="toast" class="toast no-print"></div>
 
 <div class="modal-overlay" id="zocloModal">
   <div class="modal-box">
@@ -556,11 +575,11 @@ function setPricesChecked(v){
 function confirmPrices(){ setPricesChecked(true); }
 function nuevaCotizacion(btn){
   if (!btn.dataset.armed){
-    btn.dataset.armed = '1'; btn.textContent = 'Confirmar: borrar todo y empezar de nuevo';
-    nuevaTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Nueva cotización (borrar todo)'; }, 4000);
+    btn.dataset.armed = '1'; btn.textContent = 'Confirmar: borrar todo';
+    nuevaTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = btn.dataset.label; }, 4000);
     return;
   }
-  clearTimeout(nuevaTimer); delete btn.dataset.armed; btn.textContent = 'Nueva cotización (borrar todo)';
+  clearTimeout(nuevaTimer); document.querySelectorAll('.js-new').forEach(b => { delete b.dataset.armed; b.textContent = b.dataset.label; });
   document.getElementById('cabBody').innerHTML = ''; document.getElementById('extBody').innerHTML = '';
   ['cliente', 'proyecto', 'persona'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
@@ -1017,7 +1036,9 @@ const $v = id => document.getElementById(id);
 const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let loadedName = null, loadedId = null, savedRows = [], saveArmTimer = null;
 const folioTxt = () => loadedId ? 'Folio MW-' + String(loadedId).padStart(4, '0') : 'Borrador';
-function setSaveMsg(t, kind){ const m = $v('saveMsg'); m.textContent = t; m.style.color = kind === 'ok' ? 'var(--good, #1b7f4c)' : kind === 'err' ? 'var(--danger, #c0392b)' : ''; }
+let toastTimer = null;
+function toast(t, kind){ const e = $v('toast'); if (!e) return; e.textContent = t; e.className = 'toast show ' + (kind || ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => { e.className = 'toast'; }, kind === 'err' ? 7000 : 4000); }
+function setSaveMsg(t, kind){ if (t && !/\.\.\.$/.test(t)) toast(t, kind); const m = $v('saveMsg'); m.textContent = t; m.style.color = kind === 'ok' ? 'var(--good, #1b7f4c)' : kind === 'err' ? 'var(--danger, #c0392b)' : ''; }
 
 function collectQuote(){
   const f = ['cliente', 'proyecto', 'fecha', 'tc', 'acabado', 'util', 'mo', 'gif', 'metodo', 'areaActiva', 'vigencia', 'nivelCotiz', 'pagoTxt'];
@@ -1035,7 +1056,9 @@ function collectQuote(){
   return d;
 }
 
-async function guardarCotizacion(btn){
+function setSaveBtns(txt, armed){ document.querySelectorAll('.js-save').forEach(b => { b.textContent = txt || b.dataset.label; if (armed) b.dataset.armed = '1'; else delete b.dataset.armed; }); }
+async function guardarCotizacion(){
+  const btn = $v('btnGuardar');
   const nombre = $v('proyecto').value.trim(), persona = $v('persona').value.trim();
   if (!nombre){ setSaveMsg('Ponle nombre al proyecto antes de guardar.', 'err'); return; }
   if (!persona){ setSaveMsg('Indica quién captura esta cotización antes de guardar.', 'err'); return; }
@@ -1047,15 +1070,15 @@ async function guardarCotizacion(btn){
       if (r.ok){
         const ex = await r.json();
         if (ex.length){
-          btn.dataset.armed = '1'; btn.textContent = 'Ya existe: pulsa otra vez para reemplazarla';
+          setSaveBtns('Ya existe: pulsa otra vez para reemplazarla', true);
           setSaveMsg(`Ya hay una cotización "${nombre}" guardada por ${ex[0].persona || '?'} (${new Date(ex[0].updated_at).toLocaleString('es-MX')}). Cambia el nombre o pulsa otra vez para reemplazarla.`, 'err');
-          clearTimeout(saveArmTimer); saveArmTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Guardar cotización'; }, 8000);
+          clearTimeout(saveArmTimer); saveArmTimer = setTimeout(() => setSaveBtns(), 8000);
           return;
         }
       }
     } catch(e){ /* si falla la revision, el guardado de abajo reporta el error real */ }
   }
-  clearTimeout(saveArmTimer); delete btn.dataset.armed; btn.textContent = 'Guardar cotización';
+  clearTimeout(saveArmTimer); setSaveBtns();
   setSaveMsg('Guardando...');
   try {
     clearTimeout(nestTimer);
