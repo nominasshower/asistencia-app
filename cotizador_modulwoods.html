@@ -93,6 +93,10 @@
   .mcard.on{border:2px solid var(--accent); background:var(--accent-soft); padding:13px;}
   .mcard b{display:block; font-size:13px;} .mcard span{display:block; font-size:12px; color:var(--muted); margin-top:4px;}
   .quote-doc, .bom-doc{border:1px solid var(--border);}
+  .c-opts{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 8px; margin-top:8px;}
+  .c-opts label{font-size:10px; letter-spacing:.06em; text-transform:uppercase; margin:0; color:var(--head-text);}
+  .c-opts select, .c-opts input{margin-top:2px; font-size:12px; padding:6px 8px; text-transform:none; letter-spacing:0;}
+  tr.cab > td:first-child{min-width:330px;}
   tr.cab > td:first-child{min-width:250px;}
   tr.cab .c-find{font-size:12px; padding:7px 10px; background:var(--panel2);}
   tr.cab .c-slide, tr.cab .c-handle, tr.cab .c-color{font-size:12px; padding:6px 9px; color:var(--head-text);}
@@ -200,32 +204,19 @@
   <div id="saveMsg" class="hint no-print"></div>
 </div>
 
-<div class="panel" id="metodoPanel">
-  <h2>Método de construcción</h2>
-  <div class="sub" style="margin:0 0 10px;">Elígelo primero: define cómo se arman los cajones y qué manija llevan todos los gabinetes. Si lo cambias después, se actualizan todos los gabinetes que usan "la del proyecto"; cada gabinete puede tener su propia opción en su renglón.</div>
-  <div class="mcards" id="mcards">
-    <button type="button" class="mcard" data-v="lateral|gola"><b>Estándar del Excel</b><span>Corredera lateral + gola</span></button>
-    <button type="button" class="mcard" data-v="inferior|gola"><b>Blum inferior + gola</b><span>Cajón de 16 mm sin ranura</span></button>
-    <button type="button" class="mcard" data-v="inferior|sin"><b>Blum inferior + jaladera</b><span>Una jaladera por puerta y cajón</span></button>
-    <button type="button" class="mcard" data-v="lateral|sin"><b>Lateral + jaladera</b><span>Sin gola</span></button>
-  </div>
+<div class="panel" id="costeoPanel">
+  <h2>Costeo interno <span class="badge">no sale en la cotización</span></h2>
+  <select id="slideType" style="display:none;"><option value="lateral">lateral</option><option value="inferior">inferior</option><option value="custom">custom</option></select>
   <div class="row">
-    <div style="width:330px;"><label>Método (o personalizado)</label>
-      <select id="metodoConst" onchange="aplicarMetodo()">
-        <option value="lateral|gola">Estándar del Excel: corredera lateral + gola</option>
-        <option value="inferior|gola">Corredera inferior Blum + gola</option>
-        <option value="inferior|sin">Corredera inferior Blum + jaladera / tirador</option>
-        <option value="lateral|sin">Corredera lateral + jaladera / tirador</option>
-        <option value="custom">Personalizado</option>
-      </select></div>
-    <div style="width:230px;"><label>Manija por defecto del proyecto</label>
-      <select id="manija" onchange="syncMetodo(); recalc()"><option value="gola">Gola (como el Excel)</option><option value="sin">Jaladera / tirador (sin gola)</option></select></div>
-    <div style="width:250px;"><label>Corredera por defecto del proyecto</label>
-      <select id="slideType" onchange="syncMetodo(); recalc()"><option value="lateral">Lateral (como el Excel)</option><option value="inferior">Inferior / oculta</option><option value="custom">Personalizada</option></select></div>
-    <div style="width:330px;" id="jalWrap"><label>Jaladera / tirador (una por puerta y por cajón)</label>
-      <select id="jalSel" onchange="setJaladera(); recalc()"></select></div>
+    <div style="width:130px;"><label>Tipo de cambio</label><input type="number" id="tc" step="0.01" min="1"></div>
+    <div style="width:190px;"><label>Margen según acabado (tabla "%")</label>
+      <select id="acabado" onchange="setAcabado()"><option value="35">Melamina y pintura (35%)</option><option value="30">Gabinetes de línea (30%)</option><option value="40">Foil (40%)</option><option value="45">Laminado (45%)</option><option value="50">Mancha y especiales (50%)</option></select></div>
+    <div style="width:130px;"><label>% Utilidad (sobre precio)</label><input type="number" id="util" step="1" min="0" max="90"></div>
+    <div style="width:130px;"><label>% Mano de obra</label><input type="number" id="mo" step="1" min="0"></div>
+    <div style="width:130px;"><label>% GIF</label><input type="number" id="gif" step="1" min="0"></div>
+    <div style="width:250px;"><label>Cómo se cuentan las hojas</label>
+      <select id="metodo"><option value="opt">Hojas enteras (optimizador)</option><option value="excel">Como el Excel (fracción + 20% merma)</option></select></div>
   </div>
-  <div id="metodoResumen" class="hint"></div>
   <details style="margin-top:10px;">
     <summary>Ajustes de corredera (medidas de cada perfil)</summary>
     <div class="row" style="margin-top:10px;">
@@ -238,20 +229,6 @@
     </div>
     <div class="hint">Lateral (Excel): 13.5 mm de holgura por lado, 500 mm de largo, costados de aglomerado de 12 mm y fondo de 5.5 mm en ranura. Inferior Blum (Ingeniería): largos 350/400/450/500 mm (la mayor que deje 50 mm al fondo del gabinete), costado = corredera menos 10 mm, costados y fondo de 16 mm sin ranura, ancho interior = abertura menos 42 mm (por confirmar). La corredera inferior tiene su propio precio en la tabla de precios.</div>
   </details>
-</div>
-
-<div class="panel" id="costeoPanel">
-  <h2>Costeo interno <span class="badge">no sale en la cotización</span></h2>
-  <div class="row">
-    <div style="width:130px;"><label>Tipo de cambio</label><input type="number" id="tc" step="0.01" min="1"></div>
-    <div style="width:190px;"><label>Margen según acabado (tabla "%")</label>
-      <select id="acabado" onchange="setAcabado()"><option value="35">Melamina y pintura (35%)</option><option value="30">Gabinetes de línea (30%)</option><option value="40">Foil (40%)</option><option value="45">Laminado (45%)</option><option value="50">Mancha y especiales (50%)</option></select></div>
-    <div style="width:130px;"><label>% Utilidad (sobre precio)</label><input type="number" id="util" step="1" min="0" max="90"></div>
-    <div style="width:130px;"><label>% Mano de obra</label><input type="number" id="mo" step="1" min="0"></div>
-    <div style="width:130px;"><label>% GIF</label><input type="number" id="gif" step="1" min="0"></div>
-    <div style="width:250px;"><label>Cómo se cuentan las hojas</label>
-      <select id="metodo"><option value="opt">Hojas enteras (optimizador)</option><option value="excel">Como el Excel (fracción + 20% merma)</option></select></div>
-  </div>
 </div>
 
 <div class="panel no-print">
@@ -287,7 +264,7 @@
   <h2>Gabinetes</h2>
   <div class="row no-print" style="margin-bottom:8px;">
     <div style="width:220px;"><label>Área activa (los gabinetes nuevos van aquí)</label><input type="text" id="areaActiva" list="areasList" placeholder="Ej. Cocina, Isla"></div>
-    <div class="hint" style="align-self:end;">"+ Agregar gabinete" repite el último renglón (modelo, color, corredera y manija). "Duplicar" copia un renglón tal cual. En cada renglón puedes escribir en "Buscar" para filtrar los modelos.</div>
+    <div class="hint" style="align-self:end;">Cada gabinete lleva su apertura (gola, jaladera, push, 45° o sobrado), frente, material/color del frente y corredera. "+ Agregar gabinete" repite el último renglón. "Duplicar" copia un renglón tal cual. En cada renglón puedes escribir en "Buscar" para filtrar los modelos.</div>
   </div>
   <div class="table-scroll">
     <table style="min-width:900px;">
@@ -321,6 +298,7 @@
   <div class="stats" id="stats"></div>
   <div class="hint" id="metodoNote"></div>
   <div class="table-scroll" style="margin-top:12px;"><table style="min-width:420px;"><thead><tr><th>Área</th><th class="num">Gabinetes</th><th class="num">Subtotal (USD)</th></tr></thead><tbody id="areasBody"></tbody></table></div>
+  <datalist id="tonosList"><option value="Blanco"><option value="Blanco Frosty"><option value="Negro"><option value="Gris"><option value="Roble Trufa"><option value="Roble Eternity"><option value="Roble Sinatra"><option value="Roble Americano"><option value="Roble Azabache"><option value="Roble Stella"><option value="Roble Trigo"><option value="Roble Dakar"><option value="Nogal Británico"><option value="Ceniza Foresta"><option value="Malta Foresta"><option value="Anáhuac Foresta"><option value="Chardonnay Foresta"><option value="Monarca Foresta"><option value="Oporto Foresta"><option value="Toscana"><option value="Aserrado Nórdico"><option value="Encino natural"></datalist>
   <datalist id="areasList"><option value="Cocina"><option value="Isla"><option value="Pantry"><option value="Closet principal"><option value="Closet secundario"><option value="Baño"></datalist>
 </div>
 
@@ -391,22 +369,17 @@ const COCINAS_DATA = {"globals":{"tc":17,"util":0.35,"mo":0.3,"gif":0.1},"prices
 <script>
 const MODELS = Object.fromEntries(COCINAS_DATA.models.map(m => [m.sku, m]));
 const PRICE_LIST = COCINAS_DATA.prices;
-if (!PRICE_LIST.some(p => p.key === 'jaladera')) PRICE_LIST.push({ key: 'jaladera', name: 'JALADERA / TIRADOR (elige el modelo en Método de construcción)', um: 'PIEZA', grp: 'Herrajes', price: 0 });
-// Jaladeras con su ultima compra confirmada en Odoo (MXN por pieza). "Otra": capturar el precio en la tabla.
-const JALADERAS = [
-  ['', 'Otra (capturar precio en la tabla)', 0],
-  ['MP-18-0003', 'Jaladera negra barra muro #4245', 35.57],
-  ['MP-18-0000', 'Jaladera barra muro 128 mm #3898', 40.23],
-  ['MP-18-0004', 'Jaladera barra muro negro Herraxa 79588', 40.41],
-  ['MP-18-0030', 'Jaladera Handy Mode Dublin 163/160 mm #3919', 40.76],
-  ['MP-18-0005', 'Jaladera hueca tubular inox #79955', 11.26],
-  ['MP-03-010064', 'Jaladera Handy Home hueca inox 64/124 mm', 4.54],
-  ['MP-18-0011', 'Jaladera arco Royal 76 mm NS #3871', 22.08],
-  ['MP-18-0036', 'Jaladera botón Royal níquel satinado #3855', 22.09],
-  ['MP-18-0034', 'Jaladera botón cuadrado #79443', 20.80],
-  ['MP-18-0035', 'Jaladera botón redondo #3815', 14.82]
-];
-const BOARD_KEYS = ['mdf15', 'mdfColor', 'aglo12', 'mdf55', 'triplay15', 'mdfP_Romero', 'mdfP_Roble', 'mdfP_Encino'];
+[{ key: 'mdfNat15', name: 'MDF NATURAL 15 MM para pintar (ref. Odoo MP-10-0002, 10-sep-2026)', um: 'PIEZA', grp: 'Frentes', price: 288.42 },
+ { key: 'mdfChapa15', name: 'MDF 2C CHAPA ENCINO 15 MM (ref. Odoo MP-10-0011, 7-ene-2026)', um: 'PIEZA', grp: 'Frentes', price: 583.37 },
+ { key: 'pintura', name: 'PINTURA / LACA de frentes por m2 (2 caras) - SIN PRECIO: capturar al cotizar', um: 'M2', grp: 'Frentes', price: 0 },
+ { key: 'push', name: 'MECANISMO PUSH por puerta o cajón - SIN PRECIO (no está en Compras)', um: 'PIEZA', grp: 'Herrajes', price: 0 }
+].forEach(p => { if (!PRICE_LIST.some(x => x.key === p.key)) PRICE_LIST.push(p); });
+// Catalogo de jaladeras de Compras (Odoo): [codigo, nombre, ultimo precio de compra MXN, fecha]. Precio 0 = sin compra registrada.
+const JAL_CAT = [["MP-18-0049", "Aluminio Anodizado Negro Mate Tipo “L” 0405-248", 33.61, "2026-05-04"], ["MP-18-0011", "Arco Royal  76Mm Ns C/Tm-3871", 22.08, "2025-11-12"], ["MP-18-0042", "Barra Hueca Inox 79945", 9.73, "2025-07-03"], ["MP-18-0000", "Barra Muro 128Mm3898", 40.23, "2026-09-22"], ["MP-18-0004", "Barra Muro Negro Herraxa 79588", 40.41, "2026-07-15"], ["MP-18-0046", "Boton Cuadrado Cod 3935", 13.58, "2026-09-01"], ["MP-18-0034", "Boton Cuadrado79443", 20.8, "2025-04-16"], ["MP-18-0035", "Boton Redondo # 3815", 14.82, "2025-12-15"], ["MP-18-0036", "Boton Royal Niq Satinado M-3855 (0402-314", 22.09, "2025-12-08"], ["MP-18-0047", "Handy Home Hueca Acero Inox Cc 256/336Mm C/T Cod 79935", 8.91, "2025-11-12"], ["MP-03-010064", "Handy Home Hueca Acero Inox Cc 64/124Mm C/T Mod 79995", 4.54, "2025-05-15"], ["MP-18-0030", "Handy Mode Dublin 163/160Mm Mod.3919", 40.76, "2025-12-08"], ["MP-18-0005", "Hueca Tubular Inox # 79955", 11.26, "2026-02-03"], ["MP-18-0048", "Jaladera-Boton Handy Home Bilbao 32.5 X 34Mm Ne C/T Cod 4248", 27.72, "2025-11-12"], ["MP-18-0050", "Monaco 225/192Mm Negro 4241", 52.67, "2026-08-20"], ["MP-18-0003", "Negra Barra Muro # 4245", 35.57, "2026-09-24"], ["MP-18-0012", "128Mm Ns C/T M-3903", 0, ""], ["MP-18-0017", "Acabado Niquel Satinado 128 Mm #3901", 0, ""], ["MP-18-0023", "Aluminio Oro Cepillado 0405-255", 0, ""], ["MP-18-0024", "Aluminio Oro Cepillado 0405-255", 0, ""], ["MP-18-0031", "Aluminion Oro Cepillado 0405-254", 0, ""], ["MP-18-0001", "Barra De Acero C.C Negra 64/124Mm #79998", 0, ""], ["MP-18-0002", "Barra Extranjera Codigo Dmz-22050-128", 0, ""], ["MP-18-0028", "Barra Hueca # 79915 Acero Inox", 0, ""], ["MP-18-0021", "Black Modelo 0402-843", 0, ""], ["MP-18-0038", "Boton # 3853 Niquel Satinado", 0, ""], ["MP-18-0037", "Boton Cuadrado3985", 0, ""], ["MP-18-0013", "Curva Chica (96-113Mm) Negro Herraxa", 0, ""], ["MP-18-0027", "Embutir De Aluminio # 3567", 0, ""], ["MP-18-0026", "Handy Home # 3798", 0, ""], ["MP-18-0029", "Handy Home 193/160 Mm # 4242", 0, ""], ["MP-18-0045", "Handy Home Hueca Acero Inox Cc 64/124Mm", 0, ""], ["MP-18-0040", "L Dorado Mate Cepillado 1209-138", 0, ""], ["MP-18-0025", "Modelo 0402 -769", 0, ""], ["MP-18-0020", "Modelo 0402-362", 0, ""], ["MP-18-0019", "Modelo 0402-369", 0, ""], ["MP-18-0018", "Modelo 0402-371", 0, ""], ["MP-18-0022", "Negra  Modelo 0110-970", 0, ""], ["MP-18-0016", "Negra 128Mm/188Mm 402-805 Cerrajes", 0, ""], ["MP-18-0015", "Negra 96Mm/154Mm 402-804 Cerrajes", 0, ""], ["MP-18-0014", "Orion (90/98Mm) Negro Herraxa", 0, ""], ["MP-18-0033", "Perfil \"Cot\" De Presion 3 Mts Aluminio 32", 0, ""], ["MP-18-0032", "Perfil \"Cot\" De Presion 3 Mts Negro 4280", 0, ""], ["MP-18-0010", "Perfil Tipo \"C\" # 3947 4 Mts", 0, ""], ["MP-18-0006", "Tubular 156Mm 79905", 0, ""], ["MP-18-0007", "Tubular 188/128Mm7991", 0, ""], ["MP-18-0008", "Tubular 400Mm7994", 0, ""], ["MP-18-0009", "Tubular 496Mm7995", 0, ""]];
+const OPEN_BASE = [['gola', 'Gola (como el Excel)'], ['jaladera', 'Jaladera'], ['push', 'Push'], ['45', 'Canto a 45°']];
+const OPEN_WALL = [['jaladera', 'Jaladera'], ['push', 'Push'], ['45', 'Canto a 45°'], ['sobrado', 'Sobrado']];
+const FMAT = { mel: 'Melamina', pintar: 'MDF pintado', chapa: 'Chapa de encino' };
+const BOARD_KEYS = ['mdf15', 'mdfColor', 'mdfNat15', 'mdfChapa15', 'aglo12', 'mdf55', 'triplay15', 'mdfP_Romero', 'mdfP_Roble', 'mdfP_Encino'];
 const COLORES = ['Romero', 'Roble', 'Encino'];
 const SLIDE = { clear: 13.5, len: 500 };
 // Corredera inferior Blum (datos de Ingenieria): largos 350/400/450/500 mm; se elige la mayor que deje 50 mm al fondo del gabinete
@@ -444,16 +417,21 @@ function evalModel(m, W, H, D, color, slide, extra){
   PRICE_LIST.forEach(p => { q[p.key] = 0; });
   const rows = parts.map((p, i) => {
     const gg = val(i, 'G'), hh = val(i, 'H');
-    const key = p.cls === 'mdfP' ? 'mdfP_' + color : p.cls;
+    let key = p.cls === 'mdfP' ? 'mdfP_' + color : p.cls;
+    const fm = extra && extra.mat;
+    if (key === 'mdfColor' && fm === 'pintar') key = 'mdfNat15'; else if (key === 'mdfColor' && fm === 'chapa') key = 'mdfChapa15';
+    const front = key === 'mdfColor' || key === 'mdfNat15' || key === 'mdfChapa15';
     const pq = typeof p.q === 'string' ? ((extra && extra.n) || 0) : p.q;
     const sheets = gg * hh / 1e6 * pq * 1.2 / SHEET_M2;
     const f = (b) => (((gg + 25.4) / 1000) * b[0] + ((hh + 25.4) / 1000) * b[1]) * pq * 1.075;
     const wB = f(p.bw), cB = f(p.bc), pB = f(p.bp || [0, 0]);
-    q[key] += sheets; q.cintBlanca += wB; q.cintColor += cB; q['cintP_' + color] += pB;
-    return { c: p.c, cls: key, g: gg, h: hh, q: pq, sheets, wB: wB + pB, cB };
+    q[key] += sheets; q.cintBlanca += wB; q['cintP_' + color] += pB;
+    if (key === 'mdfNat15') q.pintura += gg * hh / 1e6 * pq * 2; else q.cintColor += cB; // pintado: cantos pintados, sin cintilla
+    return { c: p.c, cls: key, tone: front && extra && extra.tone ? extra.tone.trim().toUpperCase() : '', g: gg, h: hh, q: pq, sheets, wB: wB + pB, cB: key === 'mdfNat15' ? 0 : cB };
   });
   Object.keys(m.hw).forEach(k => { if (!(extra && extra.noGola && GOLA_KEYS.includes(k))) q[k] += m.hw[k]; });
-  if (extra && extra.noGola) q.jaladera += handlesOf(m); // una jaladera por puerta y por cajon
+  if (extra && extra.open === 'jaladera'){ const jk = ensureJalKey(extra.jal); q[jk] = (q[jk] || 0) + handlesOf(m); } // una por puerta y por cajon
+  if (extra && extra.open === 'push') q.push += handlesOf(m);
   if (slide.priceKey && q.corredera){ q[slide.priceKey] += q.corredera; q.corredera = 0; } // corredera oculta con precio propio
   return { rows, q };
 }
@@ -492,8 +470,14 @@ function addCab(sku, noAsk){
   tr.className = 'cab';
   tr.innerHTML = `
     <td><input type="text" class="c-find" placeholder="Buscar modelo (ej. DB15, 36, sink)" style="margin-bottom:4px;"><select class="c-sku">${modelOptions(sku)}</select>
-      <select class="c-slide" style="margin-top:4px; display:none;" title="Tipo de corredera de este gabinete"><option value="">Corredera: la del proyecto</option><option value="lateral">Corredera lateral</option><option value="inferior">Corredera inferior</option><option value="custom">Corredera personalizada</option></select>
-      <select class="c-handle" style="margin-top:4px; display:none;" title="Manija de este gabinete"><option value="">Manija: la del proyecto</option><option value="gola">Gola (como el Excel)</option><option value="sin">Jaladera / tirador (sin gola)</option></select>
+      <div class="c-opts">
+        <label class="c-l-open">Apertura<select class="c-open"></select></label>
+        <label class="c-l-jal" style="display:none;">Modelo de jaladera<select class="c-jal">${jalOptions()}</select></label>
+        <label class="c-l-front">Frente<select class="c-front"><option value="liso">Liso</option><option value="shaker">Shaker (lógica pendiente)</option></select></label>
+        <label class="c-l-fmat">Material del frente<select class="c-fmat"><option value="mel">Melamina</option><option value="pintar">MDF pintado</option><option value="chapa">Chapa de encino</option></select></label>
+        <label class="c-l-tone">Color / acabado<input type="text" class="c-tone" list="tonosList" placeholder="Ej. Roble Trufa, Blanco"></label>
+        <label class="c-l-slide">Corredera<select class="c-slide"><option value="lateral">Lateral (Excel)</option><option value="inferior">Inferior Blum</option><option value="custom">Personalizada</option></select></label>
+      </div>
       <select class="c-color" style="margin-top:4px; display:none;">${COLORES.map(c => `<option value="${c}">${c}</option>`).join('')}</select>
       <div class="c-zwrap" style="display:none; margin-top:4px;"><label>Divisores del zoclo</label><input type="number" class="c-ndiv" min="0" step="1" value="2"><div class="hint c-zn"></div><button class="btn secondary small" style="margin-top:4px;" onclick="askZoclo(this.closest('tr'))">Zoclo: cambiar</button></div>
       <div class="hint c-note" style="display:none;"></div></td>
@@ -515,8 +499,7 @@ function addCab(sku, noAsk){
     tr.querySelector('.c-h').value = mm.H; tr.querySelector('.c-d').value = mm.D;
     const cs = tr.querySelector('.c-color');
     const zw = tr.querySelector('.c-zwrap'); zw.style.display = usesN(mm) ? 'block' : 'none'; delete tr.dataset.auto; tr.querySelector('.c-w').disabled = false;
-    const ss = tr.querySelector('.c-slide'); ss.style.display = usesSlide(mm) ? 'block' : 'none'; ss.value = '';
-    const hh = tr.querySelector('.c-handle'); hh.style.display = usesGola(mm) ? 'block' : 'none'; hh.value = '';
+    syncOpts(tr, mm, true);
     cs.style.display = usesColor(mm) ? 'block' : 'none';
     if (usesColor(mm)) cs.value = mm.defColor || 'Romero';
     const nt = tr.querySelector('.c-note');
@@ -525,6 +508,7 @@ function addCab(sku, noAsk){
   tr.querySelector('.c-find').addEventListener('input', e => {
     const sel = tr.querySelector('.c-sku'); sel.innerHTML = modelOptions(sel.value, e.target.value);
   });
+  tr.querySelector('.c-open').addEventListener('change', () => syncOpts(tr, MODELS[tr.querySelector('.c-sku').value], false));
   tr.querySelector('.c-sku').addEventListener('change', () => { syncModel(); if (usesN(MODELS[tr.querySelector('.c-sku').value])) askZoclo(tr); recalc(); });
   syncModel();
   if (usesN(m) && !noAsk) askZoclo(tr);
@@ -631,9 +615,11 @@ function cabinets(){
     const wv = parseFloat(tr.querySelector('.c-w').value), dv = parseFloat(tr.querySelector('.c-d').value);
     return { tr, m, W: isNaN(wv) ? m.W : wv, H: +tr.querySelector('.c-h').value || m.H, D: isNaN(dv) ? m.D : dv,
              color: usesColor(m) ? tr.querySelector('.c-color').value : null,
-             slide: usesSlide(m) && tr.querySelector('.c-slide').value ? PROFILES[tr.querySelector('.c-slide').value] : SLIDE,
+             slide: usesSlide(m) ? PROFILES[tr.querySelector('.c-slide').value || 'lateral'] : SLIDE,
              n: usesN(m) ? (parseInt(tr.querySelector('.c-ndiv').value) || 0) : 0,
-             noGola: usesGola(m) && ((tr.querySelector('.c-handle').value || document.getElementById('manija').value) === 'sin'),
+             open: tr.querySelector('.c-open').value, jal: tr.querySelector('.c-jal').value, front: tr.querySelector('.c-front').value,
+             mat: usesFront(m) ? tr.querySelector('.c-fmat').value : '', tone: usesFront(m) ? tr.querySelector('.c-tone').value : '',
+             noGola: usesGola(m) && tr.querySelector('.c-open').value !== 'gola',
              qty: Math.max(1, +tr.querySelector('.c-qty').value || 1) };
   });
   list.filter(c => usesN(c.m) && c.tr.dataset.auto === '1').forEach(z => {
@@ -654,12 +640,12 @@ function recalc(){
   const consumo = {}; PRICE_LIST.forEach(x => { consumo[x.key] = 0; });
   const cabs = cabinets();
   const quoteLines = [], areas = {}, pieces = {};
-  cabs.forEach(({ tr, m, W, H, D, color, slide, n, qty, noGola }) => {
-    const r = evalModel(m, W, H, D, color, slide, { n, noGola });
+  cabs.forEach(({ tr, m, W, H, D, color, slide, n, qty, noGola, open, jal, front, mat: fmat, tone }) => {
+    const r = evalModel(m, W, H, D, color, slide, { n, noGola, open, jal, mat: fmat, tone });
     const mat = matCost(r.q), c = chain(mat, p);
     const area = tr.querySelector('.c-area').value.trim() || 'Sin área';
     const dimTxt = m.line === 'GEN' || m.line === 'FERN' ? `${fmt(W, 1)} x ${fmt(H, 1)}${D ? ' x ' + fmt(D, 1) : ''} in` : `${fmt(W, 1)} x ${fmt(H, 1)} x ${fmt(D, 1)} in`;
-    quoteLines.push({ tr, area, label: clientLabel(m) + (color ? ' - ' + color : ''), dim: dimTxt, qty, unit: c.usd, total: c.usd * qty });
+    quoteLines.push({ tr, area, label: clientLabel(m) + (color ? ' - ' + color : '') + specTxt(m, { open, jal, front, mat: fmat, tone }), dim: dimTxt, qty, unit: c.usd, total: c.usd * qty });
     (areas[area] = areas[area] || { n: 0, usd: 0 }); areas[area].n += qty; areas[area].usd += c.usd * qty;
     tr.querySelector('.c-mat').textContent = fmt(mat);
     tr.querySelector('.c-unit').textContent = fmt(c.usd);
@@ -669,11 +655,11 @@ function recalc(){
     if (custom && !tag) cell.insertAdjacentHTML('beforeend', '<span class="badge">medidas personalizadas</span>');
     if (!custom && tag) tag.remove();
     totMat += mat * qty; totUSD += c.usd * qty;
-    PRICE_LIST.forEach(x => { consumo[x.key] += r.q[x.key] * qty; });
+    PRICE_LIST.forEach(x => { consumo[x.key] = (consumo[x.key] || 0) + (r.q[x.key] || 0) * qty; });
     r.rows.forEach(x => {
       if (!(x.q > 0)) return;
-      const k = x.cls + '|' + x.c + '|' + x.g.toFixed(1) + '|' + x.h.toFixed(1);
-      (pieces[k] = pieces[k] || { cls: x.cls, name: x.c, g: x.g, h: x.h, q: 0 }).q += x.q * qty;
+      const k = x.cls + '|' + (x.tone || '') + '|' + x.c + '|' + x.g.toFixed(1) + '|' + x.h.toFixed(1);
+      (pieces[k] = pieces[k] || { cls: x.cls, gk: x.cls + (x.tone ? '|' + x.tone : ''), name: x.c, g: x.g, h: x.h, q: 0 }).q += x.q * qty;
     });
     const det = tr.nextElementSibling;
     if (det.style.display !== 'none'){
@@ -700,7 +686,7 @@ function recalc(){
   const useOpt = document.getElementById('metodo').value === 'opt';
   if (useOpt){
     if (lastNest && lastNest.sig === nestSignature()){
-      const delta = BOARD_KEYS.reduce((s, k) => s + ((lastNest.sheets[k] || 0) - consumo[k]) * (prices[k] || 0), 0);
+      const delta = BOARD_KEYS.reduce((s, k) => s + (((lastNest.byCls || {})[k] || 0) - consumo[k]) * (prices[k] || 0), 0);
       matAll += delta; final = chain(matAll, p).usd + extDirectMX / p.tc;
       nota = `Método hojas enteras: el material cambia ${delta >= 0 ? '+' : ''}${fmt(delta)} MXN contra el método del Excel.`;
     } else { nota = 'Calculando hojas enteras...'; scheduleNest(); }
@@ -743,19 +729,20 @@ function renderBOM(consumo, pieces, cabs, extras){
   const useOpt = document.getElementById('metodo').value === 'opt';
   const nestOk = useOpt && lastNest && lastNest.sig === nestSignature();
   const pl = Object.values(pieces);
-  const rowsB = BOARD_KEYS.filter(k => consumo[k] > 1e-9).map(k => {
-    const mine = pl.filter(x => x.cls === k);
-    const net = mine.reduce((a, x) => a + x.g * x.h * x.q, 0) / 1e6;
-    const buy = nestOk && lastNest.sheets[k] != null ? lastNest.sheets[k] : Math.ceil(consumo[k] - 1e-9);
-    return { k, name: nameOf(k), pzs: mine.reduce((a, x) => a + x.q, 0), net, excel: consumo[k], buy, unit: prices[k] || 0, cost: buy * (prices[k] || 0) };
+  const gks = [...new Set(pl.map(x => x.gk))].filter(g => BOARD_KEYS.includes(gkCls(g))).sort((a, b) => BOARD_KEYS.indexOf(gkCls(a)) - BOARD_KEYS.indexOf(gkCls(b)) || a.localeCompare(b));
+  const rowsB = gks.map(k => {
+    const kc = gkCls(k), mine = pl.filter(x => x.gk === k);
+    const net = mine.reduce((a, x) => a + x.g * x.h * x.q, 0) / 1e6, excel = net * 1.2 / SHEET_M2;
+    const buy = nestOk && lastNest.sheets[k] != null ? lastNest.sheets[k] : Math.ceil(excel - 1e-9);
+    return { k, name: gkName(k), pzs: mine.reduce((a, x) => a + x.q, 0), net, excel, buy, unit: prices[kc] || 0, cost: buy * (prices[kc] || 0) };
   });
   const rowsC = BAND_KEYS.filter(k => consumo[k] > 1e-9).map(k => ({ name: nameOf(k), um: (PRICE_LIST.find(p => p.key === k) || {}).um || 'M', q: consumo[k], buy: Math.ceil(consumo[k] - 1e-9), unit: prices[k] || 0 }));
   const rowsH = PRICE_LIST.filter(x => !BOARD_KEYS.includes(x.key) && !BAND_KEYS.includes(x.key) && consumo[x.key] > 1e-9)
     .map(x => ({ name: x.name, um: x.um, q: consumo[x.key], buy: Math.ceil(consumo[x.key] - 1e-9), unit: prices[x.key] || 0 }));
   const cut = {};
-  pl.forEach(x => { (cut[x.cls] = cut[x.cls] || []).push(x); });
+  pl.forEach(x => { (cut[x.gk] = cut[x.gk] || []).push(x); });
   Object.keys(cut).forEach(k => cut[k].sort((a, b) => b.g - a.g || b.h - a.h || a.name.localeCompare(b.name)));
-  bomData = { rowsB, rowsC, rowsH, extras, cut };
+  bomData = { rowsB, rowsC, rowsH, extras, cut, gks };
   const val = id => document.getElementById(id).value.trim();
   const nCab = cabs.reduce((a, c) => a + c.qty, 0), nPzs = pl.reduce((a, x) => a + x.q, 0);
   const sumB = rowsB.reduce((a, r) => a + r.cost, 0);
@@ -772,8 +759,8 @@ function renderBOM(consumo, pieces, cabs, extras){
   if (extras.length) h += `<div class="bom-sec"><h4><span class="qn">04</span>Extras capturados</h4><table class="bom-table"><thead><tr><th>Concepto</th><th class="num">Cantidad</th></tr></thead><tbody>` +
     extras.map(e => `<tr><td>${e.name}</td><td class="num buy">${e.qty}</td></tr>`).join('') + '</tbody></table></div>';
   h += `<div class="bom-sec" style="break-inside:auto;"><h4><span class="qn">05</span>Lista de corte (todas las piezas)</h4>`;
-  BOARD_KEYS.filter(k => cut[k]).forEach(k => {
-    h += `<div class="bom-mat">${nameOf(k)}</div><table class="bom-table"><thead><tr><th>Pieza</th><th class="num">Ancho (mm)</th><th class="num">Alto (mm)</th><th class="num">Cant.</th></tr></thead><tbody>` +
+  gks.filter(k => cut[k]).forEach(k => {
+    h += `<div class="bom-mat">${gkName(k)}</div><table class="bom-table"><thead><tr><th>Pieza</th><th class="num">Ancho (mm)</th><th class="num">Alto (mm)</th><th class="num">Cant.</th></tr></thead><tbody>` +
       cut[k].map(x => `<tr><td>${x.name}</td><td class="num">${fmt(x.g, 1)}</td><td class="num">${fmt(x.h, 1)}</td><td class="num buy">${x.q}</td></tr>`).join('') + '</tbody></table>';
   });
   h += '</div></div></div>';
@@ -793,7 +780,7 @@ function downloadBOM(){
   bomData.rowsC.forEach(r => L.push(['Canto', r.name, r.um, +r.q.toFixed(3), r.buy, +(r.q * r.unit).toFixed(2), '', '']));
   bomData.rowsH.forEach(r => L.push(['Herrajes y empaque', r.name, r.um, +r.q.toFixed(3), r.buy, +(r.q * r.unit).toFixed(2), '', '']));
   bomData.extras.forEach(e => L.push(['Extras', e.name, '', e.qty, e.qty, '', '', '']));
-  BOARD_KEYS.filter(k => bomData.cut[k]).forEach(k => bomData.cut[k].forEach(x => L.push(['Corte - ' + nameOf(k), x.name, 'PZA', x.q, x.q, '', +x.g.toFixed(1), +x.h.toFixed(1)])));
+  bomData.gks.filter(k => bomData.cut[k]).forEach(k => bomData.cut[k].forEach(x => L.push(['Corte - ' + gkName(k), x.name, 'PZA', x.q, x.q, '', +x.g.toFixed(1), +x.h.toFixed(1)])));
   const csv = '\ufeff' + L.map(r => r.map(q).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -964,30 +951,31 @@ function packSheets(pieces, kerf, margin, rot, mode, order){
   }
   return { sheets: bins.length, used: bins.reduce((s, b) => s + b.used, 0), warns };
 }
-const nestSignature = () => JSON.stringify(cabinets().map(c => [c.m.sku, c.W, c.H, c.D, c.color, c.qty, c.slide.clear, c.slide.len, c.slide.inner, c.slide.auto, c.n]).concat([document.getElementById('kerf').value, document.getElementById('margen').value, document.getElementById('modo').value, document.getElementById('rotar').value]));
+const nestSignature = () => JSON.stringify(cabinets().map(c => [c.m.sku, c.W, c.H, c.D, c.color, c.qty, c.slide.clear, c.slide.len, c.slide.inner, c.slide.auto, c.n, c.mat, (c.tone || '').trim().toUpperCase()]).concat([document.getElementById('kerf').value, document.getElementById('margen').value, document.getElementById('modo').value, document.getElementById('rotar').value]));
 
 function runNesting(){
   const kerf = +document.getElementById('kerf').value || 0, margin = +document.getElementById('margen').value || 0;
   const mode = document.getElementById('modo').value, rot = document.getElementById('rotar').value === '1';
   const groups = {};
-  cabinets().forEach(({ m, W, H, D, color, slide, n, qty, noGola }) => {
-    const r = evalModel(m, W, H, D, color, slide, { n, noGola });
-    r.rows.forEach(x => { if (x.q > 0) (groups[x.cls] = groups[x.cls] || []).push({ w: x.g, h: x.h, qty: x.q * qty, name: `${m.sku} ${x.c}` }); });
+  cabinets().forEach(({ m, W, H, D, color, slide, n, qty, noGola, open, jal, mat, tone }) => {
+    const r = evalModel(m, W, H, D, color, slide, { n, noGola, open, jal, mat, tone });
+    r.rows.forEach(x => { if (x.q > 0){ const gk = x.cls + (x.tone ? '|' + x.tone : ''); (groups[gk] = groups[gk] || []).push({ w: x.g, h: x.h, qty: x.q * qty, name: `${m.sku} ${x.c}` }); } });
   });
   const cons = window.__consumo || {};
   const sheets = {}; let html = '', err = ''; const warn = [];
+  const byCls = {};
   Object.keys(groups).forEach(k => {
     const r = packBest(groups[k], kerf, margin, rot, mode);
-    if (r.error){ err += `${nameOf(k)}: ${r.error}. `; return; }
-    sheets[k] = r.sheets;
+    if (r.error){ err += `${gkName(k)}: ${r.error}. `; return; }
+    sheets[k] = r.sheets; byCls[gkCls(k)] = (byCls[gkCls(k)] || 0) + r.sheets;
     (r.warns || []).forEach(w => warn.push(w));
     const netArea = groups[k].reduce((s, x) => s + x.w * x.h * x.qty, 0) / 1e6 / SHEET_M2;
-    const excel = cons[k] || 0, cx = excel * prices[k], co = r.sheets * prices[k];
-    html += `<tr><td>${nameOf(k)}</td><td class="num">${fmt(netArea, 2)}</td><td class="num">${fmt(excel, 2)}</td><td class="num"><b>${r.sheets}</b></td><td class="num">${fmt(r.used / 1e6 / (r.sheets * SHEET_M2) * 100, 1)}%</td><td class="num">${fmt(cx)}</td><td class="num">${fmt(co)}</td><td class="num ${co > cx ? 'bad' : 'ok'}">${co - cx >= 0 ? '+' : ''}${fmt(co - cx)}</td></tr>`;
+    const kc = gkCls(k), excel = netArea * 1.2, cx = excel * prices[kc], co = r.sheets * prices[kc];
+    html += `<tr><td>${gkName(k)}</td><td class="num">${fmt(netArea, 2)}</td><td class="num">${fmt(excel, 2)}</td><td class="num"><b>${r.sheets}</b></td><td class="num">${fmt(r.used / 1e6 / (r.sheets * SHEET_M2) * 100, 1)}%</td><td class="num">${fmt(cx)}</td><td class="num">${fmt(co)}</td><td class="num ${co > cx ? 'bad' : 'ok'}">${co - cx >= 0 ? '+' : ''}${fmt(co - cx)}</td></tr>`;
   });
   document.getElementById('hojasBody').innerHTML = html || '<tr><td colspan="8" class="empty">Agrega gabinetes primero.</td></tr>';
   document.getElementById('nestMsg').textContent = err || ((warn.length ? 'Aviso: ' + [...new Set(warn)].join('; ') + '. ' : '') + 'Cálculo hecho con las medidas actuales de cada gabinete (incluye ancho/alto/fondo personalizados).');
-  lastNest = { sig: nestSignature(), sheets };
+  lastNest = { sig: nestSignature(), sheets, byCls };
   recalc();
 }
 
@@ -1032,14 +1020,14 @@ const folioTxt = () => loadedId ? 'Folio MW-' + String(loadedId).padStart(4, '0'
 function setSaveMsg(t, kind){ const m = $v('saveMsg'); m.textContent = t; m.style.color = kind === 'ok' ? 'var(--good, #1b7f4c)' : kind === 'err' ? 'var(--danger, #c0392b)' : ''; }
 
 function collectQuote(){
-  const f = ['cliente', 'proyecto', 'fecha', 'tc', 'acabado', 'util', 'mo', 'gif', 'metodo', 'slideType', 'manija', 'jalSel', 'areaActiva', 'vigencia', 'nivelCotiz', 'pagoTxt'];
+  const f = ['cliente', 'proyecto', 'fecha', 'tc', 'acabado', 'util', 'mo', 'gif', 'metodo', 'areaActiva', 'vigencia', 'nivelCotiz', 'pagoTxt'];
   const d = { v: 1, campos: {}, perfiles: {}, precios: Object.assign({}, prices), preciosConfirmados: pricesChecked };
   f.forEach(id => { d.campos[id] = $v(id).value; });
   ['lateral', 'inferior', 'custom'].forEach(k => { d.perfiles[k] = [$v('slC_' + k).value, $v('slL_' + k).value]; });
   d.gabinetes = [...document.querySelectorAll('#cabBody tr.cab')].map(tr => ({
     sku: tr.querySelector('.c-sku').value, w: tr.querySelector('.c-w').value, h: tr.querySelector('.c-h').value, d: tr.querySelector('.c-d').value,
     qty: tr.querySelector('.c-qty').value, area: tr.querySelector('.c-area').value, color: tr.querySelector('.c-color').value,
-    slide: tr.querySelector('.c-slide').value, handle: tr.querySelector('.c-handle').value, ndiv: tr.querySelector('.c-ndiv').value, auto: tr.dataset.auto || '', incBase: tr.dataset.incBase || ''
+    slide: tr.querySelector('.c-slide').value, open: tr.querySelector('.c-open').value, jal: tr.querySelector('.c-jal').value, front: tr.querySelector('.c-front').value, fmat: tr.querySelector('.c-fmat').value, tone: tr.querySelector('.c-tone').value, ndiv: tr.querySelector('.c-ndiv').value, auto: tr.dataset.auto || '', incBase: tr.dataset.incBase || ''
   }));
   d.extras = [...document.querySelectorAll('#extBody tr.ext')].map(tr => ({
     name: tr.querySelector('.e-name').value, cost: tr.querySelector('.e-cost').value, qty: tr.querySelector('.e-qty').value, direct: tr.querySelector('.e-direct').checked
@@ -1126,7 +1114,7 @@ function aplicarCotizacion(row){
   $v('cabBody').innerHTML = ''; $v('extBody').innerHTML = '';
   Object.keys(d.campos || {}).forEach(id => { if ($v(id)) $v(id).value = d.campos[id]; });
   Object.keys(d.perfiles || {}).forEach(k => { $v('slC_' + k).value = d.perfiles[k][0]; $v('slL_' + k).value = d.perfiles[k][1]; });
-  setJaladera();
+  (d.gabinetes || []).forEach(g => { if (g.jal) ensureJalKey(g.jal); });
   PRICE_LIST.forEach(p => { prices[p.key] = (d.precios && d.precios[p.key] != null) ? d.precios[p.key] : p.price; });
   renderPrices();
   document.querySelectorAll('[data-price-key]').forEach(e => e.classList.toggle('changed', prices[e.dataset.priceKey] !== PRICE_LIST.find(x => x.key === e.dataset.priceKey).price));
@@ -1137,8 +1125,11 @@ function aplicarCotizacion(row){
     tr.querySelector('.c-w').value = g.w; tr.querySelector('.c-h').value = g.h; tr.querySelector('.c-d').value = g.d;
     tr.querySelector('.c-qty').value = g.qty; tr.querySelector('.c-area').value = g.area || '';
     if (g.color) tr.querySelector('.c-color').value = g.color;
-    tr.querySelector('.c-slide').value = g.slide || '';
-    tr.querySelector('.c-handle').value = g.handle || '';
+    tr.querySelector('.c-slide').value = g.slide || 'lateral';
+    if (g.open) tr.querySelector('.c-open').value = g.open; else if (g.handle === 'sin') tr.querySelector('.c-open').value = 'jaladera';
+    if (g.jal) tr.querySelector('.c-jal').value = g.jal;
+    tr.querySelector('.c-front').value = g.front || 'liso'; tr.querySelector('.c-fmat').value = g.fmat || 'mel'; tr.querySelector('.c-tone').value = g.tone || '';
+    syncOpts(tr, MODELS[g.sku], false);
     tr.querySelector('.c-ndiv').value = g.ndiv;
     if (g.auto){
       tr.dataset.auto = g.auto; tr.dataset.incBase = g.incBase || '0';
@@ -1153,7 +1144,7 @@ function aplicarCotizacion(row){
   });
   loadedName = row.nombre; loadedId = row.id || null; lastNest = null; $v('hojasBody').innerHTML = '';
   setPricesChecked(!!d.preciosConfirmados);
-  syncMetodo(); recalc();
+  recalc();
 }
 async function borrarCotizacion(i, btn){
   if (!btn.dataset.armed){
@@ -1170,18 +1161,48 @@ async function borrarCotizacion(i, btn){
   } catch(e){ setSaveMsg('No se pudo eliminar: ' + e.message, 'err'); }
 }
 
-const METODO_TXT = { lateral: 'corredera lateral (como el Excel)', inferior: 'corredera inferior Blum', custom: 'corredera personalizada', gola: 'gola', sin: 'jaladera / tirador (sin gola)' };
-function aplicarMetodo(){
-  const v = document.getElementById('metodoConst').value;
-  if (v !== 'custom'){ const [sl, mn] = v.split('|'); document.getElementById('slideType').value = sl; document.getElementById('manija').value = mn; }
-  syncMetodo(); recalc();
+
+// ---------- Opciones por gabinete: apertura, jaladera, frente, material y color ----------
+const usesFront = m => m.parts.some(p => p.cls === 'mdfColor');
+const hasOpening = m => usesGola(m) || handlesOf(m) > 0;
+const gkCls = gk => gk.split('|')[0];
+const gkName = gk => { const [c, t] = gk.split('|'); return nameOf(c) + (t ? ' — ' + t : ''); };
+function jalOptions(){
+  return '<option value="">Otra (capturar precio)</option>' + JAL_CAT.map(j => `<option value="${j[0]}">${j[1]}${j[2] ? ' - $' + fmt(j[2]) : ' - sin precio'}</option>`).join('');
 }
-function syncMetodo(){
-  const sl = document.getElementById('slideType').value, mn = document.getElementById('manija').value;
-  const sel = document.getElementById('metodoConst'), key = sl + '|' + mn;
-  sel.value = [...sel.options].some(o => o.value === key) ? key : 'custom';
-  document.getElementById('metodoResumen').textContent = 'Todos los gabinetes van con ' + METODO_TXT[sl] + ' y ' + METODO_TXT[mn] + ', salvo los que cambies en su renglón.' + (mn === 'sin' ? ' La jaladera se agrega sola: una por puerta y una por cajón.' : '');
-  document.getElementById('jalWrap').style.opacity = '1';
+function ensureJalKey(code){
+  const key = 'jal_' + (code || 'otra');
+  if (!PRICE_LIST.some(p => p.key === key)){
+    const j = JAL_CAT.find(x => x[0] === code);
+    const p = j ? { key, name: 'JALADERA ' + j[1].toUpperCase() + ' (' + j[0] + (j[2] ? ', ref. Odoo ' + j[3] : ', SIN PRECIO en Compras') + ')', um: 'PIEZA', grp: 'Jaladeras', price: j[2] || 0 }
+                : { key, name: 'JALADERA (otra) - SIN PRECIO: capturar al cotizar', um: 'PIEZA', grp: 'Jaladeras', price: 0 };
+    PRICE_LIST.push(p); prices[key] = p.price;
+    if (document.getElementById('pricesBody')) renderPrices();
+  }
+  return key;
+}
+function syncOpts(tr, m, reset){
+  const op = tr.querySelector('.c-open'), cur = op.value;
+  const list = usesGola(m) ? OPEN_BASE : OPEN_WALL;
+  op.innerHTML = list.map(o => `<option value="${o[0]}">${o[1]}</option>`).join('');
+  op.value = !reset && list.some(o => o[0] === cur) ? cur : list[0][0];
+  const show = (c, v) => { tr.querySelector(c).style.display = v ? '' : 'none'; };
+  show('.c-l-open', hasOpening(m)); show('.c-l-front', hasOpening(m));
+  show('.c-l-jal', hasOpening(m) && op.value === 'jaladera');
+  show('.c-l-fmat', usesFront(m)); show('.c-l-tone', usesFront(m));
+  show('.c-l-slide', usesSlide(m));
+  tr.querySelector('.c-opts').style.display = (hasOpening(m) || usesFront(m) || usesSlide(m)) ? '' : 'none';
+}
+function specTxt(m, o){
+  const t = [];
+  if (hasOpening(m)){
+    const lab = (usesGola(m) ? OPEN_BASE : OPEN_WALL).find(x => x[0] === o.open);
+    if (o.open === 'jaladera'){ const j = JAL_CAT.find(x => x[0] === o.jal); t.push(j ? 'jaladera ' + j[1].toLowerCase() : 'jaladera'); }
+    else if (lab && o.open !== 'gola') t.push(lab[1].toLowerCase());
+    if (o.front === 'shaker') t.push('frente shaker');
+  }
+  if (usesFront(m)){ const mt = o.mat && o.mat !== 'mel' ? FMAT[o.mat].toLowerCase() : ''; const tone = (o.tone || '').trim(); if (mt || tone) t.push([mt, tone].filter(Boolean).join(' ')); }
+  return t.length ? ' · ' + t.join(' · ') : '';
 }
 
 // ---------- Captura rapida ----------
@@ -1191,8 +1212,9 @@ function handlesOf(m){
   return Math.round((hw.bisagra || 0) / 1.025) + Math.round((hw.corredera || 0) / 1.025);
 }
 function copyCabFields(src, tr, withQty){
-  ['.c-w', '.c-h', '.c-d', '.c-area', '.c-color', '.c-slide', '.c-handle', '.c-ndiv'].forEach(c => { tr.querySelector(c).value = src.querySelector(c).value; });
+  ['.c-w', '.c-h', '.c-d', '.c-area', '.c-color', '.c-slide', '.c-open', '.c-jal', '.c-front', '.c-fmat', '.c-tone', '.c-ndiv'].forEach(c => { tr.querySelector(c).value = src.querySelector(c).value; });
   if (withQty) tr.querySelector('.c-qty').value = src.querySelector('.c-qty').value;
+  syncOpts(tr, MODELS[tr.querySelector('.c-sku').value], false);
   if (src.dataset.auto){ tr.dataset.auto = src.dataset.auto; tr.dataset.incBase = src.dataset.incBase || '0';
     if (src.dataset.auto === '1'){ tr.querySelector('.c-w').disabled = true; tr.querySelector('.c-ndiv').disabled = true; } }
 }
@@ -1213,16 +1235,6 @@ function dupCab(btn){
   const det = tr.nextElementSibling;
   src.nextElementSibling.after(tr, det);
   recalc();
-}
-function fillJaladeras(){
-  document.getElementById('jalSel').innerHTML = JALADERAS.map((j, i) => `<option value="${i}">${j[1]}${j[2] ? ' - $' + fmt(j[2]) + ' MXN' : ''}</option>`).join('');
-}
-function setJaladera(){
-  const j = JALADERAS[+document.getElementById('jalSel').value || 0], p = PRICE_LIST.find(x => x.key === 'jaladera');
-  p.name = j[0] ? 'JALADERA ' + j[1].replace(/^Jaladera /i, '').toUpperCase() + ' (' + j[0] + ')' : 'JALADERA / TIRADOR (capturar precio)';
-  if (j[2]) prices.jaladera = j[2];
-  renderPrices();
-  document.querySelectorAll('[data-price-key]').forEach(e => e.classList.toggle('changed', prices[e.dataset.priceKey] !== (PRICE_LIST.find(x => x.key === e.dataset.priceKey) || {}).price));
 }
 function clientLabel(m){
   if (m.line === 'BASE') return famLabel(m) + ' (' + m.sku + ')';
@@ -1263,12 +1275,12 @@ document.addEventListener('change', () => { draftDirty = true; saveDraft(); });
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#cabBody, #extBody, .btn')) { draftDirty = true; saveDraft(); } });
 
 // ---------- Interfaz: barra superior, pasos y tarjetas de metodo ----------
-const STEPS = [['projPanel', 'Proyecto'], ['metodoPanel', 'Método de construcción'], ['costeoPanel', 'Costeo interno'], ['cabPanel', 'Gabinetes'],
+const STEPS = [['projPanel', 'Proyecto'], ['costeoPanel', 'Costeo interno'], ['cabPanel', 'Gabinetes'],
   ['extPanel', 'Herrajes y extras'], ['resPanel', 'Resumen'], ['bomPanel', 'Materiales'], ['cotizPanel', 'Cotización']];
 let activeStep = 'projPanel';
 function stepDone(id){
   const nCab = document.querySelectorAll('#cabBody tr.cab').length;
-  return { projPanel: !!($v('cliente').value.trim() && $v('proyecto').value.trim()), metodoPanel: true, costeoPanel: true,
+  return { projPanel: !!($v('cliente').value.trim() && $v('proyecto').value.trim()), costeoPanel: true,
            cabPanel: nCab > 0 && pricesChecked, extPanel: nCab > 0, resPanel: nCab > 0, bomPanel: nCab > 0, cotizPanel: !!loadedId }[id];
 }
 function renderSteps(){
@@ -1285,13 +1297,7 @@ function updateChrome(){
   $v('tbProj').innerHTML = esc(proj || 'Nueva cotización') + ` <span>· ${esc(cli || 'sin cliente')} · ${folioTxt()}</span>`;
   window.__kpi = Object.assign(window.__kpi || {}, { hojas: bomData ? bomData.rowsB.reduce((a, r) => a + r.buy, 0) : 0 });
   renderSteps();
-  const v = $v('metodoConst').value;
-  document.querySelectorAll('#mcards .mcard').forEach(c => c.classList.toggle('on', c.dataset.v === v));
 }
-document.addEventListener('click', e => {
-  const c = e.target.closest && e.target.closest('#mcards .mcard');
-  if (c){ $v('metodoConst').value = c.dataset.v; aplicarMetodo(); }
-});
 if ('IntersectionObserver' in window){
   const io = new IntersectionObserver(es => {
     es.filter(x => x.isIntersecting).forEach(x => { activeStep = x.target.id; renderSteps(); });
@@ -1306,8 +1312,7 @@ document.addEventListener('input', e => { if (e.target && (e.target.id === 'proy
   document.getElementById('mo').value = g.mo * 100; document.getElementById('gif').value = g.gif * 100;
   document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
   PRICE_LIST.forEach(p => { prices[p.key] = p.price; });
-  fillJaladeras(); setJaladera();
-  renderPrices(); setPricesChecked(false); syncMetodo(); recalc(); checkDraft();
+  renderPrices(); setPricesChecked(false); recalc(); checkDraft();
 })();
 </script>
 </body>
