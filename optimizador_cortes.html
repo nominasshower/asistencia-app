@@ -7,46 +7,46 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
-    --bg:#0f1720; --panel:#1a2530; --panel2:#20303d; --border:#2c3e4c;
-    --text:#e8eef2; --muted:#8fa3b0; --accent:#3fb8af; --accent2:#f2a154;
-    --danger:#e06565; --good:#4caf7d;
+    --bg:#f4f3f0; --panel:#ffffff; --panel2:#f8f7f4; --border:#e3e0da; --line:#ece9e3;
+    --text:#191919; --muted:#6f6a61; --accent:#191919; --accent2:#b86a1f; --stone:#b9b2a6;
+    --danger:#b23b3b; --good:#2f6b45; --head:#f1efeb; --head-text:#5d5950;
   }
   *{box-sizing:border-box;}
   body{
-    margin:0; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    background:var(--bg); color:var(--text); padding:24px;
+    margin:0; font-family:'Hanken Grotesk',-apple-system,Segoe UI,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:0; font-size:14px;
   }
   h1{font-size:22px; margin:0 0 4px;}
-  h2{font-size:16px; margin:0 0 12px; color:var(--accent);}
+  h2{font-family:'Fraunces',Georgia,serif; font-weight:500; font-size:21px; margin:0 0 14px; color:var(--text);}
   .sub{color:var(--muted); font-size:13px; margin-bottom:24px;}
-  .grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  .grid{display:grid; grid-template-columns:minmax(0,1fr); gap:0;}
   @media(max-width:900px){.grid{grid-template-columns:1fr;}}
   .panel{
-    background:var(--panel); border:1px solid var(--border); border-radius:10px;
-    padding:18px; margin-bottom:20px;
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:22px 24px; margin-bottom:18px; box-shadow:0 1px 2px rgba(25,25,25,.04); scroll-margin-top:84px;
   }
   .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;}
   label{font-size:12px; color:var(--muted); display:block; margin-bottom:3px;}
   input[type=number], input[type=text]{
-    background:var(--panel2); border:1px solid var(--border); color:var(--text);
-    padding:7px 9px; border-radius:6px; font-size:13px; width:100%; min-width:50px;
+    background:#fff; border:1px solid #d9d5cd; color:var(--text);
+    padding:8px 10px; border-radius:8px; font-size:13px; width:100%; min-width:50px; font-family:inherit;
   }
   input[type=checkbox]{width:16px; height:16px;}
   table{width:100%; border-collapse:collapse; font-size:13px;}
-  th{text-align:left; color:var(--muted); font-weight:500; padding:6px 6px; border-bottom:1px solid var(--border); font-size:11px; text-transform:uppercase; letter-spacing:.03em;}
-  td{padding:5px 6px; border-bottom:1px solid var(--border);}
+  th{text-align:left; background:var(--head); color:var(--head-text); font-weight:600; padding:9px 7px; font-size:10px; text-transform:uppercase; letter-spacing:.12em;}
+  td{padding:6px 7px; border-bottom:1px solid var(--line);}
   td input{padding:5px 7px;}
   .btn{
-    background:var(--accent); border:none; color:#062421; font-weight:600;
-    padding:9px 16px; border-radius:7px; cursor:pointer; font-size:13px;
+    background:var(--accent); border:1px solid var(--accent); color:#fff; font-weight:600;
+    padding:9px 16px; border-radius:8px; cursor:pointer; font-size:13px; font-family:inherit;
   }
-  .btn:hover{filter:brightness(1.08);}
-  .btn.secondary{background:var(--panel2); color:var(--text); border:1px solid var(--border);}
-  .btn.danger{background:transparent; color:var(--danger); border:1px solid var(--danger); padding:4px 9px; font-size:12px;}
+  .btn:hover{filter:brightness(1.25);}
+  .btn.secondary{background:#fff; color:var(--text); border:1px solid #d9d5cd;} .btn.secondary:hover{background:var(--panel2); filter:none;}
+  .btn.danger{background:#fff; color:var(--danger); border:1px solid #f0d4d4; padding:5px 10px; font-size:12px;} .btn.danger:hover{background:#fdf3f3; filter:none;}
   .btn.small{padding:4px 9px; font-size:12px;}
   .col-name{width:32%;} .col-num{width:16%;}
-  .col-del{width:40px; position:sticky; right:0; background:var(--panel2); box-shadow:-6px 0 8px -6px rgba(0,0,0,.5);}
-  th.col-del{background:var(--panel); z-index:2;}
+  .col-del{width:40px; position:sticky; right:0; background:#fff; box-shadow:-6px 0 8px -6px rgba(0,0,0,.12);}
+  th.col-del{background:var(--head); z-index:2;}
   td.col-del{z-index:1;}
   .actions{display:flex; gap:10px; margin-top:10px;}
   .empty-hint{color:var(--muted); font-size:12px; padding:12px 0; text-align:center; font-style:italic;}
@@ -55,17 +55,44 @@
     background:var(--panel2); border:1px solid var(--border); border-radius:8px;
     padding:10px 16px; min-width:120px;
   }
-  .stat .val{font-size:20px; font-weight:700;}
-  .stat .lbl{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em;}
+  .stat .val{font-family:'Fraunces',Georgia,serif; font-size:21px; font-weight:500;}
+  .stat .lbl{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.12em;}
   .stat.good .val{color:var(--good);}
   .stat.warn .val{color:var(--accent2);}
   .cmp-table td, .cmp-table th{text-align:center;}
   .cmp-table td:first-child, .cmp-table th:first-child{text-align:left;}
   .cmp-row-best{background:rgba(76,175,125,.12);}
   select{
-    background:var(--panel2); border:1px solid var(--border); color:var(--text);
-    padding:7px 9px; border-radius:6px; font-size:13px;
+    background:#fff; border:1px solid #d9d5cd; color:var(--text);
+    padding:8px 10px; border-radius:8px; font-size:13px; font-family:inherit;
   }
+  input:focus, select:focus{outline:none; border-color:#191919; box-shadow:0 0 0 3px rgba(25,25,25,.10);}
+  input[type=checkbox]{accent-color:#191919;}
+  /* barra superior y pasos */
+  .topbar{position:sticky; top:0; z-index:60; height:64px; background:#0d0d0d; color:#fff; display:flex; align-items:center; gap:18px; padding:0 24px; border-bottom:4px solid var(--stone);}
+  .topbar img{height:34px; display:block;}
+  .tb-sep{width:1px; height:28px; background:#333;}
+  .tb-kicker{font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-weight:600;}
+  .topbar .tb-kicker{color:var(--stone);}
+  .tb-proj{font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:42vw;}
+  .tb-proj span{color:#bdb7ad; font-weight:400;}
+  .tb-total{display:flex; flex-direction:column; align-items:flex-end; margin-left:auto;}
+  .tb-total b{font-family:'Fraunces',Georgia,serif; font-weight:500; font-size:22px; line-height:1.1;}
+  .topbar .btn{background:#fff; color:#0d0d0d; border-color:#fff;} .topbar .btn.secondary{background:transparent; color:#fff; border-color:#555;}
+  .layout{display:grid; grid-template-columns:236px minmax(0,1fr); max-width:1680px; margin:0 auto;}
+  .steps{position:sticky; top:68px; align-self:start; height:calc(100vh - 68px); overflow:auto; padding:22px 12px 22px 22px; display:flex; flex-direction:column; gap:3px;}
+  .steps .tb-kicker{padding:0 10px 10px;}
+  .steps a{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; color:#4f4b45; text-decoration:none; font-size:13px; border:1px solid transparent;}
+  .steps a:hover{background:rgba(255,255,255,.7);}
+  .steps a.off{opacity:.45;}
+  .steps a .n{width:22px; height:22px; flex:none; border-radius:11px; border:1px solid #cdc8bf; color:var(--muted); font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+  .steps a.done .n{background:#e3efe6; color:var(--good); border-color:#e3efe6;}
+  .steps a.active{background:#fff; border-color:var(--border); color:var(--text); font-weight:600;}
+  .steps a.active .n{background:#191919; color:#fff; border-color:#191919;}
+  .main{padding:22px 24px 48px 8px; min-width:0;}
+  .banner-draft{background:#fbf3e8; border:1px solid #ecd2ad; border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:13px;}
+  .quote-doc{border:1px solid var(--border);}
+  @media (max-width: 980px){ .layout{grid-template-columns:1fr;} .steps{display:none;} .main{padding:16px;} .tb-hide-sm{display:none !important;} }
   .sheets-wrap{display:flex; flex-wrap:wrap; gap:20px;}
   .sheet-card{background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:12px;}
   .sheet-card .title{font-size:12px; color:var(--muted); margin-bottom:8px;}
@@ -85,9 +112,9 @@
   .extracut-chip{display:flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--border);
     border-radius:5px; padding:3px 7px; font-size:11px; color:var(--text); white-space:nowrap;}
   .extracut-chip button{background:transparent; border:none; color:var(--danger); cursor:pointer; font-size:13px; line-height:1; padding:0;}
-  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; align-items:center; justify-content:center;}
-  .modal-box{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px; width:320px; max-width:90vw;}
-  .modal-box h3{margin:0 0 14px; font-size:15px; color:var(--accent);}
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(25,25,25,.45); z-index:100; align-items:center; justify-content:center;}
+  .modal-box{background:#fff; border:1px solid var(--border); border-radius:14px; padding:22px; width:340px; max-width:90vw; box-shadow:0 20px 50px rgba(25,25,25,.2);}
+  .modal-box h3{margin:0 0 14px; font-size:17px; color:var(--text); font-family:'Fraunces',Georgia,serif; font-weight:500;}
   .modal-sides{display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin:4px 0 16px;}
   .modal-sides label{display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;}
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:6px;}
@@ -96,6 +123,7 @@
   input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
   @media print{
     @page{ margin:14mm 12mm; }
+    .topbar, .steps, .banner-draft{display:none !important;} .layout{display:block;} .main{padding:0;} .panel{box-shadow:none;} .quote-doc{border:none;}
     body{background:#fff; color:#000; padding:0;}
     body[data-print="resultados"] .panel:not(#resultsPanel){display:none !important;}
     body[data-print="cotizacion"] .panel:not(#cotizacionFinalPanel){display:none !important;}
@@ -153,14 +181,21 @@
 </head>
 <body>
 
-<div class="top-actions">
-  <div>
-    <h1>Optimizador de Cortes</h1>
-    <div class="sub" style="margin-bottom:0;">Acomodo de piezas rectangulares sobre láminas (lógica tipo CutMaster) — Kuartz: lavabos y cocinetas</div>
-  </div>
-</div>
+<header class="topbar no-print">
+  <img id="tbLogo" alt="Küartz Surfaces">
+  <div class="tb-sep tb-hide-sm"></div>
+  <div style="min-width:0;"><div class="tb-kicker">Optimizador y cotizador</div><div class="tb-proj" id="tbProj">Nueva cotización</div></div>
+  <div class="tb-total"><div class="tb-kicker">Balance USD</div><b id="tbTotal">$0.00</b></div>
+  <button class="btn secondary tb-hide-sm" onclick="saveProject()">Guardar</button>
+  <button class="btn" onclick="printPanel('cotizacion')">PDF para el cliente</button>
+</header>
+<div class="layout">
+<nav class="steps no-print" id="steps"></nav>
+<main class="main">
+<div id="draftBanner" class="banner-draft no-print" style="display:none;"><span class="txt"></span>
+  <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;"><button class="btn small" onclick="recoverDraftKZ()">Recuperar borrador</button><button class="btn secondary small" onclick="clearDraftKZ()">Descartar</button></div></div>
 
-<div class="panel">
+<div class="panel" id="buscarPanel">
   <h2>Buscar cotización guardada</h2>
   <div class="row">
     <div style="width:260px;">
@@ -172,14 +207,14 @@
       <select id="projectSelector" style="width:100%;" size="1"><option value="">— Selecciona —</option></select>
     </div>
     <button class="btn secondary" style="margin-top:18px;" onclick="loadSelectedProject()">Cargar</button>
-    <button class="btn danger" style="margin-top:18px;" onclick="deleteSelectedProject()">Eliminar</button>
+    <button class="btn danger" style="margin-top:18px;" onclick="deleteSelectedProject(this)">Eliminar</button>
     <button class="btn secondary" style="margin-top:18px;" onclick="toggleReport()">Ver reporte de cotizaciones</button>
   </div>
   <div id="projectMsg" class="sub" style="margin:0;"></div>
   <div id="quotesReportWrap" style="margin-top:14px; display:none;"></div>
 </div>
 
-<div class="panel">
+<div class="panel" id="datosPanel">
   <h2>Datos de esta cotización</h2>
   <div class="sub" style="margin:0 0 8px;">Cliente/Contacto/Proyecto se llenan solos al importar el Excel (sección A). "Persona" es quién de nosotros la captura.</div>
   <div class="row">
@@ -192,13 +227,13 @@
       <input type="text" id="projectPerson" placeholder="Ej. Juan Pérez">
     </div>
     <button class="btn" style="margin-top:18px;" onclick="saveProject()">Guardar cotización</button>
-    <button class="btn danger" style="margin-top:18px;" onclick="nuevaCotizacion()">🗑️ Nueva cotización (borrar todo)</button>
+    <button class="btn danger" style="margin-top:18px;" onclick="nuevaCotizacion()">Nueva cotización (borrar todo)</button>
   </div>
   <div id="clientInfoWrap" class="sub" style="margin:6px 0 0;"></div>
 </div>
 
-<div class="panel">
-  <h2>A. Piezas de la cotización (formato cliente)</h2>
+<div class="panel" id="clientePanel">
+  <h2>Piezas de la cotización (formato cliente)</h2>
   <div class="sub" style="margin-bottom:10px;">Captura aquí las medidas tal como en la cotización que se manda al cliente (pulgadas). "Factor $/sqft" es para piezas de cuarzo (vanity top, backsplash, isla); "Precio fijo" es para extras sin fórmula de sqft (ej. sink, instalación).</div>
   <div class="row">
     <div>
@@ -232,8 +267,8 @@
   <div id="clientTotalsWrap" style="margin-top:10px;"></div>
 </div>
 
-<div class="panel">
-  <h2>1. Configuración de corte</h2>
+<div class="panel" id="configPanel">
+  <h2>Configuración de corte</h2>
   <div class="row">
     <div style="width:160px;">
       <label>Espacio entre piezas / kerf (mm)</label>
@@ -261,8 +296,8 @@
 </div>
 
 <div class="grid">
-  <div class="panel">
-    <h2>2. Catálogo de tamaños de lámina</h2>
+  <div class="panel" id="catalogoPanel">
+    <h2>Catálogo de tamaños de lámina</h2>
     <div id="hintSizes" class="empty-hint" style="display:none;">Agrega los tamaños de lámina que manejas. Se guardan en este navegador para tus próximas cotizaciones.</div>
     <div class="table-scroll">
     <table id="tblSizes" style="display:none; min-width:1150px;">
@@ -277,8 +312,8 @@
     <div id="sugerirMsg" class="sub" style="margin:6px 0 0;"></div>
   </div>
 
-  <div class="panel">
-    <h2>3. Piezas a cortar (lavabos / cocinetas)</h2>
+  <div class="panel" id="piezasPanel">
+    <h2>Piezas a cortar (lavabos / cocinetas)</h2>
     <div id="hintPieces" class="empty-hint" style="display:none;">Agrega los modelos/piezas de esta cotización con su ancho, alto y cantidad.</div>
     <div class="table-scroll">
     <table id="tblPieces" style="display:none; min-width:1180px;">
@@ -292,7 +327,7 @@
   </div>
 </div>
 
-<div class="panel">
+<div class="panel" id="optPanel">
   <button class="btn" onclick="runOptimization()">Optimizar cortes</button>
   <span id="errorMsg" style="color:var(--danger); font-size:13px; margin-left:12px;"></span>
 </div>
@@ -300,8 +335,8 @@
 <div class="panel" id="resultsPanel" style="display:none;">
   <h2>Resultados</h2>
   <div id="staleBanner" style="display:none; background:rgba(242,161,84,.15); border:1px solid var(--accent2); border-radius:8px; padding:10px 14px; margin-bottom:14px; align-items:center; gap:12px; flex-wrap:wrap;">
-    <span style="color:var(--accent2);">⚠ Cambiaste algo (catálogo, piezas o configuración) después de optimizar — estos resultados pueden estar desactualizados.</span>
-    <button class="btn small" onclick="runOptimization()">🔄 Recalcular</button>
+    <span style="color:var(--accent2);">Cambiaste algo (catálogo, piezas o configuración) después de optimizar — estos resultados pueden estar desactualizados.</span>
+    <button class="btn small" onclick="runOptimization()">Recalcular</button>
   </div>
   <div id="cmpWrap"></div>
   <div class="row" style="margin-top:16px;">
@@ -309,7 +344,7 @@
       <label>Ver diseño de lámina:</label>
       <select id="sizeSelector" onchange="renderSheetsForSelected()"></select>
     </div>
-    <button class="btn secondary" style="margin-top:18px;" onclick="printPanel('resultados')">📄 Guardar como PDF / Imprimir planos de corte</button>
+    <button class="btn secondary" style="margin-top:18px;" onclick="printPanel('resultados')">Guardar como PDF / Imprimir planos de corte</button>
   </div>
   <div class="sub no-print" style="margin:6px 0 0;">Se abre el diálogo de impresión — en "Destino" elige <b>"Guardar como PDF"</b> para bajarlo y mandarlo a planta, o elige tu impresora.</div>
   <div id="sheetsWrap" class="sheets-wrap" style="margin-top:16px;"></div>
@@ -320,7 +355,7 @@
 <div class="panel" id="costeoPanel" style="display:none;">
   <h2>Costeo interno (fórmulas del Reporte de Cotizaciones)</h2>
   <div class="sub" style="margin-bottom:10px;">Todos los valores (Costo×Placa, Costo×Pulgada, Tipo de corte) se leen directo del catálogo de la Sección 2 — un renglón ahí es un material completo. Si mezclas materiales que se cortan distinto, cada uno usa su propia tarifa automáticamente. Costo/margen se actualizan solos; si cambias ancho/alto de una lámina o las piezas, dale <b>Recalcular</b>.</div>
-  <button class="btn secondary small" onclick="runOptimization()" style="margin-bottom:10px;">🔄 Recalcular</button>
+  <button class="btn secondary small" onclick="runOptimization()" style="margin-bottom:10px;">Recalcular</button>
   <div class="table-scroll">
     <table class="cmp-table" style="min-width:1200px; margin-top:10px;">
       <thead><tr>
@@ -336,8 +371,11 @@
 
 <div class="panel" id="cotizacionFinalPanel">
   <h2>Cotización final (para el cliente)</h2>
-  <button class="btn secondary small" onclick="printPanel('cotizacion')" style="margin-bottom:4px;">📄 Guardar como PDF / Imprimir</button>
+  <button class="btn secondary small" onclick="printPanel('cotizacion')" style="margin-bottom:4px;">Guardar como PDF / Imprimir</button>
   <div id="cotizacionFinalWrap"></div>
+</div>
+
+</main>
 </div>
 
 <div class="modal-overlay" id="corteExtraModal">
@@ -791,7 +829,7 @@ function renderCotizacionFinal(items, grupos, freight, deposit, balance){
   const m2 = n => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   let html = '<div class="quote-doc">';
   html += `<div class="qd-topk"><img src="data:image/webp;base64,${KUARTZ_LOGO_B64}" alt="Küartz Surfaces">
-    <div><div class="qd-kicker">Cotización · Quote</div><div class="qd-dt">${info.date || ''}</div></div></div><div class="qd-stone"></div>`;
+    <div><div class="qd-kicker">${kzFolio()} · Quote</div><div class="qd-dt">${info.date || ''}</div></div></div><div class="qd-stone"></div>`;
   html += `<div class="qd-body"><div class="qd-hero"><div><div class="qd-kicker">Cotización para</div><div class="qd-name">${info.customer || 'Cliente'}</div>${info.project ? `<div class="qd-sub">${info.project}</div>` : ''}</div>
     <div class="qd-kpi"><span>Balance</span><b>$${m2(balance)}</b><i>USD</i></div></div>`;
 
@@ -831,6 +869,7 @@ function renderCotizacionFinal(items, grupos, freight, deposit, balance){
   html += '</div>';
 
   wrap.innerHTML = html;
+  window.__kzBal = balance; updateChromeKZ();
 }
 
 function generarPiezasDeCorte(){
@@ -938,6 +977,7 @@ function cerrarConfirmNueva(){
 
 function confirmarNuevaCotizacion(){
   cerrarConfirmNueva();
+  loadedIdKZ = null; clearDraftKZ();
 
   document.getElementById('clientItemsBody').innerHTML = '';
   document.getElementById('piecesBody').innerHTML = '';
@@ -985,12 +1025,14 @@ async function saveProject(){
     const data = collectProjectData();
     const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?on_conflict=nombre`, {
       method: 'POST',
-      headers: { ...SUP_HEADERS, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+      headers: { ...SUP_HEADERS, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({ nombre: name, persona: persona, config: data.config, piezas: data.piezas })
     });
     if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+    try { const rr = await r.json(); if (rr && rr[0] && rr[0].id) loadedIdKZ = rr[0].id; } catch(e){}
+    clearDraftKZ(); updateChromeKZ(); renderClientTotals();
     await populateProjectSelector(name);
-    setProjectMsg(`Guardado "${name}" en Supabase (${new Date().toLocaleString('es-MX')})`, 'ok');
+    setProjectMsg(`${kzFolio()} · Guardado "${name}" en Supabase (${new Date().toLocaleString('es-MX')})`, 'ok');
   } catch(e){
     setProjectMsg('Error al guardar en Supabase: ' + e.message, 'err');
   }
@@ -1003,6 +1045,30 @@ async function loadSelectedProject(){
   await loadProjectByName(name);
 }
 
+function applyProjectData(data, name){
+  document.getElementById('projectName').value = name;
+  document.getElementById('projectPerson').value = data.persona || '';
+  const cfg = data.config || {};
+  document.getElementById('kerf').value = cfg.kerf ?? 5;
+  document.getElementById('edgeMargin').value = cfg.edgeMargin ?? 10;
+  document.getElementById('allowRotation').checked = !!cfg.allowRotation;
+  document.getElementById('cutMode').value = cfg.cutMode || 'guillotine';
+  document.getElementById('freight').value = cfg.freight ?? 0;
+  document.getElementById('deposit').value = cfg.deposit ?? 0;
+  lastClientInfo = cfg.clientInfo || {};
+  renderClientInfo();
+  document.getElementById('clientItemsBody').innerHTML = '';
+  const clientItems = cfg.clientItems || [];
+  clientItems.forEach(ci => addClientItemRow(ci));
+  if (!clientItems.length) addClientItemRow();
+  document.getElementById('piecesBody').innerHTML = '';
+  const piezas = data.piezas || [];
+  piezas.forEach(p => addPieceRow(p));
+  if (!piezas.length) addPieceRow();
+  toggleEmptyStates();
+  renderClientTotals();
+}
+
 async function loadProjectByName(name){
   document.getElementById('projectSelector').value = name;
   setProjectMsg('Cargando…');
@@ -1012,38 +1078,24 @@ async function loadProjectByName(name){
     const rows = await r.json();
     const data = rows[0];
     if (!data){ setProjectMsg(`No se encontró "${name}".`, 'err'); return; }
-    document.getElementById('projectName').value = name;
-    document.getElementById('projectPerson').value = data.persona || '';
-    const cfg = data.config || {};
-    document.getElementById('kerf').value = cfg.kerf ?? 5;
-    document.getElementById('edgeMargin').value = cfg.edgeMargin ?? 10;
-    document.getElementById('allowRotation').checked = !!cfg.allowRotation;
-    document.getElementById('cutMode').value = cfg.cutMode || 'guillotine';
-    document.getElementById('freight').value = cfg.freight ?? 0;
-    document.getElementById('deposit').value = cfg.deposit ?? 0;
-    lastClientInfo = cfg.clientInfo || {};
-    renderClientInfo();
-    document.getElementById('clientItemsBody').innerHTML = '';
-    const clientItems = cfg.clientItems || [];
-    clientItems.forEach(ci => addClientItemRow(ci));
-    if (!clientItems.length) addClientItemRow();
-    document.getElementById('piecesBody').innerHTML = '';
-    const piezas = data.piezas || [];
-    piezas.forEach(p => addPieceRow(p));
-    if (!piezas.length) addPieceRow();
-    toggleEmptyStates();
-    renderClientTotals();
+    applyProjectData(data, name); loadedIdKZ = data.id || null; clearDraftKZ(); updateChromeKZ();
     setProjectMsg(`Cargado "${name}" (guardado ${new Date(data.updated_at).toLocaleString('es-MX')})`, 'ok');
   } catch(e){
     setProjectMsg('Error al cargar desde Supabase: ' + e.message, 'err');
   }
 }
 
-async function deleteSelectedProject(){
+async function deleteSelectedProject(btn){
   const sel = document.getElementById('projectSelector');
   const name = sel.value;
   if (!name) return;
-  if (!confirm(`¿Eliminar la cotización guardada "${name}"?`)) return;
+  if (btn && !btn.dataset.armed){
+    btn.dataset.armed = '1'; btn.textContent = 'Confirmar eliminar';
+    setProjectMsg(`Pulsa "Confirmar eliminar" para borrar "${name}".`, 'err');
+    setTimeout(() => { if (btn.isConnected){ delete btn.dataset.armed; btn.textContent = 'Eliminar'; } }, 4000);
+    return;
+  }
+  if (btn){ delete btn.dataset.armed; btn.textContent = 'Eliminar'; }
   setProjectMsg('Eliminando…');
   try {
     const r = await fetch(`${SUP_URL}/rest/v1/${COTIZ_TABLE}?nombre=eq.${encodeURIComponent(name)}`, {
@@ -1439,7 +1491,7 @@ function renderComparison(){
   });
   html += '</tbody></table>';
   const anyUnmatched = matchInfo.some(m => m.colorLabel !== 'Sin color' && !m.error && !m.matched);
-  if (anyUnmatched) html += `<div class="waste-note" style="color:var(--accent2);">⚠ Hay material(es) sin una lámina del mismo nombre en el catálogo — agrégala con el nombre exacto del color/material para que use su tamaño y costo real, si no está usando la primera lámina del catálogo como respaldo.</div>`;
+  if (anyUnmatched) html += `<div class="waste-note" style="color:var(--accent2);">Hay material(es) sin una lámina del mismo nombre en el catálogo — agrégala con el nombre exacto del color/material para que use su tamaño y costo real, si no está usando la primera lámina del catálogo como respaldo.</div>`;
   wrap.innerHTML = html;
 }
 
@@ -1464,12 +1516,12 @@ function renderSheetsForSelected(){
     const w = bin.sheetW*scale, h = bin.sheetH*scale;
     const em = res.edgeMargin*scale;
     let svg = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`;
-    svg += `<rect x="0" y="0" width="${w}" height="${h}" fill="#0b141b" stroke="var(--border)" stroke-width="1"/>`;
-    svg += `<rect x="${em}" y="${em}" width="${w-2*em}" height="${h-2*em}" fill="none" stroke="#33475a" stroke-dasharray="4,3" stroke-width="1"/>`;
+    svg += `<rect x="0" y="0" width="${w}" height="${h}" fill="#efece6" stroke="#cdc8bf" stroke-width="1"/>`;
+    svg += `<rect x="${em}" y="${em}" width="${w-2*em}" height="${h-2*em}" fill="none" stroke="#a9a296" stroke-dasharray="4,3" stroke-width="1"/>`;
     bin.placed.forEach(p => {
       const x = em + p.x*scale, y = em + p.y*scale, pw = p.w*scale, ph = p.h*scale;
       const color = PALETTE[p.colorIdx % PALETTE.length];
-      svg += `<rect x="${x}" y="${y}" width="${pw}" height="${ph}" fill="${color}" stroke="#0b141b" stroke-width="1.5" rx="2"/>`;
+      svg += `<rect x="${x}" y="${y}" width="${pw}" height="${ph}" fill="${color}" stroke="#ffffff" stroke-width="1.5" rx="2"/>`;
       const label = p.name.length > 16 ? p.name.slice(0,15)+'…' : p.name;
       svg += `<text x="${x+pw/2}" y="${y+ph/2-4}" text-anchor="middle" class="piece-label">${label}${p.rotated?' ↻':''}</text>`;
       svg += `<text x="${x+pw/2}" y="${y+ph/2+10}" text-anchor="middle" class="piece-dim">${p.origW}x${p.origH}mm</text>`;
@@ -1715,6 +1767,71 @@ initSizes();
 renderClientTotals();
 renderClientInfo();
 populateProjectSelector();
+
+// ---------- Interfaz: barra superior, pasos, folio y borrador ----------
+let loadedIdKZ = null;
+const kzFolio = () => loadedIdKZ ? 'Folio KZ-' + String(loadedIdKZ).padStart(4, '0') : 'Borrador';
+const KZ_STEPS = [['buscarPanel', 'Buscar guardada'], ['datosPanel', 'Datos de la cotización'], ['clientePanel', 'Piezas (formato cliente)'], ['configPanel', 'Configuración de corte'],
+  ['catalogoPanel', 'Catálogo de láminas'], ['piezasPanel', 'Piezas a cortar'], ['optPanel', 'Optimizar'], ['resultsPanel', 'Planos de corte'], ['costeoPanel', 'Costeo interno'], ['cotizacionFinalPanel', 'Cotización']];
+let kzActive = 'buscarPanel';
+const kzEsc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function kzDone(id){
+  const n = sel => document.querySelectorAll(sel).length;
+  return { buscarPanel: !!loadedIdKZ, datosPanel: !!(document.getElementById('projectName').value.trim() && document.getElementById('projectPerson').value.trim()),
+    clientePanel: n('#clientItemsBody tr') > 0, configPanel: true, catalogoPanel: n('#sizesBody tr') > 0, piezasPanel: n('#piecesBody tr') > 0,
+    optPanel: document.getElementById('resultsPanel').style.display !== 'none', resultsPanel: document.getElementById('resultsPanel').style.display !== 'none',
+    costeoPanel: document.getElementById('costeoPanel').style.display !== 'none', cotizacionFinalPanel: !!loadedIdKZ }[id];
+}
+function updateChromeKZ(){
+  const el = document.getElementById('steps'); if (!el) return;
+  const info = (typeof lastClientInfo !== 'undefined' && lastClientInfo) || {};
+  document.getElementById('tbTotal').textContent = '$' + Number(window.__kzBal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.getElementById('tbProj').innerHTML = kzEsc(document.getElementById('projectName').value.trim() || 'Nueva cotización') + ` <span>· ${kzEsc(info.customer || 'sin cliente')} · ${kzFolio()}</span>`;
+  el.innerHTML = '<div class="tb-kicker">Pasos</div>' + KZ_STEPS.map(([id, t], i) => {
+    const p = document.getElementById(id), hidden = p && p.style.display === 'none', done = kzDone(id);
+    return `<a href="#${id}" class="${done ? 'done' : ''} ${id === kzActive ? 'active' : ''} ${hidden ? 'off' : ''}"><span class="n">${done && id !== kzActive ? '&#10003;' : i + 1}</span>${t}</a>`;
+  }).join('');
+}
+if ('IntersectionObserver' in window){
+  const io = new IntersectionObserver(es => { es.filter(x => x.isIntersecting).forEach(x => { kzActive = x.target.id; updateChromeKZ(); }); }, { rootMargin: '-80px 0px -65% 0px' });
+  window.addEventListener('load', () => KZ_STEPS.forEach(([id]) => { const p = document.getElementById(id); if (p) io.observe(p); }));
+}
+// borrador automatico en este navegador
+const KZ_DRAFT = 'kz_optimizador_borrador_v1';
+let kzDirty = false, kzTimer = null;
+function saveDraftKZ(){
+  if (!kzDirty) return;
+  clearTimeout(kzTimer);
+  kzTimer = setTimeout(() => {
+    try {
+      const d = collectProjectData();
+      if (!d.piezas.length && !(d.config.clientItems || []).some(x => x.producto || +x.d || +x.w)) return;
+      localStorage.setItem(KZ_DRAFT, JSON.stringify({ at: new Date().toISOString(), name: document.getElementById('projectName').value, persona: document.getElementById('projectPerson').value, id: loadedIdKZ, data: d }));
+    } catch(e){ /* sin almacenamiento disponible */ }
+  }, 800);
+}
+function clearDraftKZ(){ kzDirty = false; try { localStorage.removeItem(KZ_DRAFT); } catch(e){} const b = document.getElementById('draftBanner'); if (b) b.style.display = 'none'; }
+function checkDraftKZ(){
+  let d = null; try { d = JSON.parse(localStorage.getItem(KZ_DRAFT)); } catch(e){}
+  if (!d || !d.data) return;
+  const b = document.getElementById('draftBanner');
+  b.querySelector('.txt').textContent = `Hay un borrador sin guardar de "${d.name || 'sin nombre'}" (${(d.data.config.clientItems || []).length} renglones de cliente, ${d.data.piezas.length} piezas, ${new Date(d.at).toLocaleString('es-MX')}).`;
+  b.style.display = 'block';
+}
+function recoverDraftKZ(){
+  let d = null; try { d = JSON.parse(localStorage.getItem(KZ_DRAFT)); } catch(e){}
+  if (!d) return;
+  applyProjectData({ persona: d.persona, config: d.data.config, piezas: d.data.piezas }, d.name || '');
+  loadedIdKZ = d.id || null;
+  document.getElementById('draftBanner').style.display = 'none';
+  setProjectMsg('Borrador recuperado. Recuerda pulsar "Guardar cotización".', 'ok');
+  updateChromeKZ();
+}
+document.addEventListener('input', () => { kzDirty = true; saveDraftKZ(); updateChromeKZ(); });
+document.addEventListener('change', () => { kzDirty = true; saveDraftKZ(); });
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('tbody, .btn')) { kzDirty = true; saveDraftKZ(); } });
+if (typeof runOptimization === 'function'){ const _runOpt = runOptimization; runOptimization = function(){ const r = _runOpt.apply(this, arguments); updateChromeKZ(); return r; }; }
+window.addEventListener('load', () => { const l = document.getElementById('tbLogo'); if (l) l.src = 'data:image/webp;base64,' + KUARTZ_LOGO_B64; checkDraftKZ(); updateChromeKZ(); });
 </script>
 </body>
 </html>

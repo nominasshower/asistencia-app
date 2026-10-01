@@ -1082,7 +1082,7 @@ async function guardarCotizacion(btn){
     });
     if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
     try { const rr = await r.json(); if (rr && rr[0] && rr[0].id) loadedId = rr[0].id; } catch(e){}
-    loadedName = nombre; clearDraft(); renderCotizacion();
+    loadedName = nombre; clearDraft(); renderCotizacion(); updateChrome();
     setSaveMsg(`${folioTxt()} · Guardada "${nombre}" (${new Date().toLocaleString('es-MX')}).`, 'ok');
     if ($v('savedDetails').open) cargarLista();
   } catch(e){
