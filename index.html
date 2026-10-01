@@ -859,30 +859,40 @@ function handleNuevoOpt(selId, listKey) {
   }
 }
 
+// ─── CATÁLOGOS (áreas/turnos/mano de obra/puestos) — derivados de Supabase ───
+async function cargarCatalogosDesdeSupabase() {
+  const key = empresaActual;
+  if (catalogosCache[key]) return catalogosCache[key];
+  const emp = EMPRESAS[key];
+  const cats = { areas:[], turnos:[], manosObra:[], puestos:[] };
+  try {
+    if (!datosEmpleados) datosEmpleados = await fetchRH("empleados", emp.sup_empresa);
+    const seenA=new Set(), seenP=new Set(), seenM=new Set();
+    datosEmpleados.forEach(e => {
+      const a = (e.area||"").trim().toUpperCase();
+      const p = (e.puesto||"").trim().toUpperCase();
+      const m = (e.mano_obra||"").trim().toUpperCase();
+      if (a && !seenA.has(a)) { seenA.add(a); cats.areas.push(a); }
+      if (p && !seenP.has(p)) { seenP.add(p); cats.puestos.push(p); }
+      if (m && !seenM.has(m)) { seenM.add(m); cats.manosObra.push(m); }
+    });
+    cats.areas.sort(); cats.puestos.sort(); cats.manosObra.sort();
+    const turnosMap = await asegurarTurnosCache();
+    cats.turnos = Object.keys(turnosMap).sort();
+  } catch(e) {}
+  if (!cats.manosObra.length) cats.manosObra = ["MOD","MOI","ADMIN","STAFF"];
+  catalogosCache[key] = cats;
+  return cats;
+}
+
 // ─── EDITAR EMPLEADO ─────────────────────────────────────────
 async function editarEmpleado(emp) {
   const empresa = EMPRESAS[empresaActual];
   const key = empresaActual;
   if (!catalogosCache[key]) {
     document.getElementById("content").innerHTML = `<div class="loading"><div class="spinner"></div><div>Cargando catálogos...</div></div>`;
-    const cats = { areas:[], turnos:[], manosObra:[], puestos:[] };
-    try {
-      const base = `https://sheets.googleapis.com/v4/spreadsheets/${empresa.sheets_id}/values/`;
-      const [rA,rT,rM,rE] = await Promise.all([
-        fetch(`${base}AREA?key=${API_KEY}`),
-        fetch(`${base}TURNOS?key=${API_KEY}`),
-        fetch(`${base}${encodeURIComponent("MANO DE OBRA")}?key=${API_KEY}`),
-        fetch(`${base}EMPLEADOS?key=${API_KEY}`)
-      ]);
-      if (rA.ok) { const d=await rA.json(); cats.areas=(d.values||[]).slice(1).map(r=>r[1]||"").filter(Boolean); }
-      if (rT.ok) { const d=await rT.json(); cats.turnos=(d.values||[]).slice(1).map(r=>r[0]||"").filter(Boolean); }
-      if (rM.ok) { const d=await rM.json(); cats.manosObra=(d.values||[]).slice(1).map(r=>r[1]||"").filter(Boolean); }
-      if (rE.ok) { const d=await rE.json(); const seen=new Set(); cats.puestos=(d.values||[]).slice(1).map(r=>(r[3]||"").trim().toUpperCase()).filter(p=>p&&!seen.has(p)&&seen.add(p)).sort(); }
-    } catch(e) {}
-    if (!cats.manosObra.length) cats.manosObra = ["MOD","MOI","ADMIN","STAFF"];
-    catalogosCache[key] = cats;
   }
-  const {areas,turnos,manosObra,puestos} = catalogosCache[key];
+  const {areas,turnos,manosObra,puestos} = await cargarCatalogosDesdeSupabase();
   const inp = `background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;width:100%;`;
   const lbl = `font-size:10px;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;`;
   const selOpts = (list, val, listKey, selId) => {
@@ -965,13 +975,9 @@ async function guardarEdicion(e, nomina) {
   btn.disabled = true;
   btn.innerHTML = `<div class="spinner" style="width:13px;height:13px;margin-right:6px;flex-shrink:0"></div>Guardando...`;
   msg.style.display = "none";
-  const payload = {
-    accion:    "editar",
-    sheets_id: empresa.sheets_id,
-    empresa:   empresa.nombre,
-    nomina,
-    nombre:    document.getElementById("ef-nombre").value.trim(),
-    apellido:  document.getElementById("ef-apellido").value.trim(),
+  const nombreCompleto = `${document.getElementById("ef-nombre").value.trim()} ${document.getElementById("ef-apellido").value.trim()}`.trim();
+  const body = {
+    nombre:    nombreCompleto,
     area:      document.getElementById("ef-area").value,
     puesto:    document.getElementById("ef-puesto").value,
     turno:     document.getElementById("ef-turno").value,
@@ -979,14 +985,18 @@ async function guardarEdicion(e, nomina) {
     sexo:      document.getElementById("ef-sexo").value,
   };
   try {
-    const resp = await fetch(EMPRESAS[empresaActual].script_url || APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload) });
-    const result = await resp.json();
+    const resp = await fetch(`${SUP_URL}/rest/v1/empleados?empresa=eq.${encodeURIComponent(empresa.sup_empresa)}&nomina=eq.${encodeURIComponent(nomina)}`, {
+      method: "PATCH",
+      headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Content-Profile": "rh", "Content-Type": "application/json", "Prefer": "return=minimal" },
+      body: JSON.stringify(body)
+    });
     msg.style.display = "block";
-    if (result.ok) {
-      msg.innerHTML = `<div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;color:#4ade80;font-size:13px">✓ ${result.msg||"Cambios guardados"}</div>`;
+    if (resp.ok) {
+      msg.innerHTML = `<div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;color:#4ade80;font-size:13px">✓ Cambios guardados</div>`;
       datosEmpleados = null;
     } else {
-      msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ ${result.error||"Error al guardar"}</div>`;
+      const errTxt = await resp.text();
+      msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ HTTP ${resp.status}: ${errTxt}</div>`;
     }
   } catch(err) {
     msg.style.display = "block";
@@ -1005,32 +1015,16 @@ async function renderAltaEmpleado() {
 
   if (!catalogosCache[key]) {
     document.getElementById("content").innerHTML = `<div class="loading"><div class="spinner"></div><div>Cargando catálogos de ${emp.nombre}...</div></div>`;
-    const cats = { areas:[], turnos:[], manosObra:[], puestos:[] };
-    try {
-      const base = `https://sheets.googleapis.com/v4/spreadsheets/${emp.sheets_id}/values/`;
-      const [rA,rT,rM,rE] = await Promise.all([
-        fetch(`${base}AREA?key=${API_KEY}`),
-        fetch(`${base}TURNOS?key=${API_KEY}`),
-        fetch(`${base}${encodeURIComponent("MANO DE OBRA")}?key=${API_KEY}`),
-        fetch(`${base}EMPLEADOS?key=${API_KEY}`)
-      ]);
-      if (rA.ok) { const d=await rA.json(); cats.areas=(d.values||[]).slice(1).map(r=>r[1]||"").filter(Boolean); }
-      if (rT.ok) { const d=await rT.json(); cats.turnos=(d.values||[]).slice(1).map(r=>r[0]||"").filter(Boolean); }
-      if (rM.ok) { const d=await rM.json(); cats.manosObra=(d.values||[]).slice(1).map(r=>r[1]||"").filter(Boolean); }
-      if (rE.ok) { const d=await rE.json(); const seen=new Set(); cats.puestos=(d.values||[]).slice(1).map(r=>(r[3]||"").trim().toUpperCase()).filter(p=>p&&!seen.has(p)&&seen.add(p)).sort(); }
-    } catch(e) {}
-    if (!cats.manosObra.length) cats.manosObra = ["MOD","MOI","ADMIN","STAFF"];
-    catalogosCache[key] = cats;
   }
+  const {areas,turnos,manosObra,puestos} = await cargarCatalogosDesdeSupabase();
 
-  const {areas,turnos,manosObra,puestos} = catalogosCache[key];
   const inp = `background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;width:100%;`;
   const lbl = `font-size:10px;color:var(--muted);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;`;
   const syncNota = {
-    woods:   "Corre <b>subir_empleados.py</b> en la PC de Modul Woods para sincronizar al reloj.",
+    woods:   "Corre <b>subir_empleados_woods.py</b> en la PC de Modul Woods para sincronizar al reloj.",
     shower:  "Corre <b>subir_empleados.py</b> en la PC de Shower Walls para sincronizar al reloj.",
-    modular: "Cuando tengas el reloj, configura y corre su script de sincronización.",
-    kuartz:  "Cuando tengas el reloj, configura y corre su script de sincronización."
+    modular: "Corre <b>subir_empleados_modular.py</b> en la PC de Modular para sincronizar al reloj.",
+    kuartz:  "Corre <b>subir_empleados_kuartz.py</b> en la PC de Shower Walls para sincronizar al reloj (comparte reloj con Shower)."
   }[empresaActual] || "";
 
   document.getElementById("content").innerHTML = `
@@ -1115,7 +1109,7 @@ async function renderAltaEmpleado() {
           <div style="display:flex;gap:8px">
             <button type="submit" id="alta-btn" class="btn btn-accent" style="flex:1;justify-content:center">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              Guardar en Sheets
+              Guardar en Supabase
             </button>
             <button type="button" class="btn" onclick="delete catalogosCache[empresaActual];renderAltaEmpleado()">Limpiar</button>
           </div>
@@ -1152,33 +1146,48 @@ async function guardarEmpleado(e) {
   btn.innerHTML = `<div class="spinner" style="width:13px;height:13px;margin-right:6px;flex-shrink:0"></div>Guardando...`;
   msg.style.display = "none";
 
-  const payload = {
-    sheets_id:   emp.sheets_id,
-    empresa:     emp.nombre,
-    nomina:      document.getElementById("f-nomina").value.trim(),
-    nombre:      document.getElementById("f-nombre").value.trim(),
-    apellido:    document.getElementById("f-apellido").value.trim(),
+  const nomina = document.getElementById("f-nomina").value.trim();
+  const nombreCompleto = `${document.getElementById("f-nombre").value.trim()} ${document.getElementById("f-apellido").value.trim()}`.trim();
+  const body = {
+    empresa:     emp.sup_empresa,
+    nomina,
+    nombre:      nombreCompleto,
     area:        document.getElementById("f-area").value,
     puesto:      document.getElementById("f-puesto").value.trim(),
     turno:       document.getElementById("f-turno").value,
-    mano_obra:    document.getElementById("f-mano").value,
-    tipo_nomina:  document.getElementById("f-tipo").value,
-    sexo:         document.getElementById("f-sexo").value,
-    vale_importe: parseFloat(document.getElementById("f-vale").value) || 0,
-    puntualidad_5: parseFloat(document.getElementById("f-punt").value) || 0,
-    asistencia_10: parseFloat(document.getElementById("f-asi").value) || 0
+    mano_obra:   document.getElementById("f-mano").value,
+    tipo_nomina: document.getElementById("f-tipo").value,
+    sexo:        document.getElementById("f-sexo").value,
+    fecha_alta:  new Date().toISOString().split("T")[0],
   };
+  // Nota: vale_importe/puntualidad_5/asistencia_10 del formulario no tienen
+  // columna en rh.empleados hoy -- no se envian (PostgREST rechazaria un
+  // campo que no existe en la tabla).
 
   try {
-    const resp   = await fetch(EMPRESAS[empresaActual].script_url || APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload) });
-    const result = await resp.json();
+    const chk = await fetch(`${SUP_URL}/rest/v1/empleados?empresa=eq.${encodeURIComponent(emp.sup_empresa)}&nomina=eq.${encodeURIComponent(nomina)}&select=nomina`, {
+      headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Accept-Profile": "rh" }
+    });
+    const yaExiste = chk.ok ? (await chk.json()).length > 0 : false;
+
     msg.style.display = "block";
-    if (result.ok) {
-      msg.innerHTML = `<div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;color:#4ade80;font-size:13px">✓ ${result.msg}</div>`;
-      e.target.reset();
-      datosEmpleados = null;
+    if (yaExiste) {
+      msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ La nómina ${nomina} ya existe</div>`;
     } else {
-      msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ ${result.error}</div>`;
+      const resp = await fetch(`${SUP_URL}/rest/v1/empleados`, {
+        method: "POST",
+        headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Content-Profile": "rh", "Content-Type": "application/json", "Prefer": "return=minimal" },
+        body: JSON.stringify(body)
+      });
+      if (resp.ok) {
+        msg.innerHTML = `<div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;color:#4ade80;font-size:13px">✓ Empleado ${nomina} creado correctamente</div>`;
+        e.target.reset();
+        datosEmpleados = null;
+        delete catalogosCache[empresaActual];
+      } else {
+        const errTxt = await resp.text();
+        msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ HTTP ${resp.status}: ${errTxt}</div>`;
+      }
     }
   } catch(err) {
     msg.style.display = "block";
@@ -1186,7 +1195,7 @@ async function guardarEmpleado(e) {
   }
 
   btn.disabled = false;
-  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Guardar en Sheets`;
+  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Guardar en Supabase`;
 }
 
 // ─── BAJA DE EMPLEADO ────────────────────────────────────────
@@ -1393,25 +1402,22 @@ async function confirmarBaja() {
     return eliminarPorErrorCaptura();
   }
 
-  const payload = {
-    accion:     "baja",
-    sheets_id:  emp.sheets_id,
-    nomina:     bajaSeleccionado.nomina,
-    nombre:     bajaSeleccionado.nombre,
-    fecha_baja: document.getElementById("baja-fecha").value,
-    motivo:     document.getElementById("baja-motivo").value
-  };
+  const fechaBaja = document.getElementById("baja-fecha").value;
 
   try {
-    const resp   = await fetch(EMPRESAS[empresaActual].script_url || APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload) });
-    const result = await resp.json();
+    const resp = await fetch(`${SUP_URL}/rest/v1/empleados?empresa=eq.${encodeURIComponent(emp.sup_empresa)}&nomina=eq.${encodeURIComponent(bajaSeleccionado.nomina)}`, {
+      method: "PATCH",
+      headers: { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Content-Profile": "rh", "Content-Type": "application/json", "Prefer": "return=minimal" },
+      body: JSON.stringify({ fecha_baja: fechaBaja })
+    });
     msg.style.display = "block";
-    if (result.ok) {
-      msg.innerHTML = `<div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;color:#4ade80;font-size:13px">✓ ${result.msg}</div>`;
+    if (resp.ok) {
+      msg.innerHTML = `<div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;color:#4ade80;font-size:13px">✓ Baja registrada: ${bajaSeleccionado.nombre} (nómina ${bajaSeleccionado.nomina}), fecha ${fechaBaja}</div>`;
       bajaSeleccionado = null;
       datosEmpleados = null;   // invalidar caché de empleados
     } else {
-      msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ ${result.error}</div>`;
+      const errTxt = await resp.text();
+      msg.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;color:#f87171;font-size:13px">✗ HTTP ${resp.status}: ${errTxt}</div>`;
     }
   } catch(err) {
     msg.style.display = "block";
