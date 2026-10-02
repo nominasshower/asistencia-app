@@ -71,6 +71,7 @@
   /* barra superior y pasos */
   .topbar{position:sticky; top:0; z-index:60; height:64px; background:#0d0d0d; color:#fff; display:flex; align-items:center; gap:18px; padding:0 24px; border-bottom:4px solid var(--stone);}
   .topbar img{height:34px; display:block;}
+  .topbar .tb-back{text-decoration:none; display:inline-flex; align-items:center; white-space:nowrap; padding:7px 12px; font-size:12.5px;}
   .tb-sep{width:1px; height:28px; background:#333;}
   .tb-kicker{font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-weight:600;}
   .topbar .tb-kicker{color:var(--stone);}
@@ -192,6 +193,7 @@
 <body>
 
 <header class="topbar no-print">
+  <a class="btn secondary tb-back" href="cotizaciones.html" title="Volver al menú principal de cotizaciones">&larr;<span class="tb-hide-sm">&nbsp;Menú principal</span></a>
   <img id="tbLogo" alt="Küartz Surfaces">
   <div class="tb-sep tb-hide-sm"></div>
   <div style="min-width:0;"><div class="tb-kicker">Optimizador y cotizador</div><div class="tb-proj" id="tbProj">Nueva cotización</div></div>
