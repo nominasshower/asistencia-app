@@ -227,6 +227,8 @@
     <div style="width:130px;"><label>Tipo de cambio</label><input type="number" id="tc" step="0.01" min="1"></div>
     <div style="width:190px;"><label>Margen según acabado (tabla "%")</label>
       <select id="acabado" onchange="setAcabado()"><option value="35">Melamina y pintura (35%)</option><option value="30">Gabinetes de línea (30%)</option><option value="40">Foil (40%)</option><option value="45">Laminado (45%)</option><option value="50">Mancha y especiales (50%)</option></select></div>
+    <div style="width:250px;"><label>Utilidad, mano de obra y GIF se aplican</label>
+      <select id="pctModo" onchange="pctModoChange()"><option value="proyecto">Igual para todo el proyecto</option><option value="mueble">Por mueble (se pregunta en cada uno)</option></select></div>
     <div style="width:130px;"><label>% Utilidad (sobre precio)</label><input type="number" id="util" step="1" min="0" max="90"></div>
     <div style="width:130px;"><label>% Mano de obra</label><input type="number" id="mo" step="1" min="0"></div>
     <div style="width:130px;"><label>% GIF</label><input type="number" id="gif" step="1" min="0"></div>
@@ -542,6 +544,7 @@ function addCab(sku, noAsk){
         <label class="c-l-ap" style="display:none;">Aparato<select class="c-ap"><option value="Refrigerador">Refrigerador</option><option value="Estufa">Estufa</option><option value="Lavaplatos">Lavaplatos</option><option value="Horno">Horno</option><option value="Otro">Otro</option></select></label>
         <label class="c-l-wall">Pared (para el dibujo)<select class="c-wall"><option value="">Sin asignar</option><option value="A">Pared A (izquierda)</option><option value="B">Pared B (fondo)</option><option value="C">Pared C (derecha)</option><option value="I">Isla</option></select></label>
         <label class="c-l-mo" title="Déjalo vacío para usar el % del proyecto">Mano de obra %<input type="number" class="c-mo" min="0" step="1" placeholder="proyecto"></label>
+        <label class="c-l-gif" title="Déjalo vacío para usar el GIF del proyecto">GIF %<input type="number" class="c-gif" min="0" step="1" placeholder="proyecto"></label>
         <label class="c-l-ut" title="Déjalo vacío para usar la utilidad del proyecto">Utilidad %<input type="number" class="c-ut" min="0" max="95" step="1" placeholder="proyecto"></label>
         <label class="c-l-slide">Corredera<select class="c-slide"><option value="lateral">Lateral (Excel)</option><option value="inferior">Inferior Blum</option><option value="custom">Personalizada</option></select></label>
       </div>
@@ -638,6 +641,11 @@ function nuevaCotizacion(btn){
   PRICE_LIST.forEach(x => { prices[x.key] = x.price; }); renderPrices();
   setPricesChecked(false); openPrices(); recalc();
 }
+const pctMueble = () => (document.getElementById('pctModo') || {}).value === 'mueble';
+function pctModoChange(){
+  document.querySelectorAll('#cabBody tr.cab').forEach(tr => syncOpts(tr, MODELS[tr.querySelector('.c-sku').value], false));
+  recalc();
+}
 function setAcabado(){ document.getElementById('util').value = document.getElementById('acabado').value; recalc(); }
 function addKit(){
   const k = document.getElementById('kitSel').value;
@@ -682,12 +690,13 @@ function cabinets(){
   const list = [...document.querySelectorAll('#cabBody tr.cab')].map(tr => {
     const m = MODELS[tr.querySelector('.c-sku').value];
     const wv = parseFloat(tr.querySelector('.c-w').value), dv = parseFloat(tr.querySelector('.c-d').value);
+    const pm = pctMueble(), nv = c => tr.querySelector(c).value === '' ? null : (+tr.querySelector(c).value || 0);
     return { tr, m, W: isNaN(wv) ? m.W : wv, H: +tr.querySelector('.c-h').value || m.H, D: isNaN(dv) ? m.D : dv,
              color: usesColor(m) ? tr.querySelector('.c-color').value : null,
              slide: usesSlide(m) ? PROFILES[tr.querySelector('.c-slide').value || 'lateral'] : SLIDE,
              n: usesN(m) ? (parseInt(tr.querySelector('.c-ndiv').value) || 0) : 0, zf: usesN(m) && tr.querySelector('.c-zf').value === '1', tiras: usesN(m) ? (+tr.querySelector('.c-zt').value || 0) : 0,
-             mo: tr.querySelector('.c-mo').value === '' ? null : (+tr.querySelector('.c-mo').value || 0),
-             ut: tr.querySelector('.c-ut').value === '' ? null : Math.min(95, +tr.querySelector('.c-ut').value || 0),
+             mo: (pm || m.moDef != null) ? nv('.c-mo') : null,
+             ut: pm ? (nv('.c-ut') == null ? null : Math.min(95, nv('.c-ut'))) : null, gif: pm ? nv('.c-gif') : null,
              open: tr.querySelector('.c-open').value, jal: tr.querySelector('.c-jal').value, front: tr.querySelector('.c-front').value,
              mat: usesFront(m) ? tr.querySelector('.c-fmat').value : '', tone: usesFront(m) ? tr.querySelector('.c-tone').value : '',
              noGola: usesGola(m) && tr.querySelector('.c-open').value !== 'gola',
@@ -708,15 +717,15 @@ function cabinets(){
 function recalc(){
   readSlide();
   const p = P();
-  let totMat = 0, totUSD = 0, moLines = 0;
+  let totMat = 0, totUSD = 0, moLines = 0, gifLines = 0;
   const consumo = {}; PRICE_LIST.forEach(x => { consumo[x.key] = 0; });
   const cabs = cabinets();
   const quoteLines = [], areas = {}, pieces = {};
-  cabs.forEach(({ tr, m, W, H, D, color, slide, n, qty, noGola, open, jal, front, mat: fmat, tone, zf, tiras, noHw, mo: moRow, ut: utRow }) => {
+  cabs.forEach(({ tr, m, W, H, D, color, slide, n, qty, noGola, open, jal, front, mat: fmat, tone, zf, tiras, noHw, mo: moRow, ut: utRow, gif: gifRow }) => {
     if (m.sku === 'ESPACIO'){ tr.querySelector('.c-mat').textContent = '-'; tr.querySelector('.c-unit').textContent = 'sin costo'; tr.querySelector('.c-total').textContent = '-'; return; }
     const r = evalModel(m, W, H, D, color, slide, { n, noGola, open, jal, mat: fmat, tone, zf, tiras, noHw });
-    const mat = matCost(r.q), moUse = moRow != null ? moRow / 100 : p.mo, c = chain(mat, Object.assign({}, p, { mo: moUse, util: utRow != null ? utRow / 100 : p.util }));
-    moLines += mat * qty * moUse;
+    const mat = matCost(r.q), moUse = moRow != null ? moRow / 100 : p.mo, gifUse = gifRow != null ? gifRow / 100 : p.gif, c = chain(mat, Object.assign({}, p, { mo: moUse, gif: gifUse, util: utRow != null ? utRow / 100 : p.util }));
+    moLines += mat * qty * moUse; gifLines += mat * qty * gifUse;
     const area = tr.querySelector('.c-area').value.trim() || 'Sin área';
     const dimTxt = m.line === 'GEN' || m.line === 'FERN' ? `${fmt(W, 1)} x ${fmt(H, 1)}${D ? ' x ' + fmt(D, 1) : ''} in` : `${fmt(W, 1)} x ${fmt(H, 1)} x ${fmt(D, 1)} in`;
     quoteLines.push({ tr, area, grupo: grupoOf(m), spec: { m, open, jal, mat: fmat, tone, zf, slide: usesSlide(m) ? (tr.querySelector('.c-slide').value || 'lateral') : null }, label: clientLabel(m) + (color ? ' - ' + color : '') + specTxt(m, { open, jal, front, mat: fmat, tone, zf }), dim: dimTxt, qty, unit: c.usd, total: c.usd * qty });
@@ -756,12 +765,12 @@ function recalc(){
   document.getElementById('cabEmpty').style.display = cabs.length ? 'none' : 'block';
   document.getElementById('extEmpty').style.display = document.querySelectorAll('#extBody tr.ext').length ? 'none' : 'block';
 
-  let matAll = totMat + extMat, final = totUSD + extUSD, nota = '', moDelta = 0;
+  let matAll = totMat + extMat, final = totUSD + extUSD, nota = '', moDelta = 0, gifDelta = 0;
   const useOpt = document.getElementById('metodo').value === 'opt';
   if (useOpt){
     if (lastNest && lastNest.sig === nestSignature()){
       const delta = BOARD_KEYS.reduce((s, k) => s + (((lastNest.failed || {})[k] ? consumo[k] : ((lastNest.byCls || {})[k] || 0)) - consumo[k]) * (prices[k] || 0), 0);
-      matAll += delta; moDelta = delta * (totMat > 0 ? moLines / totMat : p.mo); final = totUSD + extUSD + chain(delta, Object.assign({}, p, { mo: totMat > 0 ? moLines / totMat : p.mo })).usd;
+      matAll += delta; moDelta = delta * (totMat > 0 ? moLines / totMat : p.mo); gifDelta = delta * (totMat > 0 ? gifLines / totMat : p.gif); final = totUSD + extUSD + chain(delta, Object.assign({}, p, { mo: totMat > 0 ? moLines / totMat : p.mo, gif: totMat > 0 ? gifLines / totMat : p.gif })).usd;
       nota = `Método hojas enteras: el material cambia ${delta >= 0 ? '+' : ''}${fmt(delta)} MXN contra el método del Excel.`;
     } else { nota = 'Calculando hojas enteras...'; scheduleNest(); }
   }
@@ -776,7 +785,7 @@ function recalc(){
   }
   const cuzRows = cuzData(), inst = instData();
   const cuzUSD = cuzRows.reduce((a, z) => a + z.usd, 0), instUSD = inst.on ? inst.precio / p.tc : 0, totalAll = final + cuzUSD + instUSD;
-  const mo = moLines + extMat * p.mo + moDelta, gif = matAll * p.gif;
+  const mo = moLines + extMat * p.mo + moDelta, gif = gifLines + extMat * p.gif + gifDelta;
   const costoTot = matAll + mo + gif + extDirectMX, precioMX = final * p.tc, utilMX = precioMX - costoTot;
   document.getElementById('stats').innerHTML = [
     ['Material (MXN)', fmt(matAll + extDirectMX)], ['Mano de obra', fmt(mo)], ['GIF', fmt(gif)],
@@ -1131,14 +1140,14 @@ function toast(t, kind){ const e = $v('toast'); if (!e) return; e.textContent = 
 function setSaveMsg(t, kind){ if (t && !/\.\.\.$/.test(t)) toast(t, kind); const m = $v('saveMsg'); m.textContent = t; m.style.color = kind === 'ok' ? 'var(--good, #1b7f4c)' : kind === 'err' ? 'var(--danger, #c0392b)' : ''; }
 
 function collectQuote(){
-  const f = ['cliente', 'proyecto', 'fecha', 'tc', 'acabado', 'util', 'mo', 'gif', 'metodo', 'areaActiva', 'moneda', 'vigencia', 'nivelCotiz', 'pagoTxt'];
+  const f = ['cliente', 'proyecto', 'fecha', 'tc', 'acabado', 'util', 'mo', 'gif', 'pctModo', 'metodo', 'areaActiva', 'moneda', 'vigencia', 'nivelCotiz', 'pagoTxt'];
   const d = { v: 1, campos: {}, perfiles: {}, precios: Object.assign({}, prices), preciosConfirmados: pricesChecked };
   f.forEach(id => { d.campos[id] = $v(id).value; });
   ['lateral', 'inferior', 'custom'].forEach(k => { d.perfiles[k] = [$v('slC_' + k).value, $v('slL_' + k).value]; });
   d.gabinetes = [...document.querySelectorAll('#cabBody tr.cab')].map(tr => ({
     sku: tr.querySelector('.c-sku').value, w: tr.querySelector('.c-w').value, h: tr.querySelector('.c-h').value, d: tr.querySelector('.c-d').value,
     qty: tr.querySelector('.c-qty').value, area: tr.querySelector('.c-area').value, color: tr.querySelector('.c-color').value,
-    slide: tr.querySelector('.c-slide').value, open: tr.querySelector('.c-open').value, jal: tr.querySelector('.c-jal').value, front: tr.querySelector('.c-front').value, fmat: tr.querySelector('.c-fmat').value, tone: tr.querySelector('.c-tone').value, zf: tr.querySelector('.c-zf').value, zt: tr.querySelector('.c-zt').value, wall: tr.querySelector('.c-wall').value, ap: tr.querySelector('.c-ap').value, mo: tr.querySelector('.c-mo').value, ut: tr.querySelector('.c-ut').value, ndiv: tr.querySelector('.c-ndiv').value, auto: tr.dataset.auto || '', incBase: tr.dataset.incBase || ''
+    slide: tr.querySelector('.c-slide').value, open: tr.querySelector('.c-open').value, jal: tr.querySelector('.c-jal').value, front: tr.querySelector('.c-front').value, fmat: tr.querySelector('.c-fmat').value, tone: tr.querySelector('.c-tone').value, zf: tr.querySelector('.c-zf').value, zt: tr.querySelector('.c-zt').value, wall: tr.querySelector('.c-wall').value, ap: tr.querySelector('.c-ap').value, mo: tr.querySelector('.c-mo').value, ut: tr.querySelector('.c-ut').value, gif: tr.querySelector('.c-gif').value, ndiv: tr.querySelector('.c-ndiv').value, auto: tr.dataset.auto || '', incBase: tr.dataset.incBase || ''
   }));
   try { d.kz = kzWin() ? kzWin().collectProjectData() : kzSaved; } catch(e){ d.kz = kzSaved; }
   d.inst = { on: $v('instOn').checked }; ['inst_of_n', 'inst_of_j', 'inst_ay_n', 'inst_ay_j', 'inst_dias', 'inst_tr_n', 'inst_tr_m', 'inst_cons', 'inst_util'].forEach(id => { d.inst[id] = $v(id).value; });
@@ -1245,7 +1254,7 @@ function aplicarCotizacion(row){
     if (g.jal) tr.querySelector('.c-jal').value = g.jal;
     tr.querySelector('.c-front').value = g.front || 'liso'; tr.querySelector('.c-fmat').value = g.fmat || 'mel'; tr.querySelector('.c-tone').value = g.tone || '';
     syncOpts(tr, MODELS[g.sku], false);
-    tr.querySelector('.c-ndiv').value = g.ndiv; tr.querySelector('.c-zf').value = g.zf || '0'; tr.querySelector('.c-zt').value = g.zt || ''; tr.querySelector('.c-wall').value = g.wall || ''; if (g.ap) tr.querySelector('.c-ap').value = g.ap; if (g.mo !== undefined) tr.querySelector('.c-mo').value = g.mo; if (g.ut !== undefined) tr.querySelector('.c-ut').value = g.ut;
+    tr.querySelector('.c-ndiv').value = g.ndiv; tr.querySelector('.c-zf').value = g.zf || '0'; tr.querySelector('.c-zt').value = g.zt || ''; tr.querySelector('.c-wall').value = g.wall || ''; if (g.ap) tr.querySelector('.c-ap').value = g.ap; if (g.mo !== undefined) tr.querySelector('.c-mo').value = g.mo; if (g.ut !== undefined) tr.querySelector('.c-ut').value = g.ut; if (g.gif !== undefined) tr.querySelector('.c-gif').value = g.gif;
     if (g.auto){
       tr.dataset.auto = g.auto; tr.dataset.incBase = g.incBase || '0';
       if (g.auto === '1'){ tr.querySelector('.c-w').disabled = true; tr.querySelector('.c-ndiv').disabled = true; }
@@ -1306,12 +1315,12 @@ function syncOpts(tr, m, reset){
   const list = usesGola(m) ? OPEN_BASE : OPEN_WALL;
   op.innerHTML = list.map(o => `<option value="${o[0]}">${o[1]}</option>`).join('');
   op.value = !reset && list.some(o => o[0] === cur) ? cur : list[0][0];
-  if (reset){ tr.querySelector('.c-mo').value = m.moDef != null ? m.moDef : ''; tr.querySelector('.c-ut').value = ''; }
+  if (reset){ tr.querySelector('.c-mo').value = m.moDef != null ? m.moDef : ''; tr.querySelector('.c-ut').value = ''; tr.querySelector('.c-gif').value = ''; }
   const show = (c, v) => { tr.querySelector(c).style.display = v ? '' : 'none'; };
   show('.c-l-open', hasOpening(m)); show('.c-l-front', hasOpening(m));
   show('.c-l-jal', hasOpening(m) && op.value === 'jaladera');
   show('.c-l-fmat', usesFront(m)); show('.c-l-tone', usesFront(m));
-  show('.c-l-slide', usesSlide(m)); show('.c-l-ap', m.sku === 'ESPACIO'); show('.c-l-mo', m.sku !== 'ESPACIO'); show('.c-l-ut', m.sku !== 'ESPACIO'); show('.c-l-tone', usesFront(m));
+  show('.c-l-slide', usesSlide(m)); show('.c-l-ap', m.sku === 'ESPACIO'); show('.c-l-mo', m.sku !== 'ESPACIO' && (pctMueble() || m.moDef != null)); show('.c-l-ut', m.sku !== 'ESPACIO' && pctMueble()); show('.c-l-gif', m.sku !== 'ESPACIO' && pctMueble()); show('.c-l-tone', usesFront(m));
   if (reset && m.sku === 'ESPACIO'){ const ap = tr.querySelector('.c-ap'); ap.onchange = () => { const hW = { Refrigerador: [36, 70], Estufa: [30, 36], Lavaplatos: [24, 34.5], Horno: [30, 50], Otro: [24, 34.5] }[ap.value]; tr.querySelector('.c-w').value = hW[0]; tr.querySelector('.c-h').value = hW[1]; recalc(); }; }
   tr.querySelector('.c-opts').style.display = '';
 }
@@ -1524,7 +1533,7 @@ function handlesOf(m){
   return Math.round(((hw.bisagra || 0) + (hw.bisagraCer || 0) + (hw.bisagraBlum || 0)) / 1.025) + Math.round(((hw.corredera || 0) + (hw.correderaCer16 || 0) + (hw.correderaBlum || 0)) / 1.025);
 }
 function copyCabFields(src, tr, withQty){
-  ['.c-w', '.c-h', '.c-d', '.c-area', '.c-color', '.c-slide', '.c-open', '.c-jal', '.c-front', '.c-fmat', '.c-tone', '.c-ndiv', '.c-zf', '.c-zt', '.c-mo', '.c-ut', '.c-wall', '.c-ap'].forEach(c => { tr.querySelector(c).value = src.querySelector(c).value; });
+  ['.c-w', '.c-h', '.c-d', '.c-area', '.c-color', '.c-slide', '.c-open', '.c-jal', '.c-front', '.c-fmat', '.c-tone', '.c-ndiv', '.c-zf', '.c-zt', '.c-mo', '.c-ut', '.c-gif', '.c-wall', '.c-ap'].forEach(c => { tr.querySelector(c).value = src.querySelector(c).value; });
   if (withQty) tr.querySelector('.c-qty').value = src.querySelector('.c-qty').value;
   syncOpts(tr, MODELS[tr.querySelector('.c-sku').value], false);
   if (src.dataset.auto){ tr.dataset.auto = src.dataset.auto; tr.dataset.incBase = src.dataset.incBase || '0';
@@ -1621,7 +1630,7 @@ document.addEventListener('input', e => { if (e.target && (e.target.id === 'proy
 (function init(){
   const g = COCINAS_DATA.globals;
   document.getElementById('tc').value = g.tc; document.getElementById('util').value = g.util * 100;
-  document.getElementById('mo').value = g.mo * 100; document.getElementById('gif').value = g.gif * 100;
+  document.getElementById('mo').value = g.mo * 100; document.getElementById('gif').value = g.gif * 100; document.getElementById('pctModo').value = 'proyecto';
   document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
   PRICE_LIST.forEach(p => { prices[p.key] = p.price; });
   renderPrices(); setPricesChecked(false); recalc(); checkDraft();
