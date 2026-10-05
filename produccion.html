@@ -969,6 +969,13 @@ function tagCorto(tag) {
   return t.length >= 14 ? t.slice(8, 14) : t.slice(0, 8);
 }
 
+// Fecha AAAA-MM-DD -> DD/MM/AAAA sin pasar por new Date(): "2026-09-11" se interpreta como
+// medianoche UTC y en horario de México se mostraba el día anterior a las 6:00 p. m.
+function fmtDia(f) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(f || "");
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "—";
+}
+
 function renderDtags(lista) {
   return lista.map(d => {
     const c = clasif(d);
@@ -6127,7 +6134,7 @@ async function renderMoldes() {
       <td style="color:var(--muted)">${m.medida}</td>
       <td style="color:var(--muted)">${m.linea}</td>
       <td style="text-align:center;font-family:'DM Mono',monospace">${m.usos}</td>
-      <td class="mono" style="font-size:11px;color:var(--muted)">${m.ultimaFecha ? fmt(m.ultimaFecha) : "—"}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted)" data-fecha="${m.ultimaFecha}">${fmtDia(m.ultimaFecha)}</td>
     </tr>`).join("") || `<tr><td colspan="7" class="empty">Sin datos — espera que cargue VAC_RAW</td></tr>`;
 
   document.getElementById("main-content").innerHTML = `
@@ -6191,7 +6198,7 @@ function descargarMoldes() {
     const esc = v => `"${(v||"").replace(/"/g,'""')}"`;
     csv += `${i},${esc(celdas[1].textContent.trim())},${esc(tagFull)},${esc(patron)},`
          + `${esc(celdas[3].textContent.trim())},${esc(celdas[4].textContent.trim())},`
-         + `${celdas[5].textContent.trim()},${esc(celdas[6].textContent.trim())}\n`;
+         + `${celdas[5].textContent.trim()},${esc(celdas[6].dataset.fecha || celdas[6].textContent.trim())}\n`;
   });
 
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
