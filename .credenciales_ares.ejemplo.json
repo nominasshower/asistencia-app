@@ -1,0 +1,5 @@
+{
+ "ssh_user": "usuario",
+ "ssh_pass": "contrasena_ssh",
+ "db_pass": "contrasena_bd"
+}

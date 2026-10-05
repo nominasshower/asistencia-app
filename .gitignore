@@ -1,1 +1,3 @@
 ".claude/" 
+# credenciales locales (nunca al repo)
+.credenciales_ares.json

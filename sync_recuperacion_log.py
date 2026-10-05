@@ -11,12 +11,16 @@ upsert por sku es barato) -- si crece mucho, cambiar a incremental por fecha.
 
 Requiere que supabase_recuperacion_skus_schema.sql ya se haya corrido.
 """
+import json as _json, os as _os
+# Credenciales de ares: NO van en el repositorio (publico). Viven en .credenciales_ares.json (ignorado por git)
+# con {"ssh_user": ..., "ssh_pass": ..., "db_pass": ...}. Ver .credenciales_ares.ejemplo.json
+_CRED = _json.load(open(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), ".credenciales_ares.json"), encoding="utf-8"))
 import paramiko
 import time
 import requests
 
 ARES_HOST, ARES_PORT = "10.111.9.254", 2020
-ARES_USER, ARES_PASS = "showerwalls", "c1t#5HoWa11S5!20"
+ARES_USER, ARES_PASS = _CRED["ssh_user"], _CRED["ssh_pass"]
 
 SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co"
 SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G"
@@ -31,7 +35,7 @@ def leer_recuperacion_log():
     s.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     s.connect(ARES_HOST, port=ARES_PORT, username=ARES_USER, password=ARES_PASS, timeout=15)
     _, o, e = s.exec_command(
-        "echo '[client]\nhost=127.0.0.1\nuser=connectit\npassword=Db$how3r20!20\ndatabase=db_shower' > /tmp/my_tmp.cnf"
+        "echo '[client]\nhost=127.0.0.1\nuser=connectit\npassword=" + _CRED["db_pass"] + "\ndatabase=db_shower' > /tmp/my_tmp.cnf"
     )
     time.sleep(1); o.read(); e.read()
 

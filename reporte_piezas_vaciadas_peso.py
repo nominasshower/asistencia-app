@@ -11,6 +11,10 @@ Uso:
     (default: hoy a hoy)
 """
 import sys
+import json as _json, os as _os
+# Credenciales de ares: NO van en el repositorio (publico). Viven en .credenciales_ares.json (ignorado por git)
+# con {"ssh_user": ..., "ssh_pass": ..., "db_pass": ...}. Ver .credenciales_ares.ejemplo.json
+_CRED = _json.load(open(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), ".credenciales_ares.json"), encoding="utf-8"))
 import paramiko
 import time
 import requests
@@ -21,7 +25,7 @@ SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G"
 HDR = {"apikey": SUP_KEY, "Authorization": f"Bearer {SUP_KEY}"}
 
 ARES_HOST, ARES_PORT = "10.111.9.254", 2020
-ARES_USER, ARES_PASS = "showerwalls", "c1t#5HoWa11S5!20"
+ARES_USER, ARES_PASS = _CRED["ssh_user"], _CRED["ssh_pass"]
 
 
 def skus_recuperados(desde, hasta):
@@ -34,7 +38,7 @@ def skus_recuperados(desde, hasta):
     # bash) -- server no soporta SFTP, se escribe con echo en comillas
     # simples para que el shell remoto no expanda el "$".
     _, o, e = s.exec_command(
-        "echo '[client]\nhost=127.0.0.1\nuser=connectit\npassword=Db$how3r20!20\ndatabase=db_shower' > /tmp/my_tmp.cnf"
+        "echo '[client]\nhost=127.0.0.1\nuser=connectit\npassword=" + _CRED["db_pass"] + "\ndatabase=db_shower' > /tmp/my_tmp.cnf"
     )
     time.sleep(1)
     o.read(); e.read()
