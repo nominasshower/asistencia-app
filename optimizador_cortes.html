@@ -390,7 +390,7 @@
   <div class="row no-print" id="kzMonRow" style="align-items:flex-end; margin-bottom:8px;">
     <div style="width:230px;"><label>Los precios que capturé están en</label><select id="kzCap" onchange="renderClientTotals()"><option value="USD">Dólares (USD)</option><option value="MXN">Pesos (MXN)</option></select></div>
     <div style="width:230px;"><label>La cotización sale en</label><select id="kzOut" onchange="renderClientTotals()"><option value="USD">Dólares (USD)</option><option value="MXN">Pesos (MXN)</option></select></div>
-    <div id="kzTcWrap" style="width:200px; display:none;"><label>Tipo de cambio (MXN por 1 USD)</label><input type="number" id="kzTc" value="17" min="0.01" step="0.01" oninput="renderClientTotals()"></div>
+    <div id="kzTcWrap" style="width:230px;"><label id="kzTcLbl">Tipo de cambio (MXN por 1 USD)</label><input type="number" id="kzTc" value="17" min="0.01" step="0.01" oninput="renderClientTotals()"></div>
     <button class="btn secondary small" onclick="printPanel('cotizacion')">Guardar como PDF / Imprimir</button>
   </div>
   <div id="cotizacionFinalWrap"></div>
@@ -856,11 +856,13 @@ const KUARTZ_LOGO_B64 = "UklGRlA1AABXRUJQVlA4WAoAAAAQAAAAdwUAvwEAQUxQSBECAAABDki
 function kzMon(){
   if (EMBED) return { code: 'USD', k: 1, tc: 0, conv: false };
   const cap = document.getElementById('kzCap').value, out = document.getElementById('kzOut').value, tc = parseFloat(document.getElementById('kzTc').value) || 0;
-  document.getElementById('kzTcWrap').style.display = cap !== out ? '' : 'none';
+  const tcIn = document.getElementById('kzTc'); tcIn.disabled = cap === out; tcIn.style.opacity = cap === out ? '.5' : '';
+  document.getElementById('kzTcLbl').textContent = cap === out ? 'Tipo de cambio (se usa si cambias de moneda)' : 'Tipo de cambio (MXN por 1 USD)';
   const conv = cap !== out && tc > 0;
   return { code: out, k: conv ? (cap === 'MXN' ? 1 / tc : tc) : 1, tc, conv, need: cap !== out && !(tc > 0) };
 }
 function renderCotizacionFinal(items, grupos, freight, deposit, balance){
+  kzMon();
   const wrap = document.getElementById('cotizacionFinalWrap');
   if (!items.length){ wrap.innerHTML = '<div class="sub" style="margin:0;">Agrega o importa piezas en la sección A para ver aquí la cotización lista.</div>'; return; }
 
