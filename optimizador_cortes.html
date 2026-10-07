@@ -258,10 +258,19 @@
     </div>
   </div>
   <div id="importCotizMsg" class="sub" style="margin:0 0 10px;"></div>
+  <div class="row" id="kzMatRow" style="align-items:flex-end;">
+    <div style="width:330px;"><label>Material de la cotización</label>
+      <select id="kzMatModo" onchange="renderClientTotals()"><option value="uno">Un solo tipo y color para todo el proyecto</option><option value="varios">Varios tipos y colores (cada grupo con el suyo)</option></select></div>
+    <div id="kzMatUno" style="display:flex; gap:14px;">
+      <div style="width:210px;"><label>Color</label><input type="text" id="kzMatColor" placeholder="Ej. Pure White" oninput="renderClientTotals()"></div>
+      <div style="width:110px;"><label>Espesor</label><input type="text" id="kzMatEsp" placeholder="Ej. 2cm" oninput="renderClientTotals()"></div>
+    </div>
+    <div class="sub" style="margin:0; flex:1; min-width:220px;" id="kzMatHint"></div>
+  </div>
   <div class="table-scroll">
     <table id="tblClientItems" style="min-width:1080px;">
       <thead><tr>
-        <th style="width:14%;">Producto</th><th style="width:10%;">Grupo (subtotal)</th><th style="width:10%;">Color/Material</th>
+        <th style="width:14%;">Producto</th><th style="width:10%;">Grupo (subtotal)</th><th style="width:9%;">Color/Material</th><th style="width:6%;">Espesor</th>
         <th style="width:7%;">Prof. D (in)</th><th style="width:7%;">Ancho W (in)</th>
         <th style="width:8%;">Factor $/sqft</th><th style="width:8%;">Precio fijo</th><th style="width:5%;">Cant.</th>
         <th style="width:6%;" title="Desmarca si es un accesorio (ej. sink) que no se corta de la placa">¿Corte?</th>
@@ -701,8 +710,16 @@ function handleImportCotizFile(e){
         return;
       }
 
+      // columnas segun los encabezados (el formato nuevo y el anterior traen las mismas etiquetas en otras columnas)
+      const hdr = rows[headerIdx].map(normalizeCell), hdr2 = (rows[headerIdx + 1] || []).map(normalizeCell);
+      const findCol = (arr, fn, def) => { const k = arr.findIndex(fn); return k >= 0 ? k : def; };
+      const colSq = findCol(hdr, c => c.includes('sq.ft'), 6), colFactor = findCol(hdr, c => c.startsWith('factor'), -1);
+      const colQty = findCol(hdr, c => c.includes('qty'), 8), colUnit = findCol(hdr, c => c.startsWith('unit'), -1);
+      const colD = findCol(hdr2, c => c === 'd', 1), colW = findCol(hdr2, c => c === 'w', 3);
+      const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+
       const items = [];
-      let grupoNum = 1;
+      let grupoNum = 1, grupoNombre = '';
       let tieneRenglonesEnGrupo = false;
       let pendingItemsIdx = [];
       let curColor = '', curThickness = '';
@@ -722,8 +739,8 @@ function handleImportCotizFile(e){
             for (let look = c+1; look <= Math.min(c+3, r.length-1); look++){
               if (r[look] !== null && r[look] !== undefined && r[look] !== ''){ curThickness = String(r[look]).trim(); break; }
             }
-            // "Thickness:" cierra el bloque de material (con o sin "Costo Placa" despues) -> asignar a piezas pendientes
-            pendingItemsIdx.forEach(idx => { items[idx].color = curColor; });
+            // "Thickness:" cierra el bloque de material -> asignar color y espesor a las piezas pendientes
+            pendingItemsIdx.forEach(idx => { items[idx].color = curColor; items[idx].esp = curThickness; });
             if (curColor) materialRates[curColor] = { thickness: curThickness };
             pendingItemsIdx = [];
           }
@@ -732,22 +749,29 @@ function handleImportCotizFile(e){
         const hasSubtotal = r.some(c => normalizeCell(c).includes('sub-total') || normalizeCell(c).includes('subtotal'));
         if (hasSubtotal){
           if (tieneRenglonesEnGrupo) grupoNum++;
-          tieneRenglonesEnGrupo = false;
+          tieneRenglonesEnGrupo = false; grupoNombre = '';
+          continue;
+        }
+        // fila de titulo de seccion (ej. "Room", "Vanities", "Sills"): solo la columna A llena
+        if (typeof r[0] === 'string' && r[0].trim() && r.slice(1).every(v => v === null || v === '')){
+          grupoNombre = r[0].trim();
           continue;
         }
         const producto = r[0];
-        const d = parseFloat(r[1]);
+        const d = parseFloat(r[colD]);
         if (!producto || !d) continue;
-        const w = parseFloat(r[3]) || 0;
-        const sqft = parseFloat(r[6]) || 0;
-        const cant = parseInt(r[8]) || 1;
+        const w = num(r[colW]);
+        const sqft = num(r[colSq]);
+        const cant = parseInt(r[colQty]) || 1;
+        const factor = colFactor >= 0 ? num(r[colFactor]) : 0;
+        const unit = colUnit >= 0 ? num(r[colUnit]) : 0;
         items.push({
           producto: String(producto).trim(),
-          grupo: `Grupo ${grupoNum}`,
-          color: '',
+          grupo: grupoNombre || `Grupo ${grupoNum}`,
+          color: '', esp: '',
           d, w,
-          factor: '',
-          precioFijo: '',
+          factor: factor > 0 ? factor : '',
+          precioFijo: sqft > 0 ? '' : (unit > 0 ? unit : ''),   // renglones sin sqft (ej. Undermount Sink) traen su precio fijo
           cant,
           esCorte: sqft > 0
         });
@@ -766,9 +790,14 @@ function handleImportCotizFile(e){
       document.getElementById('clientItemsBody').innerHTML = '';
       items.forEach(it => addClientItemRow(it));
       Object.entries(materialRates).forEach(([color, rate]) => { materialThickness[color] = rate.thickness; });
+      // un solo tipo y color si todas las piezas coinciden; si no, cada grupo con el suyo
+      const mats = new Set(items.map(it => (it.color || '') + '|' + (it.esp || '')));
+      const unico = mats.size === 1 && items[0].color;
+      document.getElementById('kzMatModo').value = unico ? 'uno' : 'varios';
+      if (unico){ document.getElementById('kzMatColor').value = items[0].color; document.getElementById('kzMatEsp').value = items[0].esp || ''; }
       renderClientTotals();
-      const nMat = Object.keys(materialRates).length;
-      msg.textContent = `Importados ${items.length} renglón(es) en ${grupoNum} grupo(s)${nMat ? `, ${nMat} material(es) detectado(s) (color + espesor)` : ''}. Captura tú el Costo×Placa de cada material en el panel de Costeo.`;
+      const nMat = Object.keys(materialRates).length, nGr = new Set(items.map(it => it.grupo)).size;
+      msg.textContent = `Importados ${items.length} renglón(es) en ${nGr} grupo(s)${nMat ? (unico ? `; un solo material: ${items[0].color}${items[0].esp ? ' · ' + items[0].esp : ''}` : `; ${nMat} materiales distintos (cada grupo con su color y espesor)`) : ''}. Captura tú el Costo×Placa de cada material en el panel de Costeo.`;
       msg.style.color = 'var(--good)';
     } catch(err){
       msg.textContent = 'Error leyendo el archivo: ' + err.message;
@@ -786,6 +815,7 @@ function addClientItemRow(data){
     <td><input type="text" class="ci-producto" placeholder="Ej. Vanity Top Center" value="${data?.producto||''}"></td>
     <td><input type="text" class="ci-grupo" placeholder="Ej. Baño 1" value="${data?.grupo||''}"></td>
     <td><input type="text" class="ci-color" placeholder="Ej. Manhatan Gray" value="${data?.color||''}"></td>
+    <td><input type="text" class="ci-esp" placeholder="2cm" value="${data?.esp||''}"></td>
     <td><input type="number" class="ci-d" min="0" step="0.01" value="${data?.d||''}"></td>
     <td><input type="number" class="ci-w" min="0" step="0.01" value="${data?.w||''}"></td>
     <td><input type="number" class="ci-factor" min="0" step="0.01" placeholder="$/sqft" value="${data?.factor||''}"></td>
@@ -811,6 +841,7 @@ function computeClientItems(){
     const producto = tr.querySelector('.ci-producto').value.trim() || 'Pieza';
     const grupo = tr.querySelector('.ci-grupo').value.trim() || 'Sin grupo';
     const color = tr.querySelector('.ci-color').value.trim();
+    const esp = tr.querySelector('.ci-esp').value.trim();
     const d = parseFloat(tr.querySelector('.ci-d').value) || 0;
     const w = parseFloat(tr.querySelector('.ci-w').value) || 0;
     const factor = parseFloat(tr.querySelector('.ci-factor').value) || 0;
@@ -820,11 +851,30 @@ function computeClientItems(){
     const sqft = (d > 0 && w > 0) ? (d * w / 144) : 0;
     const unit = sqft > 0 && factor > 0 ? sqft * factor : precioFijo;
     const total = unit * cant;
-    return { tr, producto, grupo, color, d, w, factor, precioFijo, cant, esCorte, sqft, unit, total };
+    return { tr, producto, grupo, color, esp, d, w, factor, precioFijo, cant, esCorte, sqft, unit, total };
   });
 }
 
+// Material de la cotizacion: un solo tipo/color para todo el proyecto, o cada grupo con el suyo
+function kzMatApply(){
+  const uno = document.getElementById('kzMatModo').value === 'uno';
+  const colIn = document.getElementById('kzMatColor'), espIn = document.getElementById('kzMatEsp');
+  document.getElementById('kzMatUno').style.display = uno ? 'flex' : 'none';
+  const col = colIn.value.trim(), esp = espIn.value.trim(), aplicar = uno && col !== '';
+  document.querySelectorAll('#clientItemsBody tr').forEach(tr => {
+    const c = tr.querySelector('.ci-color'), e = tr.querySelector('.ci-esp');
+    if (aplicar){ c.value = col; e.value = esp; }
+    c.disabled = e.disabled = aplicar;
+    const cv = c.value.trim(), ev = e.value.trim();
+    if (cv && ev) materialThickness[cv] = ev;
+  });
+  if (aplicar){ lastClientInfo = Object.assign({}, lastClientInfo, { color: col, thickness: esp }); }
+  document.getElementById('kzMatHint').textContent = uno ? (aplicar ? 'Todas las piezas llevan este color y espesor.' : 'Escribe el color y el espesor: se aplican a todas las piezas.') : 'Escribe el color y el espesor de cada renglón; la cotización muestra el material al pie de cada grupo.';
+  return { uno, col, esp };
+}
+
 function renderClientTotals(){
+  kzMatApply();
   const items = computeClientItems();
   items.forEach(it => {
     it.tr.querySelector('.ci-sqft').textContent = it.sqft > 0 ? it.sqft.toFixed(2) : '—';
@@ -880,7 +930,7 @@ function renderCotizacionFinal(items, grupos, freight, deposit, balance){
     info.phone && ['Teléfono', info.phone],
     info.email && ['Email', info.email],
     info.po && ['PO', info.po],
-    (info.color || info.thickness) && ['Material', [info.color, info.thickness].filter(Boolean).join(' · ')]
+    (info.color || info.thickness) && document.getElementById('kzMatModo').value === 'uno' && ['Material', [info.color, info.thickness].filter(Boolean).join(' · ')]
   ].filter(Boolean);
   if (metaFields.length) html += `<div class="qd-info">${metaFields.map(([k,v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>`;
 
@@ -895,6 +945,10 @@ function renderCotizacionFinal(items, grupos, freight, deposit, balance){
       html += `<tr><td class="b">${it.producto}</td><td>${tam}</td><td class="num">${it.sqft > 0 ? it.sqft.toFixed(2) : '—'}</td><td class="num">$${m2(it.unit)}</td><td class="num">${it.cant}</td><td class="num b">$${m2(it.total)}</td></tr>`;
     });
     html += `<tr class="quote-subtotal"><td colspan="5">Sub-total ${g}</td><td class="num">$${m2(grupos[g])}</td></tr>`;
+    if (document.getElementById('kzMatModo').value === 'varios'){
+      const mats = [...new Set(rowsGrupo.map(it => [it.color, it.esp].filter(Boolean).join(' · ')).filter(Boolean))];
+      if (mats.length) html += `<tr><td colspan="6" style="font-size:12px; color:#6b665c; padding-top:0;">Color / Thickness: ${mats.join(' &nbsp;|&nbsp; ')}</td></tr>`;
+    }
     html += '</tbody></table></div>';
   });
 
@@ -949,6 +1003,7 @@ function collectProjectData(){
       allowRotation: document.getElementById('allowRotation').checked,
       cutMode: document.getElementById('cutMode').value,
       freight: document.getElementById('freight').value,
+      kzMatModo: document.getElementById('kzMatModo').value, kzMatColor: document.getElementById('kzMatColor').value, kzMatEsp: document.getElementById('kzMatEsp').value,
       kzCap: document.getElementById('kzCap').value, kzOut: document.getElementById('kzOut').value, kzTc: document.getElementById('kzTc').value,
       deposit: document.getElementById('deposit').value,
       clientInfo: lastClientInfo,
@@ -956,6 +1011,7 @@ function collectProjectData(){
         producto: tr.querySelector('.ci-producto').value,
         grupo: tr.querySelector('.ci-grupo').value,
         color: tr.querySelector('.ci-color').value,
+        esp: tr.querySelector('.ci-esp').value,
         d: tr.querySelector('.ci-d').value,
         w: tr.querySelector('.ci-w').value,
         factor: tr.querySelector('.ci-factor').value,
@@ -1030,6 +1086,7 @@ function confirmarNuevaCotizacion(){
   document.getElementById('clientGenMsg').textContent = '';
   document.getElementById('freight').value = 0;
   document.getElementById('kzCap').value = 'USD'; document.getElementById('kzOut').value = 'USD'; document.getElementById('kzTc').value = 17;
+  document.getElementById('kzMatModo').value = 'uno'; document.getElementById('kzMatColor').value = ''; document.getElementById('kzMatEsp').value = '';
   document.getElementById('deposit').value = 0;
   document.getElementById('projectName').value = '';
   document.getElementById('projectPerson').value = '';
@@ -1101,6 +1158,7 @@ function applyProjectData(data, name){
   document.getElementById('allowRotation').checked = !!cfg.allowRotation;
   document.getElementById('cutMode').value = cfg.cutMode || 'guillotine';
   document.getElementById('freight').value = cfg.freight ?? 0;
+  document.getElementById('kzMatModo').value = cfg.kzMatModo || 'varios'; document.getElementById('kzMatColor').value = cfg.kzMatColor || ''; document.getElementById('kzMatEsp').value = cfg.kzMatEsp || '';
   document.getElementById('kzCap').value = cfg.kzCap || 'USD'; document.getElementById('kzOut').value = cfg.kzOut || 'USD'; document.getElementById('kzTc').value = cfg.kzTc || 17;
   document.getElementById('deposit').value = cfg.deposit ?? 0;
   lastClientInfo = cfg.clientInfo || {};
