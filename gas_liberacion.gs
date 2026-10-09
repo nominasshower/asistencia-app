@@ -74,19 +74,25 @@ function searchPiece(idConect) {
   var search   = idConect.trim().toUpperCase();
   var rowIndex = -1;
 
-  // Las piezas nuevas están al final: busca primero en las últimas filas (rápido) y solo si no, en el resto
-  var TAIL  = 4000;
-  var start = Math.max(2, lastRow - TAIL + 1);
-  rowIndex  = buscarFila(sheet, start, lastRow, search);
-  if (rowIndex === -1 && start > 2) rowIndex = buscarFila(sheet, 2, start - 1, search);
+  // Índice en caché de los últimos IDs: casi no lee la hoja
+  var idx = loadFabIndex(sheet, lastRow);
+  var pos = idx.ids.lastIndexOf(search);
+  if (pos >= 0) {
+    rowIndex = idx.start + pos;
+    // verificación barata: la celda sigue teniendo ese ID (si se movieron filas, se reconstruye)
+    if (String(sheet.getRange(rowIndex, 1).getValue()).trim().toUpperCase() !== search) {
+      CacheService.getScriptCache().remove('fabIdx');
+      rowIndex = -1;
+    }
+  }
+  // Más antiguo que el índice: búsqueda larga (solo piezas viejas o inexistentes)
+  if (rowIndex === -1 && idx.start > 2) rowIndex = buscarFila(sheet, 2, idx.start - 1, search);
 
   if (rowIndex === -1) return { found: false, error: 'Pieza no encontrada en fabricación' };
 
-  // Lee headers y solo la fila encontrada
-  var lastCol = sheet.getLastColumn();
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var row     = sheet.getRange(rowIndex, 1, 1, lastCol).getValues()[0];
-  var col     = buildColMap(headers);
+  var cm  = getColMap(sheet);
+  var col = cm.map;
+  var row = sheet.getRange(rowIndex, 1, 1, cm.n).getValues()[0];
 
   var estatus = row[col['ESTATUS']];
   if (estatus === 'Liberado' || yaLiberado(ss, idConect)) {
@@ -110,6 +116,46 @@ function searchPiece(idConect) {
   };
 }
 
+// Columnas de la hoja de fabricación en caché (6 h) para no leer encabezados en cada llamada
+function getColMap(sheet) {
+  var cache = CacheService.getScriptCache();
+  var raw = cache.get('fabCols');
+  if (raw) return JSON.parse(raw);
+  var n = sheet.getLastColumn();
+  var cm = { map: buildColMap(sheet.getRange(1, 1, 1, n).getValues()[0]), n: n };
+  cache.put('fabCols', JSON.stringify(cm), 21600);
+  return cm;
+}
+
+// Índice en caché de los IDs de las últimas MAX_IDX filas; solo lee las filas nuevas desde la última vez
+var MAX_IDX = 3000;
+function loadFabIndex(sheet, lastRow) {
+  var cache = CacheService.getScriptCache();
+  var raw = cache.get('fabIdx');
+  var idx = raw ? JSON.parse(raw) : null;
+  var changed = false;
+
+  if (!idx || idx.start + idx.ids.length - 1 > lastRow) {
+    var start = Math.max(2, lastRow - MAX_IDX + 1);
+    var vals = sheet.getRange(start, 1, lastRow - start + 1, 1).getValues();
+    idx = { start: start, ids: vals.map(function(v) { return String(v[0]).trim().toUpperCase(); }) };
+    changed = true;
+  } else {
+    var have = idx.start + idx.ids.length - 1;
+    if (have < lastRow) {
+      var nuevos = sheet.getRange(have + 1, 1, lastRow - have, 1).getValues();
+      for (var i = 0; i < nuevos.length; i++) idx.ids.push(String(nuevos[i][0]).trim().toUpperCase());
+      changed = true;
+    }
+  }
+  if (idx.ids.length > MAX_IDX) {
+    var cut = idx.ids.length - MAX_IDX;
+    idx.ids = idx.ids.slice(cut); idx.start += cut; changed = true;
+  }
+  if (changed) { try { cache.put('fabIdx', JSON.stringify(idx), 21600); } catch (e) {} }
+  return idx;
+}
+
 // Busca search en columna A entre las filas desde..hasta, de abajo hacia arriba
 function buscarFila(sheet, desde, hasta, search) {
   if (hasta < desde) return -1;
@@ -130,10 +176,13 @@ function liberarPieza(params) {
 
   var ss       = SpreadsheetApp.openById(SPREADSHEET_ID);
   var fabSheet = ss.getSheetByName(FABRICACION_SHEET);
-  var lastCol  = fabSheet.getLastColumn();
-  var headers  = fabSheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var col      = buildColMap(headers);
-  var fabRow   = fabSheet.getRange(rowIndex, 1, 1, lastCol).getValues()[0];
+  var cm       = getColMap(fabSheet);
+  var col      = cm.map;
+  var fabRow   = fabSheet.getRange(rowIndex, 1, 1, cm.n).getValues()[0];
+
+  if (String(fabRow[col['ID_CONECT']]).trim().toUpperCase() !== String(idConect).trim().toUpperCase()) {
+    return { error: 'La fila no coincide con la pieza, vuelve a escanear' };
+  }
 
   if (fabRow[col['ESTATUS']] === 'Liberado' || yaLiberado(ss, idConect)) {
     return { error: '⚠️ Esta pieza ya fue liberada por otro usuario' };
