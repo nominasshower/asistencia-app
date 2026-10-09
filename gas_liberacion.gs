@@ -13,7 +13,7 @@
 var SPREADSHEET_ID    = '1yKxgCkw20mfm2d6Rh__WdrgusgYvkg1fyGDYiJIMwbs';
 var FABRICACION_SHEET = 'Sistema fabricacion';
 var LIBERACION_SHEET  = 'Sistema liberado';
-var INSPECTORS_SHEET  = 'HISTORICO DE TRABAJO';
+var INSPECTORS_SHEET  = 'Inspector';   // columnas: id_inspector, Inspector, Linea, Estatus
 var TIMEZONE          = 'America/Mexico_City';
 
 function doGet(e) {
@@ -37,15 +37,29 @@ function keepAlive() {
   SpreadsheetApp.openById(SPREADSHEET_ID).getName();
 }
 
-// ------ Obtener lista de inspectores ------
+// ------ Obtener lista de inspectores (solo los Activos) ------
 function getInspectors() {
   var ss      = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet   = ss.getSheetByName(INSPECTORS_SHEET);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return { inspectors: [] };
-  var data  = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
-  var names = data.flat().filter(function(n) { return n !== '' && n !== null; });
+  var data  = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+  var names = [];
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][3]).trim() === 'Activo' && data[i][1] !== '') names.push(String(data[i][1]).trim());
+  }
   return { inspectors: names };
+}
+
+// ¿Ya existe en Sistema liberado? (AppSheet no marca Liberado en fabricación)
+function yaLiberado(ss, idConect) {
+  var lib = ss.getSheetByName(LIBERACION_SHEET);
+  var last = lib.getLastRow();
+  if (last < 2) return false;
+  var ids = lib.getRange(2, 4, last - 1, 1).getValues();
+  var s = String(idConect).trim().toUpperCase();
+  for (var i = 0; i < ids.length; i++) if (String(ids[i][0]).trim().toUpperCase() === s) return true;
+  return false;
 }
 
 // ------ Buscar pieza: solo lee columna A para localizar la fila ------
@@ -57,16 +71,14 @@ function searchPiece(idConect) {
   var lastRow = sheet.getLastRow();
 
   // Lee solo la columna A (ID_CONECT) — mucho más rápido que toda la hoja
-  var ids      = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-  var rowIndex = -1;
   var search   = idConect.trim().toUpperCase();
+  var rowIndex = -1;
 
-  for (var i = 0; i < ids.length; i++) {
-    if (String(ids[i][0]).trim().toUpperCase() === search) {
-      rowIndex = i + 2; // fila real en Sheets (1-indexed, +1 por header)
-      break;
-    }
-  }
+  // Las piezas nuevas están al final: busca primero en las últimas filas (rápido) y solo si no, en el resto
+  var TAIL  = 4000;
+  var start = Math.max(2, lastRow - TAIL + 1);
+  rowIndex  = buscarFila(sheet, start, lastRow, search);
+  if (rowIndex === -1 && start > 2) rowIndex = buscarFila(sheet, 2, start - 1, search);
 
   if (rowIndex === -1) return { found: false, error: 'Pieza no encontrada en fabricación' };
 
@@ -77,7 +89,7 @@ function searchPiece(idConect) {
   var col     = buildColMap(headers);
 
   var estatus = row[col['ESTATUS']];
-  if (estatus === 'Liberado') {
+  if (estatus === 'Liberado' || yaLiberado(ss, idConect)) {
     return { alreadyLiberated: true, error: '⚠️ Esta pieza ya fue liberada' };
   }
 
@@ -98,6 +110,16 @@ function searchPiece(idConect) {
   };
 }
 
+// Busca search en columna A entre las filas desde..hasta, de abajo hacia arriba
+function buscarFila(sheet, desde, hasta, search) {
+  if (hasta < desde) return -1;
+  var ids = sheet.getRange(desde, 1, hasta - desde + 1, 1).getValues();
+  for (var i = ids.length - 1; i >= 0; i--) {
+    if (String(ids[i][0]).trim().toUpperCase() === search) return desde + i;
+  }
+  return -1;
+}
+
 // ------ Liberar pieza ------
 function liberarPieza(params) {
   var idConect  = params.id;
@@ -113,7 +135,7 @@ function liberarPieza(params) {
   var col      = buildColMap(headers);
   var fabRow   = fabSheet.getRange(rowIndex, 1, 1, lastCol).getValues()[0];
 
-  if (fabRow[col['ESTATUS']] === 'Liberado') {
+  if (fabRow[col['ESTATUS']] === 'Liberado' || yaLiberado(ss, idConect)) {
     return { error: '⚠️ Esta pieza ya fue liberada por otro usuario' };
   }
 
@@ -126,7 +148,7 @@ function liberarPieza(params) {
   var now        = new Date();
   var fecha      = Utilities.formatDate(now, TIMEZONE, 'M/d/yyyy');
   var hora       = Utilities.formatDate(now, TIMEZONE, 'HH:mm:ss');
-  var idLiberado = Utilities.formatDate(now, TIMEZONE, 'yyyyMMddHHmmssSSS');
+  var idLiberado = idConect;   // igual que AppSheet: id_liberado = ID_CONECT
   var horaxhora  = parseInt(Utilities.formatDate(now, TIMEZONE, 'H'));
   var antiguedad = calcAntiguedad(fechaFab, now);
 
@@ -134,7 +156,8 @@ function liberarPieza(params) {
   libSheet.appendRow([
     idLiberado, fecha, hora, idConect,
     descripcion, codigoCorto, 'Liberado', cantidad,
-    inspector, linea, formatDate(fechaFab), antiguedad, horaxhora
+    inspector, linea, formatDate(fechaFab), antiguedad, horaxhora,
+    horaxhora >= 17 ? 'Tiempo Extra' : 'Tiempo Normal'
   ]);
 
   fabSheet.getRange(rowIndex, col['ESTATUS'] + 1).setValue('Liberado');

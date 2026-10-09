@@ -5,482 +5,363 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#1e40af">
+  <meta name="theme-color" content="#0f172a">
   <title>Liberación PDA</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     * { -webkit-tap-highlight-color: transparent; }
-    body { overscroll-behavior: none; }
-    .btn-inspector { min-height: 56px; }
-    .scan-input { font-size: 1px; color: transparent; caret-color: transparent; }
-    .scan-input:focus { outline: none; }
-    @keyframes pulse-border {
-      0%, 100% { border-color: #3b82f6; box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
-      50%       { border-color: #1d4ed8; box-shadow: 0 0 0 8px rgba(59,130,246,0); }
-    }
-    .scanning { animation: pulse-border 1.5s ease-in-out infinite; }
+    body { overscroll-behavior: none; background: #eef2f7; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .scan-input { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(37,99,235,.45); } 70% { box-shadow: 0 0 0 22px rgba(37,99,235,0); } 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); } }
+    .pulse { animation: pulse-ring 1.6s ease-out infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner { animation: spin 0.8s linear infinite; }
+    .spinner { animation: spin .8s linear infinite; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-    .fade-in { animation: fadeIn 0.25s ease-out; }
+    .fade-in { animation: fadeIn .22s ease-out; }
+    @keyframes pop { 0% { transform: scale(.6); opacity:0; } 70% { transform: scale(1.08); } 100% { transform: scale(1); opacity:1; } }
+    .pop { animation: pop .35s ease-out; }
+    .tap:active { transform: scale(.98); }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="min-h-screen text-slate-800">
 
-<!-- ============================================================
-     CONFIGURACIÓN - Pegar la URL del GAS desplegado aquí
-     ============================================================ -->
 <script>
-  var GAS_URL = 'https://script.google.com/macros/s/AKfycbylJFhwI98WkjJZ7KEN17K6yY9qFUA5NKOq_Oolh-G_NAQ0mKZ17mveJbd5-HHvisT-Ng/exec';
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbw1kx2S0mKV2OfipcsoOpbEBZIELwWMKM7YbjASbxbDygU8pIefDp_VLI0RKJxUxBSlFQ/exec';
 </script>
 
-<!-- ========== APP ========== -->
 <div id="app"></div>
 
 <script>
-// ─── Estado global ───────────────────────────────────────────
+// ─── Estado ───────────────────────────────────────────────────
 var state = {
-  screen: 'loading',   // loading | inspector | scan | piece | result
+  screen: 'loading',   // loading | error | inspector | scan | piece | result
   inspector: null,
   inspectors: [],
   piece: null,
   rowIndex: null,
-  result: null,         // { success, error }
-  scanning: false
+  result: null,
+  scanning: false,
+  liberadas: [],       // liberadas en esta sesión (más reciente primero)
+  fatal: ''
 };
+var autoTimer = null;
 
-// ─── Render principal ─────────────────────────────────────────
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; }
+
+// ─── Sonido / vibración ───────────────────────────────────────
+var audioCtx = null;
+function beep(freq, ms) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = freq; o.connect(g); g.connect(audioCtx.destination);
+    g.gain.value = 0.15; o.start(); o.stop(audioCtx.currentTime + ms / 1000);
+  } catch (e) {}
+}
+function feedback(ok) {
+  if (ok) { beep(880, 120); try { navigator.vibrate && navigator.vibrate(60); } catch (e) {} }
+  else { beep(220, 380); try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) {} }
+}
+
+// ─── Render ───────────────────────────────────────────────────
 function render() {
   var app = document.getElementById('app');
-  switch (state.screen) {
-    case 'loading':   app.innerHTML = renderLoading();    break;
-    case 'inspector': app.innerHTML = renderInspector();  break;
-    case 'scan':      app.innerHTML = renderScan();       break;
-    case 'piece':     app.innerHTML = renderPiece();      break;
-    case 'result':    app.innerHTML = renderResult();     break;
-  }
+  var fn = { loading: renderLoading, error: renderFatal, inspector: renderInspector,
+             scan: renderScan, piece: renderPiece, result: renderResult }[state.screen];
+  app.innerHTML = fn();
   attachHandlers();
 }
 
-// ─── Pantalla: cargando ───────────────────────────────────────
-function renderLoading() {
-  return '<div class="flex flex-col items-center justify-center min-h-screen gap-4">' +
-    '<div class="w-12 h-12 rounded-full border-4 border-blue-600 border-t-transparent spinner"></div>' +
-    '<p class="text-gray-500 text-lg">Cargando...</p>' +
+function header(title, sub, backFn) {
+  return '<div class="bg-slate-900 text-white px-4 py-3 flex items-center gap-3 shadow-md">' +
+    (backFn
+      ? '<button onclick="' + backFn + '" class="tap w-10 h-10 flex items-center justify-center rounded-full bg-slate-800 active:bg-slate-700">' +
+          '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg></button>'
+      : '<div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">' +
+          '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></div>') +
+    '<div class="min-w-0"><div class="font-bold text-lg leading-tight">' + escHtml(title) + '</div>' +
+    (sub ? '<div class="text-slate-400 text-sm truncate">' + sub + '</div>' : '') + '</div>' +
   '</div>';
 }
 
-// ─── Pantalla: seleccionar inspector ─────────────────────────
+function renderLoading() {
+  return '<div class="flex flex-col items-center justify-center min-h-screen gap-4">' +
+    '<div class="w-14 h-14 rounded-full border-4 border-blue-600 border-t-transparent spinner"></div>' +
+    '<p class="text-slate-500 text-lg">Cargando inspectores…</p></div>';
+}
+
+function renderFatal() {
+  return '<div class="flex flex-col items-center justify-center min-h-screen p-6 text-center gap-4">' +
+    '<div class="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center text-4xl">⚠️</div>' +
+    '<div class="font-bold text-xl">No se pudo conectar</div>' +
+    '<div class="text-slate-500 text-sm max-w-xs">' + escHtml(state.fatal) + '</div>' +
+    '<button onclick="init()" class="tap bg-blue-600 text-white font-bold text-lg px-8 py-4 rounded-2xl shadow-md">Reintentar</button>' +
+  '</div>';
+}
+
+// ─── Inspector ────────────────────────────────────────────────
+var COLORS = ['bg-blue-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600', 'bg-rose-600', 'bg-cyan-600', 'bg-indigo-600', 'bg-teal-600'];
+
 function renderInspector() {
-  var btns = state.inspectors.map(function(name) {
-    return '<button class="btn-inspector w-full bg-white hover:bg-blue-50 active:bg-blue-100 ' +
-      'border-2 border-gray-200 hover:border-blue-400 rounded-xl px-4 py-3 text-left ' +
-      'text-gray-800 font-semibold text-lg transition-all shadow-sm" ' +
-      'onclick="selectInspector(\'' + escHtml(name) + '\')">' +
-      '<span class="flex items-center gap-3">' +
-        '<span class="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">' +
-          escHtml(name.charAt(0).toUpperCase()) +
-        '</span>' +
-        escHtml(capitalize(name)) +
-      '</span>' +
+  var btns = state.inspectors.map(function(name, i) {
+    return '<button onclick="selectInspector(' + i + ')" class="tap bg-white rounded-2xl shadow-sm border border-slate-200 ' +
+      'active:bg-blue-50 p-4 flex flex-col items-center gap-2 min-h-[110px] justify-center">' +
+      '<span class="w-14 h-14 rounded-full ' + COLORS[i % COLORS.length] + ' text-white flex items-center justify-center text-2xl font-bold">' +
+        escHtml(name.charAt(0).toUpperCase()) + '</span>' +
+      '<span class="font-semibold text-base text-center leading-tight">' + escHtml(name) + '</span>' +
     '</button>';
   }).join('');
 
-  return '<div class="min-h-screen flex flex-col">' +
-    '<div class="bg-blue-700 text-white px-4 py-5 flex items-center gap-3">' +
-      '<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
-        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>' +
-      '</svg>' +
-      '<div>' +
-        '<div class="font-bold text-xl">Liberación</div>' +
-        '<div class="text-blue-200 text-sm">Selecciona tu nombre</div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="flex-1 p-4 flex flex-col gap-3">' +
-      btns +
-    '</div>' +
-  '</div>';
+  return '<div class="min-h-screen flex flex-col">' + header('Liberación', 'Selecciona tu nombre') +
+    '<div class="flex-1 p-3 grid grid-cols-2 gap-3 content-start fade-in">' + btns + '</div></div>';
 }
 
-// ─── Pantalla: escanear ───────────────────────────────────────
+// ─── Escaneo ──────────────────────────────────────────────────
 function renderScan() {
-  var scanIcon = state.scanning
-    ? '<div class="w-8 h-8 rounded-full border-4 border-white border-t-transparent spinner"></div>'
-    : '<svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
-        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8H3a2 2 0 00-2 2v10a2 2 0 002 2h3.5M15 4H9a2 2 0 00-2 2v1"/>' +
-      '</svg>';
-
-  return '<div class="min-h-screen flex flex-col">' +
-    // Header
-    '<div class="bg-blue-700 text-white px-4 py-4 flex items-center justify-between">' +
-      '<div class="flex items-center gap-3">' +
-        '<button onclick="goBack()" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-blue-600 active:bg-blue-800">' +
-          '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
-            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>' +
-          '</svg>' +
-        '</button>' +
-        '<div>' +
-          '<div class="font-bold text-lg">Escanear Pieza</div>' +
-          '<div class="text-blue-200 text-sm">Inspector: ' + escHtml(capitalize(state.inspector)) + '</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>' +
-
-    // Área de escaneo
-    '<div class="flex-1 flex flex-col items-center justify-center p-4 gap-4">' +
-
-      // Zona de scan con animación
-      '<div id="scan-area" class="w-full max-w-sm border-4 border-blue-500 rounded-2xl ' +
-        'bg-white flex flex-col items-center justify-center p-6 gap-3 cursor-pointer ' +
-        (state.scanning ? '' : 'scanning') + '" ' +
-        'onclick="focusScan()" style="min-height:180px;">' +
-        '<div class="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">' +
-          scanIcon +
-        '</div>' +
-        '<div class="text-center">' +
-          '<div class="font-bold text-gray-700 text-lg">' +
-            (state.scanning ? 'Buscando...' : 'Listo para escanear') +
-          '</div>' +
-          '<div class="text-gray-400 text-sm mt-1">' +
-            (state.scanning ? 'Por favor espera' : 'Presiona el botón del lector') +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-
-      // Input invisible que captura el scan físico
-      '<input id="scan-input" class="scan-input w-1 h-1 opacity-0 absolute" ' +
-        'type="text" autocomplete="off" autocorrect="off" autocapitalize="off" ' +
-        'spellcheck="false">' +
-
-      // Separador
-      '<div class="flex items-center w-full max-w-sm gap-3">' +
-        '<div class="flex-1 h-px bg-gray-300"></div>' +
-        '<span class="text-gray-400 text-xs">o escribe el código</span>' +
-        '<div class="flex-1 h-px bg-gray-300"></div>' +
-      '</div>' +
-
-      // Input manual visible
-      '<div class="w-full max-w-sm flex gap-2">' +
-        '<input id="manual-input" type="text" ' +
-          'placeholder="Ej: 5262E3FF8319" ' +
-          'autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" ' +
-          'class="flex-1 border-2 border-gray-300 focus:border-blue-500 rounded-xl px-4 py-3 ' +
-          'text-gray-800 font-mono text-sm outline-none transition-colors" ' +
-          'onkeydown="if(event.key===\'Enter\'){buscarManual();}">' +
-        '<button onclick="buscarManual()" ' +
-          'class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white ' +
-          'font-bold px-4 py-3 rounded-xl transition-all flex-shrink-0">' +
-          'Buscar' +
-        '</button>' +
-      '</div>' +
-
-    '</div>' +
-  '</div>';
-}
-
-// ─── Pantalla: info de pieza ──────────────────────────────────
-function renderPiece() {
-  var p = state.piece;
-  var rows = [
-    ['Modelo', p.DESCRIPCION_MODELO],
-    ['Código', p.Codigo_corto],
-    ['Línea', p.LINEA],
-    ['Peso', p.PESO + ' kg'],
-    ['Cantidad', p.CANTIDAD],
-    ['Fecha fab.', p.FECHA],
-    ['Hora fab.', p.HORA],
-    ['Estatus', p.ESTATUS]
-  ];
-
-  var tableRows = rows.map(function(r) {
-    return '<tr class="border-b border-gray-100">' +
-      '<td class="py-2 pr-3 text-gray-500 text-sm font-medium whitespace-nowrap">' + escHtml(r[0]) + '</td>' +
-      '<td class="py-2 text-gray-800 font-semibold text-sm">' + escHtml(String(r[1])) + '</td>' +
-    '</tr>';
+  var n = state.liberadas.length;
+  var recientes = state.liberadas.slice(0, 5).map(function(x) {
+    return '<div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">' +
+      '<span class="font-mono text-sm text-slate-700">' + escHtml(x.id) + '</span>' +
+      '<span class="text-xs text-slate-400">' + escHtml(x.hora) + '</span></div>';
   }).join('');
 
+  return '<div class="min-h-screen flex flex-col">' +
+    header('Escanear etiqueta', 'Inspector: <b class="text-white">' + escHtml(state.inspector) + '</b>', 'goBack()') +
+    '<div class="flex-1 p-4 flex flex-col gap-4 items-center">' +
+
+      '<div id="scan-area" onclick="focusScan()" class="w-full max-w-md bg-white rounded-3xl shadow-sm border border-slate-200 ' +
+        'flex flex-col items-center justify-center gap-4 py-10 px-4">' +
+        (state.scanning
+          ? '<div class="w-20 h-20 rounded-full border-8 border-blue-600 border-t-transparent spinner"></div>' +
+            '<div class="font-bold text-2xl text-slate-700">Buscando…</div>'
+          : '<div class="w-24 h-24 rounded-full bg-blue-600 text-white flex items-center justify-center pulse">' +
+              '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7V5a1 1 0 011-1h2M17 4h2a1 1 0 011 1v2M20 17v2a1 1 0 01-1 1h-2M7 20H5a1 1 0 01-1-1v-2M7 12h10"/></svg></div>' +
+            '<div class="text-center"><div class="font-bold text-2xl text-slate-800">Listo para escanear</div>' +
+            '<div class="text-slate-500 mt-1">Apunta el lector a la etiqueta y dispara</div></div>') +
+      '</div>' +
+
+      '<input id="scan-input" class="scan-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" inputmode="none">' +
+
+      '<div class="w-full max-w-md grid grid-cols-2 gap-3">' +
+        '<div class="bg-white rounded-2xl border border-slate-200 p-3 text-center">' +
+          '<div class="text-3xl font-extrabold text-emerald-600">' + n + '</div>' +
+          '<div class="text-xs text-slate-500">liberadas en esta sesión</div></div>' +
+        '<button onclick="cambiarInspector()" class="tap bg-white rounded-2xl border border-slate-200 p-3 text-center">' +
+          '<div class="text-base font-bold text-slate-700">Cambiar</div><div class="text-xs text-slate-500">inspector</div></button>' +
+      '</div>' +
+
+      (n ? '<div class="w-full max-w-md bg-white rounded-2xl border border-slate-200 px-4 py-2">' +
+             '<div class="text-xs font-semibold text-slate-400 uppercase tracking-wide pt-1">Últimas liberadas</div>' + recientes + '</div>' : '') +
+
+      '<details class="w-full max-w-md">' +
+        '<summary class="text-slate-500 text-sm text-center cursor-pointer py-1">Escribir el código a mano</summary>' +
+        '<div class="flex gap-2 mt-2">' +
+          '<input id="manual-input" type="text" placeholder="Ej: 5262E3FF8319" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" ' +
+            'class="flex-1 border-2 border-slate-300 focus:border-blue-500 rounded-xl px-4 py-3 font-mono text-base outline-none bg-white" ' +
+            'onkeydown="if(event.key===\'Enter\'){buscarManual();}">' +
+          '<button onclick="buscarManual()" class="tap bg-blue-600 text-white font-bold px-5 rounded-xl">Buscar</button>' +
+        '</div></details>' +
+    '</div></div>';
+}
+
+// ─── Pieza ────────────────────────────────────────────────────
+function renderPiece() {
+  var p = state.piece;
+  function tile(label, val) {
+    return '<div class="bg-slate-50 rounded-xl p-3"><div class="text-xs text-slate-400 uppercase tracking-wide">' + label +
+      '</div><div class="font-bold text-lg text-slate-800">' + escHtml(String(val === '' || val == null ? '—' : val)) + '</div></div>';
+  }
+  var peso = (p.PESO === '' || p.PESO == null) ? '—' : p.PESO + ' kg';
+
   return '<div class="min-h-screen flex flex-col fade-in">' +
-    // Header
-    '<div class="bg-blue-700 text-white px-4 py-4 flex items-center gap-3">' +
-      '<button onclick="goBackToScan()" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-blue-600 active:bg-blue-800">' +
-        '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
-          '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>' +
-        '</svg>' +
-      '</button>' +
-      '<div>' +
-        '<div class="font-bold text-lg">Datos de la Pieza</div>' +
-        '<div class="text-blue-200 text-sm">' + escHtml(p.ID_CONECT) + '</div>' +
+    header('Confirmar liberación', escHtml(p.ID_CONECT), 'goBackToScan()') +
+    '<div class="flex-1 p-4 flex flex-col gap-3 pb-40">' +
+      '<div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">' +
+        '<div class="text-xs text-slate-400 uppercase tracking-wide">Modelo</div>' +
+        '<div class="font-extrabold text-2xl leading-snug break-words">' + escHtml(String(p.DESCRIPCION_MODELO).replace(/\s+/g, ' ').trim()) + '</div>' +
+        '<div class="font-mono text-sm text-slate-500 mt-1">' + escHtml(p.Codigo_corto) + '</div>' +
+        '<div class="grid grid-cols-2 gap-2 mt-4">' +
+          tile('Línea', p.LINEA) + tile('Peso', peso) + tile('Cantidad', p.CANTIDAD) + tile('Fabricada', p.FECHA + ' · ' + fmtHora(p.HORA)) +
+        '</div>' +
+      '</div>' +
+      '<div class="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 flex items-center gap-3">' +
+        '<div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">' + escHtml(state.inspector.charAt(0).toUpperCase()) + '</div>' +
+        '<div><div class="text-xs text-slate-500">Liberada por</div><div class="font-bold">' + escHtml(state.inspector) + '</div></div>' +
       '</div>' +
     '</div>' +
-
-    // Card info
-    '<div class="flex-1 p-4 flex flex-col gap-4">' +
-      '<div class="bg-white rounded-2xl shadow-sm p-4">' +
-        '<table class="w-full">' + tableRows + '</table>' +
-      '</div>' +
-
-      // Inspector badge
-      '<div class="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3">' +
-        '<div class="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">' +
-          escHtml(state.inspector.charAt(0).toUpperCase()) +
-        '</div>' +
-        '<div>' +
-          '<div class="text-xs text-gray-500">Inspector</div>' +
-          '<div class="font-semibold text-gray-800">' + escHtml(capitalize(state.inspector)) + '</div>' +
-        '</div>' +
-      '</div>' +
-
-      // Botón liberar
-      '<button id="btn-liberar" onclick="confirmarLiberar()" ' +
-        'class="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white ' +
-        'font-bold text-xl py-5 rounded-2xl shadow-lg transition-all">' +
-        '✓ LIBERAR PIEZA' +
-      '</button>' +
-
-      '<button onclick="goBackToScan()" ' +
-        'class="w-full bg-white border-2 border-gray-300 text-gray-600 ' +
-        'font-semibold py-3 rounded-xl transition-all">' +
-        'Cancelar' +
-      '</button>' +
+    '<div class="fixed bottom-0 left-0 right-0 bg-white/95 border-t border-slate-200 p-3 flex flex-col gap-2">' +
+      '<button id="btn-liberar" onclick="confirmarLiberar()" class="tap w-full bg-green-600 active:bg-green-700 text-white font-extrabold text-2xl py-5 rounded-2xl shadow-lg">✓ LIBERAR PIEZA</button>' +
+      '<button onclick="goBackToScan()" class="tap w-full bg-slate-100 text-slate-600 font-semibold py-3 rounded-xl">Cancelar</button>' +
     '</div>' +
   '</div>';
 }
 
-// ─── Pantalla: resultado ──────────────────────────────────────
+// ─── Resultado ────────────────────────────────────────────────
 function renderResult() {
-  var r = state.result;
-  var isOk = r && r.success;
-
-  var icon = isOk
-    ? '<div class="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">' +
-        '<svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
-          '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>' +
-        '</svg>' +
-      '</div>'
-    : '<div class="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center">' +
-        '<svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
-          '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>' +
-        '</svg>' +
-      '</div>';
-
-  var headerBg = isOk ? 'bg-green-600' : 'bg-red-500';
-  var headerText = isOk ? 'Liberada ✓' : 'Error';
-  var msg = isOk ? 'Pieza liberada correctamente' : (r && r.error ? r.error : 'Error desconocido');
-  var pieceId = state.piece ? state.piece.ID_CONECT : '';
-
-  return '<div class="min-h-screen flex flex-col fade-in">' +
-    '<div class="' + headerBg + ' text-white px-4 py-4">' +
-      '<div class="font-bold text-xl text-center">' + headerText + '</div>' +
-    '</div>' +
-
+  var r = state.result, ok = r && r.success;
+  var msg = ok ? 'Pieza liberada' : (r && r.error ? r.error : 'Error desconocido');
+  var id = state.piece ? state.piece.ID_CONECT : (state.lastCode || '');
+  return '<div class="min-h-screen flex flex-col fade-in ' + (ok ? 'bg-green-600' : 'bg-red-600') + ' text-white">' +
     '<div class="flex-1 flex flex-col items-center justify-center p-6 gap-5 text-center">' +
-      icon +
-      '<div>' +
-        '<div class="font-bold text-gray-800 text-xl">' + escHtml(msg) + '</div>' +
-        (pieceId ? '<div class="text-gray-400 text-sm mt-1">' + escHtml(pieceId) + '</div>' : '') +
+      '<div class="pop w-28 h-28 rounded-full bg-white/20 flex items-center justify-center">' +
+        (ok ? '<svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>'
+            : '<svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>') +
       '</div>' +
-
-      '<button onclick="escanearOtra()" ' +
-        'class="w-full max-w-xs bg-blue-600 hover:bg-blue-700 active:bg-blue-800 ' +
-        'text-white font-bold text-lg py-4 rounded-2xl shadow-md transition-all mt-4">' +
-        'Escanear otra pieza' +
-      '</button>' +
-
-      '<button onclick="cambiarInspector()" ' +
-        'class="text-gray-400 text-sm underline mt-2">' +
-        'Cambiar inspector' +
-      '</button>' +
-    '</div>' +
-  '</div>';
+      '<div class="font-extrabold text-3xl leading-tight">' + escHtml(msg) + '</div>' +
+      (id ? '<div class="font-mono text-white/80">' + escHtml(id) + '</div>' : '') +
+      '<button onclick="escanearOtra()" class="tap w-full max-w-xs bg-white ' + (ok ? 'text-green-700' : 'text-red-700') + ' font-extrabold text-xl py-5 rounded-2xl shadow-lg mt-4">Escanear otra</button>' +
+    '</div></div>';
 }
 
 // ─── Handlers ─────────────────────────────────────────────────
 function attachHandlers() {
-  if (state.screen === 'scan') {
-    setTimeout(function() {
-      focusScan();
-      var input = document.getElementById('scan-input');
-      if (input) {
-        input.addEventListener('keydown', function(e) {
-          if (e.key === 'Enter' && input.value.trim()) {
-            var code = input.value.trim();
-            input.value = '';
-            buscarPieza(code);
-          }
-        });
-        // El escáner puede enviar el código completo + Enter rápidamente
-        input.addEventListener('input', function() {
-          // Debounce: si llega todo de golpe en <100ms también funciona con Enter
-        });
-      }
-    }, 150);
-  }
-}
-
-function focusScan() {
+  if (state.screen !== 'scan') return;
   var input = document.getElementById('scan-input');
-  if (input) input.focus();
+  if (!input) return;
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && input.value.trim()) {
+      var code = input.value.trim();
+      input.value = '';
+      buscarPieza(code);
+    }
+  });
+  // si el lector no manda Enter, buscar cuando deje de llegar texto
+  var t = null;
+  input.addEventListener('input', function() {
+    clearTimeout(t);
+    t = setTimeout(function() {
+      var code = input.value.trim();
+      if (code.length >= 10) { input.value = ''; buscarPieza(code); }
+    }, 350);
+  });
+  input.addEventListener('blur', function() {
+    setTimeout(function() {
+      var a = document.activeElement;
+      if (state.screen === 'scan' && (!a || a === document.body)) focusScan();
+    }, 100);
+  });
+  setTimeout(focusScan, 120);
 }
 
-function selectInspector(name) {
-  state.inspector = name;
-  state.screen = 'scan';
-  render();
-}
+function focusScan() { var i = document.getElementById('scan-input'); if (i) i.focus(); }
 
+function selectInspector(i) {
+  state.inspector = state.inspectors[i];
+  store('lib_inspector', state.inspector);
+  state.screen = 'scan'; render();
+}
 function buscarManual() {
   var input = document.getElementById('manual-input');
-  if (!input) return;
-  var code = input.value.trim();
+  var code = input && input.value.trim();
   if (!code) return;
-  input.value = '';
-  buscarPieza(code);
+  input.value = ''; buscarPieza(code);
 }
-
-function goBack() {
-  state.screen = 'inspector';
-  state.piece = null;
-  render();
-}
-
-function goBackToScan() {
-  state.piece = null;
-  state.rowIndex = null;
-  state.screen = 'scan';
-  render();
-}
-
-function escanearOtra() {
-  state.piece = null;
-  state.rowIndex = null;
-  state.result = null;
-  state.screen = 'scan';
-  render();
-}
-
+function goBack() { state.screen = 'inspector'; state.piece = null; render(); }
+function goBackToScan() { clearTimeout(autoTimer); state.piece = null; state.rowIndex = null; state.screen = 'scan'; render(); }
+function escanearOtra() { clearTimeout(autoTimer); state.piece = null; state.rowIndex = null; state.result = null; state.screen = 'scan'; render(); }
 function cambiarInspector() {
-  state.inspector = null;
-  state.piece = null;
-  state.rowIndex = null;
-  state.result = null;
-  state.screen = 'inspector';
-  render();
+  state.inspector = null; state.piece = null; state.rowIndex = null; state.result = null;
+  store('lib_inspector', ''); state.screen = 'inspector'; render();
 }
 
-// ─── API calls ────────────────────────────────────────────────
+// ─── API ──────────────────────────────────────────────────────
 function apiGet(params) {
   var url = GAS_URL + '?' + Object.keys(params).map(function(k) {
     return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
   }).join('&');
-
-  return fetch(url, { redirect: 'follow' })
-    .then(function(r) { return r.json(); });
+  return fetch(url, { redirect: 'follow' }).then(function(r) { return r.json(); });
 }
 
 function buscarPieza(code) {
-  state.scanning = true;
-  render();
+  if (state.scanning) return;
+  state.lastCode = code;
+  state.scanning = true; render();
 
   apiGet({ action: 'searchPiece', id: code })
     .then(function(data) {
       state.scanning = false;
-      if (data.alreadyLiberated) {
-        state.piece = null;
-        state.result = { error: data.error };
-        state.screen = 'result';
-        render();
-      } else if (data.found) {
-        state.piece = data.piece;
-        state.rowIndex = data.rowIndex;
-        state.screen = 'piece';
-        render();
+      if (data.found) {
+        feedback(true);
+        state.piece = data.piece; state.rowIndex = data.rowIndex; state.screen = 'piece';
       } else {
+        feedback(false);
+        state.piece = null;
         state.result = { error: data.error || 'Pieza no encontrada' };
         state.screen = 'result';
-        render();
       }
-    })
-    .catch(function(err) {
-      state.scanning = false;
-      state.result = { error: 'Error de conexión. Verifica el internet.' };
-      state.screen = 'result';
       render();
+    })
+    .catch(function() {
+      state.scanning = false; feedback(false); state.piece = null;
+      state.result = { error: 'Sin conexión. Revisa el internet.' };
+      state.screen = 'result'; render();
     });
 }
 
 function confirmarLiberar() {
   var btn = document.getElementById('btn-liberar');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Liberando...';
-    btn.classList.add('opacity-60');
-  }
+  if (!btn || btn.disabled) return;
+  btn.disabled = true; btn.textContent = 'Liberando…'; btn.classList.add('opacity-60');
 
-  apiGet({
-    action:    'liberarPieza',
-    id:        state.piece.ID_CONECT,
-    inspector: state.inspector,
-    rowIndex:  state.rowIndex
-  })
-  .then(function(data) {
-    state.result = data;
-    state.screen = 'result';
-    render();
-  })
-  .catch(function(err) {
-    state.result = { error: 'Error de conexión al liberar.' };
-    state.screen = 'result';
-    render();
-  });
+  apiGet({ action: 'liberarPieza', id: state.piece.ID_CONECT, inspector: state.inspector, rowIndex: state.rowIndex })
+    .then(function(data) {
+      state.result = data;
+      state.screen = 'result';
+      if (data.success) {
+        feedback(true);
+        var d = new Date();
+        state.liberadas.unshift({ id: state.piece.ID_CONECT, hora: d.toTimeString().slice(0, 5) });
+        render();
+        // vuelve solo a escanear para el siguiente
+        autoTimer = setTimeout(escanearOtra, 1400);
+      } else { feedback(false); render(); }
+    })
+    .catch(function() {
+      feedback(false);
+      state.result = { error: 'Sin conexión al liberar. Revisa en la hoja si quedó registrada.' };
+      state.screen = 'result'; render();
+    });
 }
 
 // ─── Utils ────────────────────────────────────────────────────
 function escHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function capitalize(s) {
-  if (!s) return '';
-  return s.charAt(0).toUpperCase() + s.slice(1);
+// La hoja devuelve la hora como fecha 1899 con desfase de zona (-6:36:36); se corrige aquí
+function fmtHora(h) {
+  if (!h) return '';
+  if (typeof h === 'string' && h.indexOf('1899-12-30T') === 0) {
+    var d = new Date(h);
+    var secs = (d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds() - 23796 + 86400) % 86400;
+    var hh = Math.floor(secs / 3600), mm = Math.floor((secs % 3600) / 60);
+    return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+  }
+  return String(h);
 }
 
 // ─── Init ─────────────────────────────────────────────────────
-(function init() {
-  if (!GAS_URL || GAS_URL === 'PEGAR_URL_DEL_GAS_AQUI') {
-    document.getElementById('app').innerHTML =
-      '<div class="flex flex-col items-center justify-center min-h-screen p-6 text-center gap-4">' +
-        '<div class="text-5xl">⚙️</div>' +
-        '<div class="font-bold text-xl text-gray-700">App no configurada</div>' +
-        '<div class="text-gray-500 text-sm max-w-xs">Abre el archivo liberacion.html y reemplaza<br>' +
-        '<code class="bg-gray-100 px-2 py-1 rounded text-xs">PEGAR_URL_DEL_GAS_AQUI</code><br>' +
-        'con la URL del Google Apps Script desplegado</div>' +
-      '</div>';
-    return;
-  }
-
-  render(); // muestra loading
-
+function init() {
+  state.screen = 'loading'; render();
   apiGet({ action: 'getInspectors' })
     .then(function(data) {
-      if (data.inspectors && data.inspectors.length > 0) {
+      if (data.inspectors && data.inspectors.length) {
         state.inspectors = data.inspectors;
+        var saved = store('lib_inspector');
+        state.inspector = (saved && data.inspectors.indexOf(saved) >= 0) ? saved : null;
+        state.screen = state.inspector ? 'scan' : 'inspector';
       } else {
-        state.inspectors = ['jhair', 'raul', 'fatima'];
+        state.fatal = data.error || 'La lista de inspectores llegó vacía.';
+        state.screen = 'error';
       }
-      state.screen = 'inspector';
       render();
     })
     .catch(function() {
-      // Fallback offline con nombres de la hoja
-      state.inspectors = ['jhair', 'raul', 'fatima'];
-      state.screen = 'inspector';
-      render();
+      state.fatal = 'Revisa que el equipo tenga internet e intenta de nuevo.';
+      state.screen = 'error'; render();
     });
-})();
+}
+init();
 </script>
 </body>
 </html>
