@@ -117,7 +117,7 @@
   .sheet-label{font-size:12px; color:var(--muted); margin-bottom:4px;}
   .table-scroll{overflow-x:auto;}
   .tarja-cell{display:flex; gap:4px;}
-  .tarja-cell input{width:50%; min-width:58px;}
+  .tarja-cell input{width:34%; min-width:46px;}
   .extracuts-cell{display:flex; flex-direction:column; gap:5px;}
   .extracuts-list{display:flex; flex-direction:column; gap:3px;}
   .extracut-chip{display:flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--border);
@@ -528,6 +528,7 @@ function addPieceRow(data){
       <div class="tarja-cell">
         <input type="number" class="p-tarja-l" placeholder="L" min="0" value="${data?.tarjaL||''}">
         <input type="number" class="p-tarja-a" placeholder="A" min="0" value="${data?.tarjaA||''}">
+        <input type="number" class="p-tarja-n" placeholder="×1" min="1" step="1" title="Cantidad de tarjas iguales (2 si es doble tarja)" value="${data?.tarjaN||''}">
       </div>
     </td>
     <td>
@@ -1029,7 +1030,8 @@ function collectProjectData(){
       noRotate: tr.querySelector('.p-norotate').checked,
       joint: tr.querySelector('.p-joint').value,
       tarjaL: tr.querySelector('.p-tarja-l').value,
-      tarjaA: tr.querySelector('.p-tarja-a').value
+      tarjaA: tr.querySelector('.p-tarja-a').value,
+      tarjaN: tr.querySelector('.p-tarja-n').value
     })).filter(p => parseFloat(p.w) > 0 && parseFloat(p.h) > 0)
   };
 }
@@ -1379,7 +1381,7 @@ function packOneGroup(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotationGlo
   pieces.forEach(p => {
     const pieceAllowRotation = allowRotationGlobal && !p.noRotate;
     for (let i=0;i<p.qty;i++){
-      instances.push({ name:p.name, origW:p.w, origH:p.h, w:p.w+kerf, h:p.h+kerf, colorIdx: p.colorIdx, allowRotation: pieceAllowRotation, joint:p.joint, tarjaL:p.tarjaL, tarjaA:p.tarjaA, extraCuts:p.extraCuts });
+      instances.push({ name:p.name, origW:p.w, origH:p.h, w:p.w+kerf, h:p.h+kerf, colorIdx: p.colorIdx, allowRotation: pieceAllowRotation, joint:p.joint, tarjaL:p.tarjaL, tarjaA:p.tarjaA, tarjaN:p.tarjaN, extraCuts:p.extraCuts });
     }
   });
   instances.sort((a,b)=> Math.max(b.w,b.h)-Math.max(a.w,a.h) || (b.w*b.h)-(a.w*a.h));
@@ -1407,7 +1409,7 @@ function packOneGroup(pieces, sheetW, sheetH, kerf, edgeMargin, allowRotationGlo
     }
     const node = { x:placement.freeRect.x, y:placement.freeRect.y, w:placement.ow, h:placement.oh,
                    name:inst.name, origW:inst.origW, origH:inst.origH, rotated:placement.rotated, colorIdx:inst.colorIdx,
-                   joint:inst.joint, tarjaL:inst.tarjaL, tarjaA:inst.tarjaA, extraCuts:inst.extraCuts };
+                   joint:inst.joint, tarjaL:inst.tarjaL, tarjaA:inst.tarjaA, tarjaN:inst.tarjaN, extraCuts:inst.extraCuts };
     placedIn.placed.push(node);
 
     if (cutMode === 'guillotine'){
@@ -1514,6 +1516,7 @@ function readInputs(){
     joint: tr.querySelector('.p-joint').value,
     tarjaL: parseFloat(tr.querySelector('.p-tarja-l').value) || 0,
     tarjaA: parseFloat(tr.querySelector('.p-tarja-a').value) || 0,
+    tarjaN: Math.max(1, parseInt(tr.querySelector('.p-tarja-n').value) || 1),
     extraCuts: getExtraCuts(tr),
     colorIdx: i % PALETTE.length
   })).filter(p => p.w>0 && p.h>0 && p.qty>0);
@@ -1532,7 +1535,7 @@ function markStale(){
 // Detecta cambios en datos que SI afectan el acomodo/nesting (no solo costo, que ya se actualiza solo)
 document.addEventListener('input', (e) => {
   const t = e.target;
-  const staleClasses = ['s-w','s-h','s-name','p-w','p-h','p-qty','p-color','p-norotate','p-tarja-l','p-tarja-a'];
+  const staleClasses = ['s-w','s-h','s-name','p-w','p-h','p-qty','p-color','p-norotate','p-tarja-l','p-tarja-a','p-tarja-n'];
   if (staleClasses.some(c => t.classList && t.classList.contains(c))) markStale();
   if (['kerf','edgeMargin'].includes(t.id)) markStale();
 });
@@ -1636,8 +1639,11 @@ function renderSheetsForSelected(){
         const th = p.rotated ? p.tarjaL : p.tarjaA;
         const cutW = Math.min(tw*scale, pw-4);
         const cutH = Math.min(th*scale, ph-4);
-        const cx = x + pw/2 - cutW/2, cy = y + ph/2 - cutH/2;
-        svg += `<rect x="${cx}" y="${cy}" width="${cutW}" height="${cutH}" fill="none" stroke="#08201c" stroke-width="1.5" stroke-dasharray="3,2" rx="3"/>`;
+        const nT = p.tarjaN || 1, horiz = pw >= ph;   // varias tarjas iguales: repartidas a lo largo de la pieza
+        for (let k = 0; k < nT; k++){
+          const cx = horiz ? x + pw*(k+0.5)/nT - cutW/2 : x + pw/2 - cutW/2, cy = horiz ? y + ph/2 - cutH/2 : y + ph*(k+0.5)/nT - cutH/2;
+          svg += `<rect x="${cx}" y="${cy}" width="${cutW}" height="${cutH}" fill="none" stroke="#08201c" stroke-width="1.5" stroke-dasharray="3,2" rx="3"/>`;
+        }
       }
       (p.extraCuts || []).forEach(c => {
         const s = c.sides || {};
@@ -1715,7 +1721,7 @@ function renderCosteo(){
     binsColor.forEach(bin => bin.placed.forEach(p => { pulgadasSeparacion += 2 * (p.origW + p.origH) / 25.4; }));
     let pulgadasTarjas = 0;
     binsColor.forEach(bin => bin.placed.forEach(p => {
-      if (p.tarjaL > 0 && p.tarjaA > 0) pulgadasTarjas += 2 * (p.tarjaL + p.tarjaA) / 25.4;
+      if (p.tarjaL > 0 && p.tarjaA > 0) pulgadasTarjas += 2 * (p.tarjaL + p.tarjaA) / 25.4 * (p.tarjaN || 1);
     }));
     // Cortes extra: cada uno definido por pieza, con su propio nombre/costo/lado(s) — no usan la tarifa del catálogo
     let costoCorteExtra = 0, pulgadasCorteExtra = 0;
@@ -1853,7 +1859,7 @@ function renderPieceReport(bins){
       rows.push({ tag:`L${bi+1}-${pi+1}`, sheet:bi+1, name:p.name, color:bin.colorLabel||'—',
                   w:p.origW, h:p.origH, x:Math.round(p.x), y:Math.round(p.y), rotated:p.rotated?'Sí':'No',
                   joint: jointLabel(p.joint),
-                  tarja: (p.tarjaL>0 && p.tarjaA>0) ? `${p.tarjaL}x${p.tarjaA}mm` : '—',
+                  tarja: (p.tarjaL>0 && p.tarjaA>0) ? `${(p.tarjaN||1) > 1 ? p.tarjaN + '× ' : ''}${p.tarjaL}x${p.tarjaA}mm` : '—',
                   extraCuts });
     });
   });
