@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPIs Calidad</title>
+<style>
+  :root{--navy:#002060;--navy2:#17365D;--yellow:#FFFF00;--lblue:#B4CDE6;--blue:#4472C4;--orange:#ED7D31;--red:#FF0000;--green:#00B050;--amber:#FFC000;--text:#002060;--muted:#5b6b85;--border:#c9d6e6;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Calibri,'Segoe UI',Arial,sans-serif;background:#fff;color:var(--text);}
+  .wrap{max-width:1200px;margin:0 auto;padding:0 24px 24px;} @media(max-width:600px){.wrap{padding:0 14px 16px;}}
+  .banner{background:var(--navy);color:#fff;display:flex;align-items:center;gap:16px;padding:14px 24px;position:relative;}
+  .banner img{height:46px;width:46px;object-fit:contain;} .banner h1{font-size:26px;margin:0;letter-spacing:.5px;text-transform:uppercase;}
+  .banner::after{content:'';position:absolute;right:0;top:0;bottom:0;width:70px;background:var(--yellow);clip-path:polygon(40% 0,100% 0,100% 100%,0 100%);}
+  .sub{color:var(--muted);font-size:13px;margin:12px 0 14px;}
+  .top{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:16px;}
+  label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px;}
+  select{background:#fff;border:2px solid var(--navy);color:var(--navy);padding:7px 10px;border-radius:6px;font-size:14px;font-family:inherit;font-weight:600;}
+  .sec{margin-bottom:22px;}
+  .sec>h2{background:var(--navy);color:#fff;font-size:17px;margin:0 0 14px;padding:9px 16px 9px 20px;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:10px;}
+  .sec>h2::before{content:'';width:0;height:0;border-style:solid;border-width:11px 0 11px 14px;border-color:transparent transparent transparent var(--yellow);}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px;}
+  .stat{border:2px solid var(--navy);border-radius:4px;overflow:hidden;background:#fff;}
+  .stat span{display:block;background:var(--navy);color:#fff;font-size:12px;font-weight:700;text-transform:uppercase;padding:5px 10px;letter-spacing:.4px;}
+  .stat b{display:block;font-size:34px;padding:8px 10px 0;color:var(--navy);} .stat small{display:block;color:var(--muted);font-size:12px;padding:0 10px 9px;}
+  .ok{color:var(--green)!important;} .bad{color:var(--red)!important;}
+  .grid2{display:grid;grid-template-columns:2fr 1fr;gap:16px;} @media(max-width:800px){.grid2{grid-template-columns:1fr;}}
+  .card{border:1px solid var(--border);border-radius:6px;padding:14px;background:#fff;}
+  .card h3{margin:0 0 10px;font-size:13px;color:var(--navy);font-weight:700;text-transform:uppercase;}
+  .card.lb{background:var(--lblue);border-color:var(--lblue);}
+  svg{width:100%;height:auto;display:block;} svg text{fill:#44546A;font-size:11px;font-family:inherit;}
+  .leg{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap;} .leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle;}
+  table{border-collapse:collapse;width:100%;font-size:13px;} th,td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;} th:first-child,td:first-child{text-align:left;} th{background:var(--navy);color:#fff;font-size:12px;font-weight:700;}
+  .pend{border:2px dashed var(--navy);background:#fffde0;border-radius:6px;padding:14px;color:var(--navy);font-size:13px;line-height:1.5;}
+  .note{color:var(--muted);font-size:12px;margin-top:10px;line-height:1.5;}
+  .err{background:#ffe5e5;border:1px solid var(--red);padding:12px;border-radius:8px;margin-bottom:12px;display:none;}
+  .tabs{display:flex;gap:6px;margin:14px 0 16px;border-bottom:3px solid var(--navy);}
+  .tabs button{background:#fff;border:2px solid var(--navy);border-bottom:none;color:var(--navy);padding:9px 20px;font-weight:700;font-size:14px;cursor:pointer;border-radius:6px 6px 0 0;font-family:inherit;text-transform:uppercase;}
+  .tabs button.on{background:var(--navy);color:#fff;}
+  .frm{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;} .frm .w2{grid-column:span 2;} .frm .w4{grid-column:span 3;} @media(max-width:800px){.frm{grid-template-columns:1fr 1fr;}.frm .w4{grid-column:span 2;}}
+  .frm .btnc{display:flex;align-items:end;}
+  input{background:#fff;border:1px solid var(--border);color:var(--navy);padding:8px 10px;border-radius:6px;font-size:14px;width:100%;font-family:inherit;}
+  .frm select{width:100%;font-weight:400;border-width:1px;border-color:var(--border);}
+  button.pri{background:var(--navy);color:#fff;border:none;padding:10px 18px;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px;width:100%;font-family:inherit;}
+  button.pri:disabled{opacity:.5;} button.del{background:#fff;border:1px solid var(--red);color:var(--red);border-radius:4px;cursor:pointer;padding:2px 8px;}
+  .scroll{overflow-x:auto;}
+</style>
+</head>
+<body>
+<div class="banner"><img src="kpis_calidad_logo.png" alt=""><h1>KPI's Calidad</h1></div>
+<div class="wrap">
+<div class="sub" id="sub">Cargando…</div>
+<div class="err" id="err"></div>
+<div class="tabs"><button id="tb-pres" class="on" onclick="vista('pres')">Presentación</button><button id="tb-cap" onclick="vista('cap')">Captura de datos</button></div>
+<div id="v-pres">
+<div class="top">
+  <div><label>Semana (lunes a domingo)</label><select id="sem"></select></div>
+</div>
+
+<div class="sec" id="s1"></div>
+
+<div class="sec" id="s2"></div>
+
+<div class="sec" id="s3"></div>
+</div>
+
+<div id="v-cap" style="display:none">
+  <div class="err" id="caperr"></div>
+  <div class="sec"><h2>Quejas y reclamaciones de clientes</h2>
+    <div class="card"><form id="fq" class="frm">
+      <div><label>Fecha</label><input type="date" name="fecha" required></div>
+      <div><label>Tipo</label><select name="tipo"><option>Queja</option><option>Reclamación</option></select></div>
+      <div class="w2"><label>Cliente</label><input name="cliente" list="dl-cli" required placeholder="Ej. BELSTONE"><datalist id="dl-cli"></datalist></div>
+      <div><label>Orden / PO</label><input name="orden" placeholder="PO u orden"></div>
+      <div><label>Modelo</label><input name="modelo" placeholder="Modelo o SKU"></div>
+      <div><label>Área responsable</label><select name="area"><option value="">—</option><option>Vaciado</option><option>Pintura</option><option>Acabado</option><option>Empaque</option><option>Embarque</option><option>Transporte</option><option>Otro</option></select></div>
+      <div><label>Estatus</label><select name="estatus"><option>Abierta</option><option>En proceso</option><option>Cerrada</option></select></div>
+      <div class="w4"><label>Descripción</label><input name="descripcion" placeholder="Qué pasó"></div>
+      <div><label>Capturó</label><input name="capturado_por" placeholder="Nombre"></div>
+      <div class="btnc"><button class="pri" type="submit">Guardar queja</button></div>
+    </form></div>
+    <div class="card" style="margin-top:12px"><h3>Últimas capturas</h3><div class="scroll" id="lq"></div></div>
+  </div>
+  <div class="sec"><h2>Retrabajo en línea (no registrado en el sistema)</h2>
+    <div class="card"><form id="fr" class="frm">
+      <div><label>Fecha</label><input type="date" name="fecha" required></div>
+      <div><label>Línea</label><select name="linea"><option>L1</option><option>L2</option><option>L3</option></select></div>
+      <div><label>Tipo</label><select name="tipo"><option>Menor</option><option>Mayor</option></select></div>
+      <div><label>Cantidad de piezas</label><input type="number" name="cantidad" min="1" value="1" required></div>
+      <div class="w2"><label>Defecto</label><input name="defecto" list="dl-def" placeholder="Ej. Despostillado"><datalist id="dl-def"></datalist></div>
+      <div><label>SKU (opcional)</label><input name="sku"></div>
+      <div><label>Capturó</label><input name="capturado_por" placeholder="Nombre"></div>
+      <div class="btnc"><button class="pri" type="submit">Guardar retrabajo</button></div>
+    </form></div>
+    <div class="card" style="margin-top:12px"><h3>Últimas capturas</h3><div class="scroll" id="lr"></div></div>
+  </div>
+</div>
+
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const fmtP=(n,d=2)=>(n*100).toFixed(d)+'%';
+const NF=n=>n.toLocaleString('es-MX');
+const DOW=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+let DATA=null;
+const SUP_URL='https://xzwlbrirzfogbqhywtvj.supabase.co', SUP_KEY='sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G';
+const SH={apikey:SUP_KEY,Authorization:'Bearer '+SUP_KEY,'Content-Type':'application/json'};
+let QUEJAS=[],RLIN=[],CAPERR='';
+async function sb(path,opt={}){const r=await fetch(SUP_URL+'/rest/v1/'+path,{...opt,headers:{...SH,...(opt.headers||{})}});
+  if(!r.ok){const e=await r.text();throw new Error(r.status+' '+e.slice(0,160));} const tx=await r.text(); return tx?JSON.parse(tx):null;}
+async function cargaCap(){
+  try{QUEJAS=await sb('calidad_quejas?select=*&order=fecha.desc,id.desc&limit=5000');RLIN=await sb('calidad_retrabajo_linea?select=*&order=fecha.desc,id.desc&limit=5000');CAPERR='';}
+  catch(e){QUEJAS=[];RLIN=[];CAPERR='No se pudieron leer las tablas de captura ('+e.message+'). Corre kpis_calidad_setup.sql en Supabase.';}
+  const ce=$('caperr'); ce.style.display=CAPERR?'block':'none'; ce.textContent=CAPERR;
+  $('dl-cli').innerHTML=[...new Set(QUEJAS.map(q=>q.cliente))].sort().map(c=>`<option value="${esc(c)}">`).join('');
+  const dd=new Set();DATA.dias.forEach(d=>Object.keys(d.defectos_rw||{}).forEach(k=>dd.add(k)));$('dl-def').innerHTML=[...dd].sort().map(c=>`<option value="${esc(c)}">`).join('');
+  listas();
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function listas(){
+  $('lq').innerHTML=QUEJAS.length?`<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Cliente</th><th>Orden</th><th>Descripción</th><th>Área</th><th>Estatus</th><th></th></tr></thead><tbody>${QUEJAS.slice(0,15).map(q=>`<tr><td>${q.fecha}</td><td>${esc(q.tipo)}</td><td>${esc(q.cliente)}</td><td>${esc(q.orden)}</td><td style="text-align:left">${esc(q.descripcion)}</td><td>${esc(q.area)}</td><td>${esc(q.estatus)}</td><td><button class="del" onclick="borra('calidad_quejas',${q.id})">Borrar</button></td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--muted);font-size:13px">Aún no hay quejas capturadas.</span>';
+  $('lr').innerHTML=RLIN.length?`<table><thead><tr><th>Fecha</th><th>Línea</th><th>Tipo</th><th>Cant.</th><th>Defecto</th><th>SKU</th><th></th></tr></thead><tbody>${RLIN.slice(0,15).map(q=>`<tr><td>${q.fecha}</td><td>${esc(q.linea)}</td><td>${esc(q.tipo)}</td><td>${q.cantidad}</td><td style="text-align:left">${esc(q.defecto)}</td><td>${esc(q.sku)}</td><td><button class="del" onclick="borra('calidad_retrabajo_linea',${q.id})">Borrar</button></td></tr>`).join('')}</tbody></table>`:'<span style="color:var(--muted);font-size:13px">Aún no hay retrabajo en línea capturado.</span>';
+}
+async function borra(tab,id){if(!confirm('¿Borrar este registro?'))return;try{await sb(tab+'?id=eq.'+id,{method:'DELETE'});await cargaCap();render();}catch(e){alert(e.message);}}
+function vista(v){$('v-pres').style.display=v==='pres'?'':'none';$('v-cap').style.display=v==='cap'?'':'none';$('tb-pres').className=v==='pres'?'on':'';$('tb-cap').className=v==='cap'?'on':'';}
+function guarda(formId,tab){$(formId).onsubmit=async ev=>{ev.preventDefault();const f=ev.target,b=f.querySelector('button.pri');const o={};new FormData(f).forEach((v,k)=>{if(v!=='')o[k]=v;});
+  if(o.cantidad)o.cantidad=+o.cantidad; b.disabled=true;const txt=b.textContent;
+  try{await sb(tab,{method:'POST',body:JSON.stringify(o),headers:{Prefer:'return=minimal'}});const fe=o.fecha;f.reset();f.fecha.value=fe;await cargaCap();render();b.textContent='Guardado ✓';setTimeout(()=>b.textContent=txt,1500);}
+  catch(e){alert('No se guardó: '+e.message);} b.disabled=false;};}
+function renderQuejas(w,fin){
+  const sem=QUEJAS.filter(q=>q.fecha>=w&&q.fecha<=fin),anio=w.slice(0,4),ytd=QUEJAS.filter(q=>q.fecha.slice(0,4)===anio);
+  const cnt=(a,k)=>{const m={};a.forEach(q=>{m[q[k]]=(m[q[k]]||0)+1});return Object.entries(m).sort((x,y)=>y[1]-x[1]);};
+  const bars=(arr)=>{const mx=Math.max(1,...arr.map(x=>x[1]));return arr.length?arr.map(([k,v])=>`<div style="margin-bottom:7px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>${esc(k)}</span><b>${v}</b></div><div style="height:7px;background:#fff;border-radius:3px"><div style="height:7px;width:${v/mx*100}%;background:#002060;border-radius:3px"></div></div></div>`).join(''):'<span style="font-size:12px">Sin registros</span>';};
+  const cs=cnt(sem,'cliente'),rcl=ytd.filter(q=>q.tipo==='Reclamación');
+  const meses=Array.from({length:12},(_,i)=>rcl.filter(q=>+q.fecha.slice(5,7)===i+1).length);
+  const MN=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'],mm=Math.max(1,...meses);
+  $('s2').innerHTML='<h2>Quejas de clientes y reclamaciones</h2>'+(CAPERR||!QUEJAS.length?`<div class="pend"><b>Sin datos capturados todavía.</b> ${CAPERR?esc(CAPERR):'Captúralas en la pestaña “Captura de datos”.'}</div>`:`
+  <div class="stats"><div class="stat"><span>Quejas de la semana</span><b>${sem.length}</b><small>${cs.length} clientes</small></div>
+    <div class="stat"><span>Reclamaciones YTD</span><b class="${rcl.length?'bad':'ok'}">${rcl.length}</b><small>acumulado ${anio}</small></div>
+    <div class="stat"><span>Abiertas</span><b>${QUEJAS.filter(q=>q.estatus!=='Cerrada').length}</b><small>sin cerrar</small></div></div>
+  <div class="grid2"><div class="card lb"><h3>Quejas por cliente · semana</h3>${bars(cs)}</div>
+  <div class="card lb"><h3>Reclamaciones YTD por cliente</h3>${bars(cnt(rcl,'cliente').slice(0,8))}</div></div>
+  <div class="card" style="margin-top:12px"><h3>Reclamaciones por mes · ${anio}</h3><div style="display:flex;gap:8px;align-items:end;height:120px">${meses.map((v,i)=>`<div style="flex:1;text-align:center;font-size:11px"><div style="font-weight:700">${v||''}</div><div style="height:${v/mm*80}px;background:#4472C4;border-radius:3px 3px 0 0"></div>${MN[i]}</div>`).join('')}</div></div>`);
+}
+
+
+function mondayOf(s){const d=new Date(s+'T12:00:00');const w=(d.getDay()+6)%7;d.setDate(d.getDate()-w);return d.toISOString().slice(0,10);}
+function addDays(s,n){const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+function sum(a,k){return a.reduce((t,x)=>t+(x[k]||0),0);}
+function fechaCorta(s){const d=new Date(s+'T12:00:00');return DOW[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);}
+
+async function init(){
+  try{
+    const r=await fetch('kpis_calidad_data.json?'+Date.now());
+    if(!r.ok) throw new Error('No se pudo leer kpis_calidad_data.json ('+r.status+'). Corre generar_kpis_calidad.py.');
+    DATA=await r.json();
+  }catch(e){$('err').style.display='block';$('err').textContent=e.message;$('sub').textContent='';return;}
+  $('sub').textContent='ConnectIT · datos generados '+DATA.generado+' · piezas vaciadas sin recuperadas ni rechazos de captura (mismo criterio del reporte de vaciados)';
+  const weeks=[...new Set(DATA.dias.map(d=>mondayOf(d.fecha)))].sort().reverse();
+  $('sem').innerHTML=weeks.map(w=>`<option value="${w}">${w.slice(8)}/${w.slice(5,7)} – ${addDays(w,6).slice(8)}/${addDays(w,6).slice(5,7)}</option>`).join('');
+  $('sem').onchange=render; await cargaCap(); guarda('fq','calidad_quejas'); guarda('fr','calidad_retrabajo_linea'); const hoy=new Date().toISOString().slice(0,10); document.querySelectorAll('input[name=fecha]').forEach(i=>i.value=hoy); render();
+}
+
+function barChart(days,series,meta){ // series: [{k,color,label}] apiladas; linea % opcional
+  const W=640,H=240,pl=36,pr=64,pt=14,pb=28,n=days.length||1,bw=Math.min(60,(W-pl-pr)/n*.6);
+  const mx=Math.ceil(Math.max(1,...days.map(d=>series.reduce((t,s)=>t+d[s.k],0)))/4)*4;
+  const pmax=Math.max(meta.valor*2,...days.map(d=>d.pct))*1.1;
+  const x=i=>pl+(i+.5)*(W-pl-pr)/n, yb=v=>pt+(H-pt-pb)*(1-v/mx), yp=v=>pt+(H-pt-pb)*(1-v/pmax);
+  let s=`<svg viewBox="0 0 ${W} ${H}">`;
+  for(let g=0;g<=4;g++){const v=mx*g/4;s+=`<line x1="${pl}" x2="${W-pr}" y1="${yb(v)}" y2="${yb(v)}" stroke="#d5dfec"/><text x="${pl-5}" y="${yb(v)+4}" text-anchor="end">${Math.round(v)}</text>`;}
+  days.forEach((d,i)=>{let acc=0;series.forEach(se=>{const v=d[se.k];if(!v)return;const y1=yb(acc+v),y0=yb(acc);s+=`<rect x="${x(i)-bw/2}" y="${y1}" width="${bw}" height="${y0-y1}" fill="${se.color}" rx="2"><title>${d.etq}: ${se.label} ${v}</title></rect>`;if(y0-y1>14)s+=`<text x="${x(i)}" y="${(y0+y1)/2+4}" text-anchor="middle" style="fill:#fff;font-weight:700">${v}</text>`;acc+=v;});
+    s+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle">${d.etq}</text>`;});
+  const pts=days.map((d,i)=>`${x(i)},${yp(d.pct)}`).join(' ');
+  s+=`<line x1="${pl}" x2="${W-pr}" y1="${yp(meta.valor)}" y2="${yp(meta.valor)}" stroke="#FF0000" stroke-dasharray="5 4"/><text x="${W-pr+4}" y="${yp(meta.valor)+4}" style="fill:#FF0000;font-weight:700">meta ${fmtP(meta.valor,1)}</text>`;
+  s+=`<polyline points="${pts}" fill="none" stroke="#002060" stroke-width="2.5"/>`+days.map((d,i)=>`<circle cx="${x(i)}" cy="${yp(d.pct)}" r="3.5" fill="#002060"><title>${d.etq}: ${fmtP(d.pct)}</title></circle><text x="${x(i)}" y="${yp(d.pct)-8}" text-anchor="middle" style="fill:#002060;font-weight:700">${fmtP(d.pct,1)}</text>`).join('');
+  return s+'</svg>';
+}
+
+function render(){
+  const w=$('sem').value, fin=addDays(w,6);
+  renderQuejas(w,fin);
+  const dias=DATA.dias.filter(d=>d.fecha>=w&&d.fecha<=fin).map(d=>({...d,etq:fechaCorta(d.fecha),pct:d.vaciadas?d.gc/d.vaciadas:0}));
+  const mes=w.slice(0,7), diasMes=DATA.dias.filter(d=>d.fecha.slice(0,7)===mes&&d.fecha<=fin);
+  const meta=DATA.meta_gc;
+  const V=sum(dias,'vaciadas'),G=sum(dias,'gc'),GP=sum(dias,'gc_pared'),GB=sum(dias,'gc_piso');
+  const VM=sum(diasMes,'vaciadas'),GM=sum(diasMes,'gc');
+  const pSem=V?G/V:0,pMes=VM?GM/VM:0;
+  const pP=sum(dias,'pared')?GP/sum(dias,'pared'):0,pB=sum(dias,'piso')?GB/sum(dias,'piso'):0;
+  const cls=p=>p>meta?'bad':'ok';
+  const defs={};dias.forEach(d=>Object.entries(d.defectos_gc).forEach(([k,v])=>defs[k]=(defs[k]||0)+v));
+  const top=Object.entries(defs).sort((a,b)=>b[1]-a[1]).slice(0,8), mxd=Math.max(1,...top.map(t=>t[1]));
+  $('s1').innerHTML=`<h2>Grado C · acumulado mensual y semanal</h2>
+  <div class="stats">
+    <div class="stat"><span>Semana</span><b class="${cls(pSem)}">${fmtP(pSem)}</b><small>${G} piezas de ${NF(V)} vaciadas</small></div>
+    <div class="stat"><span>Acumulado del mes (${mes})</span><b class="${cls(pMes)}">${fmtP(pMes)}</b><small>${GM} piezas de ${NF(VM)}</small></div>
+    <div class="stat"><span>Paredes</span><b class="${cls(pP)}">${fmtP(pP)}</b><small>${GP} piezas</small></div>
+    <div class="stat"><span>Bases (piso)</span><b class="${cls(pB)}">${fmtP(pB)}</b><small>${GB} piezas</small></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>Grado C por día de vaciado y % contra meta</h3>${barChart(dias,[{k:'gc_pared',color:'#4472C4',label:'Paredes'},{k:'gc_piso',color:'#ED7D31',label:'Bases'},{k:'gc_otros',color:'#A5A5A5',label:'Otros'}],{valor:meta})}
+      <div class="leg"><span><i style="background:#4472C4"></i>Paredes</span><span><i style="background:#ED7D31"></i>Bases</span><span><i style="background:#002060"></i>% Grado C del día</span></div></div>
+    <div class="card lb"><h3>Principales defectos Grado C</h3>${top.length?top.map(([k,v])=>`<div style="margin-bottom:8px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>${k}</span><b>${v}</b></div><div style="height:6px;background:#fff;border-radius:3px"><div style="height:6px;width:${v/mxd*100}%;background:#002060;border-radius:3px"></div></div></div>`).join(''):'<span style="color:var(--muted);font-size:12px">Sin piezas Grado C</span>'}</div>
+  </div>
+  <div class="note">Grado C = pieza en estado SCRAP, fechada por su día de vaciado; los días recientes pueden subir si una pieza se marca Grado C después. Una pieza con varios defectos cuenta en cada uno.</div>`;
+
+  const RM=sum(dias,'retrabajo_mayor'),dr={};dias.forEach(d=>Object.entries(d.defectos_rw||{}).forEach(([k,v])=>dr[k]=(dr[k]||0)+v));
+  const topR=Object.entries(dr).sort((a,b)=>b[1]-a[1]).slice(0,6),mxr=Math.max(1,...topR.map(x=>x[1]));
+  const rl=RLIN.filter(x=>x.fecha>=w&&x.fecha<=fin),rlm=rl.filter(x=>x.tipo==='Menor').reduce((a,x)=>a+x.cantidad,0),rlM=rl.filter(x=>x.tipo==='Mayor').reduce((a,x)=>a+x.cantidad,0);
+  const I=sum(dias,'inspeccionadas'),ID=sum(dias,'insp_con_defecto'),R=sum(dias,'retrabajos'),RL=sum(dias,'retrabajos_liberados');
+  $('s3').innerHTML=`<h2>KPI's Proceso · rechazo registrado en sistema</h2>
+  <div class="stats">
+    <div class="stat"><span>Producidas (vaciadas)</span><b>${NF(V)}</b></div>
+    <div class="stat"><span>Inspeccionadas</span><b>${NF(I)}</b><small>${V?fmtP(I/V,1):'–'} de lo producido</small></div>
+    <div class="stat"><span>Con defecto al inspeccionar</span><b>${NF(ID)}</b><small>${I?fmtP(ID/I,1):'–'} de las inspeccionadas</small></div>
+    <div class="stat"><span>Retrabajos registrados</span><b>${R}</b><small>${RL} ya liberados · ${V?fmtP(R/V,1):'–'} de lo producido</small></div>
+    <div class="stat"><span>Retrabajo menor</span><b>${R-RM}</b><small>se arregla con lijado, resane o pulido</small></div>
+    <div class="stat"><span>Retrabajo mayor</span><b class="${RM?'bad':''}">${RM}</b><small>gelcoat, mal vaciada, quebrados</small></div>
+  </div>
+  <div class="card lb" style="margin-bottom:12px"><h3>Principales defectos del retrabajo</h3>${topR.length?topR.map(([k,v])=>`<div style="margin-bottom:8px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>${k}</span><b>${v}</b></div><div style="height:6px;background:#fff;border-radius:3px"><div style="height:6px;width:${v/mxr*100}%;background:#002060;border-radius:3px"></div></div></div>`).join(''):'<span style="font-size:12px">Sin retrabajos</span>'}</div>
+  <div class="card"><table><thead><tr><th>Día</th><th>Vaciadas</th><th>Inspeccionadas</th><th>% insp.</th><th>Con defecto</th><th>% con defecto</th><th>Retrabajos</th><th>Liberados</th></tr></thead><tbody>
+  ${dias.map(d=>`<tr><td>${d.etq}</td><td>${d.vaciadas}</td><td>${d.inspeccionadas}</td><td>${d.vaciadas?fmtP(d.inspeccionadas/d.vaciadas,0):'–'}</td><td>${d.insp_con_defecto}</td><td>${d.inspeccionadas?fmtP(d.insp_con_defecto/d.inspeccionadas,0):'–'}</td><td>${d.retrabajos}</td><td>${d.retrabajos_liberados}</td></tr>`).join('')}
+  </tbody></table></div>
+  ${rl.length?`<div class="stats" style="margin-top:14px"><div class="stat"><span>Retrabajo en línea · menor</span><b>${rlm}</b><small>capturado a mano</small></div><div class="stat"><span>Retrabajo en línea · mayor</span><b class="${rlM?'bad':''}">${rlM}</b><small>capturado a mano</small></div><div class="stat"><span>Total en línea + sistema</span><b>${rlm+rlM+R}</b><small>${V?fmtP((rlm+rlM+R)/V,1):'–'} de lo producido</small></div></div>`:`<div class="pend" style="margin-top:12px"><b>Sin captura de retrabajo en línea esta semana.</b> Lo que se hace directo en la línea sin pasar por el sistema se captura en la pestaña “Captura de datos”.</div>`}
+  `;
+
+}
+init();
+</script>
+</body>
+</html>
