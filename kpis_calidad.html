@@ -208,19 +208,21 @@ function render(){
   const RM=sum(dias,'retrabajo_mayor'),dr={};dias.forEach(d=>Object.entries(d.defectos_rw||{}).forEach(([k,v])=>dr[k]=(dr[k]||0)+v));
   const topR=Object.entries(dr).sort((a,b)=>b[1]-a[1]).slice(0,6),mxr=Math.max(1,...topR.map(x=>x[1]));
   const rl=RLIN.filter(x=>x.fecha>=w&&x.fecha<=fin),rlm=rl.filter(x=>x.tipo==='Menor').reduce((a,x)=>a+x.cantidad,0),rlM=rl.filter(x=>x.tipo==='Mayor').reduce((a,x)=>a+x.cantidad,0);
+  const DF=sum(dias,'defectos_insp');
   const I=sum(dias,'inspeccionadas'),ID=sum(dias,'insp_con_defecto'),R=sum(dias,'retrabajos'),RL=sum(dias,'retrabajos_liberados');
   $('s3').innerHTML=`<h2>KPI's Proceso · rechazo registrado en sistema</h2>
   <div class="stats">
     <div class="stat"><span>Producidas (vaciadas)</span><b>${NF(V)}</b></div>
     <div class="stat"><span>Inspeccionadas</span><b>${NF(I)}</b><small>${V?fmtP(I/V,1):'–'} de lo producido</small></div>
+    <div class="stat"><span>DPU (defectos por unidad)</span><b>${I?(DF/I).toFixed(2):'–'}</b><small>${NF(DF)} defectos / ${NF(I)} inspeccionadas</small></div>
     <div class="stat"><span>Con defecto al inspeccionar</span><b>${NF(ID)}</b><small>${I?fmtP(ID/I,1):'–'} de las inspeccionadas</small></div>
     <div class="stat"><span>Retrabajos registrados</span><b>${R}</b><small>${RL} ya liberados · ${V?fmtP(R/V,1):'–'} de lo producido</small></div>
     <div class="stat"><span>Retrabajo menor</span><b>${R-RM}</b><small>se arregla con lijado, resane o pulido</small></div>
     <div class="stat"><span>Retrabajo mayor</span><b class="${RM?'bad':''}">${RM}</b><small>gelcoat, mal vaciada, quebrados</small></div>
   </div>
   <div class="card lb" style="margin-bottom:12px"><h3>Principales defectos del retrabajo</h3>${topR.length?topR.map(([k,v])=>`<div style="margin-bottom:8px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>${k}</span><b>${v}</b></div><div style="height:6px;background:#fff;border-radius:3px"><div style="height:6px;width:${v/mxr*100}%;background:#002060;border-radius:3px"></div></div></div>`).join(''):'<span style="font-size:12px">Sin retrabajos</span>'}</div>
-  <div class="card"><table><thead><tr><th>Día</th><th>Vaciadas</th><th>Inspeccionadas</th><th>% insp.</th><th>Con defecto</th><th>% con defecto</th><th>Retrabajos</th><th>Liberados</th></tr></thead><tbody>
-  ${dias.map(d=>`<tr><td>${d.etq}</td><td>${d.vaciadas}</td><td>${d.inspeccionadas}</td><td>${d.vaciadas?fmtP(d.inspeccionadas/d.vaciadas,0):'–'}</td><td>${d.insp_con_defecto}</td><td>${d.inspeccionadas?fmtP(d.insp_con_defecto/d.inspeccionadas,0):'–'}</td><td>${d.retrabajos}</td><td>${d.retrabajos_liberados}</td></tr>`).join('')}
+  <div class="card"><table><thead><tr><th>Día</th><th>Vaciadas</th><th>Inspeccionadas</th><th>% insp.</th><th>Con defecto</th><th>% con defecto</th><th>DPU</th><th>Retrabajos</th><th>Liberados</th></tr></thead><tbody>
+  ${dias.map(d=>`<tr><td>${d.etq}</td><td>${d.vaciadas}</td><td>${d.inspeccionadas}</td><td>${d.vaciadas?fmtP(d.inspeccionadas/d.vaciadas,0):'–'}</td><td>${d.insp_con_defecto}</td><td>${d.inspeccionadas?fmtP(d.insp_con_defecto/d.inspeccionadas,0):'–'}</td><td>${d.inspeccionadas?(d.defectos_insp/d.inspeccionadas).toFixed(2):'–'}</td><td>${d.retrabajos}</td><td>${d.retrabajos_liberados}</td></tr>`).join('')}
   </tbody></table></div>
   ${rl.length?`<div class="stats" style="margin-top:14px"><div class="stat"><span>Retrabajo en línea · menor</span><b>${rlm}</b><small>capturado a mano</small></div><div class="stat"><span>Retrabajo en línea · mayor</span><b class="${rlM?'bad':''}">${rlM}</b><small>capturado a mano</small></div><div class="stat"><span>Total en línea + sistema</span><b>${rlm+rlM+R}</b><small>${V?fmtP((rlm+rlM+R)/V,1):'–'} de lo producido</small></div></div>`:`<div class="pend" style="margin-top:12px"><b>Sin captura de retrabajo en línea esta semana.</b> Lo que se hace directo en la línea sin pasar por el sistema se captura en la pestaña “Captura de datos”.</div>`}
   `;

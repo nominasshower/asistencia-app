@@ -62,6 +62,10 @@ CREATE TEMPORARY TABLE vn AS SELECT v.sku, v.d, p.id piece_id, p.piece_status_id
         insp_def = q(f"""SELECT DATE(pl.created_at), COUNT(DISTINCT pl.sku) FROM process_log pl JOIN piece p ON p.sku=pl.sku
                          JOIN piece_defect pd ON pd.piece_id=p.id AND pd.active=1 AND DATE(pd.created_at)=DATE(pl.created_at)
                          WHERE pl.workstation_id=12 AND pl.created_at>='{desde}' GROUP BY 1;""")
+        # DPU = defectos registrados (suma de defect_count) en piezas inspeccionadas ese dia, el mismo dia / piezas inspeccionadas
+        dpu = q(f"""SELECT i.d, SUM(pd.defect_count) FROM (SELECT DISTINCT sku, DATE(created_at) d FROM process_log
+                      WHERE workstation_id=12 AND created_at>='{desde}') i JOIN piece p ON p.sku=i.sku
+                      JOIN piece_defect pd ON pd.piece_id=p.id AND pd.active=1 AND DATE(pd.created_at)=i.d GROUP BY i.d;""")
         rw = q(f"SELECT DATE(created_at), COUNT(*), SUM(release_date IS NOT NULL) FROM rework WHERE created_at>='{desde}' GROUP BY 1;")
         # defectos registrados al mismo momento en que la pieza se manda a Retrabajo (+-2 min); una fila por (retrabajo, defecto); la clasificacion menor/mayor se hace abajo por tipo de defecto
         rw_def = q(f"""SELECT DATE(r.created_at), r.id, df.name FROM rework r JOIN piece p ON p.sku=r.sku
@@ -71,7 +75,7 @@ CREATE TEMPORARY TABLE vn AS SELECT v.sku, v.d, p.id piece_id, p.piece_status_id
                          WHERE r.created_at>='{desde}' GROUP BY 1,2,3;""")
     days = {}
     def D(d): return days.setdefault(d, {'fecha': d, 'vaciadas': 0, 'pared': 0, 'piso': 0, 'otros': 0,
-        'gc': 0, 'gc_pared': 0, 'gc_piso': 0, 'gc_otros': 0, 'inspeccionadas': 0, 'insp_con_defecto': 0,
+        'gc': 0, 'gc_pared': 0, 'gc_piso': 0, 'gc_otros': 0, 'inspeccionadas': 0, 'insp_con_defecto': 0, 'defectos_insp': 0,
         'retrabajos': 0, 'retrabajos_liberados': 0, 'retrabajo_mayor': 0, 'defectos_gc': {}, 'defectos_rw': {}})
     k = {'Pared': 'pared', 'Piso': 'piso'}
     for d, t, n in prod:
@@ -83,6 +87,7 @@ CREATE TEMPORARY TABLE vn AS SELECT v.sku, v.d, p.id piece_id, p.piece_status_id
             x['defectos_gc'][nm] = x['defectos_gc'].get(nm, 0) + 1
     for d, n in insp: D(d)['inspeccionadas'] = int(n)
     for d, n in insp_def: D(d)['insp_con_defecto'] = int(n)
+    for d, n in dpu: D(d)['defectos_insp'] = int(n)
     for d, n, l in rw: x = D(d); x['retrabajos'] = int(n); x['retrabajos_liberados'] = int(l or 0)
     por_rw = {}
     for d, rid, nm in rw_def:
