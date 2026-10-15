@@ -163,6 +163,7 @@ async function init(){
   $('sem').onchange=render; await cargaCap(); guarda('fq','calidad_quejas'); guarda('fr','calidad_retrabajo_linea'); const hoy=new Date().toISOString().slice(0,10); document.querySelectorAll('input[name=fecha]').forEach(i=>i.value=hoy); render();
 }
 
+function defTxt(d){const NL=String.fromCharCode(10),e=Object.entries(d.defectos_gc||{}).sort((a,b)=>b[1]-a[1]);return e.length?NL+'Defectos del día:'+NL+e.map(([k,v])=>'· '+k+': '+v).join(NL):'';}
 function barChart(days,series,meta){ // series: [{k,color,label}] apiladas; linea % opcional
   const W=640,H=240,pl=36,pr=64,pt=14,pb=28,n=days.length||1,bw=Math.min(60,(W-pl-pr)/n*.6);
   const mx=Math.ceil(Math.max(1,...days.map(d=>series.reduce((t,s)=>t+d[s.k],0)))/4)*4;
@@ -170,11 +171,11 @@ function barChart(days,series,meta){ // series: [{k,color,label}] apiladas; line
   const x=i=>pl+(i+.5)*(W-pl-pr)/n, yb=v=>pt+(H-pt-pb)*(1-v/mx), yp=v=>pt+(H-pt-pb)*(1-v/pmax);
   let s=`<svg viewBox="0 0 ${W} ${H}">`;
   for(let g=0;g<=4;g++){const v=mx*g/4;s+=`<line x1="${pl}" x2="${W-pr}" y1="${yb(v)}" y2="${yb(v)}" stroke="#d5dfec"/><text x="${pl-5}" y="${yb(v)+4}" text-anchor="end">${Math.round(v)}</text>`;}
-  days.forEach((d,i)=>{let acc=0;series.forEach(se=>{const v=d[se.k];if(!v)return;const y1=yb(acc+v),y0=yb(acc);s+=`<rect x="${x(i)-bw/2}" y="${y1}" width="${bw}" height="${y0-y1}" fill="${se.color}" rx="2"><title>${d.etq}: ${se.label} ${v}</title></rect>`;if(y0-y1>14)s+=`<text x="${x(i)}" y="${(y0+y1)/2+4}" text-anchor="middle" style="fill:#fff;font-weight:700">${v}</text>`;acc+=v;});
+  days.forEach((d,i)=>{let acc=0;series.forEach(se=>{const v=d[se.k];if(!v)return;const y1=yb(acc+v),y0=yb(acc);s+=`<rect x="${x(i)-bw/2}" y="${y1}" width="${bw}" height="${y0-y1}" fill="${se.color}" rx="2"><title>${d.etq}: ${se.label} ${v}${defTxt(d)}</title></rect>`;if(y0-y1>14)s+=`<text x="${x(i)}" y="${(y0+y1)/2+4}" text-anchor="middle" style="fill:#fff;font-weight:700">${v}</text>`;acc+=v;});
     s+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle">${d.etq}</text>`;});
   const pts=days.map((d,i)=>`${x(i)},${yp(d.pct)}`).join(' ');
   s+=`<line x1="${pl}" x2="${W-pr}" y1="${yp(meta.valor)}" y2="${yp(meta.valor)}" stroke="#FF0000" stroke-dasharray="5 4"/><text x="${W-pr+4}" y="${yp(meta.valor)+4}" style="fill:#FF0000;font-weight:700">meta ${fmtP(meta.valor,1)}</text>`;
-  s+=`<polyline points="${pts}" fill="none" stroke="#002060" stroke-width="2.5"/>`+days.map((d,i)=>`<circle cx="${x(i)}" cy="${yp(d.pct)}" r="3.5" fill="#002060"><title>${d.etq}: ${fmtP(d.pct)}</title></circle><text x="${x(i)}" y="${yp(d.pct)-8}" text-anchor="middle" style="fill:#002060;font-weight:700">${fmtP(d.pct,1)}</text>`).join('');
+  s+=`<polyline points="${pts}" fill="none" stroke="#002060" stroke-width="2.5"/>`+days.map((d,i)=>`<circle cx="${x(i)}" cy="${yp(d.pct)}" r="3.5" fill="#002060"><title>${d.etq}: ${fmtP(d.pct)} (${d.gc} de ${d.vaciadas} vaciadas)${defTxt(d)}</title></circle><text x="${x(i)}" y="${yp(d.pct)-8}" text-anchor="middle" style="fill:#002060;font-weight:700">${fmtP(d.pct,1)}</text>`).join('');
   return s+'</svg>';
 }
 
@@ -205,7 +206,7 @@ function render(){
   </div>
   <div class="note">Grado C = pieza mandada a Grado C ese día, solo de categoría Producción (igual que “Grado C · Producción” del Reporte de Calidad de ConnectIT; no cuenta sistema, horno, redimensión, muestras, inventario ni recuperación). El % es contra las piezas vaciadas del mismo día. Una pieza con varios defectos cuenta en cada uno.</div>`;
 
-  const RM=sum(dias,'retrabajo_mayor'),dr={};dias.forEach(d=>Object.entries(d.defectos_rw||{}).forEach(([k,v])=>dr[k]=(dr[k]||0)+v));
+  const RM=sum(dias,'retrabajo_mayor'),RMEN=sum(dias,'retrabajo_menor'),dr={};dias.forEach(d=>Object.entries(d.defectos_rw||{}).forEach(([k,v])=>dr[k]=(dr[k]||0)+v));
   const topR=Object.entries(dr).sort((a,b)=>b[1]-a[1]).slice(0,6),mxr=Math.max(1,...topR.map(x=>x[1]));
   const rl=RLIN.filter(x=>x.fecha>=w&&x.fecha<=fin),rlm=rl.filter(x=>x.tipo==='Menor').reduce((a,x)=>a+x.cantidad,0),rlM=rl.filter(x=>x.tipo==='Mayor').reduce((a,x)=>a+x.cantidad,0);
   const DF=sum(dias,'defectos_insp');
@@ -216,15 +217,14 @@ function render(){
     <div class="stat"><span>Inspeccionadas</span><b>${NF(I)}</b><small>${V?fmtP(I/V,1):'–'} de lo producido</small></div>
     <div class="stat"><span>DPU (defectos por unidad)</span><b>${I?(DF/I).toFixed(2):'–'}</b><small>${NF(DF)} defectos / ${NF(I)} inspeccionadas</small></div>
     <div class="stat"><span>Con defecto al inspeccionar</span><b>${NF(ID)}</b><small>${I?fmtP(ID/I,1):'–'} de las inspeccionadas</small></div>
-    <div class="stat"><span>Retrabajos registrados</span><b>${R}</b><small>${RL} ya liberados · ${V?fmtP(R/V,1):'–'} de lo producido</small></div>
-    <div class="stat"><span>Retrabajo menor</span><b>${R-RM}</b><small>se arregla con lijado, resane o pulido</small></div>
-    <div class="stat"><span>Retrabajo mayor</span><b class="${RM?'bad':''}">${RM}</b><small>gelcoat, mal vaciada, quebrados</small></div>
+    <div class="stat"><span>Retrabajo menor</span><b>${RMEN}</b><small>inspeccionadas con Grado B · ${V?fmtP(RMEN/V,1):'–'} de lo producido</small></div>
+    <div class="stat"><span>Retrabajo mayor</span><b class="${RM?'bad':''}">${RM}</b><small>escaneadas en la estación de Retrabajo · ${V?fmtP(RM/V,1):'–'} de lo producido</small></div>
   </div>
-  <div class="card lb" style="margin-bottom:12px"><h3>Principales defectos del retrabajo</h3>${topR.length?topR.map(([k,v])=>`<div style="margin-bottom:8px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>${k}</span><b>${v}</b></div><div style="height:6px;background:#fff;border-radius:3px"><div style="height:6px;width:${v/mxr*100}%;background:#002060;border-radius:3px"></div></div></div>`).join(''):'<span style="font-size:12px">Sin retrabajos</span>'}</div>
-  <div class="card"><table><thead><tr><th>Día</th><th>Vaciadas</th><th>Inspeccionadas</th><th>% insp.</th><th>Con defecto</th><th>% con defecto</th><th>DPU</th><th>Retrabajos</th><th>Liberados</th></tr></thead><tbody>
-  ${dias.map(d=>`<tr><td>${d.etq}</td><td>${d.vaciadas}</td><td>${d.inspeccionadas}</td><td>${d.vaciadas?fmtP(d.inspeccionadas/d.vaciadas,0):'–'}</td><td>${d.insp_con_defecto}</td><td>${d.inspeccionadas?fmtP(d.insp_con_defecto/d.inspeccionadas,0):'–'}</td><td>${d.inspeccionadas?(d.defectos_insp/d.inspeccionadas).toFixed(2):'–'}</td><td>${d.retrabajos}</td><td>${d.retrabajos_liberados}</td></tr>`).join('')}
+  <div class="card lb" style="margin-bottom:12px"><h3>Principales defectos del retrabajo mayor (al mandarse a Retrabajo)</h3>${topR.length?topR.map(([k,v])=>`<div style="margin-bottom:8px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>${k}</span><b>${v}</b></div><div style="height:6px;background:#fff;border-radius:3px"><div style="height:6px;width:${v/mxr*100}%;background:#002060;border-radius:3px"></div></div></div>`).join(''):'<span style="font-size:12px">Sin retrabajos</span>'}</div>
+  <div class="card"><table><thead><tr><th>Día</th><th>Vaciadas</th><th>Inspeccionadas</th><th>% insp.</th><th>Con defecto</th><th>% con defecto</th><th>DPU</th><th>Retrabajo menor (B)</th><th>Retrabajo mayor</th></tr></thead><tbody>
+  ${dias.map(d=>`<tr><td>${d.etq}</td><td>${d.vaciadas}</td><td>${d.inspeccionadas}</td><td>${d.vaciadas?fmtP(d.inspeccionadas/d.vaciadas,0):'–'}</td><td>${d.insp_con_defecto}</td><td>${d.inspeccionadas?fmtP(d.insp_con_defecto/d.inspeccionadas,0):'–'}</td><td>${d.inspeccionadas?(d.defectos_insp/d.inspeccionadas).toFixed(2):'–'}</td><td>${d.retrabajo_menor}</td><td>${d.retrabajo_mayor}</td></tr>`).join('')}
   </tbody></table></div>
-  ${rl.length?`<div class="stats" style="margin-top:14px"><div class="stat"><span>Retrabajo en línea · menor</span><b>${rlm}</b><small>capturado a mano</small></div><div class="stat"><span>Retrabajo en línea · mayor</span><b class="${rlM?'bad':''}">${rlM}</b><small>capturado a mano</small></div><div class="stat"><span>Total en línea + sistema</span><b>${rlm+rlM+R}</b><small>${V?fmtP((rlm+rlM+R)/V,1):'–'} de lo producido</small></div></div>`:`<div class="pend" style="margin-top:12px"><b>Sin captura de retrabajo en línea esta semana.</b> Lo que se hace directo en la línea sin pasar por el sistema se captura en la pestaña “Captura de datos”.</div>`}
+  ${rl.length?`<div class="stats" style="margin-top:14px"><div class="stat"><span>Retrabajo en línea · menor</span><b>${rlm}</b><small>capturado a mano</small></div><div class="stat"><span>Retrabajo en línea · mayor</span><b class="${rlM?'bad':''}">${rlM}</b><small>capturado a mano</small></div><div class="stat"><span>Retrabajo mayor total (en línea + estación)</span><b>${rlm+rlM+RM}</b><small>${V?fmtP((rlm+rlM+RM)/V,1):'–'} de lo producido</small></div></div>`:`<div class="pend" style="margin-top:12px"><b>Sin captura de retrabajo en línea esta semana.</b> Lo que se hace directo en la línea sin pasar por el sistema se captura en la pestaña “Captura de datos”.</div>`}
   `;
 
 }
