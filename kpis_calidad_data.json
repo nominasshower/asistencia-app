@@ -1,97 +1,16 @@
 {
- "generado": "2026-10-12 16:53",
- "desde": "2026-08-03",
+ "generado": "2026-10-15 11:04",
+ "desde": "2026-08-06",
  "meta_gc": 0.015,
  "dias": [
-  {
-   "fecha": "2026-08-03",
-   "vaciadas": 360,
-   "pared": 332,
-   "piso": 28,
-   "otros": 0,
-   "gc": 4,
-   "gc_pared": 4,
-   "gc_piso": 0,
-   "gc_otros": 0,
-   "inspeccionadas": 92,
-   "insp_con_defecto": 45,
-   "retrabajos": 0,
-   "retrabajos_liberados": 0,
-   "retrabajo_mayor": 0,
-   "defectos_gc": {
-    "Gelcoat contaminado": 1,
-    "Pasta cruda": 1,
-    "Quebrado en desmolde": 1,
-    "Quebrado en empaque": 1
-   },
-   "defectos_rw": {}
-  },
-  {
-   "fecha": "2026-08-04",
-   "vaciadas": 463,
-   "pared": 419,
-   "piso": 44,
-   "otros": 0,
-   "gc": 8,
-   "gc_pared": 8,
-   "gc_piso": 0,
-   "gc_otros": 0,
-   "inspeccionadas": 190,
-   "insp_con_defecto": 113,
-   "retrabajos": 1,
-   "retrabajos_liberados": 1,
-   "retrabajo_mayor": 1,
-   "defectos_gc": {
-    "Gelcoat contaminado": 1,
-    "Pieza para Redimención": 3,
-    "Quebrado al despandear": 1,
-    "Quebrado en desmolde": 2,
-    "Quebrado en Wip": 1,
-    "Quebrado por manipulación": 2,
-    "Recuperada": 1
-   },
-   "defectos_rw": {
-    "Quebrado en desmolde": 1
-   }
-  },
-  {
-   "fecha": "2026-08-05",
-   "vaciadas": 519,
-   "pared": 474,
-   "piso": 45,
-   "otros": 0,
-   "gc": 12,
-   "gc_pared": 12,
-   "gc_piso": 0,
-   "gc_otros": 0,
-   "inspeccionadas": 232,
-   "insp_con_defecto": 131,
-   "retrabajos": 16,
-   "retrabajos_liberados": 16,
-   "retrabajo_mayor": 13,
-   "defectos_gc": {
-    "ACUMULADO": 1,
-    "Fallo de Máquina": 9,
-    "Pruebas de Sistema": 1,
-    "Quebrado en acabado": 1
-   },
-   "defectos_rw": {
-    "Espesor delgado": 2,
-    "Mal resanada": 1,
-    "Contaminación con basura": 1,
-    "Gelcoat delgado": 2,
-    "RETRABAJO": 8,
-    "EXCESO DE PASTA": 2
-   }
-  },
   {
    "fecha": "2026-08-06",
    "vaciadas": 534,
    "pared": 496,
    "piso": 38,
    "otros": 0,
-   "gc": 6,
-   "gc_pared": 6,
+   "gc": 5,
+   "gc_pared": 5,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 281,
@@ -100,8 +19,9 @@
    "retrabajos_liberados": 11,
    "retrabajo_mayor": 3,
    "defectos_gc": {
+    "Quebrado en acabado": 1,
     "Error de color": 2,
-    "Quebrado en desmolde": 3
+    "Quebrado en desmolde": 2
    },
    "defectos_rw": {
     "Espesor delgado": 7,
@@ -116,8 +36,8 @@
    "pared": 432,
    "piso": 40,
    "otros": 0,
-   "gc": 5,
-   "gc_pared": 5,
+   "gc": 9,
+   "gc_pared": 9,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 225,
@@ -126,10 +46,11 @@
    "retrabajos_liberados": 24,
    "retrabajo_mayor": 22,
    "defectos_gc": {
-    "Exceso de Resina por Fallo en Maquina": 1,
+    "Molde mal editado": 4,
+    "Quebrado en acabado": 1,
+    "Quebrado en desmolde": 1,
     "Fallo de Máquina": 2,
-    "Pegado a molde": 1,
-    "Tomada para muestra": 1
+    "Pegado a molde": 1
    },
    "defectos_rw": {
     "Gelcoat delgado": 6,
@@ -154,8 +75,8 @@
    "pared": 465,
    "piso": 33,
    "otros": 0,
-   "gc": 9,
-   "gc_pared": 9,
+   "gc": 4,
+   "gc_pared": 4,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 37,
@@ -164,11 +85,10 @@
    "retrabajos_liberados": 10,
    "retrabajo_mayor": 4,
    "defectos_gc": {
-    "Error de color": 3,
-    "Quebrado en acabado": 2,
-    "Quebrado en desmolde": 3,
-    "Quebrado en empaque": 2,
-    "RETRABAJO": 1
+    "Exceso de Resina por Fallo en Maquina": 1,
+    "Quebrado en desmolde": 1,
+    "Error de color": 1,
+    "Quebrado en empaque": 1
    },
    "defectos_rw": {
     "Marca de dedo": 3,
@@ -195,13 +115,8 @@
    "retrabajos_liberados": 23,
    "retrabajo_mayor": 6,
    "defectos_gc": {
-    "Espesor Grueso": 1,
-    "EXCESO DE PASTA": 1,
-    "Gelcoat Con Burbujas": 1,
-    "Gelcoat delgado": 1,
-    "MOLDE MAL ASIGNADO": 1,
-    "Pieza no encontrada": 1,
-    "PIEZA PARA CAMBIO DE ORDEN (REDIMENSION)": 1,
+    "Quebrado en desmolde": 1,
+    "Quebrado en acabado": 1,
     "Quebrado en empaque": 1
    },
    "defectos_rw": {
@@ -222,8 +137,8 @@
    "pared": 471,
    "piso": 41,
    "otros": 0,
-   "gc": 2,
-   "gc_pared": 2,
+   "gc": 4,
+   "gc_pared": 4,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 203,
@@ -232,6 +147,8 @@
    "retrabajos_liberados": 24,
    "retrabajo_mayor": 21,
    "defectos_gc": {
+    "Quebrado en acabado": 1,
+    "Gelcoat delgado": 1,
     "Error de color": 1,
     "Pegado a Separador": 1
    },
@@ -256,8 +173,8 @@
    "pared": 436,
    "piso": 30,
    "otros": 0,
-   "gc": 5,
-   "gc_pared": 5,
+   "gc": 6,
+   "gc_pared": 6,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 108,
@@ -266,12 +183,13 @@
    "retrabajos_liberados": 5,
    "retrabajo_mayor": 4,
    "defectos_gc": {
-    "Error de color": 1,
-    "Fallo de Máquina": 1,
-    "Gelcoat contaminado": 1,
-    "Gelcoat Poroso": 1,
+    "Quebrado en empaque": 2,
     "Pegado a molde": 1,
-    "Quebrado en desmolde": 1
+    "Gelcoat Poroso": 1,
+    "Gelcoat contaminado": 1,
+    "Fallo de Máquina": 1,
+    "Error de color": 1,
+    "Espesor delgado": 1
    },
    "defectos_rw": {
     "Gelcoat delgado": 1,
@@ -289,8 +207,8 @@
    "pared": 481,
    "piso": 34,
    "otros": 0,
-   "gc": 5,
-   "gc_pared": 4,
+   "gc": 7,
+   "gc_pared": 6,
    "gc_piso": 1,
    "gc_otros": 0,
    "inspeccionadas": 171,
@@ -299,11 +217,10 @@
    "retrabajos_liberados": 8,
    "retrabajo_mayor": 2,
    "defectos_gc": {
-    "Gelcoat delgado": 1,
-    "Gelcoat Poroso": 1,
-    "Pegado a contra molde": 1,
-    "Quebrado al despandear": 1,
+    "Error de color": 2,
+    "Quebrado en acabado": 1,
     "Quebrado en desmolde": 2,
+    "Pegado a contra molde": 1,
     "Quebrado en empaque": 1
    },
    "defectos_rw": {
@@ -328,10 +245,10 @@
    "retrabajos_liberados": 21,
    "retrabajo_mayor": 3,
    "defectos_gc": {
-    "Fallo de Máquina": 1,
+    "Quebrado por manipulación": 1,
     "Quebrado en desmolde": 2,
     "Quebrado en empaque": 1,
-    "Quebrado por manipulación": 1
+    "Fallo de Máquina": 1
    },
    "defectos_rw": {
     "Gelcoat tierno": 2,
@@ -357,8 +274,11 @@
    "retrabajos_liberados": 3,
    "retrabajo_mayor": 3,
    "defectos_gc": {
-    "Quebrado en desmolde": 4,
-    "Quebrado en empaque": 1
+    "Gelcoat Poroso": 1,
+    "Mal vaciada (Pasta gelada)": 1,
+    "Quebrado en empaque": 1,
+    "Gota de catalizador": 1,
+    "Quebrado en desmolde": 1
    },
    "defectos_rw": {
     "Mal vaciada (Pasta gelada)": 1,
@@ -372,8 +292,8 @@
    "pared": 449,
    "piso": 33,
    "otros": 0,
-   "gc": 8,
-   "gc_pared": 7,
+   "gc": 13,
+   "gc_pared": 12,
    "gc_piso": 1,
    "gc_otros": 0,
    "inspeccionadas": 242,
@@ -382,12 +302,13 @@
    "retrabajos_liberados": 9,
    "retrabajo_mayor": 2,
    "defectos_gc": {
-    "Fallo de Máquina": 1,
+    "Espesor delgado": 2,
+    "Mal resanada": 1,
+    "Pando por mal acomodo": 2,
+    "Quebrado en desmolde": 6,
     "Gelcoat delgado": 1,
     "Gelcoat tierno": 1,
-    "Quebrado al despandear": 1,
-    "Quebrado en acabado": 1,
-    "Quebrado en desmolde": 4
+    "Fallo de Máquina": 1
    },
    "defectos_rw": {
     "Pando por mal acomodo": 3,
@@ -404,8 +325,8 @@
    "pared": 466,
    "piso": 33,
    "otros": 0,
-   "gc": 2,
-   "gc_pared": 2,
+   "gc": 5,
+   "gc_pared": 5,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 283,
@@ -414,8 +335,9 @@
    "retrabajos_liberados": 51,
    "retrabajo_mayor": 25,
    "defectos_gc": {
-    "Gota de catalizador": 1,
-    "Quebrado en acabado": 1
+    "Quebrado en acabado": 2,
+    "Quebrado en desmolde": 2,
+    "Gota de catalizador": 1
    },
    "defectos_rw": {
     "Pando por mal acomodo": 9,
@@ -440,8 +362,8 @@
    "pared": 426,
    "piso": 30,
    "otros": 0,
-   "gc": 22,
-   "gc_pared": 22,
+   "gc": 20,
+   "gc_pared": 20,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 256,
@@ -450,13 +372,11 @@
    "retrabajos_liberados": 15,
    "retrabajo_mayor": 6,
    "defectos_gc": {
-    "Fallo de Máquina": 1,
-    "Gelcoat levantado": 1,
+    "Quebrado al despandear": 2,
+    "Quebrado en desmolde": 2,
     "Pasta cruda": 15,
-    "Pieza no encontrada": 1,
-    "Pieza para Redimención": 1,
-    "Quebrado en acabado": 1,
-    "Quebrado en desmolde": 3
+    "Fallo de Máquina": 1,
+    "Quebrado en acabado": 1
    },
    "defectos_rw": {
     "Reventado por cinta": 2,
@@ -492,9 +412,9 @@
    "pared": 493,
    "piso": 52,
    "otros": 0,
-   "gc": 9,
-   "gc_pared": 8,
-   "gc_piso": 1,
+   "gc": 4,
+   "gc_pared": 4,
+   "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 156,
    "insp_con_defecto": 91,
@@ -502,13 +422,9 @@
    "retrabajos_liberados": 22,
    "retrabajo_mayor": 19,
    "defectos_gc": {
-    "Gelcoat levantado": 1,
-    "Mal vaciada (Pasta gelada)": 2,
-    "Pando por mal acomodo": 1,
-    "Pieza para Redimención": 1,
+    "Mal resanada": 1,
     "Quebrado en desmolde": 2,
-    "Quebrado en empaque": 1,
-    "Quebrado en rectificadora": 1
+    "Quebrado en empaque": 1
    },
    "defectos_rw": {
     "Gelcoat levantado": 1,
@@ -535,11 +451,10 @@
    "retrabajos_liberados": 24,
    "retrabajo_mayor": 21,
    "defectos_gc": {
-    "Fallo de Máquina": 1,
+    "Quebrado en desmolde": 2,
+    "Gelcoat levantado": 1,
     "Gelcoat delgado": 1,
-    "Quebrado al subir a linea": 1,
-    "Quebrado en desmolde": 1,
-    "Quebrado en empaque": 1
+    "Fallo de Máquina": 1
    },
    "defectos_rw": {
     "Mal vaciada (Pasta gelada)": 2,
@@ -561,9 +476,9 @@
    "pared": 403,
    "piso": 51,
    "otros": 0,
-   "gc": 12,
-   "gc_pared": 12,
-   "gc_piso": 0,
+   "gc": 5,
+   "gc_pared": 4,
+   "gc_piso": 1,
    "gc_otros": 0,
    "inspeccionadas": 208,
    "insp_con_defecto": 37,
@@ -571,10 +486,11 @@
    "retrabajos_liberados": 16,
    "retrabajo_mayor": 7,
    "defectos_gc": {
-    "Error de color": 1,
-    "Pieza para Redimención": 8,
-    "Quebrado en acabado": 2,
-    "Quebrado en desmolde": 2
+    "Gelcoat levantado": 1,
+    "Quebrado en rectificadora": 1,
+    "Quebrado al subir a linea": 1,
+    "Quebrado en desmolde": 1,
+    "Error de color": 1
    },
    "defectos_rw": {
     "Pando por mal acomodo": 8,
@@ -592,8 +508,8 @@
    "pared": 318,
    "piso": 56,
    "otros": 0,
-   "gc": 10,
-   "gc_pared": 9,
+   "gc": 3,
+   "gc_pared": 2,
    "gc_piso": 1,
    "gc_otros": 0,
    "inspeccionadas": 191,
@@ -602,11 +518,9 @@
    "retrabajos_liberados": 25,
    "retrabajo_mayor": 12,
    "defectos_gc": {
-    "Briseado con otro color": 1,
-    "Pieza para Redimención": 6,
-    "Quebrado en desmolde": 1,
-    "Quebrado en empaque": 1,
-    "Quebrado en rectificadora": 1
+    "Quebrado en acabado": 1,
+    "Quebrado en rectificadora": 1,
+    "Quebrado en desmolde": 1
    },
    "defectos_rw": {
     "Mal resanada": 1,
@@ -627,8 +541,8 @@
    "pared": 384,
    "piso": 35,
    "otros": 0,
-   "gc": 14,
-   "gc_pared": 14,
+   "gc": 7,
+   "gc_pared": 7,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 169,
@@ -637,11 +551,13 @@
    "retrabajos_liberados": 4,
    "retrabajo_mayor": 4,
    "defectos_gc": {
-    "Error de color": 1,
-    "Pieza para Redimención": 9,
-    "Quebrado en acabado": 1,
-    "Quebrado en desmolde": 2,
-    "Quebrado en empaque": 1
+    "Quebrado en acabado": 2,
+    "Gelcoat delgado": 1,
+    "Quebrado en empaque": 2,
+    "Briseado con otro color": 1,
+    "Quebrado en desmolde": 1,
+    "Quebrado por manipulación": 1,
+    "Error de color": 1
    },
    "defectos_rw": {
     "Quebrado en desmolde": 1,
@@ -656,8 +572,8 @@
    "pared": 247,
    "piso": 24,
    "otros": 0,
-   "gc": 18,
-   "gc_pared": 18,
+   "gc": 4,
+   "gc_pared": 4,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 20,
@@ -666,12 +582,10 @@
    "retrabajos_liberados": 1,
    "retrabajo_mayor": 0,
    "defectos_gc": {
-    "Mal vaciada (Pasta gelada)": 3,
-    "PIEZA PARA CAMBIO DE ORDEN (REDIMENSION)": 1,
-    "Pieza para Redimención": 11,
+    "Quebrado en empaque": 1,
     "Quebrado en acabado": 1,
-    "Quebrado en desmolde": 2,
-    "Tomada para muestra": 1
+    "Quebrado en desmolde": 1,
+    "Mal vaciada (Pasta gelada)": 1
    },
    "defectos_rw": {
     "Espesor grueso": 1
@@ -683,8 +597,8 @@
    "pared": 426,
    "piso": 51,
    "otros": 0,
-   "gc": 7,
-   "gc_pared": 7,
+   "gc": 2,
+   "gc_pared": 2,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 144,
@@ -693,7 +607,8 @@
    "retrabajos_liberados": 81,
    "retrabajo_mayor": 73,
    "defectos_gc": {
-    "Pieza para Redimención": 7
+    "Quebrado en desmolde": 2,
+    "Mal vaciada (Pasta gelada)": 1
    },
    "defectos_rw": {
     "Quebrado en desmolde": 5,
@@ -717,8 +632,8 @@
    "pared": 439,
    "piso": 47,
    "otros": 0,
-   "gc": 6,
-   "gc_pared": 6,
+   "gc": 2,
+   "gc_pared": 2,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 195,
@@ -727,9 +642,8 @@
    "retrabajos_liberados": 2,
    "retrabajo_mayor": 1,
    "defectos_gc": {
-    "Pieza para Redimención": 3,
     "Quebrado en acabado": 1,
-    "Quebrado en desmolde": 2
+    "Quebrado en desmolde": 1
    },
    "defectos_rw": {
     "Quebrado en acabado": 1,
@@ -752,11 +666,9 @@
    "retrabajos_liberados": 17,
    "retrabajo_mayor": 16,
    "defectos_gc": {
+    "Quebrado en acabado": 3,
     "Error de color": 1,
-    "Espesor delgado": 1,
-    "Quebrado en desmolde": 2,
-    "Quebrado en rectificadora": 2,
-    "Sobrante 2026/inventario": 1
+    "Quebrado en rectificadora": 2
    },
    "defectos_rw": {
     "Espesor delgado": 1,
@@ -769,8 +681,8 @@
    "pared": 559,
    "piso": 56,
    "otros": 0,
-   "gc": 5,
-   "gc_pared": 5,
+   "gc": 3,
+   "gc_pared": 3,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 225,
@@ -779,8 +691,6 @@
    "retrabajos_liberados": 44,
    "retrabajo_mayor": 22,
    "defectos_gc": {
-    "Gelcoat levantado": 1,
-    "Pieza no encontrada": 1,
     "Quebrado en desmolde": 2,
     "Quebrado en empaque": 1
    },
@@ -804,8 +714,8 @@
    "pared": 436,
    "piso": 26,
    "otros": 0,
-   "gc": 1,
-   "gc_pared": 1,
+   "gc": 2,
+   "gc_pared": 2,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 177,
@@ -814,7 +724,7 @@
    "retrabajos_liberados": 1,
    "retrabajo_mayor": 1,
    "defectos_gc": {
-    "Quebrado al despandear": 1
+    "Quebrado en desmolde": 2
    },
    "defectos_rw": {
     "Quebrado en desmolde": 1,
@@ -827,8 +737,8 @@
    "pared": 442,
    "piso": 55,
    "otros": 0,
-   "gc": 10,
-   "gc_pared": 9,
+   "gc": 2,
+   "gc_pared": 1,
    "gc_piso": 1,
    "gc_otros": 0,
    "inspeccionadas": 255,
@@ -837,14 +747,8 @@
    "retrabajos_liberados": 5,
    "retrabajo_mayor": 3,
    "defectos_gc": {
-    "Burbuja interna": 1,
-    "Despostillado en acabado": 1,
-    "Fallo de Máquina": 1,
-    "Gelcoat reventado": 1,
-    "Pieza no encontrada": 1,
-    "Pieza para Redimención": 7,
-    "Quebrado en acabado": 1,
-    "Reventado por cinta": 1
+    "Quebrado en desmolde": 1,
+    "Fallo de Máquina": 1
    },
    "defectos_rw": {
     "Gelcoat delgado": 1,
@@ -860,9 +764,9 @@
    "pared": 456,
    "piso": 57,
    "otros": 0,
-   "gc": 7,
-   "gc_pared": 6,
-   "gc_piso": 1,
+   "gc": 1,
+   "gc_pared": 1,
+   "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 212,
    "insp_con_defecto": 39,
@@ -870,8 +774,7 @@
    "retrabajos_liberados": 0,
    "retrabajo_mayor": 0,
    "defectos_gc": {
-    "Pieza para Redimención": 6,
-    "Quebrado en desmolde": 1
+    "Quebrado al subir a linea": 1
    },
    "defectos_rw": {}
   },
@@ -882,8 +785,8 @@
    "piso": 56,
    "otros": 0,
    "gc": 3,
-   "gc_pared": 2,
-   "gc_piso": 1,
+   "gc_pared": 1,
+   "gc_piso": 2,
    "gc_otros": 0,
    "inspeccionadas": 198,
    "insp_con_defecto": 55,
@@ -891,9 +794,9 @@
    "retrabajos_liberados": 6,
    "retrabajo_mayor": 4,
    "defectos_gc": {
-    "Pegado a contra molde": 1,
-    "PIEZA PARA CAMBIO DE ORDEN (REDIMENSION)": 1,
-    "Quebrado en desmolde": 1
+    "Quebrado al despandear": 1,
+    "Quebrado en desmolde": 1,
+    "Pegado a contra molde": 1
    },
    "defectos_rw": {
     "Quebrado en empaque": 1,
@@ -909,8 +812,8 @@
    "pared": 450,
    "piso": 59,
    "otros": 0,
-   "gc": 6,
-   "gc_pared": 6,
+   "gc": 4,
+   "gc_pared": 4,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 197,
@@ -919,10 +822,9 @@
    "retrabajos_liberados": 7,
    "retrabajo_mayor": 3,
    "defectos_gc": {
-    "Error de color": 1,
+    "Quebrado en desmolde": 1,
     "Fallo de Máquina": 2,
-    "Quebrado en acabado": 2,
-    "Quebrado en desmolde": 1
+    "Error de color": 1
    },
    "defectos_rw": {
     "Espesor delgado": 1,
@@ -939,8 +841,8 @@
    "pared": 492,
    "piso": 36,
    "otros": 0,
-   "gc": 5,
-   "gc_pared": 5,
+   "gc": 4,
+   "gc_pared": 4,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 118,
@@ -949,13 +851,9 @@
    "retrabajos_liberados": 5,
    "retrabajo_mayor": 1,
    "defectos_gc": {
-    "Despostillado en desmolde": 1,
-    "Fallo de Máquina": 1,
-    "Gelcoat levantado": 1,
-    "Pando por mal acomodo": 1,
-    "Pieza para Redimención": 1,
-    "Quebrado en acabado": 1,
-    "Quebrado en desmolde": 3
+    "Quebrado en desmolde": 2,
+    "Quebrado en empaque": 1,
+    "Fallo de Máquina": 1
    },
    "defectos_rw": {
     "Despostillado en desmolde": 1,
@@ -970,9 +868,9 @@
    "pared": 446,
    "piso": 43,
    "otros": 0,
-   "gc": 25,
-   "gc_pared": 24,
-   "gc_piso": 1,
+   "gc": 20,
+   "gc_pared": 20,
+   "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 201,
    "insp_con_defecto": 88,
@@ -980,19 +878,13 @@
    "retrabajos_liberados": 7,
    "retrabajo_mayor": 5,
    "defectos_gc": {
-    "Contaminación con cera": 1,
-    "Fallo de Máquina": 5,
-    "Gelcoat contaminado": 2,
-    "Gelcoat delgado": 3,
-    "Gota de catalizador": 1,
-    "Mal resanada": 1,
-    "Mal vaciada (Pasta gelada)": 1,
-    "Operación Incorrecta": 6,
-    "Pasta cruda": 13,
-    "Pieza para Redimención": 2,
-    "Quebrada por calidad": 1,
     "Quebrado en acabado": 4,
-    "Quebrado en empaque": 2
+    "Quebrado en desmolde": 1,
+    "Mal vaciada (Pasta gelada)": 1,
+    "Pasta cruda": 13,
+    "Operación Incorrecta": 6,
+    "Quebrado en empaque": 1,
+    "Fallo de Máquina": 5
    },
    "defectos_rw": {
     "Pando por exceso de resina": 1,
@@ -1010,8 +902,8 @@
    "pared": 453,
    "piso": 57,
    "otros": 0,
-   "gc": 12,
-   "gc_pared": 12,
+   "gc": 14,
+   "gc_pared": 14,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 169,
@@ -1020,17 +912,14 @@
    "retrabajos_liberados": 29,
    "retrabajo_mayor": 17,
    "defectos_gc": {
-    "Fallo de Máquina": 3,
-    "Gelcoat arrugado": 1,
-    "Gelcoat poroso": 1,
-    "Gelcoat tierno": 1,
-    "Pando por exceso de resina": 1,
-    "Pando por mal acomodo": 1,
-    "Pieza para Redimención": 1,
-    "Quebrado en acabado": 2,
+    "Acabado Incorrecto": 4,
+    "Quebrado en acabado": 3,
+    "Mal resanada": 1,
+    "Gelcoat contaminado": 1,
     "Quebrado en empaque": 1,
     "Quebrado por desmolde antes de tiempo": 1,
-    "Tomada para muestra": 1
+    "Fallo de Máquina": 3,
+    "Gelcoat poroso": 1
    },
    "defectos_rw": {
     "Espesor delgado": 7,
@@ -1056,8 +945,8 @@
    "pared": 407,
    "piso": 56,
    "otros": 0,
-   "gc": 8,
-   "gc_pared": 8,
+   "gc": 9,
+   "gc_pared": 9,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 165,
@@ -1066,9 +955,9 @@
    "retrabajos_liberados": 6,
    "retrabajo_mayor": 2,
    "defectos_gc": {
-    "Quebrado en acabado": 1,
-    "Quebrado en desmolde": 6,
-    "Quebrado en empaque": 2
+    "Quebrado por manipulación": 2,
+    "Quebrado en acabado": 2,
+    "Quebrado en desmolde": 5
    },
    "defectos_rw": {
     "Pando por mal acomodo": 3,
@@ -1083,8 +972,8 @@
    "pared": 431,
    "piso": 46,
    "otros": 0,
-   "gc": 4,
-   "gc_pared": 4,
+   "gc": 7,
+   "gc_pared": 7,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 390,
@@ -1093,10 +982,11 @@
    "retrabajos_liberados": 94,
    "retrabajo_mayor": 51,
    "defectos_gc": {
-    "Pegado a molde": 1,
-    "Quebrado al subir a linea": 1,
-    "Quebrado en acabado": 1,
-    "Quebrado en desmolde": 3
+    "Quebrado en acabado": 3,
+    "Quebrado en desmolde": 2,
+    "Gelcoat levantado": 1,
+    "Quebrado en empaque": 1,
+    "Pegado a molde": 1
    },
    "defectos_rw": {
     "Mal vaciada (Pasta gelada)": 2,
@@ -1132,9 +1022,9 @@
    "pared": 393,
    "piso": 52,
    "otros": 0,
-   "gc": 6,
-   "gc_pared": 5,
-   "gc_piso": 1,
+   "gc": 8,
+   "gc_pared": 8,
+   "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 274,
    "insp_con_defecto": 78,
@@ -1142,12 +1032,11 @@
    "retrabajos_liberados": 13,
    "retrabajo_mayor": 7,
    "defectos_gc": {
+    "Acabado Incorrecto": 3,
+    "Quebrado en acabado": 2,
     "Gelcoat tierno": 1,
-    "Pegado a molde": 1,
-    "Quebrado en acabado": 1,
-    "Quebrado en desmolde": 1,
-    "Quebrado por manipulación": 1,
-    "Tomada para muestra": 2
+    "Quebrado en desmolde": 2,
+    "Pegado a molde": 1
    },
    "defectos_rw": {
     "Manchas de molde": 1,
@@ -1167,9 +1056,9 @@
    "pared": 398,
    "piso": 52,
    "otros": 0,
-   "gc": 16,
-   "gc_pared": 14,
-   "gc_piso": 2,
+   "gc": 2,
+   "gc_pared": 1,
+   "gc_piso": 1,
    "gc_otros": 0,
    "inspeccionadas": 260,
    "insp_con_defecto": 80,
@@ -1177,13 +1066,8 @@
    "retrabajos_liberados": 20,
    "retrabajo_mayor": 4,
    "defectos_gc": {
-    "Gelcoat levantado": 1,
-    "Gelcoat Poroso": 1,
-    "Pando por exceso de resina": 3,
-    "Pando por mal acomodo": 3,
-    "Quebrado en desmolde": 2,
-    "Quebrado en rectificadora": 1,
-    "Tomada para muestra": 10
+    "Quebrada por calidad": 1,
+    "Quebrado en desmolde": 1
    },
    "defectos_rw": {
     "Pando por mal acomodo": 3,
@@ -1200,27 +1084,25 @@
    "pared": 370,
    "piso": 57,
    "otros": 0,
-   "gc": 14,
-   "gc_pared": 14,
-   "gc_piso": 0,
+   "gc": 9,
+   "gc_pared": 8,
+   "gc_piso": 1,
    "gc_otros": 0,
    "inspeccionadas": 244,
    "insp_con_defecto": 74,
    "retrabajos": 6,
-   "retrabajos_liberados": 4,
+   "retrabajos_liberados": 5,
    "retrabajo_mayor": 2,
    "defectos_gc": {
-    "Espesor delgado": 1,
-    "Espesor grueso": 1,
-    "Fallo de Máquina": 1,
-    "Mal vaciada (Pasta gelada)": 1,
+    "Gelcoat levantado": 1,
+    "Gelcoat delgado": 1,
+    "Gelcoat tierno": 1,
+    "Pando por exceso de resina": 1,
     "Pasta cruda": 1,
+    "Quebrado por manipulación": 1,
+    "Quebrado en acabado": 1,
     "Quebrado al subir a linea": 1,
-    "Quebrado en acabado": 2,
-    "Quebrado en empaque": 1,
-    "Quebrado por manipulación": 2,
-    "Recuperación: Etiqueta generada no utilizada": 1,
-    "Tomada para muestra": 6
+    "Fallo de Máquina": 1
    },
    "defectos_rw": {
     "Gelcoat poroso": 1,
@@ -1231,13 +1113,13 @@
   },
   {
    "fecha": "2026-09-28",
-   "vaciadas": 463,
-   "pared": 423,
+   "vaciadas": 459,
+   "pared": 419,
    "piso": 40,
    "otros": 0,
-   "gc": 3,
-   "gc_pared": 2,
-   "gc_piso": 1,
+   "gc": 6,
+   "gc_pared": 6,
+   "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 182,
    "insp_con_defecto": 65,
@@ -1245,12 +1127,12 @@
    "retrabajos_liberados": 8,
    "retrabajo_mayor": 8,
    "defectos_gc": {
-    "Despostillado en desmolde": 1,
-    "Espesor delgado": 1,
-    "Pieza para Redimención": 1,
-    "Quebrado en desmolde": 1,
-    "Quebrado en rectificadora": 1,
-    "RETRABAJO": 1
+    "Gelcoat delgado": 1,
+    "Pando por exceso de resina": 2,
+    "Quebrado en empaque": 1,
+    "Quebrado por manipulación": 1,
+    "Quebrado en acabado": 1,
+    "Quebrado en desmolde": 1
    },
    "defectos_rw": {
     "Mal vaciada (Pasta gelada)": 3,
@@ -1261,13 +1143,13 @@
   },
   {
    "fecha": "2026-09-29",
-   "vaciadas": 536,
-   "pared": 473,
+   "vaciadas": 534,
+   "pared": 471,
    "piso": 63,
    "otros": 0,
-   "gc": 5,
-   "gc_pared": 4,
-   "gc_piso": 1,
+   "gc": 7,
+   "gc_pared": 5,
+   "gc_piso": 2,
    "gc_otros": 0,
    "inspeccionadas": 233,
    "insp_con_defecto": 75,
@@ -1275,12 +1157,10 @@
    "retrabajos_liberados": 4,
    "retrabajo_mayor": 1,
    "defectos_gc": {
-    "Dren quebrado": 1,
-    "Marca de molde": 1,
-    "Quebrado al subir a linea": 1,
-    "Quebrado en acabado": 1,
-    "Quebrado en desmolde": 1,
-    "Tomada para muestra": 1
+    "Quebrado en acabado": 2,
+    "Quebrado en desmolde": 2,
+    "Quebrado en rectificadora": 2,
+    "Quebrado al subir a linea": 1
    },
    "defectos_rw": {
     "Pando por mal acomodo": 2,
@@ -1294,9 +1174,9 @@
    "pared": 246,
    "piso": 36,
    "otros": 0,
-   "gc": 6,
-   "gc_pared": 3,
-   "gc_piso": 3,
+   "gc": 2,
+   "gc_pared": 1,
+   "gc_piso": 1,
    "gc_otros": 0,
    "inspeccionadas": 204,
    "insp_con_defecto": 42,
@@ -1304,11 +1184,8 @@
    "retrabajos_liberados": 5,
    "retrabajo_mayor": 5,
    "defectos_gc": {
-    "Cambio de lado - OFFSET": 2,
-    "Despostillado en desmolde": 1,
-    "Quebrado en empaque": 1,
-    "Quebrado en rectificadora": 1,
-    "Tomada para muestra": 1
+    "Dren quebrado": 1,
+    "Quebrado en empaque": 1
    },
    "defectos_rw": {
     "Gelcoat levantado": 1,
@@ -1332,11 +1209,10 @@
    "retrabajos_liberados": 7,
    "retrabajo_mayor": 5,
    "defectos_gc": {
-    "Acabado Incorrecto": 1,
-    "Quebrado al subir a linea": 1,
-    "Quebrado en acabado": 1,
+    "Gelcoat contaminado": 1,
+    "Quebrado en empaque": 1,
     "Quebrado en desmolde": 1,
-    "Recuperación: Cambio de Lado": 1
+    "Quebrado en acabado": 1
    },
    "defectos_rw": {
     "Gelcoat tierno": 1,
@@ -1352,9 +1228,9 @@
    "pared": 390,
    "piso": 65,
    "otros": 0,
-   "gc": 4,
+   "gc": 3,
    "gc_pared": 2,
-   "gc_piso": 2,
+   "gc_piso": 1,
    "gc_otros": 0,
    "inspeccionadas": 216,
    "insp_con_defecto": 75,
@@ -1362,11 +1238,9 @@
    "retrabajos_liberados": 3,
    "retrabajo_mayor": 0,
    "defectos_gc": {
-    "Marca de dedo": 1,
-    "Pasta cruda": 1,
-    "Pegado a contra molde": 1,
-    "Pieza para Redimención": 1,
-    "Quebrado en acabado": 2
+    "Quebrado en acabado": 1,
+    "Gelcoat levantado": 1,
+    "Pegado a contra molde": 1
    },
    "defectos_rw": {
     "Pando por mal acomodo": 1,
@@ -1380,9 +1254,9 @@
    "pared": 364,
    "piso": 60,
    "otros": 0,
-   "gc": 6,
-   "gc_pared": 6,
-   "gc_piso": 0,
+   "gc": 7,
+   "gc_pared": 4,
+   "gc_piso": 3,
    "gc_otros": 0,
    "inspeccionadas": 198,
    "insp_con_defecto": 77,
@@ -1390,11 +1264,11 @@
    "retrabajos_liberados": 16,
    "retrabajo_mayor": 9,
    "defectos_gc": {
-    "Gelcoat delgado": 1,
-    "Gelcoat tierno": 2,
-    "Pieza para Redimención": 1,
-    "Quebrado en acabado": 2,
-    "Quebrado en desmolde": 3
+    "Quebrado por manipulación": 1,
+    "Quebrado en rectificadora": 1,
+    "Pasta cruda": 1,
+    "Quebrado en acabado": 3,
+    "Quebrado en desmolde": 1
    },
    "defectos_rw": {
     "Pando por mal acomodo": 1,
@@ -1408,23 +1282,22 @@
   },
   {
    "fecha": "2026-10-06",
-   "vaciadas": 520,
-   "pared": 443,
+   "vaciadas": 515,
+   "pared": 438,
    "piso": 77,
    "otros": 0,
-   "gc": 3,
-   "gc_pared": 3,
+   "gc": 4,
+   "gc_pared": 4,
    "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 275,
    "insp_con_defecto": 87,
    "retrabajos": 9,
-   "retrabajos_liberados": 6,
+   "retrabajos_liberados": 9,
    "retrabajo_mayor": 2,
    "defectos_gc": {
-    "Gelcoat levantado": 1,
-    "Pieza para Redimención": 1,
-    "Quebrado en desmolde": 2
+    "Acabado Incorrecto": 1,
+    "Quebrado en desmolde": 3
    },
    "defectos_rw": {
     "Espesor delgado": 7,
@@ -1436,21 +1309,20 @@
   },
   {
    "fecha": "2026-10-07",
-   "vaciadas": 508,
-   "pared": 427,
+   "vaciadas": 501,
+   "pared": 420,
    "piso": 81,
    "otros": 0,
-   "gc": 2,
+   "gc": 1,
    "gc_pared": 1,
-   "gc_piso": 1,
+   "gc_piso": 0,
    "gc_otros": 0,
    "inspeccionadas": 245,
    "insp_con_defecto": 94,
    "retrabajos": 25,
-   "retrabajos_liberados": 19,
+   "retrabajos_liberados": 24,
    "retrabajo_mayor": 14,
    "defectos_gc": {
-    "Quebrado en acabado": 1,
     "Quebrado en desmolde": 1
    },
    "defectos_rw": {
@@ -1466,16 +1338,20 @@
    "pared": 412,
    "piso": 61,
    "otros": 2,
-   "gc": 0,
-   "gc_pared": 0,
-   "gc_piso": 0,
+   "gc": 3,
+   "gc_pared": 2,
+   "gc_piso": 1,
    "gc_otros": 0,
    "inspeccionadas": 241,
    "insp_con_defecto": 101,
    "retrabajos": 10,
-   "retrabajos_liberados": 9,
+   "retrabajos_liberados": 10,
    "retrabajo_mayor": 9,
-   "defectos_gc": {},
+   "defectos_gc": {
+    "Pando por exceso de resina": 1,
+    "Quebrado en desmolde": 1,
+    "Quebrado en acabado": 1
+   },
    "defectos_rw": {
     "Gelcoat contaminado": 3,
     "Despostillado por molde": 1,
@@ -1500,8 +1376,8 @@
    "retrabajos_liberados": 7,
    "retrabajo_mayor": 5,
    "defectos_gc": {
-    "Quebrado en desmolde": 2,
-    "Quebrado en empaque": 1
+    "Quebrado en empaque": 1,
+    "Quebrado en desmolde": 2
    },
    "defectos_rw": {
     "Espesor delgado": 2,
@@ -1525,7 +1401,7 @@
    "inspeccionadas": 327,
    "insp_con_defecto": 68,
    "retrabajos": 13,
-   "retrabajos_liberados": 3,
+   "retrabajos_liberados": 10,
    "retrabajo_mayor": 12,
    "defectos_gc": {
     "Quebrado en empaque": 2
@@ -1540,6 +1416,99 @@
     "Rayas por manejo": 1,
     "Manchas de molde": 1,
     "Quebrado en desmolde": 1,
+    "Gelcoat delgado": 1
+   }
+  },
+  {
+   "fecha": "2026-10-13",
+   "vaciadas": 278,
+   "pared": 234,
+   "piso": 44,
+   "otros": 0,
+   "gc": 6,
+   "gc_pared": 6,
+   "gc_piso": 0,
+   "gc_otros": 0,
+   "inspeccionadas": 244,
+   "insp_con_defecto": 44,
+   "retrabajos": 5,
+   "retrabajos_liberados": 5,
+   "retrabajo_mayor": 3,
+   "defectos_gc": {
+    "Pieza quebrada en patio": 1,
+    "Quebrado en empaque": 1,
+    "Quebrado en acabado": 2,
+    "Quebrado en vaciado": 1,
+    "Quebrado por manipulación": 1
+   },
+   "defectos_rw": {
+    "Gelcoat reventado": 1,
+    "Despostillado por separador": 1,
+    "Quebrado en empaque": 1,
+    "Despostillado en empaque": 1,
+    "Gelcoat levantado": 1
+   }
+  },
+  {
+   "fecha": "2026-10-14",
+   "vaciadas": 189,
+   "pared": 177,
+   "piso": 12,
+   "otros": 0,
+   "gc": 2,
+   "gc_pared": 1,
+   "gc_piso": 1,
+   "gc_otros": 0,
+   "inspeccionadas": 135,
+   "insp_con_defecto": 48,
+   "retrabajos": 24,
+   "retrabajos_liberados": 20,
+   "retrabajo_mayor": 19,
+   "defectos_gc": {
+    "Quebrado en acabado": 1,
+    "Pando por mal acomodo": 1,
+    "Quebrado en rectificadora": 1
+   },
+   "defectos_rw": {
+    "Despostillado en empaque": 3,
+    "Gelcoat delgado": 2,
+    "Acabado Incorrecto": 18,
+    "Espesor delgado": 2,
+    "Espesor grueso": 2
+   }
+  },
+  {
+   "fecha": "2026-10-15",
+   "vaciadas": 218,
+   "pared": 201,
+   "piso": 17,
+   "otros": 0,
+   "gc": 2,
+   "gc_pared": 2,
+   "gc_piso": 0,
+   "gc_otros": 0,
+   "inspeccionadas": 138,
+   "insp_con_defecto": 35,
+   "retrabajos": 12,
+   "retrabajos_liberados": 1,
+   "retrabajo_mayor": 6,
+   "defectos_gc": {
+    "Gelcoat tierno": 1,
+    "Gelcoat Con Burbujas": 1,
+    "Gelcoat aborregado": 1,
+    "Gelcoat levantado": 1,
+    "Gelcoat delaminado": 1,
+    "Gelcoat reventado": 1,
+    "Mal vaciada (Pasta gelada)": 1,
+    "Quebrado en vaciado": 1
+   },
+   "defectos_rw": {
+    "Gelcoat tierno": 2,
+    "Espesor delgado": 5,
+    "Gelcoat levantado": 1,
+    "Despostillado en desmolde": 1,
+    "Burbuja interna": 1,
+    "Contaminación con cera": 1,
     "Gelcoat delgado": 1
    }
   }

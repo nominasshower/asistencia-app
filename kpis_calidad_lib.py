@@ -12,6 +12,28 @@ MENOR = ('despostillado', 'espesor delgado', 'espesor grueso', 'pando', 'mal res
 EXCL = "76,77,83,85,86,87,88,92"
 
 
+# Misma clasificacion de motivos que CalidadController::clasificarMotivo (Reporte de Calidad en ares); la primera que
+# haga match gana, y lo que no cae en ninguna es 'produccion'.
+CATEGORIAS = (
+    ('recuperacion', ('recupera', 'no encontrada', 'no utilizada')),
+    ('redimension', ('redimen', 'offset')),
+    ('horno', ('rechazo de gelcoat',)),
+    ('excedentes', ('stock de inventario',)),
+    ('inventario', ('inventario',)),
+    ('sistema', ('etiqueta', 'duplicad', 'molde vacio', 'generaci', 'cambio de orden', 'mal asignado',
+                 'modelo antiguo', 'sobrante', 'acumulado', 'retrabajo', 'pruebas de sistema')),
+    ('muestras', ('muestra', 'prueba')),
+)
+
+
+def clasificar_motivo(motivo):
+    m = (motivo or '').lower()
+    for cat, kws in CATEGORIAS:
+        if any(w in m for w in kws):
+            return cat
+    return 'produccion'
+
+
 def calcular(run, dias=70):
     """run(sql) -> lista de filas (listas de str). Devuelve el dict listo para JSON."""
     desde = (dt.date.today() - dt.timedelta(days=dias)).strftime('%Y-%m-%d')
@@ -28,9 +50,13 @@ CREATE TEMPORARY TABLE vn AS SELECT v.sku, v.d, p.id piece_id, p.piece_status_id
     if True:
         q = lambda s: run(base + s)
         prod = q("SELECT d, tipo, COUNT(*) FROM vn GROUP BY d, tipo;")
-        gc = q("SELECT d, tipo, COUNT(*) FROM vn WHERE piece_status_id=6 GROUP BY d, tipo;")
-        gcdef = q(f"""SELECT vn.d, df.name, COUNT(DISTINCT vn.piece_id) FROM vn JOIN piece_defect pd ON pd.piece_id=vn.piece_id AND pd.active=1
-                      JOIN defect df ON df.id=pd.defect_id WHERE vn.piece_status_id=6 GROUP BY vn.d, df.name;""")
+        # Grado C = pieza MANDADA a Grado C ese dia (fecha del registro 'scrap piece', como el Reporte de Calidad de
+        # ConnectIT), solo categoria Produccion (sin sistema/horno/redimension/muestras/inventario/recuperacion).
+        gc_rows = run(f"""SELECT DATE(MAX(scrap.created_at)), pt.name, GROUP_CONCAT(DISTINCT df.name SEPARATOR '|')
+                      FROM piece p JOIN product pr ON pr.id=p.product_id JOIN product_type pt ON pt.id=pr.product_type_id
+                      JOIN piece_defect scrap ON scrap.piece_id=p.id AND LOWER(scrap.details)='scrap piece'
+                      LEFT JOIN defect df ON df.id=scrap.defect_id
+                      WHERE scrap.created_at>='{desde}' GROUP BY p.id, pt.name;""")
         insp = q(f"SELECT DATE(created_at), COUNT(DISTINCT sku) FROM process_log WHERE workstation_id=12 AND created_at>='{desde}' GROUP BY 1;")
         # inspeccionadas ese dia con algun defecto registrado ese mismo dia
         insp_def = q(f"""SELECT DATE(pl.created_at), COUNT(DISTINCT pl.sku) FROM process_log pl JOIN piece p ON p.sku=pl.sku
@@ -50,9 +76,11 @@ CREATE TEMPORARY TABLE vn AS SELECT v.sku, v.d, p.id piece_id, p.piece_status_id
     k = {'Pared': 'pared', 'Piso': 'piso'}
     for d, t, n in prod:
         x = D(d); n = int(n); x['vaciadas'] += n; x[k.get(t, 'otros')] += n
-    for d, t, n in gc:
-        x = D(d); n = int(n); x['gc'] += n; x['gc_' + k.get(t, 'otros')] += n
-    for d, nm, n in gcdef: D(d)['defectos_gc'][nm] = int(n)
+    for d, t, motivo in gc_rows:
+        if clasificar_motivo(motivo.replace('|', ', ')) != 'produccion': continue
+        x = D(d); x['gc'] += 1; x['gc_' + k.get(t, 'otros')] += 1
+        for nm in motivo.split('|'):
+            x['defectos_gc'][nm] = x['defectos_gc'].get(nm, 0) + 1
     for d, n in insp: D(d)['inspeccionadas'] = int(n)
     for d, n in insp_def: D(d)['insp_con_defecto'] = int(n)
     for d, n, l in rw: x = D(d); x['retrabajos'] = int(n); x['retrabajos_liberados'] = int(l or 0)

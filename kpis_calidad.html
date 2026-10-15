@@ -203,7 +203,7 @@ function render(){
       <div class="leg"><span><i style="background:#4472C4"></i>Paredes</span><span><i style="background:#ED7D31"></i>Bases</span><span><i style="background:#002060"></i>% Grado C del día</span></div></div>
     <div class="card lb"><h3>Principales defectos Grado C</h3>${top.length?top.map(([k,v])=>`<div style="margin-bottom:8px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>${k}</span><b>${v}</b></div><div style="height:6px;background:#fff;border-radius:3px"><div style="height:6px;width:${v/mxd*100}%;background:#002060;border-radius:3px"></div></div></div>`).join(''):'<span style="color:var(--muted);font-size:12px">Sin piezas Grado C</span>'}</div>
   </div>
-  <div class="note">Grado C = pieza en estado SCRAP, fechada por su día de vaciado; los días recientes pueden subir si una pieza se marca Grado C después. Una pieza con varios defectos cuenta en cada uno.</div>`;
+  <div class="note">Grado C = pieza mandada a Grado C ese día, solo de categoría Producción (igual que “Grado C · Producción” del Reporte de Calidad de ConnectIT; no cuenta sistema, horno, redimensión, muestras, inventario ni recuperación). El % es contra las piezas vaciadas del mismo día. Una pieza con varios defectos cuenta en cada uno.</div>`;
 
   const RM=sum(dias,'retrabajo_mayor'),dr={};dias.forEach(d=>Object.entries(d.defectos_rw||{}).forEach(([k,v])=>dr[k]=(dr[k]||0)+v));
   const topR=Object.entries(dr).sort((a,b)=>b[1]-a[1]).slice(0,6),mxr=Math.max(1,...topR.map(x=>x[1]));
