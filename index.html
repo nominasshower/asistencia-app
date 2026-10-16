@@ -108,7 +108,7 @@ input[type=text] { flex: 1; min-width: 160px; }
 
   <div class="emp-selector">
     <label>Empresa</label>
-    <select id="emp-select" onchange="cambiarEmpresa(this.value)">
+    <select id="emp-select" autocomplete="off" onchange="cambiarEmpresa(this.value)">
       <option value="woods">Modul Woods</option>
       <option value="shower">Shower Walls</option>
       <option value="modular">Modular</option>
@@ -236,22 +236,43 @@ async function fetchRH(tabla, empresaNombre, extra) {
   const orden = tabla === "registros" ? "id.asc" : "nomina.asc";
   const params = new URLSearchParams({ empresa: `eq.${empresaNombre}`, select: "*", order: orden });
   if (extra) Object.entries(extra).forEach(([k,v]) => params.set(k, v));
-  const PAGE = 1000;
-  let offset = 0, todas = [];
-  while (true) {
+  const PAGE = 1000, LOTE = 10;
+  const pedir = async (offset, contar) => {
     const r = await fetch(`${SUP_URL}/rest/v1/${tabla}?${params}`, {
       headers: {
         apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, "Accept-Profile": "rh",
-        "Range-Unit": "items", "Range": `${offset}-${offset + PAGE - 1}`
+        "Range-Unit": "items", "Range": `${offset}-${offset + PAGE - 1}`,
+        ...(contar ? { "Prefer": "count=exact" } : {})
       }
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const chunk = await r.json();
-    todas = todas.concat(chunk);
-    if (chunk.length < PAGE) break;
-    offset += PAGE;
+    const total = contar ? parseInt((r.headers.get("Content-Range") || "").split("/")[1], 10) : NaN;
+    return { chunk: await r.json(), total };
+  };
+  // Primera pagina trae ademas el total; el resto de paginas se piden en paralelo
+  // (antes eran una tras otra: ~17 peticiones seguidas en Shower, ~22 en Modular).
+  const primera = await pedir(0, true);
+  const partes = [primera.chunk];
+  if (primera.chunk.length >= PAGE) {
+    if (Number.isFinite(primera.total)) {
+      const offsets = [];
+      for (let o = PAGE; o < primera.total; o += PAGE) offsets.push(o);
+      for (let i = 0; i < offsets.length; i += LOTE) {
+        const res = await Promise.all(offsets.slice(i, i + LOTE).map(o => pedir(o, false)));
+        res.forEach(x => partes.push(x.chunk));
+      }
+    } else {
+      // el navegador no expuso el total: modo secuencial de siempre
+      let offset = PAGE;
+      while (true) {
+        const { chunk } = await pedir(offset, false);
+        partes.push(chunk);
+        if (chunk.length < PAGE) break;
+        offset += PAGE;
+      }
+    }
   }
-  return todas.map(row => {
+  return partes.flat().map(row => {
     const o = {};
     Object.entries(row).forEach(([k,v]) => { o[k] = (v===null||v===undefined) ? "" : String(v).trim(); });
     return o;
@@ -259,8 +280,10 @@ async function fetchRH(tabla, empresaNombre, extra) {
 }
 
 const _paramEmp = new URLSearchParams(window.location.search).get("empresa");
-let empresaActual    = (_paramEmp && EMPRESAS[_paramEmp]) ? _paramEmp : "woods";
-if (_paramEmp && EMPRESAS[_paramEmp]) { const _s = document.getElementById("emp-select"); if (_s) _s.value = _paramEmp; const _c = document.querySelector(".emp-selector"); if (_c) _c.style.display = "none"; }
+let _empGuardada = ""; try { _empGuardada = localStorage.getItem("empresaActual") || ""; } catch(e) {}
+let empresaActual    = (_paramEmp && EMPRESAS[_paramEmp]) ? _paramEmp : (EMPRESAS[_empGuardada] ? _empGuardada : "woods");
+{ const _s = document.getElementById("emp-select"); if (_s) _s.value = empresaActual; }  // el navegador restaura el valor anterior del <select> al recargar y deja de coincidir con los datos cargados
+if (_paramEmp && EMPRESAS[_paramEmp]) { const _c = document.querySelector(".emp-selector"); if (_c) _c.style.display = "none"; }
 let paginaActual     = "dashboard";
 let datos            = null;
 let datosEmpleados   = null;
@@ -281,6 +304,7 @@ function navegar(page, el) {
 
 function cambiarEmpresa(val) {
   empresaActual    = val;
+  try { localStorage.setItem("empresaActual", val); } catch(e) {}
   datos            = null;
   datosEmpleados   = null;
   cargarDatos();
@@ -294,13 +318,16 @@ async function cargarDatos() {
 
   try {
     // Cargar REGISTROS (checadas) desde Supabase
-    datos = await fetchRH("registros", emp.sup_empresa);
+    // EMPLEADOS se pide al mismo tiempo que los registros (antes esperaba a que terminaran).
+    // Registros: solo las ultimas 6 semanas (se trabaja por semana). Si piden una semana mas
+    // vieja, se baja solo esa semana (ver asegurarRango).
+    corteCarga = (() => { const d = new Date(); d.setDate(d.getDate() - 42); return d.toISOString().split("T")[0]; })();
+    rangosCargados = new Set();
+    const pEmpleados = fetchRH("empleados", emp.sup_empresa).catch(() => null);
+    datos = await fetchRH("registros", emp.sup_empresa, { fecha: `gte.${corteCarga}` });
+    if (!datos.length) { corteCarga = null; datos = await fetchRH("registros", emp.sup_empresa); }
     if (!datos.length) throw new Error("Sin datos");
-
-    // Cargar EMPLEADOS desde Supabase
-    try {
-      datosEmpleados = await fetchRH("empleados", emp.sup_empresa);
-    } catch(e2) { datosEmpleados = null; }
+    datosEmpleados = await pEmpleados;
 
     document.getElementById("status-pill").innerHTML = `<span class="dot dot-green"></span> ${datos.length} registros`;
     document.getElementById("status-pill").className = "pill pill-green";
@@ -315,6 +342,20 @@ async function cargarDatos() {
 }
 
 // Carga TODAS las empresas en paralelo para búsqueda global
+let corteCarga = null;          // fecha desde la que ya hay registros cargados (null = todo)
+let rangosCargados = new Set(); // semanas viejas ya bajadas bajo demanda
+// Devuelve true si falta bajar esa semana (y la baja); el llamador vuelve a pintar al terminar.
+function semanaFaltante(sem) { return !!corteCarga && sem.desde < corteCarga && !rangosCargados.has(`${empresaActual}|${sem.desde}`); }
+async function asegurarRango(sem) {
+  const clave = `${empresaActual}|${sem.desde}`, emp = EMPRESAS[empresaActual];
+  try {
+    const filas = await fetchRH("registros", emp.sup_empresa, { and: `(fecha.gte.${sem.desde},fecha.lte.${sem.hasta})` });
+    if (clave.split("|")[0] !== empresaActual || !datos) return;
+    const ya = new Set(datos.map(r => r.id));
+    filas.forEach(r => { if (!ya.has(r.id)) datos.push(r); });
+    rangosCargados.add(clave);
+  } catch(e) { rangosCargados.add(clave); }
+}
 async function cargarDatosGlobal() {
   if (datosGlobal || cargandoGlobal) return;
   cargandoGlobal = true;
@@ -766,6 +807,7 @@ function toggleArea(area) {
 
 // ─── EMPLEADOS ───────────────────────────────────────────────
 function renderEmpleados() {
+  const teniaFoco = document.activeElement?.id === "e-busq";
   const busq = (document.getElementById("e-busq")?.value || "").toLowerCase();
   const fest = document.getElementById("e-area")?.value || "";
 
@@ -841,6 +883,10 @@ function renderEmpleados() {
         </tr>`).join("")}
       </tbody></table>
     </div>`;
+
+  // mantener el cursor en el buscador (si no, se pierde la casilla en cada tecla)
+  const inpE = document.getElementById("e-busq");
+  if (inpE && teniaFoco) { inpE.focus(); const l = inpE.value.length; inpE.setSelectionRange(l, l); }
 }
 
 // ─── HELPER CATALOGOS ────────────────────────────────────────
@@ -1452,6 +1498,11 @@ function getSemanaNomina(offset) {
 let semanaOffset = 0;
 function renderSemana() {
   const sem = getSemanaNomina(semanaOffset);
+  if (semanaFaltante(sem)) {
+    document.getElementById("content").innerHTML = `<div class="loading"><div class="spinner"></div><div>Cargando semana ${sem.desde} → ${sem.hasta}...</div></div>`;
+    asegurarRango(sem).then(() => { if (paginaActual === "semana") renderSemana(); });
+    return;
+  }
   const diasNombres = ["Jue","Vie","Sáb","Dom","Lun","Mar","Mié"];
   const filtrarArea = document.getElementById("sg-area")?.value || "";
 
@@ -1890,6 +1941,11 @@ async function guardarBody(r, id, body) {
 
 function renderNomina() {
   const sem = getSemanaNomina(nominaOffset);
+  if (semanaFaltante(sem)) {
+    document.getElementById("content").innerHTML = `<div class="loading"><div class="spinner"></div><div>Cargando semana ${sem.desde} → ${sem.hasta}...</div></div>`;
+    asegurarRango(sem).then(() => { if (paginaActual === "nomina") renderNomina(); });
+    return;
+  }
   const filtrarArea  = document.getElementById("n-area")?.value  || "";
   const filtrarEmp   = (document.getElementById("n-busq")?.value || "").toLowerCase();
   const diasNombres  = { 0:"Dom", 1:"Lun", 2:"Mar", 3:"Mié", 4:"Jue", 5:"Vie", 6:"Sáb" };
