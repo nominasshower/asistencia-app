@@ -54,7 +54,9 @@
 <div class="tabs"><button id="tb-pres" class="on" onclick="vista('pres')">Presentación</button><button id="tb-cap" onclick="vista('cap')">Captura de datos</button></div>
 <div id="v-pres">
 <div class="top">
-  <div><label>Semana (lunes a domingo)</label><select id="sem"></select></div>
+  <div><label>Ver por</label><select id="modo"><option value="sem">Semana</option><option value="mes">Mes</option></select></div>
+  <div id="w-sem"><label>Semana (lunes a domingo)</label><select id="sem"></select></div>
+  <div id="w-mes" style="display:none"><label>Mes</label><select id="mes"></select></div>
 </div>
 
 <div class="sec" id="s1"></div>
@@ -136,10 +138,10 @@ function renderQuejas(w,fin){
   const meses=Array.from({length:12},(_,i)=>rcl.filter(q=>+q.fecha.slice(5,7)===i+1).length);
   const MN=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'],mm=Math.max(1,...meses);
   $('s2').innerHTML='<h2>Quejas de clientes y reclamaciones</h2>'+(CAPERR||!QUEJAS.length?`<div class="pend"><b>Sin datos capturados todavía.</b> ${CAPERR?esc(CAPERR):'Captúralas en la pestaña “Captura de datos”.'}</div>`:`
-  <div class="stats"><div class="stat"><span>Quejas de la semana</span><b>${sem.length}</b><small>${cs.length} clientes</small></div>
+  <div class="stats"><div class="stat"><span>Quejas del ${$('modo').value==='mes'?'mes':'periodo'}</span><b>${sem.length}</b><small>${cs.length} clientes</small></div>
     <div class="stat"><span>Reclamaciones YTD</span><b class="${rcl.length?'bad':'ok'}">${rcl.length}</b><small>acumulado ${anio}</small></div>
     <div class="stat"><span>Abiertas</span><b>${QUEJAS.filter(q=>q.estatus!=='Cerrada').length}</b><small>sin cerrar</small></div></div>
-  <div class="grid2"><div class="card lb"><h3>Quejas por cliente · semana</h3>${bars(cs)}</div>
+  <div class="grid2"><div class="card lb"><h3>Quejas por cliente · periodo</h3>${bars(cs)}</div>
   <div class="card lb"><h3>Reclamaciones YTD por cliente</h3>${bars(cnt(rcl,'cliente').slice(0,8))}</div></div>
   <div class="card" style="margin-top:12px"><h3>Reclamaciones por mes · ${anio}</h3><div style="display:flex;gap:8px;align-items:end;height:120px">${meses.map((v,i)=>`<div style="flex:1;text-align:center;font-size:11px"><div style="font-weight:700">${v||''}</div><div style="height:${v/mm*80}px;background:#4472C4;border-radius:3px 3px 0 0"></div>${MN[i]}</div>`).join('')}</div></div>`);
 }
@@ -148,6 +150,8 @@ function renderQuejas(w,fin){
 function mondayOf(s){const d=new Date(s+'T12:00:00');const w=(d.getDay()+6)%7;d.setDate(d.getDate()-w);return d.toISOString().slice(0,10);}
 function addDays(s,n){const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
 function sum(a,k){return a.reduce((t,x)=>t+(x[k]||0),0);}
+function etqDia(s){return $('modo').value==='mes'?String(+s.slice(8)):fechaCorta(s);}
+function rango(){if($('modo').value==='mes'){const m=$('mes').value;return [m+'-01',m+'-31'];}const w=$('sem').value;return [w,addDays(w,6)];}
 function fechaCorta(s){const d=new Date(s+'T12:00:00');return DOW[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);}
 
 async function init(){
@@ -161,6 +165,10 @@ async function init(){
   $('sub').textContent='ConnectIT · datos generados '+DATA.generado+' · piezas vaciadas sin recuperadas ni rechazos de captura (mismo criterio del reporte de vaciados)';
   const weeks=[...new Set(DATA.dias.map(d=>mondayOf(d.fecha)))].sort().reverse();
   $('sem').innerHTML=weeks.map(w=>`<option value="${w}">${w.slice(8)}/${w.slice(5,7)} – ${addDays(w,6).slice(8)}/${addDays(w,6).slice(5,7)}</option>`).join('');
+  const meses=[...new Set(DATA.dias.map(d=>d.fecha.slice(0,7)))].sort().reverse(), MNN=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  $('mes').innerHTML=meses.map(m=>`<option value="${m}">${MNN[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
+  $('modo').onchange=()=>{const m=$('modo').value==='mes';$('w-mes').style.display=m?'':'none';$('w-sem').style.display=m?'none':'';render();};
+  $('mes').onchange=render;
   $('sem').onchange=render; await cargaCap(); guarda('fq','calidad_quejas'); guarda('fr','calidad_retrabajo_linea'); const hoy=new Date().toISOString().slice(0,10); document.querySelectorAll('input[name=fecha]').forEach(i=>i.value=hoy); render();
 }
 
@@ -181,14 +189,14 @@ function barChart(days,series,meta,o){o=o||{};const dk=o.defKey||'defectos_gc',n
 }
 
 function renderRetrabajo(w,fin){
-  const dias=DATA.dias.filter(d=>d.fecha>=w&&d.fecha<=fin).map(d=>({...d,etq:fechaCorta(d.fecha),pct:d.vaciadas?d.retrabajo_mayor/d.vaciadas:0}));
+  const dias=DATA.dias.filter(d=>d.fecha>=w&&d.fecha<=fin).map(d=>({...d,etq:etqDia(d.fecha),pct:d.vaciadas?d.retrabajo_mayor/d.vaciadas:0}));
   const V=sum(dias,'vaciadas'),T=sum(dias,'retrabajo_mayor'),P=sum(dias,'retrabajo_pared'),B=sum(dias,'retrabajo_piso');
   const mes=w.slice(0,7),dm=DATA.dias.filter(d=>d.fecha.slice(0,7)===mes&&d.fecha<=fin),VM=sum(dm,'vaciadas'),TM=sum(dm,'retrabajo_mayor');
   const dr={};dias.forEach(d=>Object.entries(d.defectos_rw||{}).forEach(([k,v])=>dr[k]=(dr[k]||0)+v));
   const top=Object.entries(dr).sort((a,b)=>b[1]-a[1]).slice(0,8),mx=Math.max(1,...top.map(x=>x[1]));
   $('s1b').innerHTML=`<h2>Retrabajo · piezas mandadas a la estación de Retrabajo</h2>
   <div class="stats">
-    <div class="stat"><span>Semana</span><b>${V?fmtP(T/V):'–'}</b><small>${T} piezas de ${NF(V)} vaciadas</small></div>
+    <div class="stat"><span>${$('modo').value==='mes'?'Mes':'Semana'}</span><b>${V?fmtP(T/V):'–'}</b><small>${T} piezas de ${NF(V)} vaciadas</small></div>
     <div class="stat"><span>Acumulado del mes (${mes})</span><b>${VM?fmtP(TM/VM):'–'}</b><small>${TM} piezas de ${NF(VM)}</small></div>
     <div class="stat"><span>Paredes</span><b>${P}</b><small>piezas</small></div>
     <div class="stat"><span>Bases (piso)</span><b>${B}</b><small>piezas</small></div>
@@ -201,10 +209,10 @@ function renderRetrabajo(w,fin){
   <div class="note">Retrabajo = pieza escaneada en la estación de Retrabajo ese día. El defecto es el que se registró al mandarla. Al pasar el mouse por una barra se ven los defectos del día.</div>`;
 }
 function render(){
-  const w=$('sem').value, fin=addDays(w,6);
+  const [w,fin]=rango(), PER=$('modo').value==='mes'?'Mes':'Semana';
   renderQuejas(w,fin);
   renderRetrabajo(w,fin);
-  const dias=DATA.dias.filter(d=>d.fecha>=w&&d.fecha<=fin).map(d=>({...d,etq:fechaCorta(d.fecha),pct:d.vaciadas?d.gc/d.vaciadas:0}));
+  const dias=DATA.dias.filter(d=>d.fecha>=w&&d.fecha<=fin).map(d=>({...d,etq:etqDia(d.fecha),pct:d.vaciadas?d.gc/d.vaciadas:0}));
   const mes=w.slice(0,7), diasMes=DATA.dias.filter(d=>d.fecha.slice(0,7)===mes&&d.fecha<=fin);
   const meta=DATA.meta_gc;
   const V=sum(dias,'vaciadas'),G=sum(dias,'gc'),GP=sum(dias,'gc_pared'),GB=sum(dias,'gc_piso');
@@ -214,15 +222,15 @@ function render(){
   const cls=p=>p>meta?'bad':'ok';
   const defs={};dias.forEach(d=>Object.entries(d.defectos_gc).forEach(([k,v])=>defs[k]=(defs[k]||0)+v));
   const top=Object.entries(defs).sort((a,b)=>b[1]-a[1]).slice(0,8), mxd=Math.max(1,...top.map(t=>t[1]));
-  $('s1').innerHTML=`<h2>Grado C · acumulado mensual y semanal</h2>
+  $('s1').innerHTML=`<h2>Grado C · ${PER==='Mes'?'por mes':'acumulado mensual y semanal'}</h2>
   <div class="stats">
-    <div class="stat"><span>Semana</span><b class="${cls(pSem)}">${fmtP(pSem)}</b><small>${G} piezas de ${NF(V)} vaciadas</small></div>
+    <div class="stat"><span>${PER}</span><b class="${cls(pSem)}">${fmtP(pSem)}</b><small>${G} piezas de ${NF(V)} vaciadas</small></div>
     <div class="stat"><span>Acumulado del mes (${mes})</span><b class="${cls(pMes)}">${fmtP(pMes)}</b><small>${GM} piezas de ${NF(VM)}</small></div>
     <div class="stat"><span>Paredes</span><b class="${cls(pP)}">${fmtP(pP)}</b><small>${GP} piezas</small></div>
     <div class="stat"><span>Bases (piso)</span><b class="${cls(pB)}">${fmtP(pB)}</b><small>${GB} piezas</small></div>
   </div>
   <div class="grid2">
-    <div class="card"><h3>Grado C por día de vaciado y % contra meta</h3>${barChart(dias,[{k:'gc_pared',color:'#4472C4',label:'Paredes'},{k:'gc_piso',color:'#ED7D31',label:'Bases'},{k:'gc_otros',color:'#A5A5A5',label:'Otros'}],{valor:meta})}
+    <div class="card"><h3>Grado C por día (en que se mandó a Grado C) y % contra meta</h3>${barChart(dias,[{k:'gc_pared',color:'#4472C4',label:'Paredes'},{k:'gc_piso',color:'#ED7D31',label:'Bases'},{k:'gc_otros',color:'#A5A5A5',label:'Otros'}],{valor:meta})}
       <div class="leg"><span><i style="background:#4472C4"></i>Paredes</span><span><i style="background:#ED7D31"></i>Bases</span><span><i style="background:#002060"></i>% Grado C del día</span></div></div>
     <div class="card lb"><h3>Principales defectos Grado C</h3>${top.length?top.map(([k,v])=>`<div style="margin-bottom:8px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>${k}</span><b>${v}</b></div><div style="height:6px;background:#fff;border-radius:3px"><div style="height:6px;width:${v/mxd*100}%;background:#002060;border-radius:3px"></div></div></div>`).join(''):'<span style="color:var(--muted);font-size:12px">Sin piezas Grado C</span>'}</div>
   </div>
