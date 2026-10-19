@@ -64,7 +64,9 @@ CREATE TEMPORARY TABLE vn AS SELECT v.sku, v.d, p.id piece_id, p.piece_status_id
                       JOIN piece_defect pd ON pd.piece_id=p.id AND pd.active=1 AND DATE(pd.created_at)=i.d GROUP BY i.d;""")
         rw = q(f"SELECT DATE(created_at), COUNT(*), SUM(release_date IS NOT NULL) FROM rework WHERE created_at>='{desde}' GROUP BY 1;")
         # Retrabajo MAYOR = piezas escaneadas en la estacion de Retrabajo (workstation 14), por dia.
-        rw_may = q(f"SELECT DATE(created_at), COUNT(DISTINCT sku) FROM process_log WHERE workstation_id=14 AND created_at>='{desde}' GROUP BY 1;")
+        rw_may = q(f"""SELECT DATE(pl.created_at), pt.name, COUNT(DISTINCT pl.sku) FROM process_log pl JOIN piece p ON p.sku=pl.sku
+                      JOIN product pr ON pr.id=p.product_id JOIN product_type pt ON pt.id=pr.product_type_id
+                      WHERE pl.workstation_id=14 AND pl.created_at>='{desde}' GROUP BY 1,2;""")
         # Retrabajo MENOR = piezas inspeccionadas ese dia con Grado B: tienen algun defecto y ninguno es 'scrap piece'
         # (misma definicion que el Reporte de Calidad de ConnectIT).
         rw_men = q(f"""SELECT t.d, COUNT(*) FROM (
@@ -81,7 +83,7 @@ CREATE TEMPORARY TABLE vn AS SELECT v.sku, v.d, p.id piece_id, p.piece_status_id
     days = {}
     def D(d): return days.setdefault(d, {'fecha': d, 'vaciadas': 0, 'pared': 0, 'piso': 0, 'otros': 0,
         'gc': 0, 'gc_pared': 0, 'gc_piso': 0, 'gc_otros': 0, 'inspeccionadas': 0, 'insp_con_defecto': 0, 'defectos_insp': 0,
-        'retrabajos': 0, 'retrabajos_liberados': 0, 'retrabajo_mayor': 0, 'retrabajo_menor': 0, 'defectos_gc': {}, 'defectos_rw': {}})
+        'retrabajos': 0, 'retrabajos_liberados': 0, 'retrabajo_mayor': 0, 'retrabajo_pared': 0, 'retrabajo_piso': 0, 'retrabajo_otros': 0, 'retrabajo_menor': 0, 'defectos_gc': {}, 'defectos_rw': {}})
     k = {'Pared': 'pared', 'Piso': 'piso'}
     for d, t, n in prod:
         x = D(d); n = int(n); x['vaciadas'] += n; x[k.get(t, 'otros')] += n
@@ -98,7 +100,8 @@ CREATE TEMPORARY TABLE vn AS SELECT v.sku, v.d, p.id piece_id, p.piece_status_id
     for d, rid, nm in rw_def:
         e = por_rw.setdefault(rid, [d, set()]); e[1].add(nm)
         x = D(d); x['defectos_rw'][nm] = x['defectos_rw'].get(nm, 0) + 1
-    for d, n in rw_may: D(d)['retrabajo_mayor'] = int(n)
+    for d, t, n in rw_may:
+        x = D(d); n = int(n); x['retrabajo_mayor'] += n; x['retrabajo_' + k.get(t, 'otros')] += n
     for d, n in rw_men: D(d)['retrabajo_menor'] = int(n)
     out = {'generado': dt.datetime.now().strftime('%Y-%m-%d %H:%M'), 'desde': desde, 'meta_gc': 0.015,
            'dias': [days[d] for d in sorted(days)]}

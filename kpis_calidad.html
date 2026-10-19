@@ -58,6 +58,7 @@
 </div>
 
 <div class="sec" id="s1"></div>
+<div class="sec" id="s1b"></div>
 
 <div class="sec" id="s2"></div>
 
@@ -163,25 +164,46 @@ async function init(){
   $('sem').onchange=render; await cargaCap(); guarda('fq','calidad_quejas'); guarda('fr','calidad_retrabajo_linea'); const hoy=new Date().toISOString().slice(0,10); document.querySelectorAll('input[name=fecha]').forEach(i=>i.value=hoy); render();
 }
 
-function defTxt(d){const NL=String.fromCharCode(10),e=Object.entries(d.defectos_gc||{}).sort((a,b)=>b[1]-a[1]);return e.length?NL+'Defectos del día:'+NL+e.map(([k,v])=>'· '+k+': '+v).join(NL):'';}
-function barChart(days,series,meta){ // series: [{k,color,label}] apiladas; linea % opcional
+function defTxt(d,key){const NL=String.fromCharCode(10),e=Object.entries(d[key||'defectos_gc']||{}).sort((a,b)=>b[1]-a[1]);return e.length?NL+'Defectos del día:'+NL+e.map(([k,v])=>'· '+k+': '+v).join(NL):'';}
+function barChart(days,series,meta,o){o=o||{};const dk=o.defKey||'defectos_gc',nk=o.num||'gc'; // series: [{k,color,label}] apiladas; linea % opcional
   const W=640,H=240,pl=36,pr=64,pt=14,pb=28,n=days.length||1,bw=Math.min(60,(W-pl-pr)/n*.6);
   const mx=Math.ceil(Math.max(1,...days.map(d=>series.reduce((t,s)=>t+d[s.k],0)))/4)*4;
-  const pmax=Math.max(meta.valor*2,...days.map(d=>d.pct))*1.1;
+  const pmax=Math.max(meta?meta.valor*2:0,0.001,...days.map(d=>d.pct))*1.1;
   const x=i=>pl+(i+.5)*(W-pl-pr)/n, yb=v=>pt+(H-pt-pb)*(1-v/mx), yp=v=>pt+(H-pt-pb)*(1-v/pmax);
   let s=`<svg viewBox="0 0 ${W} ${H}">`;
   for(let g=0;g<=4;g++){const v=mx*g/4;s+=`<line x1="${pl}" x2="${W-pr}" y1="${yb(v)}" y2="${yb(v)}" stroke="#d5dfec"/><text x="${pl-5}" y="${yb(v)+4}" text-anchor="end">${Math.round(v)}</text>`;}
-  days.forEach((d,i)=>{let acc=0;series.forEach(se=>{const v=d[se.k];if(!v)return;const y1=yb(acc+v),y0=yb(acc);s+=`<rect x="${x(i)-bw/2}" y="${y1}" width="${bw}" height="${y0-y1}" fill="${se.color}" rx="2"><title>${d.etq}: ${se.label} ${v}${defTxt(d)}</title></rect>`;if(y0-y1>14)s+=`<text x="${x(i)}" y="${(y0+y1)/2+4}" text-anchor="middle" style="fill:#fff;font-weight:700">${v}</text>`;acc+=v;});
+  days.forEach((d,i)=>{let acc=0;series.forEach(se=>{const v=d[se.k];if(!v)return;const y1=yb(acc+v),y0=yb(acc);s+=`<rect x="${x(i)-bw/2}" y="${y1}" width="${bw}" height="${y0-y1}" fill="${se.color}" rx="2"><title>${d.etq}: ${se.label} ${v}${defTxt(d,dk)}</title></rect>`;if(y0-y1>14)s+=`<text x="${x(i)}" y="${(y0+y1)/2+4}" text-anchor="middle" style="fill:#fff;font-weight:700">${v}</text>`;acc+=v;});
     s+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle">${d.etq}</text>`;});
   const pts=days.map((d,i)=>`${x(i)},${yp(d.pct)}`).join(' ');
-  s+=`<line x1="${pl}" x2="${W-pr}" y1="${yp(meta.valor)}" y2="${yp(meta.valor)}" stroke="#FF0000" stroke-dasharray="5 4"/><text x="${W-pr+4}" y="${yp(meta.valor)+4}" style="fill:#FF0000;font-weight:700">meta ${fmtP(meta.valor,1)}</text>`;
-  s+=`<polyline points="${pts}" fill="none" stroke="#002060" stroke-width="2.5"/>`+days.map((d,i)=>`<circle cx="${x(i)}" cy="${yp(d.pct)}" r="3.5" fill="#002060"><title>${d.etq}: ${fmtP(d.pct)} (${d.gc} de ${d.vaciadas} vaciadas)${defTxt(d)}</title></circle><text x="${x(i)}" y="${yp(d.pct)-8}" text-anchor="middle" style="fill:#002060;font-weight:700">${fmtP(d.pct,1)}</text>`).join('');
+  if(meta)s+=`<line x1="${pl}" x2="${W-pr}" y1="${yp(meta.valor)}" y2="${yp(meta.valor)}" stroke="#FF0000" stroke-dasharray="5 4"/><text x="${W-pr+4}" y="${yp(meta.valor)+4}" style="fill:#FF0000;font-weight:700">meta ${fmtP(meta.valor,1)}</text>`;
+  s+=`<polyline points="${pts}" fill="none" stroke="#002060" stroke-width="2.5"/>`+days.map((d,i)=>`<circle cx="${x(i)}" cy="${yp(d.pct)}" r="3.5" fill="#002060"><title>${d.etq}: ${fmtP(d.pct)} (${d[nk]} de ${d.vaciadas} vaciadas)${defTxt(d,dk)}</title></circle><text x="${x(i)}" y="${yp(d.pct)-8}" text-anchor="middle" style="fill:#002060;font-weight:700">${fmtP(d.pct,1)}</text>`).join('');
   return s+'</svg>';
 }
 
+function renderRetrabajo(w,fin){
+  const dias=DATA.dias.filter(d=>d.fecha>=w&&d.fecha<=fin).map(d=>({...d,etq:fechaCorta(d.fecha),pct:d.vaciadas?d.retrabajo_mayor/d.vaciadas:0}));
+  const V=sum(dias,'vaciadas'),T=sum(dias,'retrabajo_mayor'),P=sum(dias,'retrabajo_pared'),B=sum(dias,'retrabajo_piso');
+  const mes=w.slice(0,7),dm=DATA.dias.filter(d=>d.fecha.slice(0,7)===mes&&d.fecha<=fin),VM=sum(dm,'vaciadas'),TM=sum(dm,'retrabajo_mayor');
+  const dr={};dias.forEach(d=>Object.entries(d.defectos_rw||{}).forEach(([k,v])=>dr[k]=(dr[k]||0)+v));
+  const top=Object.entries(dr).sort((a,b)=>b[1]-a[1]).slice(0,8),mx=Math.max(1,...top.map(x=>x[1]));
+  $('s1b').innerHTML=`<h2>Retrabajo · piezas mandadas a la estación de Retrabajo</h2>
+  <div class="stats">
+    <div class="stat"><span>Semana</span><b>${V?fmtP(T/V):'–'}</b><small>${T} piezas de ${NF(V)} vaciadas</small></div>
+    <div class="stat"><span>Acumulado del mes (${mes})</span><b>${VM?fmtP(TM/VM):'–'}</b><small>${TM} piezas de ${NF(VM)}</small></div>
+    <div class="stat"><span>Paredes</span><b>${P}</b><small>piezas</small></div>
+    <div class="stat"><span>Bases (piso)</span><b>${B}</b><small>piezas</small></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>Piezas a Retrabajo por día y % de lo vaciado</h3>${barChart(dias,[{k:'retrabajo_pared',color:'#4472C4',label:'Paredes'},{k:'retrabajo_piso',color:'#ED7D31',label:'Bases'},{k:'retrabajo_otros',color:'#A5A5A5',label:'Otros'}],null,{defKey:'defectos_rw',num:'retrabajo_mayor'})}
+      <div class="leg"><span><i style="background:#4472C4"></i>Paredes</span><span><i style="background:#ED7D31"></i>Bases</span><span><i style="background:#002060"></i>% de lo vaciado del día</span></div></div>
+    <div class="card lb"><h3>Principales defectos de Retrabajo</h3>${top.length?top.map(([k,v])=>`<div style="margin-bottom:8px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>${esc(k)}</span><b>${v}</b></div><div style="height:6px;background:#fff;border-radius:3px"><div style="height:6px;width:${v/mx*100}%;background:#002060;border-radius:3px"></div></div></div>`).join(''):'<span style="font-size:12px">Sin retrabajos</span>'}</div>
+  </div>
+  <div class="note">Retrabajo = pieza escaneada en la estación de Retrabajo ese día. El defecto es el que se registró al mandarla. Al pasar el mouse por una barra se ven los defectos del día.</div>`;
+}
 function render(){
   const w=$('sem').value, fin=addDays(w,6);
   renderQuejas(w,fin);
+  renderRetrabajo(w,fin);
   const dias=DATA.dias.filter(d=>d.fecha>=w&&d.fecha<=fin).map(d=>({...d,etq:fechaCorta(d.fecha),pct:d.vaciadas?d.gc/d.vaciadas:0}));
   const mes=w.slice(0,7), diasMes=DATA.dias.filter(d=>d.fecha.slice(0,7)===mes&&d.fecha<=fin);
   const meta=DATA.meta_gc;
