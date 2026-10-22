@@ -24,6 +24,9 @@
   button.llego { background:var(--accent); color:#04150a; font-size:20px; padding:20px; }
   button.salio { background:var(--salida); color:#1a0a00; font-size:20px; padding:20px; }
   button:disabled { opacity:.4; cursor:not-allowed; }
+  .aviso-lectura { position:fixed; top:12px; left:12px; right:12px; z-index:100; padding:18px; border-radius:14px; font-weight:800; font-size:20px; text-align:center; box-shadow:0 6px 24px rgba(0,0,0,.5); }
+  .aviso-lectura.ok { background:#16a34a; color:#fff; }
+  .aviso-lectura.mal { background:#dc2626; color:#fff; }
   .foto-bloque { margin-bottom:14px; text-align:center; }
   .foto-bloque img { width:100%; max-height:240px; object-fit:cover; border-radius:12px; margin-bottom:10px; display:block; }
   .foto-btn { position:relative; display:block; background:var(--bg3); border:2px dashed var(--border); border-radius:12px; padding:16px; font-weight:700; cursor:pointer; }
@@ -60,6 +63,7 @@
 </style>
 </head>
 <body>
+<div id="aviso-lectura" class="aviso-lectura oculto"></div>
 <div class="page">
   <h1>🏭 LLG · Bodega Laredo</h1>
   <div class="subtitle">Escanea cualquier etiqueta del burrito (calidad, lado A o lado B) y marca si llegó o salió.<br>Scan any burrito label (QA, side A or side B) and mark arrival or departure.</div>
@@ -213,6 +217,7 @@ async function buscarCodigo(texto) {
     ]);
     if (!b || !b.length) {
       msg.innerHTML = `<div class="msg error">No existe ese burrito / Burrito not found: ${esc(uuid)}</div>`;
+      avisoLectura('✗ No existe ese burrito / Not found', false);
       return;
     }
     burrito = b[0];
@@ -243,6 +248,7 @@ function pintarMarcar() {
   }
   document.getElementById('paso-scan').classList.add('oculto');
   document.getElementById('paso-marcar').classList.remove('oculto');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // "Llegó" solo si aún no tiene llegada y ya se tomó la foto; "Salió" solo si aún no tiene salida
@@ -363,12 +369,43 @@ async function cargarRecientes() {
   }
 }
 
-// Camara: se exigen 2 lecturas iguales seguidas (una sola lectura con brillo puede confundir caracteres)
+// Aviso grande arriba de la pantalla (siempre visible), con vibracion y sonido, cada vez que la camara lee algo
+let avisoTimer = null;
+function avisoLectura(texto, ok) {
+  const a = document.getElementById('aviso-lectura');
+  a.textContent = texto;
+  a.className = 'aviso-lectura ' + (ok ? 'ok' : 'mal');
+  clearTimeout(avisoTimer);
+  avisoTimer = setTimeout(() => a.classList.add('oculto'), ok ? 2000 : 2500);
+  try { if (navigator.vibrate) navigator.vibrate(ok ? 200 : [80, 60, 80]); } catch (e) {}
+  try {
+    const c = new (window.AudioContext || window.webkitAudioContext)();
+    const o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.frequency.value = ok ? 1000 : 300; g.gain.value = 0.15;
+    o.start(); setTimeout(() => { o.stop(); c.close(); }, ok ? 150 : 350);
+  } catch (e) {}
+}
+
+// Se llama por cada lectura de la camara. Un codigo valido se acepta a la primera: ya se valida el
+// formato y que el burrito exista; si no, avisa y sigue escaneando.
+let ultimaInvalida = 0;
+function alLeerCodigo(texto) {
+  if (ocupado) return;
+  const uuid = normalizarCodigo(texto);
+  if (uuid) {
+    avisoLectura('✓ Leído / Read: ' + uuid, true);
+    buscarCodigo(texto);
+  } else if (Date.now() - ultimaInvalida > 2500) {
+    ultimaInvalida = Date.now();
+    avisoLectura('✗ Código no válido / Invalid: ' + String(texto).slice(0, 20), false);
+  }
+}
+
 async function toggleCamara() {
   if (codeReader) { detenerCamara(); usoCamara = false; return; }
   const video = document.getElementById('video');
   const msg = document.getElementById('msg-scan');
-  let ultima = null;
   try {
     codeReader = new ZXing.BrowserMultiFormatReader();
     const devices = await codeReader.listVideoInputDevices();
@@ -377,9 +414,7 @@ async function toggleCamara() {
     document.getElementById('btn-camara').textContent = '✕ Cerrar cámara / Close camera';
     usoCamara = true;
     await codeReader.decodeFromVideoDevice(back ? back.deviceId : undefined, 'video', (result) => {
-      if (!result) return;
-      const t = result.getText();
-      if (t === ultima) buscarCodigo(t); else ultima = t;
+      if (result) alLeerCodigo(result.getText());
     });
     prepararLinterna();
   } catch (err) {
@@ -411,6 +446,8 @@ async function toggleLinterna() {
 
 function detenerCamara() {
   if (codeReader) { codeReader.reset(); codeReader = null; }
+  const v = document.getElementById('video');
+  if (v.srcObject) { v.srcObject.getTracks().forEach(t => t.stop()); v.srcObject = null; }   // apaga la camara de verdad
   torchTrack = null;
   document.getElementById('video').classList.add('oculto');
   document.getElementById('btn-linterna').classList.add('oculto');
