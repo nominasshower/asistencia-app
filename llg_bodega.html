@@ -171,10 +171,18 @@ function pintarMarcar() {
   document.getElementById('estado-entrada').textContent = fmt(registro && registro.entrada_en);
   document.getElementById('estado-salida').textContent = fmt(registro && registro.salida_en);
   document.getElementById('msg-marcar').innerHTML = '';
-  document.getElementById('btn-llego').disabled = false;
-  document.getElementById('btn-salio').disabled = false;
+  actualizarBotones();
+  if (registro && registro.entrada_en && registro.salida_en) {
+    document.getElementById('msg-marcar').innerHTML = '<div class="msg info">Este burrito ya llegó y ya salió / Already arrived and departed</div>';
+  }
   document.getElementById('paso-scan').classList.add('oculto');
   document.getElementById('paso-marcar').classList.remove('oculto');
+}
+
+// "Llegó" solo si aún no tiene llegada; "Salió" solo si aún no tiene salida
+function actualizarBotones() {
+  document.getElementById('btn-llego').disabled = !!(registro && registro.entrada_en);
+  document.getElementById('btn-salio').disabled = !!(registro && registro.salida_en);
 }
 
 async function marcar(tipo) {
@@ -212,8 +220,7 @@ async function marcar(tipo) {
     cargarRecientes();
   } catch (err) {
     msg.innerHTML = `<div class="msg error">No se guardó / Not saved: ${esc(err.message)}</div>`;
-    document.getElementById('btn-llego').disabled = false;
-    document.getElementById('btn-salio').disabled = false;
+    actualizarBotones();
   }
 }
 
