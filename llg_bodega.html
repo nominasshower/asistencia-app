@@ -49,6 +49,9 @@
   .tag { font-weight:700; }
   .tag.entrada { color:var(--accent); }
   .tag.salida { color:var(--salida); }
+  .login { max-width:360px; margin:40px auto 0; }
+  .login input { width:100%; font-size:18px; padding:14px; border-radius:12px; border:1px solid var(--border); background:var(--bg3); color:var(--text); margin-bottom:10px; font-family:inherit; }
+  .salir { text-align:right; margin:-8px 0 10px; font-size:12px; } .salir a { color:var(--muted); cursor:pointer; text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -56,6 +59,16 @@
   <h1>🏭 LLG · Bodega Laredo</h1>
   <div class="subtitle">Escanea cualquier etiqueta del burrito (calidad, lado A o lado B) y marca si llegó o salió.<br>Scan any burrito label (QA, side A or side B) and mark arrival or departure.</div>
 
+  <div class="card login oculto" id="vista-acceso">
+    <h2>Acceso / Access</h2>
+    <input type="password" id="clave-acceso" placeholder="Clave de acceso / Access code" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter'){entrar()}">
+    <button class="primary" onclick="entrar()">Entrar / Enter</button>
+    <div id="msg-acceso" style="margin-top:12px"></div>
+  </div>
+
+  <div id="app-protegida" class="oculto">
+  <div class="salir"><a onclick="salirAcceso()">Cerrar sesión / Sign out</a></div>
   <div class="nombre">
     <span>Quién escanea / Scanned by:</span>
     <input type="text" id="escaneado-por" placeholder="Nombre / Name" onchange="guardarNombre()">
@@ -95,12 +108,52 @@
     <h2>Últimos movimientos / Recent</h2>
     <div id="recientes"><div class="cli" style="color:var(--muted)">Cargando…</div></div>
   </div>
+  </div>
 </div>
 
 <script>
 const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
 const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
 const HDR = { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}` };
+let clave = '';
+try { clave = localStorage.getItem('llg_clave') || ''; } catch (e) {}
+
+function mostrarAcceso(si) {
+  document.getElementById('vista-acceso').classList.toggle('oculto', !si);
+  document.getElementById('app-protegida').classList.toggle('oculto', si);
+}
+
+async function claveCorrecta(c) {
+  const res = await fetch(`${SUP_URL}/rest/v1/rpc/llg_validar_clave`, {
+    method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_clave: c }) });
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+  return (await res.json()) === true;
+}
+
+async function entrar() {
+  const msg = document.getElementById('msg-acceso');
+  const c = document.getElementById('clave-acceso').value.trim();
+  if (!c) return;
+  msg.innerHTML = '<div class="msg info">Verificando… / Checking…</div>';
+  try {
+    if (!(await claveCorrecta(c))) { msg.innerHTML = '<div class="msg error">Clave incorrecta / Wrong code</div>'; return; }
+    clave = c;
+    try { localStorage.setItem('llg_clave', c); } catch (e) {}
+    document.getElementById('clave-acceso').value = '';
+    msg.innerHTML = '';
+    mostrarAcceso(false);
+    cargarRecientes();
+  } catch (e) {
+    msg.innerHTML = `<div class="msg error">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function salirAcceso() {
+  clave = '';
+  try { localStorage.removeItem('llg_clave'); } catch (e) {}
+  detenerCamara();
+  mostrarAcceso(true);
+}
 
 let burrito = null;      // fila de `burritos` del codigo escaneado
 let registro = null;     // fila de `llg_burritos` (null si nunca se ha marcado)
@@ -211,7 +264,7 @@ async function marcar(tipo) {
       body: JSON.stringify({
         p_uuid: burrito.uuid, p_tipo: tipo, p_por: quien, p_codigo: codigoLeido,
         p_orden: burrito.orden, p_cliente: burrito.cliente, p_po: burrito.po_cliente,
-        p_tipo_paquete: burrito.tipo_paquete, p_piezas: burrito.piezas,
+        p_tipo_paquete: burrito.tipo_paquete, p_piezas: burrito.piezas, p_clave: clave,
       }),
     });
     pintarMarcar();
@@ -219,6 +272,7 @@ async function marcar(tipo) {
       `<div class="msg ok">✓ ${tipo === 'entrada' ? 'Llegada' : 'Salida'} registrada / ${tipo === 'entrada' ? 'Arrival' : 'Departure'} saved · ${fmt(registro[campo])}</div>`;
     cargarRecientes();
   } catch (err) {
+    if (/clave_invalida/.test(err.message)) { salirAcceso(); return; }
     msg.innerHTML = `<div class="msg error">No se guardó / Not saved: ${esc(err.message)}</div>`;
     actualizarBotones();
   }
@@ -299,7 +353,10 @@ function reiniciar() {
   if (usoCamara) toggleCamara();
 }
 
-cargarRecientes();
+(async () => {
+  try { if (clave && await claveCorrecta(clave)) { mostrarAcceso(false); cargarRecientes(); return; } } catch (e) {}
+  salirAcceso();
+})();
 </script>
 </body>
 </html>
