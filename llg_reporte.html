@@ -43,19 +43,18 @@
 <body>
 <div class="page">
   <h1>📊 LLG · Reporte de cobro de bodega</h1>
-  <div class="subtitle">Burritos y tarimas en la bodega de Laredo, días de estancia y cobro estimado del proveedor por mes.</div>
+  <div class="subtitle">Burritos y tarimas de la bodega de Laredo: se cobran en el mes en que salen, con el total de sus días.</div>
 
   <div class="card">
     <h2>Filtros</h2>
     <div class="filtros">
-      <label>Mes a cobrar<input type="month" id="f-mes"></label>
+      <label>Mes de salida (se cobra en este mes)<input type="month" id="f-mes"></label>
       <label>Tipo<select id="f-tipo"><option value="">Todos (burritos y tarimas)</option><option value="Bastidor">Burritos (Bastidor)</option><option value="Tarima">Tarimas</option></select></label>
-      <label>Estado<select id="f-estado"><option value="">Todos</option><option value="dentro">Siguen en bodega</option><option value="salio">Ya salieron</option></select></label>
       <label>Q / cliente / PO<input type="text" id="f-buscar" placeholder="Q10469, cliente…"></label>
       <label>USD por día por burrito/tarima<input type="number" id="f-factor" step="0.01" min="0" value="0.50"></label>
     </div>
     <button class="primary" onclick="verReporte()">Ver reporte</button>
-    <div class="nota">Días cobrados en el mes = días calendario que el burrito estuvo en bodega dentro de ese mes, contando el día que llegó y el día que salió (mínimo 1). Si no ha salido, cuenta hasta hoy.</div>
+    <div class="nota">Se cobra en el <b>mes en que sale</b> cada burrito o tarima, con el <b>total de sus días</b> en bodega (cuenta el día que llegó y el día que salió; mínimo 1). Los que siguen en bodega no se cobran todavía: aparecen abajo con los días acumulados.</div>
   </div>
   <div id="reporte-resultado"></div>
 </div>
@@ -73,8 +72,10 @@ async function sb(path) {
   return res.json();
 }
 
-// ── Cobro del proveedor por dia de estancia ─────────────────────
-let REPORTE = [];   // filas calculadas del ultimo "Ver reporte"
+// ── Cobro del proveedor: se cobra en el MES EN QUE SALE, con el total de sus dias ──
+let REPORTE = [];     // salieron en el mes elegido (se cobran)
+let PENDIENTES = [];  // siguen en bodega (aun no se cobran)
+let GRUPOS = [], MES = '', FACTOR = 0;
 
 const pad = n => String(n).padStart(2, '0');
 const diaLocal = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -89,117 +90,118 @@ const usd = n => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' 
   try { const f = localStorage.getItem('llg_factor'); if (f) document.getElementById('f-factor').value = f; } catch (e) {}
 })();
 
+async function traerTodo(ruta) {
+  let filas = [], offset = 0;
+  while (true) {
+    const lote = await sb(`${ruta}&order=entrada_en.asc&limit=1000&offset=${offset}`);
+    filas = filas.concat(lote || []);
+    if (!lote || lote.length < 1000) return filas;
+    offset += 1000;
+  }
+}
+
 async function verReporte() {
   const out = document.getElementById('reporte-resultado');
   const mes = document.getElementById('f-mes').value;
   const factor = parseFloat(document.getElementById('f-factor').value) || 0;
   const tipo = document.getElementById('f-tipo').value;
-  const estado = document.getElementById('f-estado').value;
   const buscar = document.getElementById('f-buscar').value.trim().toLowerCase();
   try { localStorage.setItem('llg_factor', String(factor)); } catch (e) {}
   if (!mes) { out.innerHTML = '<div class="msg error">Elige el mes</div>'; return; }
 
   const [y, m] = mes.split('-').map(Number);
-  const iniMes = `${y}-${pad(m)}-01`;
-  const finMes = diaLocal(new Date(y, m, 0));
   const hoy = diaLocal(new Date());
-  // Rango del mes en hora local, para filtrar en Supabase
-  const desdeISO = new Date(y, m - 1, 1).toISOString();
-  const hastaISO = new Date(y, m, 1).toISOString();
+  const desdeISO = encodeURIComponent(new Date(y, m - 1, 1).toISOString());
+  const hastaISO = encodeURIComponent(new Date(y, m, 1).toISOString());
 
   out.innerHTML = '<div class="msg info">Cargando…</div>';
   try {
-    let filas = [], offset = 0;
-    while (true) {
-      const lote = await sb(`llg_burritos?select=*&entrada_en=not.is.null&entrada_en=lt.${encodeURIComponent(hastaISO)}` +
-        `&or=(salida_en.is.null,salida_en.gte.${encodeURIComponent(desdeISO)})&order=entrada_en.asc&limit=1000&offset=${offset}`);
-      filas = filas.concat(lote || []);
-      if (!lote || lote.length < 1000) break;
-      offset += 1000;
-    }
-
-    REPORTE = filas.map(r => {
+    const [salidos, dentro] = await Promise.all([
+      traerTodo(`llg_burritos?select=*&entrada_en=not.is.null&salida_en=gte.${desdeISO}&salida_en=lt.${hastaISO}`),
+      traerTodo('llg_burritos?select=*&entrada_en=not.is.null&salida_en=is.null'),
+    ]);
+    const calcular = (r, pendiente) => {
       const llego = diaLocal(new Date(r.entrada_en));
       const salio = r.salida_en ? diaLocal(new Date(r.salida_en)) : null;
-      const finEstancia = salio || hoy;
-      const ini = llego > iniMes ? llego : iniMes;
-      const fin = finEstancia < finMes ? finEstancia : finMes;
-      const diasMes = fin >= ini ? difDias(ini, fin) + 1 : 0;
-      const diasTotal = Math.max(difDias(llego, finEstancia) + 1, 1);
-      return { ...r, llego, salio, diasMes, diasTotal, cobro: diasMes * factor };
-    }).filter(r => r.diasMes > 0)
-      .filter(r => !tipo || r.tipo_paquete === tipo)
-      .filter(r => !estado || (estado === 'dentro' ? !r.salio : !!r.salio))
-      .filter(r => !buscar || [r.orden, r.cliente, r.po_cliente, r.package_uuid].some(v => String(v || '').toLowerCase().includes(buscar)));
-
-    pintarReporte(mes, factor);
+      const dias = Math.max(difDias(llego, salio || hoy) + 1, 1);   // cuenta el dia de llegada y el de salida
+      return { ...r, llego, salio, dias, cobro: dias * factor, pendiente };
+    };
+    const filtrar = r => (!tipo || r.tipo_paquete === tipo) &&
+      (!buscar || [r.orden, r.cliente, r.po_cliente, r.package_uuid].some(v => String(v || '').toLowerCase().includes(buscar)));
+    REPORTE = salidos.map(r => calcular(r, false)).filter(filtrar);
+    PENDIENTES = dentro.map(r => calcular(r, true)).filter(filtrar);
+    MES = mes; FACTOR = factor;
+    pintarReporte();
   } catch (err) {
     out.innerHTML = `<div class="msg error">No se pudo cargar: ${esc(err.message)}</div>`;
   }
 }
 
-function pintarReporte(mes, factor) {
+function pintarReporte() {
   const out = document.getElementById('reporte-resultado');
-  if (!REPORTE.length) { out.innerHTML = '<div class="card"><div style="color:var(--muted)">No hay burritos ni tarimas en bodega en ese mes con esos filtros.</div></div>'; return; }
-
   const n = t => REPORTE.filter(r => r.tipo_paquete === t).length;
-  const dias = REPORTE.reduce((s, r) => s + r.diasMes, 0);
+  const dias = REPORTE.reduce((s, r) => s + r.dias, 0);
   const total = REPORTE.reduce((s, r) => s + r.cobro, 0);
-  const dentro = REPORTE.filter(r => !r.salio).length;
+  const pDias = PENDIENTES.reduce((s, r) => s + r.dias, 0);
 
   const porQ = {};
   REPORTE.forEach(r => {
     const k = r.orden || '(sin Q)';
-    const g = porQ[k] = porQ[k] || { orden: k, cliente: r.cliente, po: r.po_cliente, bastidores: 0, tarimas: 0, dentro: 0, dias: 0, cobro: 0 };
+    const g = porQ[k] = porQ[k] || { orden: k, cliente: r.cliente, po: r.po_cliente, bastidores: 0, tarimas: 0, dias: 0, cobro: 0 };
     if (r.tipo_paquete === 'Tarima') g.tarimas++; else g.bastidores++;
-    if (!r.salio) g.dentro++;
-    g.dias += r.diasMes; g.cobro += r.cobro;
+    g.dias += r.dias; g.cobro += r.cobro;
   });
   const grupos = Object.values(porQ).sort((a, b) => b.cobro - a.cobro);
+  GRUPOS = grupos.map(g => g.orden);
+
+  const tablaFilas = (filas) => filas.map(r => `<tr><td style="font-family:'DM Mono',monospace">${esc(r.package_uuid)}</td><td>${esc(r.orden || '')}</td><td>${esc(r.tipo_paquete || '')}</td>` +
+    `<td class="num">${esc(r.piezas ?? '')}</td><td>${esc(r.llego)}</td><td>${r.salio ? esc(r.salio) : '<span style="color:var(--warn)">en bodega</span>'}</td>` +
+    `<td class="num">${r.dias}</td><td class="num">${usd(r.cobro)}</td></tr>`).join('');
+  const encTabla = '<tr><th>Burrito</th><th>Q</th><th>Tipo</th><th class="num">Piezas</th><th>Llegó</th><th>Salió</th><th class="num">Días</th><th class="num">USD</th></tr>';
 
   out.innerHTML = `
     <div class="kpis">
-      <div class="kpi"><span>Burritos (Bastidor)</span><b>${n('Bastidor')}</b></div>
-      <div class="kpi"><span>Tarimas</span><b>${n('Tarima')}</b></div>
-      <div class="kpi"><span>Siguen en bodega</span><b>${dentro}</b></div>
-      <div class="kpi"><span>Días cobrados en ${esc(mes)}</span><b>${dias.toLocaleString('es-MX')}</b></div>
-      <div class="kpi"><span>Promedio días por pieza</span><b>${(dias / REPORTE.length).toFixed(1)}</b></div>
-      <div class="kpi"><span>Cobro estimado (${usd(factor)}/día)</span><b style="color:var(--accent)">${usd(total)}</b></div>
+      <div class="kpi"><span>Burritos que salieron en ${esc(MES)}</span><b>${n('Bastidor')}</b></div>
+      <div class="kpi"><span>Tarimas que salieron</span><b>${n('Tarima')}</b></div>
+      <div class="kpi"><span>Días totales cobrados</span><b>${dias.toLocaleString('es-MX')}</b></div>
+      <div class="kpi"><span>Promedio días por pieza</span><b>${REPORTE.length ? (dias / REPORTE.length).toFixed(1) : '0'}</b></div>
+      <div class="kpi"><span>A cobrar en ${esc(MES)} (${usd(FACTOR)}/día)</span><b style="color:var(--accent)">${usd(total)}</b></div>
+      <div class="kpi"><span>Aún en bodega (se cobran al salir)</span><b style="color:var(--warn)">${PENDIENTES.length}</b></div>
     </div>
     <div class="card">
-      <h2>Por cotización (clic para ver sus burritos)</h2>
-      <div class="tabla-scroll"><table>
-        <tr><th>Q</th><th>Cliente</th><th>PO</th><th class="num">Burritos</th><th class="num">Tarimas</th><th class="num">En bodega</th><th class="num">Días</th><th class="num">USD</th></tr>
+      <h2>Por cotización — salieron en el mes (clic para ver sus burritos)</h2>
+      ${grupos.length ? `<div class="tabla-scroll"><table>
+        <tr><th>Q</th><th>Cliente</th><th>PO</th><th class="num">Burritos</th><th class="num">Tarimas</th><th class="num">Días</th><th class="num">USD</th></tr>
         ${grupos.map((g, i) => `<tr class="clic" onclick="verDetalleReporte(${i})"><td><b>${esc(g.orden)}</b></td><td>${esc(g.cliente || '')}</td><td>${esc(g.po || '')}</td>` +
-          `<td class="num">${g.bastidores}</td><td class="num">${g.tarimas}</td><td class="num">${g.dentro}</td><td class="num">${g.dias}</td><td class="num">${usd(g.cobro)}</td></tr>`).join('')}
-        <tr><td colspan="3"><b>Total</b></td><td class="num"><b>${n('Bastidor')}</b></td><td class="num"><b>${n('Tarima')}</b></td><td class="num"><b>${dentro}</b></td><td class="num"><b>${dias}</b></td><td class="num"><b>${usd(total)}</b></td></tr>
+          `<td class="num">${g.bastidores}</td><td class="num">${g.tarimas}</td><td class="num">${g.dias}</td><td class="num">${usd(g.cobro)}</td></tr>`).join('')}
+        <tr><td colspan="3"><b>Total</b></td><td class="num"><b>${n('Bastidor')}</b></td><td class="num"><b>${n('Tarima')}</b></td><td class="num"><b>${dias}</b></td><td class="num"><b>${usd(total)}</b></td></tr>
       </table></div>
-      <button class="ghost" style="margin-top:12px" onclick="descargarCSV()">⬇ Descargar detalle (CSV / Excel)</button>
+      <button class="ghost" style="margin-top:12px" onclick="descargarCSV()">⬇ Descargar detalle (CSV / Excel)</button>`
+      : '<div style="color:var(--muted)">Ningún burrito ni tarima salió en ese mes con esos filtros.</div>'}
     </div>
-    <div class="card" id="detalle-reporte"></div>`;
-  GRUPOS = grupos.map(g => g.orden);
-  MES = mes;
+    <div class="card" id="detalle-reporte"></div>
+    <div class="card">
+      <h2>Aún en bodega — todavía no se cobran (${PENDIENTES.length} · ${pDias} días acumulados · ≈ ${usd(pDias * FACTOR)} si salieran hoy)</h2>
+      ${PENDIENTES.length ? `<div class="tabla-scroll"><table>${encTabla}${tablaFilas(PENDIENTES)}</table></div>` : '<div style="color:var(--muted)">No hay nada pendiente en bodega.</div>'}
+    </div>`;
   verDetalleReporte(null);
 }
-
-let GRUPOS = [], MES = '';
 
 function verDetalleReporte(idx) {
   const orden = idx === null ? null : GRUPOS[idx];
   const filas = orden ? REPORTE.filter(r => (r.orden || '(sin Q)') === orden) : REPORTE;
   document.getElementById('detalle-reporte').innerHTML = `
-    <h2>${orden ? 'Burritos de ' + esc(orden) + ' · <a style="color:var(--accent2);cursor:pointer" onclick="verDetalleReporte(null)">ver todos</a>' : 'Detalle por burrito / tarima'}</h2>
+    <h2>${orden ? 'Burritos de ' + esc(orden) + ' · <a style="color:var(--accent2);cursor:pointer" onclick="verDetalleReporte(null)">ver todos</a>' : 'Detalle por burrito / tarima (salieron en el mes)'}</h2>
     <div class="tabla-scroll"><table>
-      <tr><th>Burrito</th><th>Q</th><th>Tipo</th><th class="num">Piezas</th><th>Llegó</th><th>Salió</th><th class="num">Días en el mes</th><th class="num">Días total</th><th class="num">USD mes</th></tr>
+      <tr><th>Burrito</th><th>Q</th><th>Tipo</th><th class="num">Piezas</th><th>Llegó</th><th>Salió</th><th class="num">Días</th><th class="num">USD</th></tr>
       ${filas.map(r => `<tr><td style="font-family:'DM Mono',monospace">${esc(r.package_uuid)}</td><td>${esc(r.orden || '')}</td><td>${esc(r.tipo_paquete || '')}</td>` +
-        `<td class="num">${esc(r.piezas ?? '')}</td><td>${esc(r.llego)}</td><td>${r.salio ? esc(r.salio) : '<span style="color:var(--warn)">en bodega</span>'}</td>` +
-        `<td class="num">${r.diasMes}</td><td class="num">${r.diasTotal}</td><td class="num">${usd(r.cobro)}</td></tr>`).join('')}
+        `<td class="num">${esc(r.piezas ?? '')}</td><td>${esc(r.llego)}</td><td>${esc(r.salio)}</td><td class="num">${r.dias}</td><td class="num">${usd(r.cobro)}</td></tr>`).join('')}
     </table></div>`;
 }
 
 function descargarCSV() {
-  const cols = ['package_uuid', 'orden', 'cliente', 'po_cliente', 'tipo_paquete', 'piezas', 'llego', 'salio', 'diasMes', 'diasTotal', 'cobro'];
-  const enc = ['Burrito', 'Q', 'Cliente', 'PO', 'Tipo', 'Piezas', 'Llegó', 'Salió', 'Días en el mes', 'Días total', 'USD mes'];
+  const cols = ['package_uuid', 'orden', 'cliente', 'po_cliente', 'tipo_paquete', 'piezas', 'llego', 'salio', 'dias', 'cobro'];
+  const enc = ['Burrito', 'Q', 'Cliente', 'PO', 'Tipo', 'Piezas', 'Llegó', 'Salió', 'Días', 'USD'];
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const csv = '﻿' + [enc.map(q).join(','), ...REPORTE.map(r => cols.map(c => q(c === 'cobro' ? r.cobro.toFixed(2) : r[c])).join(','))].join('\r\n');
   const a = document.createElement('a');
