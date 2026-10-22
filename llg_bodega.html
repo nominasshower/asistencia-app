@@ -378,12 +378,33 @@ function avisoLectura(texto, ok) {
   clearTimeout(avisoTimer);
   avisoTimer = setTimeout(() => a.classList.add('oculto'), ok ? 2000 : 2500);
   try { if (navigator.vibrate) navigator.vibrate(ok ? 200 : [80, 60, 80]); } catch (e) {}
+  sonar(ok);
+}
+
+// El navegador solo deja sonar si el audio se preparo con un toque del usuario: se prepara al tocar
+// "Escanear con cámara" y se reutiliza en cada lectura.
+let audioCtx = null;
+function prepararSonido() {
   try {
-    const c = new (window.AudioContext || window.webkitAudioContext)();
-    const o = c.createOscillator(), g = c.createGain();
-    o.connect(g); g.connect(c.destination);
-    o.frequency.value = ok ? 1000 : 300; g.gain.value = 0.15;
-    o.start(); setTimeout(() => { o.stop(); c.close(); }, ok ? 150 : 350);
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) {}
+}
+function tono(frecuencia, inicio, duracion, volumen, tipo) {
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = tipo; o.frequency.value = frecuencia;
+  o.connect(g); g.connect(audioCtx.destination);
+  const t = audioCtx.currentTime + inicio;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(volumen, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + duracion);
+  o.start(t); o.stop(t + duracion + 0.02);
+}
+function sonar(ok) {
+  try {
+    prepararSonido();
+    if (ok) { tono(880, 0, 0.12, 0.6, 'sine'); tono(1320, 0.14, 0.2, 0.6, 'sine'); }   // bip-BIP: leyo bien
+    else    { tono(220, 0, 0.4, 0.35, 'square'); }                                      // buzzer grave: no sirvio
   } catch (e) {}
 }
 
@@ -403,6 +424,7 @@ function alLeerCodigo(texto) {
 }
 
 async function toggleCamara() {
+  prepararSonido();   // con el toque del usuario, para que el bip pueda sonar despues
   if (codeReader) { detenerCamara(); usoCamara = false; return; }
   const video = document.getElementById('video');
   const msg = document.getElementById('msg-scan');
