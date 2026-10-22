@@ -156,8 +156,8 @@ function pintarReporte() {
 
   const tablaFilas = (filas) => filas.map(r => `<tr><td style="font-family:'DM Mono',monospace">${esc(r.package_uuid)}</td><td>${esc(r.orden || '')}</td><td>${esc(r.tipo_paquete || '')}</td>` +
     `<td class="num">${esc(r.piezas ?? '')}</td><td>${esc(r.llego)}</td><td>${r.salio ? esc(r.salio) : '<span style="color:var(--warn)">en bodega</span>'}</td>` +
-    `<td class="num">${r.dias}</td><td class="num">${usd(r.cobro)}</td></tr>`).join('');
-  const encTabla = '<tr><th>Burrito</th><th>Q</th><th>Tipo</th><th class="num">Piezas</th><th>Llegó</th><th>Salió</th><th class="num">Días</th><th class="num">USD</th></tr>';
+    `<td class="num">${r.dias}</td><td class="num">${usd(r.cobro)}</td><td>${r.foto_url ? `<a href="${esc(r.foto_url)}" target="_blank" style="color:var(--accent2)">📷 ver</a>` : ''}</td></tr>`).join('');
+  const encTabla = '<tr><th>Burrito</th><th>Q</th><th>Tipo</th><th class="num">Piezas</th><th>Llegó</th><th>Salió</th><th class="num">Días</th><th class="num">USD</th><th>Foto</th></tr>';
 
   out.innerHTML = `
     <div class="kpis">
@@ -171,7 +171,7 @@ function pintarReporte() {
     <div class="card">
       <h2>Por cotización — salieron en el mes (clic para ver sus burritos)</h2>
       ${grupos.length ? `<div class="tabla-scroll"><table>
-        <tr><th>Q</th><th>Cliente</th><th>PO</th><th class="num">Burritos</th><th class="num">Tarimas</th><th class="num">Días</th><th class="num">USD</th></tr>
+        <tr><th>Q</th><th>Cliente</th><th>PO</th><th class="num">Burritos</th><th class="num">Tarimas</th><th class="num">Días</th><th class="num">USD</th><th>Foto</th></tr>
         ${grupos.map((g, i) => `<tr class="clic" onclick="verDetalleReporte(${i})"><td><b>${esc(g.orden)}</b></td><td>${esc(g.cliente || '')}</td><td>${esc(g.po || '')}</td>` +
           `<td class="num">${g.bastidores}</td><td class="num">${g.tarimas}</td><td class="num">${g.dias}</td><td class="num">${usd(g.cobro)}</td></tr>`).join('')}
         <tr><td colspan="3"><b>Total</b></td><td class="num"><b>${n('Bastidor')}</b></td><td class="num"><b>${n('Tarima')}</b></td><td class="num"><b>${dias}</b></td><td class="num"><b>${usd(total)}</b></td></tr>
@@ -193,15 +193,15 @@ function verDetalleReporte(idx) {
   document.getElementById('detalle-reporte').innerHTML = `
     <h2>${orden ? 'Burritos de ' + esc(orden) + ' · <a style="color:var(--accent2);cursor:pointer" onclick="verDetalleReporte(null)">ver todos</a>' : 'Detalle por burrito / tarima (salieron en el mes)'}</h2>
     <div class="tabla-scroll"><table>
-      <tr><th>Burrito</th><th>Q</th><th>Tipo</th><th class="num">Piezas</th><th>Llegó</th><th>Salió</th><th class="num">Días</th><th class="num">USD</th></tr>
+      <tr><th>Burrito</th><th>Q</th><th>Tipo</th><th class="num">Piezas</th><th>Llegó</th><th>Salió</th><th class="num">Días</th><th class="num">USD</th><th>Foto</th></tr>
       ${filas.map(r => `<tr><td style="font-family:'DM Mono',monospace">${esc(r.package_uuid)}</td><td>${esc(r.orden || '')}</td><td>${esc(r.tipo_paquete || '')}</td>` +
-        `<td class="num">${esc(r.piezas ?? '')}</td><td>${esc(r.llego)}</td><td>${esc(r.salio)}</td><td class="num">${r.dias}</td><td class="num">${usd(r.cobro)}</td></tr>`).join('')}
+        `<td class="num">${esc(r.piezas ?? '')}</td><td>${esc(r.llego)}</td><td>${esc(r.salio)}</td><td class="num">${r.dias}</td><td class="num">${usd(r.cobro)}</td><td>${r.foto_url ? `<a href="${esc(r.foto_url)}" target="_blank" style="color:var(--accent2)">📷 ver</a>` : ''}</td></tr>`).join('')}
     </table></div>`;
 }
 
 function descargarCSV() {
-  const cols = ['package_uuid', 'orden', 'cliente', 'po_cliente', 'tipo_paquete', 'piezas', 'llego', 'salio', 'dias', 'cobro'];
-  const enc = ['Burrito', 'Q', 'Cliente', 'PO', 'Tipo', 'Piezas', 'Llegó', 'Salió', 'Días', 'USD'];
+  const cols = ['package_uuid', 'orden', 'cliente', 'po_cliente', 'tipo_paquete', 'piezas', 'llego', 'salio', 'dias', 'cobro', 'foto_url'];
+  const enc = ['Burrito', 'Q', 'Cliente', 'PO', 'Tipo', 'Piezas', 'Llegó', 'Salió', 'Días', 'USD', 'Foto'];
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const csv = '﻿' + [enc.map(q).join(','), ...REPORTE.map(r => cols.map(c => q(c === 'cobro' ? r.cobro.toFixed(2) : r[c])).join(','))].join('\r\n');
   const a = document.createElement('a');

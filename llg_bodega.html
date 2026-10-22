@@ -24,6 +24,11 @@
   button.llego { background:var(--accent); color:#04150a; font-size:20px; padding:20px; }
   button.salio { background:var(--salida); color:#1a0a00; font-size:20px; padding:20px; }
   button:disabled { opacity:.4; cursor:not-allowed; }
+  .foto-bloque { margin-bottom:14px; text-align:center; }
+  .foto-bloque img { width:100%; max-height:240px; object-fit:cover; border-radius:12px; margin-bottom:10px; display:block; }
+  .foto-btn { position:relative; display:block; background:var(--bg3); border:2px dashed var(--border); border-radius:12px; padding:16px; font-weight:700; cursor:pointer; }
+  .foto-btn.lista { border-style:solid; border-color:var(--accent); }
+  .foto-btn input { position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer; }
   .botones { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
   input[type=text] { width:100%; font-size:18px; padding:14px; border-radius:12px; border:1px solid var(--border); background:var(--bg3); color:var(--text); font-family:'DM Mono',monospace; }
   .fila { display:flex; gap:8px; }
@@ -95,6 +100,13 @@
     <div class="estado">
       <div>Llegó / Arrived<b id="estado-entrada">—</b></div>
       <div>Salió / Departed<b id="estado-salida">—</b></div>
+    </div>
+    <div class="foto-bloque" id="foto-bloque">
+      <img id="foto-prev" class="oculto" alt="">
+      <label class="foto-btn" id="foto-label">
+        <span id="foto-texto">📷 Tomar foto del burrito / Take photo</span>
+        <input type="file" accept="image/*" capture="environment" id="foto-input" onchange="fotoTomada(this)">
+      </label>
     </div>
     <div id="msg-marcar"></div>
     <div class="botones">
@@ -224,6 +236,7 @@ function pintarMarcar() {
   document.getElementById('estado-entrada').textContent = fmt(registro && registro.entrada_en);
   document.getElementById('estado-salida').textContent = fmt(registro && registro.salida_en);
   document.getElementById('msg-marcar').innerHTML = '';
+  pintarFoto();
   actualizarBotones();
   if (registro && registro.entrada_en && registro.salida_en) {
     document.getElementById('msg-marcar').innerHTML = '<div class="msg info">Este burrito ya llegó y ya salió / Already arrived and departed</div>';
@@ -232,10 +245,63 @@ function pintarMarcar() {
   document.getElementById('paso-marcar').classList.remove('oculto');
 }
 
-// "Llegó" solo si aún no tiene llegada; "Salió" solo si aún no tiene salida
+// "Llegó" solo si aún no tiene llegada y ya se tomó la foto; "Salió" solo si aún no tiene salida
 function actualizarBotones() {
-  document.getElementById('btn-llego').disabled = !!(registro && registro.entrada_en);
+  document.getElementById('btn-llego').disabled = !!(registro && registro.entrada_en) || !fotoBlob;
   document.getElementById('btn-salio').disabled = !!(registro && registro.salida_en);
+}
+
+// ── Foto del burrito (se toma al darle Llegó) ──────────────────────────────
+let fotoBlob = null;   // JPEG ya reducido, listo para subir
+
+function pintarFoto() {
+  const yaLlego = !!(registro && registro.entrada_en);
+  const img = document.getElementById('foto-prev');
+  const label = document.getElementById('foto-label');
+  const url = fotoBlob ? URL.createObjectURL(fotoBlob) : (registro && registro.foto_url) || '';
+  img.classList.toggle('oculto', !url);
+  if (url) img.src = url;
+  label.classList.toggle('lista', !!url);
+  document.getElementById('foto-bloque').classList.toggle('oculto', yaLlego && !url);
+  document.getElementById('foto-texto').textContent = yaLlego
+    ? '📷 Foto guardada / Photo saved'
+    : (fotoBlob ? '📷 Repetir foto / Retake photo' : '📷 Tomar foto del burrito (obligatoria) / Take photo (required)');
+  label.querySelector('input').disabled = yaLlego;
+}
+
+// Reduce la foto a máx. 1280 px y JPEG calidad 0.7 (≈ 150-250 KB) para ahorrar datos y espacio
+async function fotoTomada(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const msg = document.getElementById('msg-marcar');
+  try {
+    const url = URL.createObjectURL(file);
+    const im = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; });
+    const k = Math.min(1, 1280 / Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    fotoBlob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.7));
+    msg.innerHTML = '';
+  } catch (e) {
+    fotoBlob = null;
+    msg.innerHTML = '<div class="msg error">No se pudo leer la foto / Could not read the photo</div>';
+  }
+  pintarFoto();
+  actualizarBotones();
+}
+
+async function subirFoto(uuid) {
+  const ruta = `${uuid}/${Date.now()}.jpg`;
+  const res = await fetch(`${SUP_URL}/storage/v1/object/llg-fotos/${ruta}`, {
+    method: 'POST',
+    headers: { ...HDR, 'Content-Type': 'image/jpeg', 'x-llg-clave': clave },
+    body: fotoBlob,
+  });
+  if (!res.ok) throw new Error('No se pudo subir la foto / Photo upload failed (' + res.status + ')');
+  return `${SUP_URL}/storage/v1/object/public/llg-fotos/${ruta}`;
 }
 
 async function marcar(tipo) {
@@ -258,15 +324,21 @@ async function marcar(tipo) {
 
   // La fecha la pone Supabase (now()) dentro de llg_marcar, no el reloj del dispositivo
   try {
+    let fotoUrl = null;
+    if (tipo === 'entrada') {
+      if (!fotoBlob) throw new Error('Falta la foto / Photo required');
+      fotoUrl = await subirFoto(burrito.uuid);
+    }
     registro = await sb('rpc/llg_marcar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         p_uuid: burrito.uuid, p_tipo: tipo, p_por: quien, p_codigo: codigoLeido,
         p_orden: burrito.orden, p_cliente: burrito.cliente, p_po: burrito.po_cliente,
-        p_tipo_paquete: burrito.tipo_paquete, p_piezas: burrito.piezas, p_clave: clave,
+        p_tipo_paquete: burrito.tipo_paquete, p_piezas: burrito.piezas, p_clave: clave, p_foto: fotoUrl,
       }),
     });
+    fotoBlob = null;
     pintarMarcar();
     document.getElementById('msg-marcar').innerHTML =
       `<div class="msg ok">✓ ${tipo === 'entrada' ? 'Llegada' : 'Salida'} registrada / ${tipo === 'entrada' ? 'Arrival' : 'Departure'} saved · ${fmt(registro[campo])}</div>`;
@@ -346,7 +418,7 @@ function detenerCamara() {
 }
 
 function reiniciar() {
-  burrito = null; registro = null; codigoLeido = '';
+  burrito = null; registro = null; codigoLeido = ''; fotoBlob = null;
   document.getElementById('paso-marcar').classList.add('oculto');
   document.getElementById('paso-scan').classList.remove('oculto');
   document.getElementById('msg-scan').innerHTML = '';
