@@ -24,6 +24,17 @@
   button.llego { background:var(--accent); color:#04150a; font-size:20px; padding:20px; }
   button.salio { background:var(--salida); color:#1a0a00; font-size:20px; padding:20px; }
   button:disabled { opacity:.4; cursor:not-allowed; }
+  .progreso { background:var(--bg3); border-radius:12px; padding:12px; margin-bottom:14px; }
+  .progreso .titulo { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px; }
+  .progreso .fila-p { display:flex; justify-content:space-between; font-size:14px; margin:8px 0 4px; }
+  .progreso .fila-p b { font-size:16px; }
+  .barra { height:10px; background:rgba(255,255,255,.08); border-radius:6px; overflow:hidden; }
+  .barra i { display:block; height:100%; background:var(--accent2); border-radius:6px; }
+  .barra.salida i { background:var(--salida); }
+  .barra.lista i { background:var(--accent); }
+  .progreso .aviso-p { font-size:12px; color:var(--warn); margin-top:8px; }
+  .completa { background:rgba(34,197,94,.18); border:2px solid var(--accent); color:#4ade80; border-radius:14px; padding:16px; text-align:center; font-weight:800; font-size:19px; margin-bottom:14px; }
+  .completa small { display:block; font-weight:600; font-size:13px; margin-top:4px; color:var(--text); }
   .aviso-lectura { position:fixed; top:12px; left:12px; right:12px; z-index:100; padding:18px; border-radius:14px; font-weight:800; font-size:20px; text-align:center; box-shadow:0 6px 24px rgba(0,0,0,.5); }
   .aviso-lectura.ok { background:#16a34a; color:#fff; }
   .aviso-lectura.mal { background:#dc2626; color:#fff; }
@@ -101,6 +112,7 @@
     <h2>2. Marcar / Mark</h2>
     <div class="uuid-box" id="uuid-mostrado"></div>
     <div class="info" id="burrito-info"></div>
+    <div class="progreso oculto" id="progreso-q"></div>
     <div class="estado">
       <div>Llegó / Arrived<b id="estado-entrada">—</b></div>
       <div>Salió / Departed<b id="estado-salida">—</b></div>
@@ -225,6 +237,9 @@ async function buscarCodigo(texto) {
     msg.innerHTML = '';
     document.getElementById('codigo').value = '';
     pintarMarcar();
+    progresoPrevio = null;
+    document.getElementById('progreso-q').classList.add('oculto');
+    refrescarProgreso(null);       // "llevas X de Y" de la orden de este burrito
   } catch (err) {
     msg.innerHTML = `<div class="msg error">Error: ${esc(err.message)}</div>`;
   } finally {
@@ -310,6 +325,69 @@ async function subirFoto(uuid) {
   return `${SUP_URL}/storage/v1/object/public/llg-fotos/${ruta}`;
 }
 
+// ── Progreso de la orden (Q): cuantos burritos de la Q llevan llegados y salidos ──────────────
+let progresoPrevio = null;
+
+async function calcularProgreso(q) {
+  if (!q) return null;
+  const qe = encodeURIComponent(q);
+  const [bur, llg] = await Promise.all([
+    sb(`burritos?orden=eq.${qe}&select=uuid,cerrado,cargadas`),
+    sb(`llg_burritos?orden=eq.${qe}&select=package_uuid,entrada_en,salida_en`),
+  ]);
+  const cerrados = (bur || []).filter(b => b.cerrado);
+  const enUso = (bur || []).filter(b => !b.cerrado && (b.cargadas || 0) > 0).length;   // aun en armado con piezas: la Q sigue creciendo
+  const mapa = {}; (llg || []).forEach(r => { mapa[r.package_uuid] = r; });
+  const llegados = cerrados.filter(b => mapa[b.uuid] && mapa[b.uuid].entrada_en).length;
+  const salidos = cerrados.filter(b => mapa[b.uuid] && mapa[b.uuid].salida_en).length;
+  const total = cerrados.length;
+  return { q, total, llegados, salidos, enUso,
+           completoLlegada: total > 0 && enUso === 0 && llegados >= total,
+           completoSalida: total > 0 && enUso === 0 && salidos >= total };
+}
+
+function pintarProgreso(p) {
+  const el = document.getElementById('progreso-q');
+  if (!p || !p.total) { el.classList.add('oculto'); return; }
+  const pct = n => Math.min(100, Math.round(100 * n / p.total));
+  el.innerHTML =
+    `<div class="titulo">Orden / Order ${esc(p.q)}</div>` +
+    `<div class="fila-p"><span>Llegaron / Arrived</span><b>${p.llegados} de / of ${p.total}</b></div>` +
+    `<div class="barra ${p.completoLlegada ? 'lista' : ''}"><i style="width:${pct(p.llegados)}%"></i></div>` +
+    `<div class="fila-p"><span>Salieron / Departed</span><b>${p.salidos} de / of ${p.total}</b></div>` +
+    `<div class="barra salida ${p.completoSalida ? 'lista' : ''}"><i style="width:${pct(p.salidos)}%"></i></div>` +
+    (p.enUso > 0 ? `<div class="aviso-p">⚠ Aún hay ${p.enUso} burrito(s) en armado en planta: la orden todavía no está completa. / ${p.enUso} burrito(s) still being built: the order is not complete yet.</div>` : '');
+  el.classList.remove('oculto');
+}
+
+function avisoCompleto(titulo, detalle) {
+  const html = `<div class="completa">🎉 ${titulo}<small>${detalle}</small></div>`;
+  const msg = document.getElementById('msg-marcar');
+  msg.insertAdjacentHTML('afterbegin', html);
+  const a = document.getElementById('aviso-lectura');
+  a.textContent = '🎉 ' + titulo;
+  a.className = 'aviso-lectura ok';
+  clearTimeout(avisoTimer);
+  avisoTimer = setTimeout(() => a.classList.add('oculto'), 6000);
+  try { if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]); } catch (e) {}
+  try { prepararSonido(); [660, 880, 1100, 1320].forEach((f, i) => tono(f, i * 0.13, 0.16, 0.6, 'sine')); } catch (e) {}
+}
+
+// tipoAccion: 'entrada' o 'salida' justo despues de guardar; null al solo consultar un burrito
+async function refrescarProgreso(tipoAccion) {
+  try {
+    const p = await calcularProgreso(burrito && burrito.orden);
+    pintarProgreso(p);
+    if (p && tipoAccion === 'entrada' && p.completoLlegada && !(progresoPrevio && progresoPrevio.completoLlegada)) {
+      avisoCompleto('ORDEN COMPLETA EN BODEGA / ORDER COMPLETE', `Los ${p.total} burritos de la ${esc(p.q)} ya llegaron. / All ${p.total} burritos of ${esc(p.q)} have arrived.`);
+    }
+    if (p && tipoAccion === 'salida' && p.completoSalida && !(progresoPrevio && progresoPrevio.completoSalida)) {
+      avisoCompleto('ORDEN COMPLETA CARGADA / ORDER FULLY LOADED', `Los ${p.total} burritos de la ${esc(p.q)} ya salieron. / All ${p.total} burritos of ${esc(p.q)} have left.`);
+    }
+    progresoPrevio = p;
+  } catch (e) { /* el contador es informativo: si falla no estorba al registro */ }
+}
+
 async function marcar(tipo) {
   const msg = document.getElementById('msg-marcar');
   const quien = nombre();
@@ -349,6 +427,7 @@ async function marcar(tipo) {
     document.getElementById('msg-marcar').innerHTML =
       `<div class="msg ok">✓ ${tipo === 'entrada' ? 'Llegada' : 'Salida'} registrada / ${tipo === 'entrada' ? 'Arrival' : 'Departure'} saved · ${fmt(registro[campo])}</div>`;
     cargarRecientes();
+    await refrescarProgreso(tipo);   // contador "X de Y" y aviso si la orden quedo completa
   } catch (err) {
     if (/clave_invalida/.test(err.message)) { salirAcceso(); return; }
     msg.innerHTML = `<div class="msg error">No se guardó / Not saved: ${esc(err.message)}</div>`;
