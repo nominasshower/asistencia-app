@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EC Barton Claims</title>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -41,6 +42,7 @@
   .msg.ok { background:rgba(34,197,94,.15); color:#4ade80; }
   .msg.info { background:rgba(59,130,246,.15); color:#93c5fd; }
   .oculto { display:none !important; }
+  #video { width:100%; border-radius:12px; background:#000; display:block; margin-top:10px; }
   .login { max-width:360px; margin:40px auto 0; }
   .login input { margin-bottom:10px; }
   .salir { text-align:right; margin:-8px 0 10px; font-size:12px; } .salir a { color:var(--muted); cursor:pointer; text-decoration:underline; }
@@ -96,7 +98,10 @@
         </div>
         <div class="ayuda">Make sure the label text and barcode are readable.</div>
         <label class="campo" for="codigo">Barcode number on the label *</label>
-        <input type="text" id="codigo" maxlength="60" autocomplete="off" autocapitalize="characters" placeholder="Type the number printed under the barcode" oninput="revisar()">
+        <button class="primary" id="btn-camara" type="button" onclick="toggleCamara()">📷 Scan the barcode with the camera</button>
+        <video id="video" class="oculto" muted playsinline></video>
+        <div id="msg-scan"></div>
+        <input type="text" id="codigo" maxlength="60" autocomplete="off" autocapitalize="characters" placeholder="Or type the number printed under the barcode" style="margin-top:10px" oninput="revisar()">
       </div>
 
       <div class="card">
@@ -164,6 +169,7 @@ async function entrar() {
 }
 function salirAcceso() {
   clave = '';
+  try { detenerCamara(); } catch (e) {}
   try { localStorage.removeItem('ecb_clave'); } catch (e) {}
   mostrarAcceso(true);
 }
@@ -199,6 +205,40 @@ async function fotoTomada(cual, input) {
   $('txt-' + cual).textContent = fotos[cual] ? '📷 Retake / choose another photo'
     : (cual === 'lavabo' ? '📷 Take or choose a photo of the vanity' : '📷 Take or choose a photo of the label');
   revisar();
+}
+
+// ── Código de barras con la cámara (Code39 de la etiqueta); también se puede escribir ──
+let codeReader = null;
+async function toggleCamara() {
+  if (codeReader) { detenerCamara(); return; }
+  const msg = $('msg-scan');
+  try {
+    if (typeof ZXing === 'undefined') throw new Error('scanner not loaded');
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    const devices = await codeReader.listVideoInputDevices();
+    const back = devices.find(d => /back|rear|environment|trasera/i.test(d.label)) || devices[devices.length - 1];
+    $('video').classList.remove('oculto');
+    $('btn-camara').textContent = '✕ Close camera';
+    msg.innerHTML = '<div class="msg info">Point the camera at the barcode on the label</div>';
+    await codeReader.decodeFromVideoDevice(back ? back.deviceId : undefined, 'video', result => {
+      if (!result) return;
+      $('codigo').value = String(result.getText()).trim().toUpperCase();
+      detenerCamara();
+      msg.innerHTML = '<div class="msg ok">✓ Barcode read. Check it matches the label.</div>';
+      try { if (navigator.vibrate) navigator.vibrate(200); } catch (e) {}
+      revisar();
+    });
+  } catch (err) {
+    detenerCamara();
+    msg.innerHTML = '<div class="msg error">Camera not available. Please type the number instead.</div>';
+  }
+}
+function detenerCamara() {
+  if (codeReader) { codeReader.reset(); codeReader = null; }
+  const v = $('video');
+  if (v.srcObject) { v.srcObject.getTracks().forEach(t => t.stop()); v.srcObject = null; }
+  v.classList.add('oculto');
+  $('btn-camara').textContent = '📷 Scan the barcode with the camera';
 }
 
 // ── Validación ──
