@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EC Barton Claims</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg:#0f1117; --bg2:#161b27; --bg3:#1e2535; --border:rgba(255,255,255,.09);
+    --text:#e8eaf0; --muted:#8b96a5; --accent:#22c55e; --accent2:#3b82f6;
+    --warn:#f59e0b; --danger:#ef4444;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',-apple-system,sans-serif; margin:0; }
+  .page { max-width:560px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .subtitle { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .card { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-size:14px; margin:0 0 12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  label.campo { display:block; font-size:13px; color:var(--muted); margin:12px 0 6px; }
+  label.campo:first-of-type { margin-top:0; }
+  input[type=text], input[type=password], textarea { width:100%; font-size:16px; padding:13px; border-radius:12px; border:1px solid var(--border); background:var(--bg3); color:var(--text); font-family:inherit; }
+  textarea { min-height:90px; resize:vertical; }
+  button { font-size:17px; font-weight:700; padding:16px 20px; border-radius:12px; border:none; cursor:pointer; width:100%; }
+  button.primary { background:var(--accent2); color:#fff; }
+  button.ghost { background:var(--bg3); color:var(--text); border:1px solid var(--border); }
+  button.send { background:var(--accent); color:#04150a; font-size:19px; padding:18px; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .foto-bloque { margin-bottom:6px; text-align:center; }
+  .foto-bloque img { width:100%; max-height:260px; object-fit:cover; border-radius:12px; margin-bottom:10px; display:block; }
+  .foto-btn { position:relative; display:block; background:var(--bg3); border:2px dashed var(--border); border-radius:12px; padding:16px; font-weight:700; cursor:pointer; }
+  .foto-btn.lista { border-style:solid; border-color:var(--accent); }
+  .foto-btn input { position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer; }
+  .ayuda { color:var(--muted); font-size:12px; margin:6px 0 0; }
+  .defectos { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .defectos label { display:flex; align-items:center; gap:8px; background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:10px; font-size:14px; cursor:pointer; line-height:1.2; }
+  .defectos label.on { border-color:var(--accent2); background:rgba(59,130,246,.18); }
+  .defectos input { width:18px; height:18px; flex:none; }
+  .msg { text-align:center; padding:14px; border-radius:12px; font-weight:700; margin:12px 0; }
+  .msg.error { background:rgba(239,68,68,.15); color:#f87171; }
+  .msg.ok { background:rgba(34,197,94,.15); color:#4ade80; }
+  .msg.info { background:rgba(59,130,246,.15); color:#93c5fd; }
+  .oculto { display:none !important; }
+  .login { max-width:360px; margin:40px auto 0; }
+  .login input { margin-bottom:10px; }
+  .salir { text-align:right; margin:-8px 0 10px; font-size:12px; } .salir a { color:var(--muted); cursor:pointer; text-decoration:underline; }
+  .folio { font-size:30px; font-weight:800; text-align:center; letter-spacing:.04em; margin:6px 0 10px; color:#4ade80; }
+  @media (max-width:380px) { .defectos { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>EC Barton · Claims</h1>
+  <div class="subtitle">Report a problem with a vanity top: send a photo of the vanity, a photo of its label, and select the defects.</div>
+
+  <div class="card login oculto" id="vista-acceso">
+    <h2>Access</h2>
+    <input type="password" id="clave-acceso" placeholder="Access code" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter'){entrar()}">
+    <button class="primary" onclick="entrar()">Enter</button>
+    <div id="msg-acceso"></div>
+  </div>
+
+  <div id="app-protegida" class="oculto">
+    <div class="salir"><a onclick="salirAcceso()">Sign out</a></div>
+
+    <div id="vista-form">
+      <div class="card">
+        <h2>1. Your claim</h2>
+        <label class="campo" for="orden">Order / PO number *</label>
+        <input type="text" id="orden" maxlength="80" autocomplete="off" oninput="revisar()">
+        <label class="campo" for="nombre">Your name *</label>
+        <input type="text" id="nombre" maxlength="120" autocomplete="name" oninput="revisar()">
+      </div>
+
+      <div class="card">
+        <h2>2. Photo of the vanity *</h2>
+        <div class="foto-bloque">
+          <img id="prev-lavabo" class="oculto" alt="">
+          <label class="foto-btn" id="lbl-lavabo">
+            <span id="txt-lavabo">📷 Take or choose a photo of the vanity</span>
+            <input type="file" accept="image/*" onchange="fotoTomada('lavabo', this)">
+          </label>
+        </div>
+        <div class="ayuda">Show the whole vanity and the damaged area.</div>
+      </div>
+
+      <div class="card">
+        <h2>3. Photo of the vanity label *</h2>
+        <div class="foto-bloque">
+          <img id="prev-etiqueta" class="oculto" alt="">
+          <label class="foto-btn" id="lbl-etiqueta">
+            <span id="txt-etiqueta">📷 Take or choose a photo of the label</span>
+            <input type="file" accept="image/*" onchange="fotoTomada('etiqueta', this)">
+          </label>
+        </div>
+        <div class="ayuda">Make sure the label text and barcode are readable.</div>
+      </div>
+
+      <div class="card">
+        <h2>4. Defects * (select all that apply)</h2>
+        <div class="defectos" id="defectos"></div>
+        <label class="campo" for="comentario" id="lbl-comentario">Comments (optional)</label>
+        <textarea id="comentario" maxlength="2000" oninput="revisar()"></textarea>
+      </div>
+
+      <div id="msg-enviar"></div>
+      <button class="send" id="btn-enviar" onclick="enviar()" disabled>Submit claim</button>
+      <div class="ayuda" id="falta" style="text-align:center;margin-top:10px"></div>
+    </div>
+
+    <div id="vista-listo" class="card oculto">
+      <h2>Claim received</h2>
+      <div class="folio" id="folio"></div>
+      <div class="msg ok">Thank you. We received your claim and will review it. Keep this number for reference.</div>
+      <button class="primary" onclick="nuevo()">Submit another claim</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+const HDR = { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}` };
+const DEFECTOS = [
+  'Chipped / cracked', 'Scratches or scuffs', 'Stain or discoloration', 'Bubbles / pinholes in the surface',
+  'Color mismatch', 'Rough or uneven finish', 'Warped / not flat', 'Wrong size or dimensions',
+  'Wrong model or color received', 'Faucet / drain holes wrong or missing', 'Backsplash / side splash damaged or missing',
+  'Damaged in shipping', 'Missing parts', 'Other (describe in comments)'
+];
+const OTRO = 'Other';   // valor que se guarda para "Other (describe in comments)"
+let clave = '';
+try { clave = localStorage.getItem('ecb_clave') || ''; } catch (e) {}
+const fotos = { lavabo: null, etiqueta: null };   // JPEG ya reducido, listo para subir
+let enviando = false;
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = id => document.getElementById(id);
+
+// ── Acceso ──
+function mostrarAcceso(si) {
+  $('vista-acceso').classList.toggle('oculto', !si);
+  $('app-protegida').classList.toggle('oculto', si);
+}
+async function claveCorrecta(c) {
+  const res = await fetch(`${SUP_URL}/rest/v1/rpc/ecb_validar_clave`, {
+    method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_clave: c }) });
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+  return (await res.json()) === true;
+}
+async function entrar() {
+  const msg = $('msg-acceso');
+  const c = $('clave-acceso').value.trim();
+  if (!c) return;
+  msg.innerHTML = '<div class="msg info">Checking…</div>';
+  try {
+    if (!(await claveCorrecta(c))) { msg.innerHTML = '<div class="msg error">Wrong access code</div>'; return; }
+    clave = c;
+    try { localStorage.setItem('ecb_clave', c); } catch (e) {}
+    $('clave-acceso').value = '';
+    msg.innerHTML = '';
+    mostrarAcceso(false);
+  } catch (e) {
+    msg.innerHTML = `<div class="msg error">Error: ${esc(e.message)}</div>`;
+  }
+}
+function salirAcceso() {
+  clave = '';
+  try { localStorage.removeItem('ecb_clave'); } catch (e) {}
+  mostrarAcceso(true);
+}
+
+// ── Defectos ──
+$('defectos').innerHTML = DEFECTOS.map((d, i) =>
+  `<label id="d${i}"><input type="checkbox" value="${esc(i === DEFECTOS.length - 1 ? OTRO : d)}" onchange="this.parentNode.classList.toggle('on', this.checked); revisar()"> ${esc(d)}</label>`).join('');
+const elegidos = () => [...document.querySelectorAll('#defectos input:checked')].map(i => i.value);
+
+// ── Fotos: se reducen a máx. 1280 px, JPEG 0.7 (~150-250 KB) ──
+async function fotoTomada(cual, input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  try {
+    const url = URL.createObjectURL(file);
+    const im = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; });
+    const k = Math.min(1, 1280 / Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    fotos[cual] = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.7));
+    $('msg-enviar').innerHTML = '';
+  } catch (e) {
+    fotos[cual] = null;
+    $('msg-enviar').innerHTML = '<div class="msg error">Could not read that photo. Please try another one.</div>';
+  }
+  const img = $('prev-' + cual);
+  img.classList.toggle('oculto', !fotos[cual]);
+  if (fotos[cual]) img.src = URL.createObjectURL(fotos[cual]);
+  $('lbl-' + cual).classList.toggle('lista', !!fotos[cual]);
+  $('txt-' + cual).textContent = fotos[cual] ? '📷 Retake / choose another photo'
+    : (cual === 'lavabo' ? '📷 Take or choose a photo of the vanity' : '📷 Take or choose a photo of the label');
+  revisar();
+}
+
+// ── Validación ──
+function faltantes() {
+  const f = [];
+  if (!$('orden').value.trim()) f.push('order / PO number');
+  if (!$('nombre').value.trim()) f.push('your name');
+  if (!fotos.lavabo) f.push('photo of the vanity');
+  if (!fotos.etiqueta) f.push('photo of the label');
+  const d = elegidos();
+  if (!d.length) f.push('at least one defect');
+  else if (d.includes(OTRO) && !$('comentario').value.trim()) f.push('a comment describing "Other"');
+  return f;
+}
+function revisar() {
+  const f = faltantes();
+  $('btn-enviar').disabled = enviando || f.length > 0;
+  $('falta').textContent = f.length ? 'Missing: ' + f.join(', ') : '';
+}
+
+// ── Envío ──
+const azar = () => [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
+
+async function subirFoto(carpeta, nombre, blob) {
+  const ruta = `${carpeta}/${nombre}.jpg`;
+  const res = await fetch(`${SUP_URL}/storage/v1/object/ecb-reclamos/${ruta}`, {
+    method: 'POST',
+    headers: { ...HDR, 'Content-Type': 'image/jpeg', 'x-ecb-clave': clave },
+    body: blob,
+  });
+  if (!res.ok) throw new Error('Photo upload failed (' + res.status + ')');
+  return `${SUP_URL}/storage/v1/object/public/ecb-reclamos/${ruta}`;
+}
+
+async function enviar() {
+  if (enviando || faltantes().length) return;
+  enviando = true;
+  $('btn-enviar').disabled = true;
+  const msg = $('msg-enviar');
+  msg.innerHTML = '<div class="msg info">Uploading photos and sending… please wait</div>';
+  try {
+    const carpeta = `${new Date().toISOString().slice(0, 10)}/${azar()}`;
+    const urlLavabo = await subirFoto(carpeta, 'vanity', fotos.lavabo);
+    const urlEtiqueta = await subirFoto(carpeta, 'label', fotos.etiqueta);
+    const res = await fetch(`${SUP_URL}/rest/v1/rpc/ecb_crear`, {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        p_clave: clave, p_orden: $('orden').value.trim(), p_nombre: $('nombre').value.trim(),
+        p_defectos: elegidos(),
+        p_comentario: $('comentario').value.trim() || null,
+        p_foto_lavabo: urlLavabo, p_foto_etiqueta: urlEtiqueta,
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const r = await res.json();
+    $('folio').textContent = r.folio;
+    msg.innerHTML = '';
+    $('vista-form').classList.add('oculto');
+    $('vista-listo').classList.remove('oculto');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (err) {
+    if (/clave_invalida/.test(err.message)) { salirAcceso(); return; }
+    msg.innerHTML = `<div class="msg error">Not sent. Please try again. (${esc(err.message)})</div>`;
+  } finally {
+    enviando = false;
+    revisar();
+  }
+}
+
+function nuevo() {
+  ['orden', 'comentario'].forEach(id => { $(id).value = ''; });
+  document.querySelectorAll('#defectos input').forEach(i => { i.checked = false; i.parentNode.classList.remove('on'); });
+  ['lavabo', 'etiqueta'].forEach(c => {
+    fotos[c] = null; $('prev-' + c).classList.add('oculto'); $('lbl-' + c).classList.remove('lista');
+    $('txt-' + c).textContent = c === 'lavabo' ? '📷 Take or choose a photo of the vanity' : '📷 Take or choose a photo of the label';
+  });
+  $('vista-listo').classList.add('oculto');
+  $('vista-form').classList.remove('oculto');
+  revisar();
+}
+
+try { $('nombre').value = localStorage.getItem('ecb_nombre') || ''; } catch (e) {}
+$('nombre').addEventListener('change', () => { try { localStorage.setItem('ecb_nombre', $('nombre').value.trim()); } catch (e) {} });
+
+(async () => {
+  try { if (clave && await claveCorrecta(clave)) { mostrarAcceso(false); revisar(); return; } } catch (e) {}
+  salirAcceso();
+})();
+</script>
+</body>
+</html>
