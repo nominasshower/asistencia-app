@@ -80,8 +80,8 @@
         <div class="foto-bloque">
           <img id="prev-lavabo" class="oculto" alt="">
           <label class="foto-btn" id="lbl-lavabo">
-            <span id="txt-lavabo">📷 Take or choose a photo of the vanity</span>
-            <input type="file" accept="image/*" onchange="fotoTomada('lavabo', this)">
+            <span id="txt-lavabo">📷 Take a photo of the vanity</span>
+            <input type="file" accept="image/*" capture="environment" onchange="fotoTomada('lavabo', this)">
           </label>
         </div>
         <div class="ayuda">Show the whole vanity and the damaged area.</div>
@@ -92,8 +92,8 @@
         <div class="foto-bloque">
           <img id="prev-etiqueta" class="oculto" alt="">
           <label class="foto-btn" id="lbl-etiqueta">
-            <span id="txt-etiqueta">📷 Take or choose a photo of the label</span>
-            <input type="file" accept="image/*" onchange="fotoTomada('etiqueta', this)">
+            <span id="txt-etiqueta">📷 Take a photo of the label</span>
+            <input type="file" accept="image/*" capture="environment" onchange="fotoTomada('etiqueta', this)">
           </label>
         </div>
         <div class="ayuda">Make sure the label text and barcode are readable.</div>
@@ -203,7 +203,7 @@ async function fotoTomada(cual, input) {
   if (fotos[cual]) img.src = URL.createObjectURL(fotos[cual]);
   $('lbl-' + cual).classList.toggle('lista', !!fotos[cual]);
   $('txt-' + cual).textContent = fotos[cual] ? '📷 Retake / choose another photo'
-    : (cual === 'lavabo' ? '📷 Take or choose a photo of the vanity' : '📷 Take or choose a photo of the label');
+    : (cual === 'lavabo' ? '📷 Take a photo of the vanity' : '📷 Take a photo of the label');
   revisar();
 }
 
@@ -313,7 +313,7 @@ function nuevo() {
   document.querySelectorAll('#defectos input').forEach(i => { i.checked = false; i.parentNode.classList.remove('on'); });
   ['lavabo', 'etiqueta'].forEach(c => {
     fotos[c] = null; $('prev-' + c).classList.add('oculto'); $('lbl-' + c).classList.remove('lista');
-    $('txt-' + c).textContent = c === 'lavabo' ? '📷 Take or choose a photo of the vanity' : '📷 Take or choose a photo of the label';
+    $('txt-' + c).textContent = c === 'lavabo' ? '📷 Take a photo of the vanity' : '📷 Take a photo of the label';
   });
   $('vista-listo').classList.add('oculto');
   $('vista-form').classList.remove('oculto');
