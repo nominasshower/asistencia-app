@@ -95,6 +95,8 @@
           </label>
         </div>
         <div class="ayuda">Make sure the label text and barcode are readable.</div>
+        <label class="campo" for="codigo">Barcode number on the label *</label>
+        <input type="text" id="codigo" maxlength="60" autocomplete="off" autocapitalize="characters" placeholder="Type the number printed under the barcode" oninput="revisar()">
       </div>
 
       <div class="card">
@@ -123,12 +125,8 @@ const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
 const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
 const HDR = { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}` };
 const DEFECTOS = [
-  'Chipped / cracked', 'Scratches or scuffs', 'Stain or discoloration', 'Bubbles / pinholes in the surface',
-  'Color mismatch', 'Rough or uneven finish', 'Warped / not flat', 'Wrong size or dimensions',
-  'Wrong model or color received', 'Faucet / drain holes wrong or missing', 'Backsplash / side splash damaged or missing',
-  'Damaged in shipping', 'Missing parts', 'Other (describe in comments)'
+  'Thin Gelcoat', 'Bubble', 'Crack', 'Broken', 'Porosity', 'Clogged Overflow', 'Drain Leak'
 ];
-const OTRO = 'Other';   // valor que se guarda para "Other (describe in comments)"
 let clave = '';
 try { clave = localStorage.getItem('ecb_clave') || ''; } catch (e) {}
 const fotos = { lavabo: null, etiqueta: null };   // JPEG ya reducido, listo para subir
@@ -172,7 +170,7 @@ function salirAcceso() {
 
 // ── Defectos ──
 $('defectos').innerHTML = DEFECTOS.map((d, i) =>
-  `<label id="d${i}"><input type="checkbox" value="${esc(i === DEFECTOS.length - 1 ? OTRO : d)}" onchange="this.parentNode.classList.toggle('on', this.checked); revisar()"> ${esc(d)}</label>`).join('');
+  `<label id="d${i}"><input type="checkbox" value="${esc(d)}" onchange="this.parentNode.classList.toggle('on', this.checked); revisar()"> ${esc(d)}</label>`).join('');
 const elegidos = () => [...document.querySelectorAll('#defectos input:checked')].map(i => i.value);
 
 // ── Fotos: se reducen a máx. 1280 px, JPEG 0.7 (~150-250 KB) ──
@@ -210,9 +208,9 @@ function faltantes() {
   if (!$('nombre').value.trim()) f.push('your name');
   if (!fotos.lavabo) f.push('photo of the vanity');
   if (!fotos.etiqueta) f.push('photo of the label');
+  if (!$('codigo').value.trim()) f.push('barcode number');
   const d = elegidos();
   if (!d.length) f.push('at least one defect');
-  else if (d.includes(OTRO) && !$('comentario').value.trim()) f.push('a comment describing "Other"');
   return f;
 }
 function revisar() {
@@ -251,7 +249,7 @@ async function enviar() {
         p_clave: clave, p_orden: $('orden').value.trim(), p_nombre: $('nombre').value.trim(),
         p_defectos: elegidos(),
         p_comentario: $('comentario').value.trim() || null,
-        p_foto_lavabo: urlLavabo, p_foto_etiqueta: urlEtiqueta,
+        p_foto_lavabo: urlLavabo, p_foto_etiqueta: urlEtiqueta, p_codigo: $('codigo').value.trim(),
       }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -271,7 +269,7 @@ async function enviar() {
 }
 
 function nuevo() {
-  ['orden', 'comentario'].forEach(id => { $(id).value = ''; });
+  ['orden', 'codigo', 'comentario'].forEach(id => { $(id).value = ''; });
   document.querySelectorAll('#defectos input').forEach(i => { i.checked = false; i.parentNode.classList.remove('on'); });
   ['lavabo', 'etiqueta'].forEach(c => {
     fotos[c] = null; $('prev-' + c).classList.add('oculto'); $('lbl-' + c).classList.remove('lista');

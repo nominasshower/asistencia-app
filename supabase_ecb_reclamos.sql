@@ -59,6 +59,7 @@ create table if not exists public.ecb_reclamos (
   creado_en timestamptz not null default now(),
   orden text not null,                 -- numero de orden / PO que escribe el cliente
   nombre text not null,
+  codigo_barras text,                  -- numero del codigo de barras de la etiqueta, escrito a mano por el cliente
   defectos text[] not null,
   comentario text,
   foto_lavabo_url text,
@@ -86,9 +87,12 @@ create policy "ecb_fotos_delete" on storage.objects for delete to anon
   using (bucket_id = 'ecb-reclamos' and public.ecb_admin_header_ok());
 
 -- ---------- Crear un reclamo (clave del cliente) ----------
+alter table public.ecb_reclamos add column if not exists codigo_barras text;   -- para bases ya creadas
+drop function if exists public.ecb_crear(text,text,text,text[],text,text,text);
 create or replace function public.ecb_crear(
   p_clave text, p_orden text, p_nombre text,
-  p_defectos text[], p_comentario text, p_foto_lavabo text, p_foto_etiqueta text
+  p_defectos text[], p_comentario text, p_foto_lavabo text, p_foto_etiqueta text,
+  p_codigo text default null
 ) returns json
 language plpgsql security definer set search_path = public as $$
 declare
@@ -103,23 +107,20 @@ begin
   if p_defectos is null or array_length(p_defectos, 1) is null or array_length(p_defectos, 1) > 20 then
     raise exception 'defectos invalidos';
   end if;
-  if length(coalesce(p_comentario,'')) > 2000 then raise exception 'texto muy largo'; end if;
-  if 'Other' = any(p_defectos) and length(btrim(coalesce(p_comentario,''))) = 0 then
-    raise exception 'comentario requerido';
-  end if;
+  if length(coalesce(p_comentario,'')) > 2000 or length(coalesce(p_codigo,'')) > 60 then raise exception 'texto muy largo'; end if;
   if p_foto_lavabo is null or p_foto_lavabo not like pref || '%'
      or p_foto_etiqueta is null or p_foto_etiqueta not like pref || '%' then
     raise exception 'fotos invalidas';
   end if;
 
-  insert into public.ecb_reclamos (orden, nombre, defectos, comentario, foto_lavabo_url, foto_etiqueta_url)
-  values (btrim(p_orden), btrim(p_nombre), p_defectos,
+  insert into public.ecb_reclamos (orden, nombre, codigo_barras, defectos, comentario, foto_lavabo_url, foto_etiqueta_url)
+  values (btrim(p_orden), btrim(p_nombre), nullif(btrim(coalesce(p_codigo,'')), ''), p_defectos,
           nullif(btrim(coalesce(p_comentario,'')), ''), p_foto_lavabo, p_foto_etiqueta)
   returning * into fila;
 
   return json_build_object('id', fila.id, 'folio', 'ECB-' || lpad(fila.id::text, 5, '0'), 'creado_en', fila.creado_en);
 end $$;
-grant execute on function public.ecb_crear(text,text,text,text[],text,text,text) to anon;
+grant execute on function public.ecb_crear(text,text,text,text[],text,text,text,text) to anon;
 
 -- ---------- Ver reclamos (clave interna) ----------
 create or replace function public.ecb_listar(p_admin text, p_desde date default null, p_hasta date default null)

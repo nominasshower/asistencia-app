@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reclamaciones EC Barton</title>
+<style>
+  * { box-sizing: border-box; }
+  :root { --bg:#0f1117; --bg2:#161b27; --bg3:#1e2535; --border:rgba(255,255,255,.09); --text:#e8eaf0; --muted:#8b96a5; --accent:#22c55e; --accent2:#3b82f6; --danger:#ef4444; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',-apple-system,sans-serif; margin:0; }
+  .page { max-width:1000px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .subtitle { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .card { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:18px; margin-bottom:16px; }
+  .filtros { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+  .filtros label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+  input { font-size:15px; padding:10px; border-radius:10px; border:1px solid var(--border); background:var(--bg3); color:var(--text); font-family:inherit; }
+  button { font-size:15px; font-weight:700; padding:11px 18px; border-radius:10px; border:none; cursor:pointer; background:var(--accent2); color:#fff; }
+  button:disabled { opacity:.4; }
+  .msg { padding:12px; border-radius:12px; font-weight:700; margin:12px 0; }
+  .msg.error { background:rgba(239,68,68,.15); color:#f87171; }
+  .msg.info { background:rgba(59,130,246,.15); color:#93c5fd; }
+  .oculto { display:none !important; }
+  .login { max-width:360px; margin:40px auto 0; } .login input { width:100%; margin-bottom:10px; }
+  .recl { display:grid; grid-template-columns:200px 1fr; gap:16px; }
+  .fotos { display:flex; gap:8px; }
+  .fotos a { display:block; flex:1; }
+  .fotos img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; background:var(--bg3); display:block; }
+  .fotos .caduca { flex:1; display:flex; align-items:center; justify-content:center; text-align:center; font-size:11px; color:var(--muted); background:var(--bg3); border-radius:10px; aspect-ratio:1; padding:6px; }
+  .folio { font-size:17px; font-weight:800; }
+  .meta { color:var(--muted); font-size:13px; margin:2px 0 8px; }
+  .chips span { display:inline-block; background:rgba(239,68,68,.15); color:#f87171; border-radius:20px; padding:3px 10px; font-size:12px; font-weight:700; margin:0 6px 6px 0; }
+  .coment { font-size:14px; background:var(--bg3); border-radius:10px; padding:10px; white-space:pre-wrap; }
+  .pie { text-align:right; font-size:12px; margin-bottom:10px; } .pie a { color:var(--muted); cursor:pointer; text-decoration:underline; }
+  @media (max-width:640px) { .recl { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>📋 Reclamaciones EC Barton</h1>
+  <div class="subtitle">Uso interno. Las fotos se conservan 4 meses (120 días); después se borran y el reclamo queda sin fotos.</div>
+
+  <div class="card login oculto" id="vista-acceso">
+    <input type="password" id="clave-acceso" placeholder="Clave interna" onkeydown="if(event.key==='Enter'){entrar()}">
+    <button style="width:100%" onclick="entrar()">Entrar</button>
+    <div id="msg-acceso"></div>
+  </div>
+
+  <div id="app" class="oculto">
+    <div class="pie"><a onclick="salirAcceso()">Cerrar sesión</a></div>
+    <div class="card">
+      <div class="filtros">
+        <div><label>Desde</label><input type="date" id="desde"></div>
+        <div><label>Hasta</label><input type="date" id="hasta"></div>
+        <div><label>Buscar (orden, nombre, defecto)</label><input type="text" id="buscar" placeholder="texto o código" oninput="pintar()"></div>
+        <button id="btn-mostrar" onclick="mostrar()">Mostrar reclamos</button>
+      </div>
+      <div id="resumen" class="meta" style="margin-top:12px"></div>
+    </div>
+    <div id="msg"></div>
+    <div id="lista"></div>
+  </div>
+</div>
+
+<script>
+const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
+const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+const HDR = { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}`, 'Content-Type': 'application/json' };
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = iso => iso ? new Date(iso).toLocaleString('es-MX', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+let admin = '';
+try { admin = localStorage.getItem('ecb_admin') || ''; } catch (e) {}
+let filas = [];
+
+async function rpc(fn, args) {
+  const res = await fetch(`${SUP_URL}/rest/v1/rpc/${fn}`, { method: 'POST', headers: HDR, body: JSON.stringify(args) });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+function mostrarAcceso(si) { $('vista-acceso').classList.toggle('oculto', !si); $('app').classList.toggle('oculto', si); }
+async function entrar() {
+  const c = $('clave-acceso').value.trim();
+  if (!c) return;
+  $('msg-acceso').innerHTML = '<div class="msg info">Verificando…</div>';
+  try {
+    if (!(await rpc('ecb_validar_admin', { p_clave: c }))) { $('msg-acceso').innerHTML = '<div class="msg error">Clave incorrecta</div>'; return; }
+    admin = c;
+    try { localStorage.setItem('ecb_admin', c); } catch (e) {}
+    $('clave-acceso').value = ''; $('msg-acceso').innerHTML = '';
+    mostrarAcceso(false);
+  } catch (e) { $('msg-acceso').innerHTML = `<div class="msg error">Error: ${esc(e.message)}</div>`; }
+}
+function salirAcceso() {
+  admin = ''; filas = []; $('lista').innerHTML = ''; $('resumen').textContent = '';
+  try { localStorage.removeItem('ecb_admin'); } catch (e) {}
+  mostrarAcceso(true);
+}
+
+async function mostrar() {
+  $('btn-mostrar').disabled = true;
+  $('msg').innerHTML = '<div class="msg info">Cargando…</div>';
+  try {
+    filas = await rpc('ecb_listar', { p_admin: admin, p_desde: $('desde').value || null, p_hasta: $('hasta').value || null });
+    $('msg').innerHTML = '';
+    pintar();
+  } catch (e) {
+    if (/clave_invalida/.test(e.message)) { salirAcceso(); return; }
+    $('msg').innerHTML = `<div class="msg error">No se pudo cargar: ${esc(e.message)}</div>`;
+  } finally { $('btn-mostrar').disabled = false; }
+}
+
+function foto(url, texto) {
+  return url ? `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${esc(texto)}" loading="lazy"></a>`
+             : `<div class="caduca">${esc(texto)}<br>(foto borrada)</div>`;
+}
+
+function pintar() {
+  const q = $('buscar').value.trim().toLowerCase();
+  const vis = filas.filter(r => !q || [r.orden, r.nombre, r.codigo_barras, r.comentario, ...(r.defectos || []), 'ecb-' + String(r.id).padStart(5, '0')]
+    .join(' ').toLowerCase().includes(q));
+  $('resumen').textContent = filas.length ? `${vis.length} de ${filas.length} reclamos` : 'Sin reclamos en ese periodo.';
+  $('lista').innerHTML = vis.map(r => `
+    <div class="card recl">
+      <div class="fotos">${foto(r.foto_lavabo_url, 'Lavabo')}${foto(r.foto_etiqueta_url, 'Etiqueta')}</div>
+      <div>
+        <div class="folio">ECB-${String(r.id).padStart(5, '0')} · ${esc(r.orden)}</div>
+        <div class="meta">${fmt(r.creado_en)} · ${esc(r.nombre)}${r.codigo_barras ? ' · Código: <b>' + esc(r.codigo_barras) + '</b>' : ''}</div>
+        <div class="chips">${(r.defectos || []).map(d => `<span>${esc(d)}</span>`).join('')}</div>
+        ${r.comentario ? `<div class="coment">${esc(r.comentario)}</div>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+(async () => {
+  try { if (admin && await rpc('ecb_validar_admin', { p_clave: admin })) { mostrarAcceso(false); return; } } catch (e) {}
+  salirAcceso();
+})();
+</script>
+</body>
+</html>
