@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reclamaciones EC Barton</title>
+<title>Reclamaciones Virginia</title>
 <style>
   * { box-sizing: border-box; }
   :root { --bg:#0f1117; --bg2:#161b27; --bg3:#1e2535; --border:rgba(255,255,255,.09); --text:#e8eaf0; --muted:#8b96a5; --accent:#22c55e; --accent2:#3b82f6; --danger:#ef4444; }
@@ -37,7 +37,7 @@
 </head>
 <body>
 <div class="page">
-  <h1>📋 Reclamaciones EC Barton</h1>
+  <h1>📋 Reclamaciones Virginia</h1>
   <div class="subtitle">Uso interno. Las fotos se conservan 4 meses (120 días); después se borran y el reclamo queda sin fotos.</div>
 
   <div class="card login oculto" id="vista-acceso">
@@ -124,7 +124,7 @@ function pintar() {
     <div class="card recl">
       <div class="fotos">${foto(r.foto_lavabo_url, 'Lavabo')}${foto(r.foto_etiqueta_url, 'Etiqueta')}</div>
       <div>
-        <div class="folio">ECB-${String(r.id).padStart(5, '0')} · ${esc(r.orden)}</div>
+        <div class="folio">ECB-${String(r.id).padStart(5, '0')}${r.orden ? ' · ' + esc(r.orden) : ''}</div>
         <div class="meta">${fmt(r.creado_en)} · ${esc(r.nombre)}${r.codigo_barras ? ' · Código: <b>' + esc(r.codigo_barras) + '</b>' : ''}</div>
         <div class="chips">${(r.defectos || []).map(d => `<span>${esc(d)}</span>`).join('')}</div>
         ${r.comentario ? `<div class="coment">${esc(r.comentario)}</div>` : ''}

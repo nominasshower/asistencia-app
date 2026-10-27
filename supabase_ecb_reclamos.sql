@@ -57,7 +57,7 @@ grant execute on function public.ecb_clave_header_ok(), public.ecb_admin_header_
 create table if not exists public.ecb_reclamos (
   id bigint generated always as identity primary key,
   creado_en timestamptz not null default now(),
-  orden text not null,                 -- numero de orden / PO que escribe el cliente
+  orden text,                          -- numero de orden / PO (opcional)
   nombre text not null,
   codigo_barras text,                  -- numero del codigo de barras de la etiqueta, escrito a mano por el cliente
   defectos text[] not null,
@@ -88,6 +88,7 @@ create policy "ecb_fotos_delete" on storage.objects for delete to anon
 
 -- ---------- Crear un reclamo (clave del cliente) ----------
 alter table public.ecb_reclamos add column if not exists codigo_barras text;   -- para bases ya creadas
+alter table public.ecb_reclamos alter column orden drop not null;              -- PO opcional
 drop function if exists public.ecb_crear(text,text,text,text[],text,text,text);
 create or replace function public.ecb_crear(
   p_clave text, p_orden text, p_nombre text,
@@ -102,7 +103,7 @@ begin
   if not public.ecb_clave_ok(p_clave) then
     raise exception 'clave_invalida' using errcode = '28000';
   end if;
-  if length(btrim(coalesce(p_orden,''))) = 0 or length(p_orden) > 80 then raise exception 'orden invalida'; end if;
+  if length(coalesce(p_orden,'')) > 80 then raise exception 'orden invalida'; end if;
   if length(btrim(coalesce(p_nombre,''))) = 0 or length(p_nombre) > 120 then raise exception 'nombre invalido'; end if;
   if p_defectos is null or array_length(p_defectos, 1) is null or array_length(p_defectos, 1) > 20 then
     raise exception 'defectos invalidos';
@@ -114,7 +115,7 @@ begin
   end if;
 
   insert into public.ecb_reclamos (orden, nombre, codigo_barras, defectos, comentario, foto_lavabo_url, foto_etiqueta_url)
-  values (btrim(p_orden), btrim(p_nombre), nullif(btrim(coalesce(p_codigo,'')), ''), p_defectos,
+  values (nullif(btrim(coalesce(p_orden,'')), ''), btrim(p_nombre), nullif(btrim(coalesce(p_codigo,'')), ''), p_defectos,
           nullif(btrim(coalesce(p_comentario,'')), ''), p_foto_lavabo, p_foto_etiqueta)
   returning * into fila;
 

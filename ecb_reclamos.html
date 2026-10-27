@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EC Barton Claims</title>
+<title>Virginia Claims</title>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 <style>
   * { box-sizing: border-box; }
@@ -52,8 +52,8 @@
 </head>
 <body>
 <div class="page">
-  <h1>EC Barton · Claims</h1>
-  <div class="subtitle">Report a problem with a vanity top: send a photo of the vanity, a photo of its label, and select the defects.</div>
+  <h1>Virginia · Claims</h1>
+  <div class="subtitle">Report a problem with a vanity top: send a photo of the vanity top, a photo of its label, and select the defects.</div>
 
   <div class="card login oculto" id="vista-acceso">
     <h2>Access</h2>
@@ -69,26 +69,26 @@
     <div id="vista-form">
       <div class="card">
         <h2>1. Your claim</h2>
-        <label class="campo" for="orden">Order / PO number *</label>
+        <label class="campo" for="orden">Order / PO number (optional)</label>
         <input type="text" id="orden" maxlength="80" autocomplete="off" oninput="revisar()">
         <label class="campo" for="nombre">Your name *</label>
         <input type="text" id="nombre" maxlength="120" autocomplete="name" oninput="revisar()">
       </div>
 
       <div class="card">
-        <h2>2. Photo of the vanity *</h2>
+        <h2>2. Photo of the vanity top *</h2>
         <div class="foto-bloque">
           <img id="prev-lavabo" class="oculto" alt="">
           <label class="foto-btn" id="lbl-lavabo">
-            <span id="txt-lavabo">📷 Take a photo of the vanity</span>
+            <span id="txt-lavabo">📷 Take a photo of the vanity top</span>
             <input type="file" accept="image/*" capture="environment" onchange="fotoTomada('lavabo', this)">
           </label>
         </div>
-        <div class="ayuda">Show the whole vanity and the damaged area.</div>
+        <div class="ayuda">Show the whole vanity top and the damaged area.</div>
       </div>
 
       <div class="card">
-        <h2>3. Photo of the vanity label *</h2>
+        <h2>3. Photo of the vanity top label *</h2>
         <div class="foto-bloque">
           <img id="prev-etiqueta" class="oculto" alt="">
           <label class="foto-btn" id="lbl-etiqueta">
@@ -130,7 +130,7 @@ const SUP_URL = "https://xzwlbrirzfogbqhywtvj.supabase.co";
 const SUP_KEY = "sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
 const HDR = { apikey: SUP_KEY, Authorization: `Bearer ${SUP_KEY}` };
 const DEFECTOS = [
-  'Thin Gelcoat', 'Bubble', 'Crack', 'Broken', 'Porosity', 'Clogged Overflow', 'Drain Leak'
+  'Thin Gelcoat', 'Bubble', 'Crack', 'Broken', 'Porosity', 'Clogged Overflow', 'Drain Leak', 'Other'
 ];
 let clave = '';
 try { clave = localStorage.getItem('ecb_clave') || ''; } catch (e) {}
@@ -203,7 +203,7 @@ async function fotoTomada(cual, input) {
   if (fotos[cual]) img.src = URL.createObjectURL(fotos[cual]);
   $('lbl-' + cual).classList.toggle('lista', !!fotos[cual]);
   $('txt-' + cual).textContent = fotos[cual] ? '📷 Retake / choose another photo'
-    : (cual === 'lavabo' ? '📷 Take a photo of the vanity' : '📷 Take a photo of the label');
+    : (cual === 'lavabo' ? '📷 Take a photo of the vanity top' : '📷 Take a photo of the label');
   revisar();
 }
 
@@ -244,9 +244,8 @@ function detenerCamara() {
 // ── Validación ──
 function faltantes() {
   const f = [];
-  if (!$('orden').value.trim()) f.push('order / PO number');
   if (!$('nombre').value.trim()) f.push('your name');
-  if (!fotos.lavabo) f.push('photo of the vanity');
+  if (!fotos.lavabo) f.push('photo of the vanity top');
   if (!fotos.etiqueta) f.push('photo of the label');
   if (!$('codigo').value.trim()) f.push('barcode number');
   const d = elegidos();
@@ -313,7 +312,7 @@ function nuevo() {
   document.querySelectorAll('#defectos input').forEach(i => { i.checked = false; i.parentNode.classList.remove('on'); });
   ['lavabo', 'etiqueta'].forEach(c => {
     fotos[c] = null; $('prev-' + c).classList.add('oculto'); $('lbl-' + c).classList.remove('lista');
-    $('txt-' + c).textContent = c === 'lavabo' ? '📷 Take a photo of the vanity' : '📷 Take a photo of the label';
+    $('txt-' + c).textContent = c === 'lavabo' ? '📷 Take a photo of the vanity top' : '📷 Take a photo of the label';
   });
   $('vista-listo').classList.add('oculto');
   $('vista-form').classList.remove('oculto');
