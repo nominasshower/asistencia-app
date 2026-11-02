@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Producción Modular · Supabase</title><script>document.documentElement.setAttribute("data-theme","dark")</script>
+<title>Producción Modular</title><script>document.documentElement.setAttribute("data-theme","dark")</script>
 <style>
 :root{color-scheme:light;--bg:#f4f5f7;--card:#fff;--tx:#0b0b0b;--tx2:#52514e;--mut:#8a8984;--bd:#e3e4e8;--grid:#ececee;--good:#13795b;--warn:#a86a00;--bad:#b42318;--ac:#2a78d6}
 :root[data-theme="dark"]{color-scheme:dark;--bg:#111214;--card:#1d1e20;--tx:#f0efec;--tx2:#c3c2b7;--mut:#8f8e88;--bd:#2c2d30;--grid:#2a2b2d;--good:#5fd3a8;--warn:#f0b24a;--bad:#ff8a80;--ac:#3987e5}
@@ -22,21 +22,27 @@ h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em
 .st .t{font-size:12px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.07em}
 .st .big{font-size:34px;font-weight:800;line-height:1.1;margin:4px 0 0;font-variant-numeric:tabular-nums}
 .st .s{font-size:12px;color:var(--mut);margin-top:2px}
+.st.clk{cursor:pointer;transition:transform .1s,border-color .1s}.st.clk:hover{transform:translateY(-2px);border-color:var(--ac)}.st.sel{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac) inset}
 .box{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:6px 4px;overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;text-align:right;padding:9px 12px;border-bottom:1px solid var(--bd);white-space:nowrap}
 td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--grid);font-variant-numeric:tabular-nums;white-space:nowrap}
-th:first-child,td:first-child{text-align:left}tr:last-child td{border-bottom:0}tr.tot td{font-weight:800;border-top:2px solid var(--bd)}
+th:first-child,td:first-child,td.l,th.l{text-align:left}tr:last-child td{border-bottom:0}tr.tot td{font-weight:800;border-top:2px solid var(--bd)}
+tr.clk{cursor:pointer}tr.clk:hover td{background:rgba(57,135,229,.10)}tr.on td{background:rgba(57,135,229,.18)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.chip{background:var(--ac);color:#fff;border-radius:999px;padding:3px 12px;font-size:13px;cursor:pointer}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.tabs button{padding:5px 12px;font-size:13px}
+.bar{display:inline-block;height:8px;background:var(--ac);border-radius:4px;vertical-align:middle;margin-left:8px;opacity:.8}
+.pan{background:var(--card);border:2px solid var(--ac);border-radius:18px;padding:14px 16px;margin-top:22px}.pan h3{margin:0;font-size:18px}
+input.bus{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;min-width:240px}
 .note{font-size:12px;color:var(--mut);margin:8px 2px 0}.vacio{color:var(--mut);padding:14px}
 .warn{background:rgba(240,178,74,.12);border:1px solid var(--warn);border-radius:12px;padding:10px 14px;margin:0 0 12px;font-size:13px}
-details{margin-top:12px}summary{cursor:pointer;color:var(--ac);font-weight:600}
 .foot{margin-top:26px;color:var(--mut);font-size:13px}
 </style>
 </head>
 <body>
 <main>
 <header>
-  <h1>Producción Modular<small>Fabricadas · Liberadas · Empaque · Embarques · Grado C · Retrabajo — leído de Supabase</small></h1>
+  <h1>Producción Modular<small>Fabricadas · Liberadas · Empaque · Embarques · Grado C · Retrabajo</small></h1>
   <div class="ctl">
     <button data-r="hoy">Hoy</button><button data-r="semana">Esta semana</button><button data-r="mes">Este mes</button><button data-r="mespas">Mes pasado</button>
     <input type="date" id="desde" aria-label="Desde"><span>a</span><input type="date" id="hasta" aria-label="Hasta">
@@ -44,7 +50,6 @@ details{margin-top:12px}summary{cursor:pointer;color:var(--ac);font-weight:600}
     <button class="go" id="ver">Ver resultados</button>
   </div>
 </header>
-<div id="avisos"></div>
 <div id="cuerpo"><div class="vacio">Elige el periodo y presiona «Ver resultados».</div></div>
 <div class="foot" id="upd"></div>
 </main>
@@ -58,73 +63,110 @@ function get(t,params){var out=[];function pag(i){return fetch(SUP+"/rest/v1/"+t
 function opc(t,p){return get(t,p).catch(function(){return null})}
 function rango(r){var h=new Date(),d=new Date(h);if(r==="semana"){var w=h.getDay();d.setDate(h.getDate()-(w===0?6:w-1))}else if(r==="mes"){d=new Date(h.getFullYear(),h.getMonth(),1)}else if(r==="mespas"){d=new Date(h.getFullYear(),h.getMonth()-1,1);h=new Date(h.getFullYear(),h.getMonth(),0)}return[iso(d),iso(h)]}
 function fijar(r){var x=rango(r);$("desde").value=x[0];$("hasta").value=x[1];document.querySelectorAll("[data-r]").forEach(function(b){b.classList.toggle("on",b.dataset.r===r)})}
-function card(t,n,s,c){return'<div class="st" style="--c:'+c+'"><div class="t">'+t+'</div><div class="big">'+fmt(n)+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>'}
 function dia(f){var p=f.split("-");return p[2]+"/"+p[1]}
-function sumLinea(rows,campo){var o={};rows.forEach(function(r){var l=r.linea||"—";o[l]=(o[l]||0)+1});return o}
+var TIT={fab:"Fabricadas",lib:"Liberadas",emp:"Empacadas",gc:"Grado C",wip:"Sin liberar (WIP)",emb:"Embarques · tarimas",ret:"Retrabajo"},COL={fab:"#2a78d6",lib:"#13795b",emp:"#8b5cf6",gc:"#b42318",wip:"#a86a00",emb:"#0ea5a5",ret:"#f97316"};
+var D=null,S={t:null,dim:0,dia:null,lin:null,sel:null,bus:"",max:200};
 
 function cargar(){
   var d=$("desde").value,h=$("hasta").value,ln=$("linea").value,fl=ln?"&linea=eq."+encodeURIComponent(ln):"";
-  $("cuerpo").innerHTML='<div class="vacio">Cargando…</div>';$("avisos").innerHTML="";
+  $("cuerpo").innerHTML='<div class="vacio">Cargando…</div>';
   Promise.all([
-    get("mvt_fabricacion","select=fecha,linea,etapa,codigo_corto&fecha=gte."+d+"&fecha=lte."+h+fl),
-    get("mvt_liberacion","select=fecha,linea,inspector&fecha=gte."+d+"&fecha=lte."+h+fl),
-    get("mvt_empaque","select=fecha,linea,cliente,estatus&fecha=gte."+d+"&fecha=lte."+h+fl),
+    get("mvt_fabricacion","select=sku,fecha,hora,linea,etapa,codigo_corto,descripcion,q&fecha=gte."+d+"&fecha=lte."+h+fl),
+    get("mvt_liberacion","select=sku,fecha,hora,linea,inspector&fecha=gte."+d+"&fecha=lte."+h+fl),
+    get("mvt_empaque","select=sku,fecha,hora,linea,codigo_corto,descripcion,q,cliente,estatus&fecha=gte."+d+"&fecha=lte."+h+fl),
     opc("mvt_tarima_desglose","select=po,cliente,fletera,caja,destino,tarimas,piezas,created_at&created_at=gte."+d+"T00:00:00&created_at=lte."+h+"T23:59:59"),
+    opc("mvt_tarima_impresion","select=po,n,tipo,veces,ultima"),
     opc("mvt_retrabajo","select=id,fecha,linea,familia,medida,fabricadas,cantidad&fecha=gte."+d+"&fecha=lte."+h+fl),
     opc("mvt_retrabajo_defecto","select=retrabajo_id,defecto_id,cantidad"),
     opc("mvt_defecto","select=id,departamento,nombre"),
     opc("mvt_sync_estado","select=*")
-  ]).then(function(r){pinta(r,d,h)}).catch(function(e){$("cuerpo").innerHTML='<div class="warn">No se pudo leer Supabase: '+esc(e.message)+'</div>'})
+  ]).then(function(r){armar(r);S={t:null,dim:0,dia:null,lin:null,sel:null,bus:"",max:200};pinta()}).catch(function(e){$("cuerpo").innerHTML='<div class="warn">No se pudo cargar la información: '+esc(e.message)+'</div>'})
 }
-function pinta(r,d,h){
-  var fab=r[0].filter(function(x){return x.etapa!=="CANCELADO"}),gc=r[0].filter(function(x){return x.etapa==="Grado C"}),
-      lib=r[1],emp=r[2].filter(function(x){return x.estatus==="Empacado"}),tar=r[3],ret=r[4],rdef=r[5],defs=r[6],est=r[7];
-  var wip=fab.filter(function(x){return x.etapa==="WIP"}).length;
-  var retPz=ret?ret.reduce(function(a,x){return a+(x.cantidad||0)},0):0;
-  var tTar=tar?tar.reduce(function(a,x){return a+(x.tarimas||0)},0):0,tPz=tar?tar.reduce(function(a,x){return a+(x.piezas||0)},0):0;
-  var html='<div class="cards">'+card("Fabricadas",fab.length,"incluye Grado C","#2a78d6")+card("Liberadas",lib.length,"","#13795b")+card("Empacadas",emp.length,"","#8b5cf6")
-    +card("Grado C",gc.length,fab.length?(gc.length/fab.length*100).toFixed(1)+"% de lo fabricado":"","#b42318")
-    +card("Sin liberar (WIP)",wip,"fabricadas del periodo","#a86a00")
-    +card("Embarques · tarimas",tar?tTar:null,tar?fmt(tar.length)+" PO · "+fmt(tPz)+" piezas":"tabla aún no existe","#0ea5a5")
-    +card("Retrabajo",ret?retPz:null,ret?fmt(ret.length)+" registros":"tabla aún no existe","#f97316")+'</div>';
-  // por día
-  var dias={};function a(f,k){if(!f)return;dias[f]=dias[f]||{fab:0,lib:0,emp:0,gc:0,ret:0};dias[f][k]++}
-  fab.forEach(function(x){a(x.fecha,"fab")});gc.forEach(function(x){a(x.fecha,"gc")});lib.forEach(function(x){a(x.fecha,"lib")});emp.forEach(function(x){a(x.fecha,"emp")});
-  (ret||[]).forEach(function(x){dias[x.fecha]=dias[x.fecha]||{fab:0,lib:0,emp:0,gc:0,ret:0};dias[x.fecha].ret+=x.cantidad||0});
+function armar(r){
+  var fab=r[0].filter(function(x){return x.etapa!=="CANCELADO"}),mapa={};
+  fab.forEach(function(x){mapa[x.sku]=x});
+  D={fab:fab.map(function(x){return{f:x.fecha,h:x.hora,l:x.linea,sku:x.sku,cod:x.codigo_corto,d:x.descripcion,q:x.q,e:x.etapa}}),
+     lib:r[1].map(function(x){var m=mapa[x.sku]||{};return{f:x.fecha,h:x.hora,l:x.linea,sku:x.sku,ins:x.inspector,cod:m.codigo_corto,d:m.descripcion||"(fabricada antes del periodo)",q:m.q}}),
+     emp:r[2].filter(function(x){return x.estatus==="Empacado"}).map(function(x){return{f:x.fecha,h:x.hora,l:x.linea,sku:x.sku,cod:x.codigo_corto,d:x.descripcion,q:x.q,cli:x.cliente}}),
+     tar:r[3],imp:r[4]||[],ret:r[5],rdef:r[6],defs:r[7],est:r[8]};
+  D.gc=D.fab.filter(function(x){return x.e==="Grado C"});D.wip=D.fab.filter(function(x){return x.e==="WIP"});
+}
+function filt(rows){return rows.filter(function(x){return(!S.dia||x.f===S.dia)&&(!S.lin||x.l===S.lin)})}
+function card(k,n,s){return'<div class="st clk'+(S.t===k?" sel":"")+'" data-k="'+k+'" style="--c:'+COL[k]+'"><div class="t">'+TIT[k]+'</div><div class="big">'+fmt(n)+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>'}
+function DIMS(t){var m=[["Modelo",function(x){return x.d||"—"}],["Orden (Q)",function(x){return x.q||"—"}],["Hora",function(x){return x.h?x.h.slice(0,2)+":00":"—"}],["Línea",function(x){return x.l||"—"}]];
+  if(t==="lib")m.unshift(["Inspector",function(x){return x.ins||"—"}]);if(t==="emp")m.unshift(["Cliente",function(x){return x.cli||"—"}]);if(t==="fab")m.push(["Etapa",function(x){return x.e}]);return m}
+function pinta(){
+  var f=filt(D.fab),gcN=filt(D.gc).length,wipN=filt(D.wip).length,libN=filt(D.lib).length,empN=filt(D.emp).length;
+  var ret=D.ret,retPz=ret?filt(ret.map(function(x){return{f:x.fecha,l:x.linea,c:x.cantidad}})).reduce(function(a,x){return a+(x.c||0)},0):null;
+  var tar=D.tar,tT=tar?tar.reduce(function(a,x){return a+(x.tarimas||0)},0):null,tP=tar?tar.reduce(function(a,x){return a+(x.piezas||0)},0):0;
+  var h='<div class="cards">'+card("fab",f.length,"incluye Grado C")+card("lib",libN,"")+card("emp",empN,"")+card("gc",gcN,f.length?(gcN/f.length*100).toFixed(1)+"% de lo fabricado":"")+card("wip",wipN,"fabricadas del periodo")+card("emb",tT,tar?fmt(tar.length)+" PO · "+fmt(tP)+" piezas":"sin datos")+card("ret",retPz,ret?fmt(ret.length)+" registros":"sin datos")+'</div>';
+  var ch="";if(S.dia)ch+='<span class="chip" data-x="dia">Día '+dia(S.dia)+' ✕</span>';if(S.lin)ch+='<span class="chip" data-x="lin">'+esc(S.lin)+' ✕</span>';
+  h+='<div class="chips">'+ch+(ch?'':'<span class="note">Toca una tarjeta, un día o una línea para ver el detalle.</span>')+'</div>';
+  h+='<div id="det">'+detalle()+'</div>';
+  var dias={};function a(x,k,v){if(!x.f)return;dias[x.f]=dias[x.f]||{fab:0,lib:0,emp:0,gc:0,ret:0};dias[x.f][k]+=v||1}
+  D.fab.filter(function(x){return!S.lin||x.l===S.lin}).forEach(function(x){a(x,"fab");if(x.e==="Grado C")a(x,"gc")});
+  D.lib.filter(function(x){return!S.lin||x.l===S.lin}).forEach(function(x){a(x,"lib")});D.emp.filter(function(x){return!S.lin||x.l===S.lin}).forEach(function(x){a(x,"emp")});
+  (ret||[]).filter(function(x){return!S.lin||x.linea===S.lin}).forEach(function(x){a({f:x.fecha},"ret",x.cantidad||0)});
   var ks=Object.keys(dias).sort().reverse(),T={fab:0,lib:0,emp:0,gc:0,ret:0};
-  html+='<h2>Día por día</h2><div class="box"><table><tr><th>Día</th><th>Fabricadas</th><th>Liberadas</th><th>Empacadas</th><th>Grado C</th><th>Retrabajo</th></tr>';
-  ks.forEach(function(k){var v=dias[k];for(var q in T)T[q]+=v[q];html+='<tr><td>'+dia(k)+'</td><td>'+fmt(v.fab)+'</td><td>'+fmt(v.lib)+'</td><td>'+fmt(v.emp)+'</td><td>'+fmt(v.gc)+'</td><td>'+fmt(v.ret)+'</td></tr>'});
-  html+='<tr class="tot"><td>Total</td><td>'+fmt(T.fab)+'</td><td>'+fmt(T.lib)+'</td><td>'+fmt(T.emp)+'</td><td>'+fmt(T.gc)+'</td><td>'+fmt(T.ret)+'</td></tr></table></div>';
-  // por línea
-  var L={};function b(l,k){l=l||"—";L[l]=L[l]||{fab:0,lib:0,emp:0,gc:0};L[l][k]++}
-  fab.forEach(function(x){b(x.linea,"fab")});gc.forEach(function(x){b(x.linea,"gc")});lib.forEach(function(x){b(x.linea,"lib")});emp.forEach(function(x){b(x.linea,"emp")});
-  html+='<h2>Por línea</h2><div class="box"><table><tr><th>Línea</th><th>Fabricadas</th><th>Liberadas</th><th>Empacadas</th><th>Grado C</th></tr>';
-  Object.keys(L).sort().forEach(function(k){var v=L[k];html+='<tr><td>'+esc(k)+'</td><td>'+fmt(v.fab)+'</td><td>'+fmt(v.lib)+'</td><td>'+fmt(v.emp)+'</td><td>'+fmt(v.gc)+'</td></tr>'});
-  html+='</table></div>';
-  // embarques
-  html+='<h2>Embarques</h2>';
-  if(!tar)html+='<div class="warn">Las tablas de embarques aún no están en Supabase (falta correr el SQL).</div>';
-  else if(!tar.length)html+='<div class="box"><div class="vacio">Sin packing lists en el periodo.</div></div>';
-  else{html+='<div class="box"><table><tr><th>PO</th><th>Cliente</th><th>Destino</th><th>Fletera</th><th>Caja</th><th>Tarimas</th><th>Piezas</th></tr>';
-    tar.forEach(function(x){html+='<tr><td>'+esc(x.po)+'</td><td style="text-align:left">'+esc(x.cliente)+'</td><td style="text-align:left">'+esc(x.destino)+'</td><td>'+esc(x.fletera)+'</td><td>'+esc(x.caja)+'</td><td>'+fmt(x.tarimas)+'</td><td>'+fmt(x.piezas)+'</td></tr>'});html+='</table></div>'}
-  // retrabajo
-  html+='<h2>Retrabajo</h2>';
-  if(!ret)html+='<div class="warn">Las tablas de retrabajo aún no están en Supabase (falta correr el SQL).</div>';
-  else if(!ret.length)html+='<div class="box"><div class="vacio">Sin retrabajo capturado en el periodo.</div></div>';
-  else{var dn={};(defs||[]).forEach(function(x){dn[x.id]=x.nombre});var ids={};ret.forEach(function(x){ids[x.id]=1});
-    var porD={};(rdef||[]).forEach(function(x){if(ids[x.retrabajo_id]){var n=dn[x.defecto_id]||("Defecto "+x.defecto_id);porD[n]=(porD[n]||0)+(x.cantidad||0)}});
-    html+='<div class="box"><table><tr><th>Día</th><th>Línea</th><th>Familia</th><th>Medida</th><th>Fabricadas</th><th>Retrabajo</th></tr>';
-    ret.sort(function(a,b){return a.fecha<b.fecha?1:-1}).forEach(function(x){html+='<tr><td>'+dia(x.fecha)+'</td><td>'+esc(x.linea)+'</td><td>'+esc(x.familia)+'</td><td>'+esc(x.medida)+'</td><td>'+fmt(x.fabricadas)+'</td><td>'+fmt(x.cantidad)+'</td></tr>'});
-    html+='</table></div>';
-    var dk=Object.keys(porD).sort(function(a,b){return porD[b]-porD[a]});
-    if(dk.length){html+='<h2>Retrabajo por defecto</h2><div class="box"><table><tr><th>Defecto</th><th>Piezas</th></tr>';dk.forEach(function(k){html+='<tr><td>'+esc(k)+'</td><td>'+fmt(porD[k])+'</td></tr>'});html+='</table></div>'}}
-  // grado C por modelo (medida)
-  if(gc.length){var M={};gc.forEach(function(x){var m=(x.codigo_corto||"?").slice(0,4);M[m]=(M[m]||0)+1});
-    html+='<details><summary>Grado C por medida (4 primeros dígitos del código)</summary><div class="box"><table><tr><th>Medida</th><th>Grado C</th></tr>';
-    Object.keys(M).sort(function(a,b){return M[b]-M[a]}).forEach(function(k){html+='<tr><td>'+esc(k)+'</td><td>'+fmt(M[k])+'</td></tr>'});html+='</table></div></details>'}
-  $("cuerpo").innerHTML=html;
-  if(est){est.forEach(function(e){if(e.clave==="ultima_ok")$("upd").textContent="Última sincronización del servidor: "+e.valor.slice(0,16)})}
+  h+='<h2>Día por día <span class="note">(toca un día para filtrar todo)</span></h2><div class="box"><table><tr><th>Día</th><th>Fabricadas</th><th>Liberadas</th><th>Empacadas</th><th>Grado C</th><th>Retrabajo</th></tr>';
+  ks.forEach(function(k){var v=dias[k];for(var q in T)T[q]+=v[q];h+='<tr class="clk'+(S.dia===k?" on":"")+'" data-dia="'+k+'"><td>'+dia(k)+'</td><td>'+fmt(v.fab)+'</td><td>'+fmt(v.lib)+'</td><td>'+fmt(v.emp)+'</td><td>'+fmt(v.gc)+'</td><td>'+fmt(v.ret)+'</td></tr>'});
+  h+='<tr class="tot"><td>Total</td><td>'+fmt(T.fab)+'</td><td>'+fmt(T.lib)+'</td><td>'+fmt(T.emp)+'</td><td>'+fmt(T.gc)+'</td><td>'+fmt(T.ret)+'</td></tr></table></div>';
+  var L={};function b(x,k){var l=x.l||"—";L[l]=L[l]||{fab:0,lib:0,emp:0,gc:0};L[l][k]++}
+  D.fab.filter(function(x){return!S.dia||x.f===S.dia}).forEach(function(x){b(x,"fab");if(x.e==="Grado C")b(x,"gc")});D.lib.filter(function(x){return!S.dia||x.f===S.dia}).forEach(function(x){b(x,"lib")});D.emp.filter(function(x){return!S.dia||x.f===S.dia}).forEach(function(x){b(x,"emp")});
+  h+='<h2>Por línea <span class="note">(toca una línea para filtrar todo)</span></h2><div class="box"><table><tr><th>Línea</th><th>Fabricadas</th><th>Liberadas</th><th>Empacadas</th><th>Grado C</th></tr>';
+  Object.keys(L).sort().forEach(function(k){var v=L[k];h+='<tr class="clk'+(S.lin===k?" on":"")+'" data-lin="'+esc(k)+'"><td>'+esc(k)+'</td><td>'+fmt(v.fab)+'</td><td>'+fmt(v.lib)+'</td><td>'+fmt(v.emp)+'</td><td>'+fmt(v.gc)+'</td></tr>'});
+  h+='</table></div>';
+  $("cuerpo").innerHTML=h;
+  if(D.est)D.est.forEach(function(e){if(e.clave==="ultima_ok")$("upd").textContent="Última actualización: "+e.valor.slice(0,16)});
 }
+function detalle(){
+  var t=S.t;if(!t)return"";
+  var h='<div class="pan"><h3 style="color:'+COL[t]+'">'+TIT[t]+(S.dia?" · "+dia(S.dia):"")+(S.lin?" · "+esc(S.lin):"")+'</h3>';
+  if(t==="emb")return h+embarques()+'</div>';
+  if(t==="ret")return h+retrabajo()+'</div>';
+  var rows=filt(D[t]),dm=DIMS(t),n=dm.length;
+  h+='<div class="tabs">';dm.forEach(function(d,i){h+='<button class="'+(S.dim===i?"on":"")+'" data-dim="'+i+'">'+d[0]+'</button>'});h+='<button class="'+(S.dim===n?"on":"")+'" data-dim="'+n+'">Piezas ('+fmt(rows.length)+')</button></div>';
+  if(S.sel&&S.sel.t===t){rows=rows.filter(function(x){return dm[S.sel.i][1](x)===S.sel.v});h+='<div class="chips"><span class="chip" data-x="sel">'+esc(dm[S.sel.i][0])+': '+esc(S.sel.v)+' ✕</span></div>'}
+  if(S.dim<n){var d=dm[S.dim],c={};rows.forEach(function(x){var k=d[1](x);c[k]=(c[k]||0)+1});
+    var ks=Object.keys(c).sort(d[0]==="Hora"?undefined:function(a,b){return c[b]-c[a]}),mx=Math.max.apply(null,ks.map(function(k){return c[k]}).concat([1]));
+    h+='<div class="box"><table><tr><th>'+d[0]+'</th><th>Piezas</th><th>%</th></tr>';
+    ks.forEach(function(k){h+='<tr class="clk" data-sel="'+esc(k)+'"><td class="l">'+esc(k)+'</td><td>'+fmt(c[k])+'<span class="bar" style="width:'+Math.round(c[k]/mx*120)+'px"></span></td><td>'+(c[k]/rows.length*100).toFixed(1)+'%</td></tr>'});
+    h+='<tr class="tot"><td class="l">Total</td><td>'+fmt(rows.length)+'</td><td></td></tr></table></div><div class="note">Toca una fila para ver sus piezas.</div>'}
+  else{var q=S.bus.toLowerCase();if(q)rows=rows.filter(function(x){return(x.sku+" "+(x.cod||"")+" "+(x.d||"")+" "+(x.q||"")+" "+(x.cli||"")+" "+(x.ins||"")).toLowerCase().indexOf(q)>=0});
+    rows=rows.slice().sort(function(a,b){return(b.f+(b.h||""))>(a.f+(a.h||""))?1:-1});
+    h+='<input class="bus" id="bus" placeholder="Buscar SKU, modelo, orden, cliente…" value="'+esc(S.bus)+'"><div class="box" style="margin-top:10px"><table><tr><th class="l">Día</th><th>Hora</th><th>Línea</th><th class="l">SKU</th><th class="l">Código</th><th class="l">Modelo</th><th>Orden</th>'+(t==="emp"?'<th class="l">Cliente</th>':"")+(t==="lib"?"<th>Inspector</th>":"")+'</tr>';
+    rows.slice(0,S.max).forEach(function(x){h+='<tr><td class="l">'+dia(x.f)+'</td><td>'+esc((x.h||"").slice(0,5))+'</td><td>'+esc(x.l)+'</td><td class="l">'+esc(x.sku)+'</td><td class="l">'+esc(x.cod)+'</td><td class="l">'+esc(x.d)+'</td><td>'+esc(x.q)+'</td>'+(t==="emp"?'<td class="l">'+esc(x.cli)+"</td>":"")+(t==="lib"?"<td>"+esc(x.ins)+"</td>":"")+'</tr>'});
+    h+='</table></div>';if(rows.length>S.max)h+='<p class="note">Mostrando '+S.max+' de '+fmt(rows.length)+'. <button data-mas="1">Ver 500 más</button></p>'}
+  return h+'</div>';
+}
+function embarques(){var tar=D.tar;if(!tar)return'<div class="warn">Sin datos de embarques.</div>';if(!tar.length)return'<div class="vacio">Sin packing lists en el periodo.</div>';
+  var h='<div class="box"><table><tr><th class="l">PO</th><th class="l">Cliente</th><th class="l">Destino</th><th>Fletera</th><th>Caja</th><th>Tarimas</th><th>Piezas</th></tr>';
+  tar.forEach(function(x){h+='<tr class="clk'+(S.sel&&S.sel.v===x.po?" on":"")+'" data-po="'+esc(x.po)+'"><td class="l">'+esc(x.po)+'</td><td class="l">'+esc(x.cliente)+'</td><td class="l">'+esc(x.destino)+'</td><td>'+esc(x.fletera)+'</td><td>'+esc(x.caja)+'</td><td>'+fmt(x.tarimas)+'</td><td>'+fmt(x.piezas)+'</td></tr>'});
+  h+='</table></div>';
+  if(S.sel&&S.sel.t==="emb"){var im=D.imp.filter(function(x){return x.po===S.sel.v}).sort(function(a,b){return a.tipo+("0"+a.n).slice(-3)>b.tipo+("0"+b.n).slice(-3)?1:-1});
+    h+='<h2>Documentos impresos de '+esc(S.sel.v)+'</h2><div class="box"><table><tr><th class="l">Tipo</th><th>N°</th><th>Veces impresa</th><th>Última</th></tr>';
+    im.forEach(function(x){h+='<tr><td class="l">'+esc(x.tipo)+'</td><td>'+x.n+'</td><td>'+x.veces+'</td><td>'+String(x.ultima).replace("T"," ").slice(0,16)+'</td></tr>'});h+='</table></div>'}
+  else h+='<p class="note">Toca una PO para ver lo impreso (tarimas, identificadores, caja).</p>';return h}
+function retrabajo(){if(!D.ret)return'<div class="warn">Sin datos de retrabajo.</div>';
+  var ret=filt(D.ret.map(function(x){return{f:x.fecha,l:x.linea,id:x.id,fam:x.familia,med:x.medida,fab:x.fabricadas,c:x.cantidad}}));
+  if(!ret.length)return'<div class="vacio">Sin retrabajo capturado en el periodo (la planta aún no lo captura).</div>';
+  var h='<div class="box"><table><tr><th class="l">Día</th><th>Línea</th><th>Familia</th><th>Medida</th><th>Fabricadas</th><th>Retrabajo</th></tr>';
+  ret.forEach(function(x){h+='<tr><td class="l">'+dia(x.f)+'</td><td>'+esc(x.l)+'</td><td>'+esc(x.fam)+'</td><td>'+esc(x.med)+'</td><td>'+fmt(x.fab)+'</td><td>'+fmt(x.c)+'</td></tr>'});h+='</table></div>';
+  var dn={},ids={},p={};(D.defs||[]).forEach(function(x){dn[x.id]=x.nombre});ret.forEach(function(x){ids[x.id]=1});(D.rdef||[]).forEach(function(x){if(ids[x.retrabajo_id]){var n=dn[x.defecto_id]||"Defecto "+x.defecto_id;p[n]=(p[n]||0)+(x.cantidad||0)}});
+  var k=Object.keys(p).sort(function(a,b){return p[b]-p[a]});if(k.length){h+='<h2>Por defecto</h2><div class="box"><table><tr><th class="l">Defecto</th><th>Piezas</th></tr>';k.forEach(function(n){h+='<tr><td class="l">'+esc(n)+'</td><td>'+fmt(p[n])+'</td></tr>'});h+='</table></div>'}return h}
+document.addEventListener("click",function(e){
+  var el=e.target.closest("[data-k],[data-dia],[data-lin],[data-dim],[data-sel],[data-x],[data-po],[data-mas]");if(!el||!D)return;var d=el.dataset;
+  if(d.k!==undefined){S.t=S.t===d.k?null:d.k;S.dim=0;S.sel=null;S.bus="";S.max=200}
+  else if(d.dia!==undefined)S.dia=S.dia===d.dia?null:d.dia;
+  else if(d.lin!==undefined)S.lin=S.lin===d.lin?null:d.lin;
+  else if(d.dim!==undefined){S.dim=+d.dim;S.sel=null;S.max=200}
+  else if(d.sel!==undefined){S.sel={t:S.t,i:S.dim,v:d.sel};S.dim=DIMS(S.t).length}
+  else if(d.po!==undefined)S.sel={t:"emb",i:0,v:d.po};
+  else if(d.mas!==undefined)S.max+=500;
+  else if(d.x!==undefined){if(d.x==="dia")S.dia=null;else if(d.x==="lin")S.lin=null;else{S.dim=0;S.sel=null}}
+  var y=window.scrollY;pinta();if(d.k===undefined)window.scrollTo(0,y);else{var p=document.querySelector(".pan");if(p)p.scrollIntoView({behavior:"smooth",block:"nearest"})}
+});
+document.addEventListener("input",function(e){if(e.target.id==="bus"){S.bus=e.target.value;var p=e.target.selectionStart;$("det").innerHTML=detalle();var b=$("bus");b.focus();b.setSelectionRange(p,p)}});
 document.querySelectorAll("[data-r]").forEach(function(b){b.onclick=function(){fijar(b.dataset.r)}});
 $("ver").onclick=cargar;
 get("mvt_inspector","select=linea").then(function(x){var s={};x.forEach(function(y){if(y.linea)s[y.linea]=1});Object.keys(s).sort().forEach(function(l){var o=document.createElement("option");o.value=l;o.textContent=l;$("linea").appendChild(o)})}).catch(function(){});
