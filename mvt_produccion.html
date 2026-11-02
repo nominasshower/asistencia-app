@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Producción Modular · Supabase</title><script>document.documentElement.setAttribute("data-theme","dark")</script>
+<style>
+:root{color-scheme:light;--bg:#f4f5f7;--card:#fff;--tx:#0b0b0b;--tx2:#52514e;--mut:#8a8984;--bd:#e3e4e8;--grid:#ececee;--good:#13795b;--warn:#a86a00;--bad:#b42318;--ac:#2a78d6}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#111214;--card:#1d1e20;--tx:#f0efec;--tx2:#c3c2b7;--mut:#8f8e88;--bd:#2c2d30;--grid:#2a2b2d;--good:#5fd3a8;--warn:#f0b24a;--bad:#ff8a80;--ac:#3987e5}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 "Segoe UI",system-ui,Roboto,sans-serif}
+main{max-width:1400px;margin:0 auto;padding:22px 16px 50px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:26px;margin:0}h1 small{display:block;font-size:14px;color:var(--tx2);font-weight:400;margin-top:2px}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--mut);font-size:13px}
+input[type=date],select{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px}
+button{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:999px;padding:6px 14px;cursor:pointer}
+button.on,button.go{background:var(--ac);border-color:var(--ac);color:#fff}
+h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin:26px 0 10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.st{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:14px 16px;position:relative;overflow:hidden}
+.st::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--c)}
+.st .t{font-size:12px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.07em}
+.st .big{font-size:34px;font-weight:800;line-height:1.1;margin:4px 0 0;font-variant-numeric:tabular-nums}
+.st .s{font-size:12px;color:var(--mut);margin-top:2px}
+.box{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:6px 4px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;text-align:right;padding:9px 12px;border-bottom:1px solid var(--bd);white-space:nowrap}
+td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--grid);font-variant-numeric:tabular-nums;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}tr:last-child td{border-bottom:0}tr.tot td{font-weight:800;border-top:2px solid var(--bd)}
+.note{font-size:12px;color:var(--mut);margin:8px 2px 0}.vacio{color:var(--mut);padding:14px}
+.warn{background:rgba(240,178,74,.12);border:1px solid var(--warn);border-radius:12px;padding:10px 14px;margin:0 0 12px;font-size:13px}
+details{margin-top:12px}summary{cursor:pointer;color:var(--ac);font-weight:600}
+.foot{margin-top:26px;color:var(--mut);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Producción Modular<small>Fabricadas · Liberadas · Empaque · Embarques · Grado C · Retrabajo — leído de Supabase</small></h1>
+  <div class="ctl">
+    <button data-r="hoy">Hoy</button><button data-r="semana">Esta semana</button><button data-r="mes">Este mes</button><button data-r="mespas">Mes pasado</button>
+    <input type="date" id="desde" aria-label="Desde"><span>a</span><input type="date" id="hasta" aria-label="Hasta">
+    <select id="linea" aria-label="Línea"><option value="">Todas las líneas</option></select>
+    <button class="go" id="ver">Ver resultados</button>
+  </div>
+</header>
+<div id="avisos"></div>
+<div id="cuerpo"><div class="vacio">Elige el periodo y presiona «Ver resultados».</div></div>
+<div class="foot" id="upd"></div>
+</main>
+<script>
+var SUP="https://xzwlbrirzfogbqhywtvj.supabase.co",KEY="sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+function $(i){return document.getElementById(i)}
+function iso(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
+function fmt(n){return n==null||isNaN(n)?"—":Number(n).toLocaleString("es-MX")}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function get(t,params){var out=[];function pag(i){return fetch(SUP+"/rest/v1/"+t+"?"+params,{headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Range-Unit":"items",Range:i+"-"+(i+999)}}).then(function(r){if(!r.ok)throw new Error(t+" HTTP "+r.status);return r.json()}).then(function(d){out=out.concat(d);return d.length<1000?out:pag(i+1000)})}return pag(0)}
+function opc(t,p){return get(t,p).catch(function(){return null})}
+function rango(r){var h=new Date(),d=new Date(h);if(r==="semana"){var w=h.getDay();d.setDate(h.getDate()-(w===0?6:w-1))}else if(r==="mes"){d=new Date(h.getFullYear(),h.getMonth(),1)}else if(r==="mespas"){d=new Date(h.getFullYear(),h.getMonth()-1,1);h=new Date(h.getFullYear(),h.getMonth(),0)}return[iso(d),iso(h)]}
+function fijar(r){var x=rango(r);$("desde").value=x[0];$("hasta").value=x[1];document.querySelectorAll("[data-r]").forEach(function(b){b.classList.toggle("on",b.dataset.r===r)})}
+function card(t,n,s,c){return'<div class="st" style="--c:'+c+'"><div class="t">'+t+'</div><div class="big">'+fmt(n)+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>'}
+function dia(f){var p=f.split("-");return p[2]+"/"+p[1]}
+function sumLinea(rows,campo){var o={};rows.forEach(function(r){var l=r.linea||"—";o[l]=(o[l]||0)+1});return o}
+
+function cargar(){
+  var d=$("desde").value,h=$("hasta").value,ln=$("linea").value,fl=ln?"&linea=eq."+encodeURIComponent(ln):"";
+  $("cuerpo").innerHTML='<div class="vacio">Cargando…</div>';$("avisos").innerHTML="";
+  Promise.all([
+    get("mvt_fabricacion","select=fecha,linea,etapa,codigo_corto&fecha=gte."+d+"&fecha=lte."+h+fl),
+    get("mvt_liberacion","select=fecha,linea,inspector&fecha=gte."+d+"&fecha=lte."+h+fl),
+    get("mvt_empaque","select=fecha,linea,cliente,estatus&fecha=gte."+d+"&fecha=lte."+h+fl),
+    opc("mvt_tarima_desglose","select=po,cliente,fletera,caja,destino,tarimas,piezas,created_at&created_at=gte."+d+"T00:00:00&created_at=lte."+h+"T23:59:59"),
+    opc("mvt_retrabajo","select=id,fecha,linea,familia,medida,fabricadas,cantidad&fecha=gte."+d+"&fecha=lte."+h+fl),
+    opc("mvt_retrabajo_defecto","select=retrabajo_id,defecto_id,cantidad"),
+    opc("mvt_defecto","select=id,departamento,nombre"),
+    opc("mvt_sync_estado","select=*")
+  ]).then(function(r){pinta(r,d,h)}).catch(function(e){$("cuerpo").innerHTML='<div class="warn">No se pudo leer Supabase: '+esc(e.message)+'</div>'})
+}
+function pinta(r,d,h){
+  var fab=r[0].filter(function(x){return x.etapa!=="CANCELADO"}),gc=r[0].filter(function(x){return x.etapa==="Grado C"}),
+      lib=r[1],emp=r[2].filter(function(x){return x.estatus==="Empacado"}),tar=r[3],ret=r[4],rdef=r[5],defs=r[6],est=r[7];
+  var wip=fab.filter(function(x){return x.etapa==="WIP"}).length;
+  var retPz=ret?ret.reduce(function(a,x){return a+(x.cantidad||0)},0):0;
+  var tTar=tar?tar.reduce(function(a,x){return a+(x.tarimas||0)},0):0,tPz=tar?tar.reduce(function(a,x){return a+(x.piezas||0)},0):0;
+  var html='<div class="cards">'+card("Fabricadas",fab.length,"incluye Grado C","#2a78d6")+card("Liberadas",lib.length,"","#13795b")+card("Empacadas",emp.length,"","#8b5cf6")
+    +card("Grado C",gc.length,fab.length?(gc.length/fab.length*100).toFixed(1)+"% de lo fabricado":"","#b42318")
+    +card("Sin liberar (WIP)",wip,"fabricadas del periodo","#a86a00")
+    +card("Embarques · tarimas",tar?tTar:null,tar?fmt(tar.length)+" PO · "+fmt(tPz)+" piezas":"tabla aún no existe","#0ea5a5")
+    +card("Retrabajo",ret?retPz:null,ret?fmt(ret.length)+" registros":"tabla aún no existe","#f97316")+'</div>';
+  // por día
+  var dias={};function a(f,k){if(!f)return;dias[f]=dias[f]||{fab:0,lib:0,emp:0,gc:0,ret:0};dias[f][k]++}
+  fab.forEach(function(x){a(x.fecha,"fab")});gc.forEach(function(x){a(x.fecha,"gc")});lib.forEach(function(x){a(x.fecha,"lib")});emp.forEach(function(x){a(x.fecha,"emp")});
+  (ret||[]).forEach(function(x){dias[x.fecha]=dias[x.fecha]||{fab:0,lib:0,emp:0,gc:0,ret:0};dias[x.fecha].ret+=x.cantidad||0});
+  var ks=Object.keys(dias).sort().reverse(),T={fab:0,lib:0,emp:0,gc:0,ret:0};
+  html+='<h2>Día por día</h2><div class="box"><table><tr><th>Día</th><th>Fabricadas</th><th>Liberadas</th><th>Empacadas</th><th>Grado C</th><th>Retrabajo</th></tr>';
+  ks.forEach(function(k){var v=dias[k];for(var q in T)T[q]+=v[q];html+='<tr><td>'+dia(k)+'</td><td>'+fmt(v.fab)+'</td><td>'+fmt(v.lib)+'</td><td>'+fmt(v.emp)+'</td><td>'+fmt(v.gc)+'</td><td>'+fmt(v.ret)+'</td></tr>'});
+  html+='<tr class="tot"><td>Total</td><td>'+fmt(T.fab)+'</td><td>'+fmt(T.lib)+'</td><td>'+fmt(T.emp)+'</td><td>'+fmt(T.gc)+'</td><td>'+fmt(T.ret)+'</td></tr></table></div>';
+  // por línea
+  var L={};function b(l,k){l=l||"—";L[l]=L[l]||{fab:0,lib:0,emp:0,gc:0};L[l][k]++}
+  fab.forEach(function(x){b(x.linea,"fab")});gc.forEach(function(x){b(x.linea,"gc")});lib.forEach(function(x){b(x.linea,"lib")});emp.forEach(function(x){b(x.linea,"emp")});
+  html+='<h2>Por línea</h2><div class="box"><table><tr><th>Línea</th><th>Fabricadas</th><th>Liberadas</th><th>Empacadas</th><th>Grado C</th></tr>';
+  Object.keys(L).sort().forEach(function(k){var v=L[k];html+='<tr><td>'+esc(k)+'</td><td>'+fmt(v.fab)+'</td><td>'+fmt(v.lib)+'</td><td>'+fmt(v.emp)+'</td><td>'+fmt(v.gc)+'</td></tr>'});
+  html+='</table></div>';
+  // embarques
+  html+='<h2>Embarques</h2>';
+  if(!tar)html+='<div class="warn">Las tablas de embarques aún no están en Supabase (falta correr el SQL).</div>';
+  else if(!tar.length)html+='<div class="box"><div class="vacio">Sin packing lists en el periodo.</div></div>';
+  else{html+='<div class="box"><table><tr><th>PO</th><th>Cliente</th><th>Destino</th><th>Fletera</th><th>Caja</th><th>Tarimas</th><th>Piezas</th></tr>';
+    tar.forEach(function(x){html+='<tr><td>'+esc(x.po)+'</td><td style="text-align:left">'+esc(x.cliente)+'</td><td style="text-align:left">'+esc(x.destino)+'</td><td>'+esc(x.fletera)+'</td><td>'+esc(x.caja)+'</td><td>'+fmt(x.tarimas)+'</td><td>'+fmt(x.piezas)+'</td></tr>'});html+='</table></div>'}
+  // retrabajo
+  html+='<h2>Retrabajo</h2>';
+  if(!ret)html+='<div class="warn">Las tablas de retrabajo aún no están en Supabase (falta correr el SQL).</div>';
+  else if(!ret.length)html+='<div class="box"><div class="vacio">Sin retrabajo capturado en el periodo.</div></div>';
+  else{var dn={};(defs||[]).forEach(function(x){dn[x.id]=x.nombre});var ids={};ret.forEach(function(x){ids[x.id]=1});
+    var porD={};(rdef||[]).forEach(function(x){if(ids[x.retrabajo_id]){var n=dn[x.defecto_id]||("Defecto "+x.defecto_id);porD[n]=(porD[n]||0)+(x.cantidad||0)}});
+    html+='<div class="box"><table><tr><th>Día</th><th>Línea</th><th>Familia</th><th>Medida</th><th>Fabricadas</th><th>Retrabajo</th></tr>';
+    ret.sort(function(a,b){return a.fecha<b.fecha?1:-1}).forEach(function(x){html+='<tr><td>'+dia(x.fecha)+'</td><td>'+esc(x.linea)+'</td><td>'+esc(x.familia)+'</td><td>'+esc(x.medida)+'</td><td>'+fmt(x.fabricadas)+'</td><td>'+fmt(x.cantidad)+'</td></tr>'});
+    html+='</table></div>';
+    var dk=Object.keys(porD).sort(function(a,b){return porD[b]-porD[a]});
+    if(dk.length){html+='<h2>Retrabajo por defecto</h2><div class="box"><table><tr><th>Defecto</th><th>Piezas</th></tr>';dk.forEach(function(k){html+='<tr><td>'+esc(k)+'</td><td>'+fmt(porD[k])+'</td></tr>'});html+='</table></div>'}}
+  // grado C por modelo (medida)
+  if(gc.length){var M={};gc.forEach(function(x){var m=(x.codigo_corto||"?").slice(0,4);M[m]=(M[m]||0)+1});
+    html+='<details><summary>Grado C por medida (4 primeros dígitos del código)</summary><div class="box"><table><tr><th>Medida</th><th>Grado C</th></tr>';
+    Object.keys(M).sort(function(a,b){return M[b]-M[a]}).forEach(function(k){html+='<tr><td>'+esc(k)+'</td><td>'+fmt(M[k])+'</td></tr>'});html+='</table></div></details>'}
+  $("cuerpo").innerHTML=html;
+  if(est){est.forEach(function(e){if(e.clave==="ultima_ok")$("upd").textContent="Última sincronización del servidor: "+e.valor.slice(0,16)})}
+}
+document.querySelectorAll("[data-r]").forEach(function(b){b.onclick=function(){fijar(b.dataset.r)}});
+$("ver").onclick=cargar;
+get("mvt_inspector","select=linea").then(function(x){var s={};x.forEach(function(y){if(y.linea)s[y.linea]=1});Object.keys(s).sort().forEach(function(l){var o=document.createElement("option");o.value=l;o.textContent=l;$("linea").appendChild(o)})}).catch(function(){});
+fijar("hoy");
+</script>
+</body>
+</html>
