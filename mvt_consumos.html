@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consumos de materia prima · Modular</title><script>document.documentElement.setAttribute("data-theme","dark")</script>
+<style>
+:root{color-scheme:light;--bg:#f4f5f7;--card:#fff;--tx:#0b0b0b;--tx2:#52514e;--mut:#8a8984;--bd:#e3e4e8;--grid:#ececee;--fab:#2a78d6;--good:#13795b;--warn:#a86a00;--bad:#b42318;--ac:#2a78d6}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;--bg:#111214;--card:#1d1e20;--tx:#f0efec;--tx2:#c3c2b7;--mut:#8f8e88;--bd:#2c2d30;--grid:#2a2b2d;--fab:#3987e5;--good:#5fd3a8;--warn:#f0b24a;--bad:#ff8a80;--ac:#3987e5}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#111214;--card:#1d1e20;--tx:#f0efec;--tx2:#c3c2b7;--mut:#8f8e88;--bd:#2c2d30;--grid:#2a2b2d;--fab:#3987e5;--good:#5fd3a8;--warn:#f0b24a;--bad:#ff8a80;--ac:#3987e5}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 "Segoe UI",system-ui,Roboto,sans-serif}
+main{max-width:1500px;margin:0 auto;padding:22px 28px 50px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:26px;margin:0}h1 small{display:block;font-size:14px;color:var(--tx2);font-weight:400;margin-top:2px}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--mut);font-size:13px}
+input[type=date]{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px}
+button{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:999px;padding:6px 14px;cursor:pointer}
+button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin:26px 0 10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
+.st{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px 18px;position:relative;overflow:hidden}
+.st::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--c)}
+.st .t{font-size:13px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.07em}
+.st .big{font-size:40px;font-weight:800;line-height:1.1;margin:4px 0 0;font-variant-numeric:tabular-nums}.st .big small{font-size:15px;color:var(--mut);font-weight:600}
+.st .row{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--tx2);margin-top:6px}.st .row b{color:var(--tx);font-variant-numeric:tabular-nums}
+.pct{font-weight:800}.ok{color:var(--good)}.wn{color:var(--warn)}.bd{color:var(--bad)}
+.box{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:6px 4px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;text-align:right;padding:9px 12px;border-bottom:1px solid var(--bd);white-space:nowrap}
+td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--grid);font-variant-numeric:tabular-nums;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}tr:last-child td{border-bottom:0}tr.tot td{font-weight:800;border-top:2px solid var(--bd)}
+.note{font-size:12px;color:var(--mut);margin:8px 2px 0}.vacio{color:var(--mut);padding:14px}
+.warn{background:rgba(240,178,74,.12);border:1px solid var(--warn);color:var(--tx);border-radius:12px;padding:10px 14px;margin:0 0 12px;font-size:13px}
+details{margin-top:12px}summary{cursor:pointer;color:var(--ac);font-weight:600}
+.foot{margin-top:26px;color:var(--mut);font-size:14px;display:flex;gap:18px;flex-wrap:wrap}.foot a{color:var(--ac);text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Consumos de materia prima<small id="sub">Lo que salió del almacén (Odoo) contra lo que debió gastarse en lo fabricado</small></h1>
+  <div class="ctl">
+    <button data-r="semana">Esta semana</button><button data-r="mes">Este mes</button><button data-r="mespas">Mes pasado</button><button data-r="30">30 días</button>
+    <input type="date" id="desde" aria-label="Desde"><span>a</span><input type="date" id="hasta" aria-label="Hasta">
+    <button onclick="location.href='/mvt_menu.html'">⌂ Menú</button>
+  </div>
+</header>
+<div id="avisos"></div>
+<div id="cuerpo"><div class="vacio">Cargando…</div></div>
+<div class="foot"><a href="/mvt.html">← Panel de producción</a><span id="upd"></span></div>
+</main>
+<script>
+var SUP="https://xzwlbrirzfogbqhywtvj.supabase.co",KEY="sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G";
+var MATS=[{k:"gel",n:"Gel Coat",odoo:"Gel Coat",c:"#3b82f6"},{k:"cat",n:"Catalizador",odoo:"Catalizador Gelcoat",c:"#8b5cf6"},{k:"res",n:"Resina",odoo:"Resina",c:"#f59e0b"},{k:"mar",n:"Marmolina",odoo:"Marmolina Estens",c:"#22c55e"},{k:"tit",n:"Titanio",odoo:"Bioxido de Titanio",c:"#f97316"}];
+var WARN=15,CRIT=30,MIN_MUESTRAS=5,F_GEL=.045,F_CAT=.025,F_RES=.18,F_MAR=.82;
+function $(i){return document.getElementById(i)}
+function iso(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
+function fmt(n,d){if(n==null||isNaN(n))return"—";return Number(n).toLocaleString("es-MX",{minimumFractionDigits:d||0,maximumFractionDigits:d==null?0:d})}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function pctHtml(real,teo){if(!teo)return'<span class="pct">—</span>';if(!real)return'<span class="pct" style="color:var(--mut)">sin salidas</span>';var p=(real-teo)/teo*100,a=Math.abs(p),c=a<WARN?"ok":(a<CRIT?"wn":"bd");return'<span class="pct '+c+'">'+(p>0?"+":"")+fmt(p,1)+"%</span>"}
+function get(t,params){var out=[];function pag(i){return fetch(SUP+"/rest/v1/"+t+"?"+params,{headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Range-Unit":"items",Range:i+"-"+(i+999)}}).then(function(r){if(!r.ok)throw new Error(t+" HTTP "+r.status);return r.json()}).then(function(d){out=out.concat(d);return d.length<1000?out:pag(i+1000)})}return pag(0)}
+function rango(r){var h=new Date(),d=new Date(h);if(r==="semana"){var w=h.getDay();d.setDate(h.getDate()-(w===0?6:w-1))}else if(r==="mes"){d=new Date(h.getFullYear(),h.getMonth(),1)}else if(r==="mespas"){d=new Date(h.getFullYear(),h.getMonth()-1,1);h=new Date(h.getFullYear(),h.getMonth(),0)}else{d.setDate(h.getDate()-29)}return[iso(d),iso(h)]}
+function receta(rec,code,piezas,pesoKg){var r=rec[code];if(r&&r.peso>0)return{gel:(r.gelcoat_sw||0)+(r.gelcoat_ww||0),cat:(r.cat_gc||0)+(r.cat_res||0),res:r.resina||0,mar:r.marmolina||0,tit:r.titanio||0,peso:r.peso,ok:true};
+  var w=piezas?pesoKg/piezas:0,g=w*F_GEL,cg=g*F_CAT,resto=w-g-cg,rs=resto*F_RES;return{gel:g,cat:cg+rs*F_CAT,res:rs,mar:resto*F_MAR,tit:0,peso:w,ok:false}}
+var DATOS=null,SELR="mes";
+function cargar(){
+  var d=$("desde").value,h=$("hasta").value;$("cuerpo").innerHTML='<div class="vacio">Cargando…</div>';
+  Promise.all([get("mvt_fab_resumen","select=fecha,linea,code,etapa,piezas,peso_kg&fecha=gte."+d+"&fecha=lte."+h),
+    get("mvt_salidas_almacen","select=fecha,material,producto_codigo,cantidad_kg,workstation,transferencia&fecha=gte."+d+"&fecha=lte."+h+"&order=fecha.desc"),
+    get("mvt_llegadas_almacen","select=fecha,material,cantidad_kg,transferencia&fecha=gte."+d+"&fecha=lte."+h+"&order=fecha.desc"),
+    get("mvt_receta_modelo","select=*"),get("mvt_peso_real","select=code,peso_real,origen"),get("mvt_sync_estado","select=clave,valor"),
+    get("mvt_consumo_fisico","select=*&fecha=gte."+d+"&fecha=lte."+h).catch(function(){return null})
+  ]).then(function(r){DATOS={fab:r[0],sal:r[1],lle:r[2],rec:r[3],pr:r[4],est:r[5],fis:r[6]};dibujar(d,h)}).catch(function(e){$("cuerpo").innerHTML='<div class="vacio">No pude leer los datos: '+esc(e.message)+'</div>'})}
+function dibujar(d,h){
+  var rec={};DATOS.rec.forEach(function(r){rec[r.code]=r});
+  // peso nuevo por modelo: promedio de capturas de bascula (>= MIN_MUESTRAS) o, si no, el promedio inicial (libro1)
+  var cap={},ini={};DATOS.pr.forEach(function(r){var m=r.origen==="captura"?cap:ini;(m[r.code]=m[r.code]||[]).push(Number(r.peso_real))});
+  var pn={};Object.keys(ini).concat(Object.keys(cap)).forEach(function(c){var a=cap[c];if(a&&a.length>=MIN_MUESTRAS)pn[c]={v:a.reduce(function(x,y){return x+y},0)/a.length,n:a.length,f:"báscula"};else if(ini[c])pn[c]={v:ini[c].reduce(function(x,y){return x+y},0)/ini[c].length,n:ini[c].length,f:"Libro1"}});
+  var teo={},teoN={},porDia={},porCode={},sinReceta={},piezas=0;MATS.forEach(function(m){teo[m.k]=0;teoN[m.k]=0});
+  DATOS.fab.forEach(function(f){var n=f.piezas,rc=receta(rec,f.code,n,Number(f.peso_kg));if(!rc.ok)sinReceta[f.code]=(sinReceta[f.code]||0)+n;piezas+=n;
+    var esc_=pn[f.code]&&rc.peso>0?pn[f.code].v/rc.peso:1,dd=porDia[f.fecha]=porDia[f.fecha]||{p:0,t:0};dd.p+=n;
+    MATS.forEach(function(m){var v=n*rc[m.k];teo[m.k]+=v;teoN[m.k]+=v*esc_;dd.t+=v});
+    var pc=porCode[f.code]=porCode[f.code]||{n:0,std:rc.peso};pc.n+=n});
+  var real={},otras={},ent={};MATS.forEach(function(m){real[m.k]=0;otras[m.k]=0;ent[m.k]=0});
+  var byOdoo={};MATS.forEach(function(m){byOdoo[m.odoo]=m.k});var salDia={};
+  DATOS.sal.forEach(function(s){var k=byOdoo[s.material];if(!k)return;var q=Number(s.cantidad_kg);if(s.workstation==="Fabricación"){real[k]+=q;salDia[s.fecha]=(salDia[s.fecha]||0)+q}else otras[k]+=q});
+  DATOS.lle.forEach(function(l){var k=byOdoo[l.material];if(k)ent[k]+=Number(l.cantidad_kg)});
+  var tR=0,tT=0,tN=0;MATS.forEach(function(m){tR+=real[m.k];tT+=teo[m.k];tN+=teoN[m.k]});
+  var fis=null,fisN=0,fisDias={};if(DATOS.fis&&DATOS.fis.length){fis={gel:0,cat:0,res:0,mar:0,tit:0};DATOS.fis.forEach(function(x){fisN++;fisDias[x.fecha]=1;fis.gel+=Number(x.gelcoat||0)+Number(x.gc_trans||0);fis.cat+=Number(x.cat_gelcoat||0)+Number(x.cat_resina||0);fis.res+=Number(x.resina||0);fis.mar+=Number(x.marmolina||0);fis.tit+=Number(x.titanio||0)})}
+  var ult={};DATOS.est.forEach(function(e){ult[e.clave]=e.valor});
+  $("upd").textContent="Odoo al "+(ult.odoo_ultima_ok||"—")+" · Fabricación al "+(ult.ultima_ok||"—");
+  var av="";var nsr=Object.keys(sinReceta).length;
+  if(nsr)av+='<div class="warn">'+nsr+' modelo(s) sin receta ('+fmt(Object.keys(sinReceta).reduce(function(a,c){return a+sinReceta[c]},0))+' piezas): se calcularon con factores generales. '+esc(Object.keys(sinReceta).slice(0,6).join(", "))+(nsr>6?"…":"")+'</div>';
+  if(!DATOS.fab.length)av+='<div class="warn">No hay fabricación registrada en este periodo.</div>';
+  $("avisos").innerHTML=av;
+  var h_='<div class="cards">'+MATS.map(function(m){return'<div class="st" style="--c:'+m.c+'"><div class="t">'+m.n+'</div><div class="big">'+fmt(real[m.k])+' <small>kg real</small></div>'+
+    '<div class="row"><span>Teórico (peso estándar)</span><b>'+fmt(teo[m.k])+' kg &nbsp;'+pctHtml(real[m.k],teo[m.k])+'</b></div>'+
+    '<div class="row"><span>Teórico (peso físico, no oficial)</span><b>'+fmt(teoN[m.k])+' kg &nbsp;'+pctHtml(real[m.k],teoN[m.k])+'</b></div>'+(fis?'<div class="row"><span>Físico capturado</span><b>'+fmt(fis[m.k])+' kg &nbsp;'+pctHtml(fis[m.k],teo[m.k])+'</b></div>':'')+'</div>'}).join("")+'</div>';
+  h_+='<h2>Real contra teórico por material</h2><div class="box"><table><tr><th>Material</th><th>Real (salió a Fabricación)</th><th>Teórico estándar</th><th>Diferencia</th><th>%</th><th>Teórico peso físico (no oficial)</th><th>Diferencia</th><th>%</th></tr>'+
+    MATS.map(function(m){return'<tr><td>'+m.n+'</td><td>'+fmt(real[m.k])+'</td><td>'+fmt(teo[m.k])+'</td><td>'+fmt(real[m.k]-teo[m.k])+'</td><td>'+pctHtml(real[m.k],teo[m.k])+'</td><td>'+fmt(teoN[m.k])+'</td><td>'+fmt(real[m.k]-teoN[m.k])+'</td><td>'+pctHtml(real[m.k],teoN[m.k])+'</td></tr>'}).join("")+
+    '<tr class="tot"><td>Total</td><td>'+fmt(tR)+'</td><td>'+fmt(tT)+'</td><td>'+fmt(tR-tT)+'</td><td>'+pctHtml(tR,tT)+'</td><td>'+fmt(tN)+'</td><td>'+fmt(tR-tN)+'</td><td>'+pctHtml(tR,tN)+'</td></tr></table></div>'+
+    '<p class="note">'+fmt(piezas)+' piezas fabricadas en el periodo (incluye Grado C, sin canceladas). El catalizador de Odoo no distingue gelcoat de resina, por eso se compara el total. En periodos cortos hay desfase: el material sale del almacén por lotes.</p>';
+  var tF=0,tTf=0;
+  if(fis){MATS.forEach(function(m){tF+=fis[m.k];tTf+=teo[m.k]});
+    h_+='<h2>Consumo físico capturado</h2><div class="box"><table><tr><th>Material</th><th>Físico (kg)</th><th>Teórico estándar</th><th>Diferencia</th><th>%</th><th>Salió a Fabricación</th><th>Salidas vs físico</th></tr>'+
+      MATS.map(function(m){return'<tr><td>'+m.n+'</td><td>'+fmt(fis[m.k])+'</td><td>'+fmt(teo[m.k])+'</td><td>'+fmt(fis[m.k]-teo[m.k])+'</td><td>'+pctHtml(fis[m.k],teo[m.k])+'</td><td>'+fmt(real[m.k])+'</td><td>'+pctHtml(real[m.k],fis[m.k])+'</td></tr>'}).join("")+
+      '<tr class="tot"><td>Total</td><td>'+fmt(tF)+'</td><td>'+fmt(tTf)+'</td><td>'+fmt(tF-tTf)+'</td><td>'+pctHtml(tF,tTf)+'</td><td>'+fmt(tR)+'</td><td>'+pctHtml(tR,tF)+'</td></tr></table></div>'+
+      '<p class="note">'+fisN+' registro(s) en '+Object.keys(fisDias).length+' día(s), capturados por día y línea en el reporte de producción. Gel coat incluye el transparente; catalizador suma el de gel coat y el de resina.</p>'}
+  else h_+='<h2>Consumo físico capturado</h2><div class="box"><div class="vacio">Aún no hay consumo físico capturado en este periodo.</div></div>';
+  h_+='<p class="note">Notas de Procesos: el peso oficial es el estándar. Gel coat y catalizador: los porcentajes (4.5 % y 2.5 %) siguen vigentes; el exceso real viene de usar más pasta por pieza y no cuadra hasta que se fije el consumo de gel coat por pieza. Titanio: en Odoo el pigmento sale como una sola salida y Procesos lo separa por dentro en titanio y resina, así que no se compara directo. Marmolina: Estens y Estens Tono SW suman contra una sola receta. Granitos, pigmento negro y monómero de estireno no se incluyen por ahora.</p>';
+  h_+='<h2>Entradas y salidas del almacén</h2><div class="box"><table><tr><th>Material</th><th>Entradas (proveedores)</th><th>Salidas a Fabricación</th><th>Otras salidas*</th><th>Movimiento neto</th></tr>'+
+    MATS.map(function(m){var net=ent[m.k]-real[m.k]-otras[m.k];return'<tr><td>'+m.n+'</td><td>'+fmt(ent[m.k])+'</td><td>'+fmt(real[m.k])+'</td><td>'+fmt(otras[m.k])+'</td><td class="'+(net<0?"bd":"ok")+'">'+(net>0?"+":"")+fmt(net)+'</td></tr>'}).join("")+'</table></div>'+
+    '<p class="note">*Otras salidas: tránsito a otras empresas, ajustes de inventario y devoluciones a proveedor. Cantidades en kg.</p>';
+  var cods=Object.keys(pn).filter(function(c){return rec[c]&&rec[c].peso>0}).sort(function(a,b){return Math.abs(pn[b].v/rec[b].peso-1)-Math.abs(pn[a].v/rec[a].peso-1)});
+  h_+='<h2>Peso físico (báscula) contra peso estándar</h2><div class="box">'+(cods.length?'<table><tr><th>Modelo</th><th>Peso estándar</th><th>Peso físico</th><th>Muestras</th><th>Fuente</th><th>Diferencia</th><th>Piezas fabricadas</th><th>Impacto (kg)</th></tr>'+
+    cods.slice(0,40).map(function(c){var r=rec[c],p=pn[c],dif=(p.v/r.peso-1)*100,np=porCode[c]?porCode[c].n:0;return'<tr><td>'+esc(c)+' · '+esc(r.modelo||"")+'</td><td>'+fmt(r.peso,2)+'</td><td>'+fmt(p.v,2)+'</td><td>'+p.n+'</td><td>'+p.f+'</td><td class="'+(Math.abs(dif)>=5?"wn":"")+'">'+(dif>0?"+":"")+fmt(dif,1)+'%</td><td>'+fmt(np)+'</td><td>'+fmt((p.v-r.peso)*np,1)+'</td></tr>'}).join("")+'</table>':'<div class="vacio">Aún no hay pesos nuevos.</div>')+'</div>'+
+    '<p class="note">Solo referencia: el peso oficial para el teórico es el estándar. Peso físico = promedio de los pesos reales de la báscula (mínimo '+MIN_MUESTRAS+' piezas por modelo); mientras tanto se usa el promedio inicial de Libro1. Impacto = diferencia de peso × piezas fabricadas en el periodo. Ordenado por mayor diferencia.</p>';
+  var fechas=Object.keys(porDia).concat(Object.keys(salDia)).filter(function(x,i,a){return a.indexOf(x)===i}).sort().reverse();
+  h_+='<h2>Día por día</h2><div class="box"><table><tr><th>Fecha</th><th>Piezas fabricadas</th><th>Teórico total (kg)</th><th>Salió a Fabricación (kg)</th></tr>'+(fechas.map(function(f){var p=porDia[f]||{p:0,t:0};return'<tr><td>'+f+'</td><td>'+fmt(p.p)+'</td><td>'+fmt(p.t)+'</td><td>'+fmt(salDia[f]||0)+'</td></tr>'}).join("")||'<tr><td colspan="4" class="vacio">Sin movimientos</td></tr>')+'</table></div>';
+  h_+='<details><summary>Ver transferencias del periodo ('+DATOS.sal.length+' salidas, '+DATOS.lle.length+' entradas)</summary><div class="box"><table><tr><th>Fecha</th><th>Transferencia</th><th>Material</th><th>Destino / origen</th><th>kg</th></tr>'+
+    DATOS.sal.slice(0,300).map(function(s){return'<tr><td>'+s.fecha+'</td><td>'+esc(s.transferencia)+'</td><td>'+esc(s.material)+'</td><td>→ '+esc(s.workstation)+'</td><td>'+fmt(s.cantidad_kg,1)+'</td></tr>'}).join("")+
+    DATOS.lle.slice(0,200).map(function(s){return'<tr><td>'+s.fecha+'</td><td>'+esc(s.transferencia)+'</td><td>'+esc(s.material)+'</td><td>← Proveedor</td><td>'+fmt(s.cantidad_kg,1)+'</td></tr>'}).join("")+'</table></div></details>';
+  $("cuerpo").innerHTML=h_}
+function fijar(r){SELR=r;var x=rango(r);$("desde").value=x[0];$("hasta").value=x[1];[].forEach.call(document.querySelectorAll("button[data-r]"),function(b){b.className=b.getAttribute("data-r")===r?"on":""});cargar()}
+[].forEach.call(document.querySelectorAll("button[data-r]"),function(b){b.onclick=function(){fijar(b.getAttribute("data-r"))}});
+$("desde").onchange=$("hasta").onchange=function(){[].forEach.call(document.querySelectorAll("button[data-r]"),function(b){b.className=""});cargar()};
+fijar("30");
+</script>
+</body>
+</html>
