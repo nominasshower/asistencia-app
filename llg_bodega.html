@@ -132,6 +132,23 @@
     <button class="ghost" onclick="reiniciar()">Escanear otro / Scan another</button>
   </div>
 
+  <div class="card" id="paso-bol">
+    <h2>Documento firmado / Signed BOL</h2>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:10px">Escribe la Q y sube la foto del BOL firmado.<br>Type the Q and upload a photo of the signed BOL.</div>
+    <input type="text" id="bol-q" placeholder="Q (ej. / e.g. Q12751)" autocomplete="off" autocapitalize="characters" style="margin-bottom:12px"
+           oninput="actualizarBol()">
+    <div class="foto-bloque">
+      <img id="bol-prev" class="oculto" alt="">
+      <label class="foto-btn" id="bol-label">
+        <span id="bol-texto">📄 Tomar o elegir foto del BOL / Take or choose BOL photo</span>
+        <input type="file" accept="image/*" id="bol-input" onchange="bolFotoTomada(this)">
+      </label>
+    </div>
+    <div id="msg-bol"></div>
+    <button class="primary" id="btn-bol" onclick="subirBol()" disabled>Subir BOL firmado / Upload signed BOL</button>
+    <div id="bol-recientes" style="margin-top:14px"></div>
+  </div>
+
   <div class="card">
     <h2>Últimos movimientos / Recent</h2>
     <div id="recientes"><div class="cli" style="color:var(--muted)">Cargando…</div></div>
@@ -171,6 +188,7 @@ async function entrar() {
     msg.innerHTML = '';
     mostrarAcceso(false);
     cargarRecientes();
+    cargarBol();
   } catch (e) {
     msg.innerHTML = `<div class="msg error">Error: ${esc(e.message)}</div>`;
   }
@@ -290,21 +308,26 @@ function pintarFoto() {
   label.querySelector('input').disabled = yaLlego;
 }
 
-// Reduce la foto a máx. 1280 px y JPEG calidad 0.7 (≈ 150-250 KB) para ahorrar datos y espacio
+// Reduce la foto a máx. `lado` px y JPEG calidad `calidad` para ahorrar datos y espacio
+async function reducirImagen(file, lado, calidad) {
+  const url = URL.createObjectURL(file);
+  const im = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; });
+  const k = Math.min(1, lado / Math.max(im.naturalWidth, im.naturalHeight));
+  const c = document.createElement('canvas');
+  c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+  c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(url);
+  return new Promise(ok => c.toBlob(ok, 'image/jpeg', calidad));
+}
+
+// Foto del burrito: máx. 1280 px, calidad 0.7 (≈ 150-250 KB)
 async function fotoTomada(input) {
   const file = input.files && input.files[0];
   input.value = '';
   if (!file) return;
   const msg = document.getElementById('msg-marcar');
   try {
-    const url = URL.createObjectURL(file);
-    const im = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; });
-    const k = Math.min(1, 1280 / Math.max(im.naturalWidth, im.naturalHeight));
-    const c = document.createElement('canvas');
-    c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
-    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-    URL.revokeObjectURL(url);
-    fotoBlob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.7));
+    fotoBlob = await reducirImagen(file, 1280, 0.7);
     msg.innerHTML = '';
   } catch (e) {
     fotoBlob = null;
@@ -312,6 +335,93 @@ async function fotoTomada(input) {
   }
   pintarFoto();
   actualizarBotones();
+}
+
+// ── Documento firmado (Signed BOL): se sube por Q, sin escanear burrito ─────────────────────
+let bolBlob = null;   // JPEG reducido (más resolución que la foto del burrito: es un documento con texto)
+const bolQ = () => document.getElementById('bol-q').value.trim().toUpperCase();
+
+function actualizarBol() {
+  document.getElementById('btn-bol').disabled = !(bolBlob && /^Q\d{4,6}$/.test(bolQ()));
+}
+
+function pintarBol() {
+  const img = document.getElementById('bol-prev');
+  img.classList.toggle('oculto', !bolBlob);
+  if (bolBlob) img.src = URL.createObjectURL(bolBlob);
+  document.getElementById('bol-label').classList.toggle('lista', !!bolBlob);
+  document.getElementById('bol-texto').textContent = bolBlob
+    ? '📄 Repetir foto / Retake photo'
+    : '📄 Tomar o elegir foto del BOL / Take or choose BOL photo';
+}
+
+async function bolFotoTomada(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const msg = document.getElementById('msg-bol');
+  try {
+    bolBlob = await reducirImagen(file, 2000, 0.75);
+    msg.innerHTML = '';
+  } catch (e) {
+    bolBlob = null;
+    msg.innerHTML = '<div class="msg error">No se pudo leer la foto / Could not read the photo</div>';
+  }
+  pintarBol();
+  actualizarBol();
+}
+
+async function subirBol() {
+  const msg = document.getElementById('msg-bol');
+  const q = bolQ();
+  const quien = nombre();
+  if (!quien) {
+    msg.innerHTML = '<div class="msg error">Escribe tu nombre arriba / Type your name above</div>';
+    document.getElementById('escaneado-por').focus();
+    return;
+  }
+  if (!/^Q\d{4,6}$/.test(q) || !bolBlob) return;
+  const btn = document.getElementById('btn-bol');
+  btn.disabled = true;
+  msg.innerHTML = '<div class="msg info">Subiendo… / Uploading…</div>';
+  try {
+    const ruta = `bol/${q}/${Date.now()}.jpg`;
+    const res = await fetch(`${SUP_URL}/storage/v1/object/llg-fotos/${ruta}`, {
+      method: 'POST',
+      headers: { ...HDR, 'Content-Type': 'image/jpeg', 'x-llg-clave': clave },
+      body: bolBlob,
+    });
+    if (!res.ok) throw new Error('No se pudo subir la foto / Photo upload failed (' + res.status + ')');
+    await sb('rpc/llg_subir_bol', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_q: q, p_por: quien, p_foto: `${SUP_URL}/storage/v1/object/public/llg-fotos/${ruta}`, p_clave: clave }),
+    });
+    bolBlob = null;
+    document.getElementById('bol-q').value = '';
+    pintarBol();
+    msg.innerHTML = `<div class="msg ok">✓ BOL de ${esc(q)} guardado / saved</div>`;
+    cargarBol();
+  } catch (err) {
+    if (/clave_invalida/.test(err.message)) { salirAcceso(); return; }
+    msg.innerHTML = `<div class="msg error">No se guardó / Not saved: ${esc(err.message)}</div>`;
+  }
+  actualizarBol();
+}
+
+async function cargarBol() {
+  const caja = document.getElementById('bol-recientes');
+  try {
+    const filas = await sb('rpc/llg_bol_recientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_clave: clave, p_limite: 10 }),
+    });
+    caja.innerHTML = (filas && filas.length)
+      ? '<div style="color:var(--muted);font-size:13px;margin-bottom:6px">Últimos BOL / Recent BOLs</div>' +
+        filas.map(f => `<div style="font-size:14px;margin-top:4px"><b>${esc(f.q)}</b> · ${esc(f.subido_por)} · ${fmt(f.subido_en)} · <a href="${esc(f.foto_url)}" target="_blank" rel="noopener">ver / view</a></div>`).join('')
+      : '';
+  } catch (e) { caja.innerHTML = ''; }
 }
 
 async function subirFoto(uuid) {
@@ -564,7 +674,7 @@ function reiniciar() {
 }
 
 (async () => {
-  try { if (clave && await claveCorrecta(clave)) { mostrarAcceso(false); cargarRecientes(); return; } } catch (e) {}
+  try { if (clave && await claveCorrecta(clave)) { mostrarAcceso(false); cargarRecientes(); cargarBol(); return; } } catch (e) {}
   salirAcceso();
 })();
 </script>
