@@ -140,8 +140,8 @@
     <div class="foto-bloque">
       <img id="bol-prev" class="oculto" alt="">
       <label class="foto-btn" id="bol-label">
-        <span id="bol-texto">📄 Tomar o elegir foto del BOL / Take or choose BOL photo</span>
-        <input type="file" accept="image/*" id="bol-input" onchange="bolFotoTomada(this)">
+        <span id="bol-texto">📄 Tomar foto del BOL / Take BOL photo</span>
+        <input type="file" accept="image/*" capture="environment" id="bol-input" onchange="bolFotoTomada(this)">
       </label>
     </div>
     <div id="msg-bol"></div>
@@ -352,7 +352,7 @@ function pintarBol() {
   document.getElementById('bol-label').classList.toggle('lista', !!bolBlob);
   document.getElementById('bol-texto').textContent = bolBlob
     ? '📄 Repetir foto / Retake photo'
-    : '📄 Tomar o elegir foto del BOL / Take or choose BOL photo';
+    : '📄 Tomar foto del BOL / Take BOL photo';
 }
 
 async function bolFotoTomada(input) {
