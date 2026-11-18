@@ -55,7 +55,7 @@
 const SUP_URL='https://xzwlbrirzfogbqhywtvj.supabase.co';
 const SUP_KEY='sb_publishable_tCmUG5g7RZbqPPFD3G4U7w_jLrsu01G';
 const H={apikey:SUP_KEY,Authorization:'Bearer '+SUP_KEY};
-const COLS=[['codigo_completo','Código (GTIN-14)'],['nombre','Nombre'],['marca','Marca'],['variante','Variante'],['nivel','Nivel'],['contenido_neto','Cont.'],['unidad','Unidad'],['codigo_interno','Cód. interno'],['estatus_verified','Verified']];
+const COLS=[['codigo_completo','Código (GTIN-14)'],['nombre','Nombre'],['marca','Marca'],['variante','Variante'],['nivel','Nivel'],['contenido_neto','Cont.'],['unidad','Unidad'],['codigo_interno','Cód. interno'],['imagen','Barras'],['estatus_verified','Verified']];
 const VER={0:'0 · Innovación',1:'1 · No enviado',2:'2 · Enviado incompleto',3:'3 · Enviado completo'};
 const PAGE=50; let rows=[],view=[],page=0,sortK='id_origen',sortD=1;
 const $=id=>document.getElementById(id);
@@ -92,8 +92,9 @@ function render(){
     <td class="mono copy" title="Copiar" data-c="${esc(r.codigo_completo)}">${esc(r.codigo_completo)}</td>
     <td>${esc(r.nombre)||'<span class="tag">sin nombre</span>'}</td><td>${esc(r.marca)}</td><td>${esc(r.variante)}</td>
     <td>${esc(r.nivel)}</td><td>${r.contenido_neto}</td><td>${esc(r.unidad)}</td><td class="mono">${esc(r.codigo_interno)}</td>
+    <td>${r.imagen?`<img src="${r.imagen}" alt="barras" data-img="${esc(r.codigo_completo)}" style="height:26px;cursor:zoom-in;background:#fff;border-radius:3px;vertical-align:middle">`:''}</td>
     <td><span class="tag v${r.estatus_verified}">${VER[r.estatus_verified]||r.estatus_verified}</span></td></tr>`).join('')
-    ||'<tr><td colspan="9" style="text-align:center;color:var(--muted)">Sin resultados</td></tr>';
+    ||'<tr><td colspan="10" style="text-align:center;color:var(--muted)">Sin resultados</td></tr>';
   $('count').textContent=`${view.length} de ${rows.length} códigos`;
   $('pg').textContent=`Página ${page+1} de ${pages}`; $('prev').disabled=page===0; $('next').disabled=page>=pages-1;
 }
@@ -108,6 +109,11 @@ $('csv').onclick=()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+t],{type:'text/csv'}));a.download='upc_modular.csv';a.click();
 };
 load().catch(e=>{$('err').style.display='block';$('err').textContent=/relation|does not exist|42P01|PGRST205/.test(e.message)?'La tabla upc_modular aún no existe: corre upc_modular_setup.sql en el SQL Editor de Supabase.':'Error: '+e.message;});
+</script>
+<div id="bcm" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);align-items:center;justify-content:center;z-index:50;cursor:zoom-out"><div style="background:#fff;padding:16px 20px;border-radius:10px;text-align:center"><img id="bcimg" style="width:340px;max-width:80vw;display:block"><div id="bccod" style="font:600 14px monospace;color:#111;margin-top:8px"></div></div></div>
+<script>
+document.getElementById('tbody').addEventListener('click',e=>{const c=e.target.dataset&&e.target.dataset.img;if(c){document.getElementById('bcimg').src=e.target.src;document.getElementById('bccod').textContent=c;document.getElementById('bcm').style.display='flex';}});
+document.getElementById('bcm').onclick=()=>document.getElementById('bcm').style.display='none';
 </script>
 </body>
 </html>
